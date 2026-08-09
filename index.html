@@ -89,39 +89,39 @@ body{
 #scene.warp-pulse{animation:campus-breathe 9s ease-in-out infinite, warp .9s cubic-bezier(.22,1,.36,1);}
 @keyframes warp{0%{scale:1}35%{scale:1.055}100%{scale:1}}
 
-/* The great lawn */
+/* The great lawn — clipped English turf with mowing stripes */
 .ground{
   position:absolute;inset:0;
   transform-style:preserve-3d;
   border-radius:26px;
   background:
-    radial-gradient(340px 340px at 160px 160px, rgba(16,185,129,.14), transparent 70%),
-    radial-gradient(300px 300px at 475px 155px, rgba(245,158,11,.12), transparent 70%),
-    radial-gradient(300px 300px at 160px 460px, rgba(56,189,248,.13), transparent 70%),
-    radial-gradient(320px 320px at 470px 460px, rgba(167,139,250,.13), transparent 70%),
-    repeating-linear-gradient(0deg, rgba(148,163,184,.055) 0 1px, transparent 1px 40px),
-    repeating-linear-gradient(90deg, rgba(148,163,184,.055) 0 1px, transparent 1px 40px),
-    linear-gradient(135deg,#101a2c 0%,#0d1626 45%,#0c1a26 100%);
-  border:1px solid rgba(148,163,184,.22);
+    radial-gradient(340px 340px at 160px 160px, rgba(16,185,129,.10), transparent 70%),
+    radial-gradient(300px 300px at 475px 155px, rgba(245,158,11,.08), transparent 70%),
+    radial-gradient(300px 300px at 160px 460px, rgba(56,189,248,.08), transparent 70%),
+    radial-gradient(320px 320px at 470px 460px, rgba(167,139,250,.09), transparent 70%),
+    repeating-linear-gradient(45deg, rgba(220,240,190,.030) 0 26px, transparent 26px 52px),
+    radial-gradient(95% 95% at 50% 45%, #17331e 0%, #112618 52%, #0c1d10 100%);
+  border:1px solid rgba(168,180,140,.30);
   box-shadow:
     0 0 0 1px rgba(7,11,20,.9),
-    0 0 90px rgba(56,90,160,.25),
-    inset 0 0 120px rgba(0,0,0,.55);
+    0 0 90px rgba(46,90,60,.28),
+    inset 0 0 120px rgba(0,0,0,.5);
 }
 .ground::after{ /* soft rim light on the plane edge */
   content:"";position:absolute;inset:-2px;border-radius:26px;pointer-events:none;
-  box-shadow:inset 0 0 0 1px rgba(212,175,106,.14);
+  box-shadow:inset 0 0 0 1px rgba(212,175,106,.15);
 }
 .plinth{ /* stone underside of the floating campus slab */
   position:absolute;inset:0;border-radius:26px;
   transform:translateZ(-26px);
-  background:linear-gradient(135deg,#0a1322,#070d18);
+  background:linear-gradient(135deg,#1c1812,#100d0a);
   box-shadow:0 0 80px 30px rgba(0,0,0,.65);
 }
 .walk{position:absolute;background:
-    repeating-linear-gradient(90deg, rgba(232,227,213,.05) 0 14px, rgba(232,227,213,.10) 14px 16px),
-    linear-gradient(180deg,rgba(203,213,225,.16),rgba(203,213,225,.09));
-  border:1px solid rgba(203,213,225,.14);
+    repeating-linear-gradient(90deg, rgba(228,216,188,.055) 0 13px, rgba(228,216,188,.12) 13px 15px),
+    repeating-linear-gradient(0deg, rgba(228,216,188,.05) 0 21px, rgba(228,216,188,.10) 21px 23px),
+    linear-gradient(180deg,rgba(216,206,178,.17),rgba(216,206,178,.09));
+  border:1px solid rgba(216,206,178,.17);
   box-shadow:inset 0 0 12px rgba(0,0,0,.35);
 }
 .plaza{
@@ -161,21 +161,67 @@ body{
   filter:blur(6px);pointer-events:none;
 }
 .b3d.deco{cursor:default;}
-/* NOTE: never put filter/opacity on .b3d itself — any grouping property
-   flattens its preserve-3d children in Chromium. Filter the faces only. */
-.b3d:not(.deco):hover{transform:translateZ(14px);}
-.b3d:not(.deco):hover .face{filter:brightness(1.18) saturate(1.15);}
-.b3d:not(.deco).active{transform:translateZ(10px);}
-.b3d:not(.deco).active .face{filter:brightness(1.24) saturate(1.25);}
-.b3d:not(.deco).active .roof{box-shadow:inset 0 0 30px rgba(0,0,0,.3), 0 0 34px var(--glow);}
-.b3d .face{transition:filter .3s ease;}
-
-/* window texture painted on walls */
-.win-v{
-  background-image:
-    repeating-linear-gradient(90deg, transparent 0 12px, var(--win) 12px 20px, transparent 20px 30px),
-    repeating-linear-gradient(0deg, transparent 0 10px, rgba(255,255,240,.06) 10px 22px, transparent 22px 34px);
+/* A whole hall (base + tower + spire + finial) travels as one group.
+   NOTE: never put filter/opacity on a preserve-3d container — any grouping
+   property flattens its 3D children in Chromium. Filter the faces only. */
+.bgroup{
+  position:absolute;inset:0;
+  transform-style:preserve-3d;
+  pointer-events:none;
+  transition:transform .35s cubic-bezier(.22,1,.36,1);
 }
+.bgroup .b3d{pointer-events:auto;cursor:pointer;}
+.bgroup:hover{transform:translateZ(14px);}
+.bgroup:hover .face{filter:brightness(1.22) saturate(1.12);}
+.bgroup.active{transform:translateZ(10px);}
+.bgroup.active .face{filter:brightness(1.3) saturate(1.2);}
+.bgroup.active .roof{box-shadow:inset 0 0 30px rgba(0,0,0,.3), 0 0 34px var(--glow);}
+.bgroup.lit .face{filter:brightness(1.32) saturate(1.25);}
+.b3d .face{transition:filter .3s ease;}
+.b3d .wall,.b3d .spire-face{image-rendering:auto;}
+
+/* glowing finial lamp at each spire's peak */
+.finial .fdot{
+  width:12px;height:12px;margin-left:-6px;border-radius:50%;
+  background:radial-gradient(circle at 45% 40%, #fff8e0, var(--fc) 45%, transparent 72%);
+  box-shadow:0 0 16px 3px var(--fc);
+  animation:twinkle 4.5s ease-in-out infinite;
+}
+
+/* campus elms — billboarded, gently swaying */
+.tree{position:absolute;left:0;top:0;transform-style:preserve-3d;pointer-events:none;}
+.tree .sprite{
+  position:relative;width:58px;height:80px;
+  transform-origin:50% 100%;
+  animation:tree-sway 8s ease-in-out infinite alternate;
+}
+@keyframes tree-sway{
+  from{transform:translate(-50%,-100%) scale(var(--s,1)) rotate(-1.4deg)}
+  to  {transform:translate(-50%,-100%) scale(var(--s,1)) rotate(1.4deg)}
+}
+.tree .c1,.tree .c2,.tree .c3{position:absolute;border-radius:50%;
+  background:radial-gradient(circle at 34% 28%, #35663f, #1d4426 55%, #122b17 100%);
+  box-shadow:inset -6px -8px 14px rgba(0,0,0,.45);}
+.tree .c1{left:7px;top:0;width:44px;height:40px;}
+.tree .c2{left:0;top:16px;width:32px;height:30px;}
+.tree .c3{left:27px;top:15px;width:31px;height:29px;}
+.tree .trunk{position:absolute;left:50%;bottom:6px;width:7px;height:26px;transform:translateX(-50%);
+  border-radius:3px;background:linear-gradient(90deg,#4a3a28,#2c2115 70%);}
+.tree .tshadow{position:absolute;left:50%;bottom:0;width:40px;height:10px;transform:translateX(-50%);
+  border-radius:50%;background:rgba(0,0,0,.42);filter:blur(3px);}
+
+/* harvest moon over the quad */
+.moon{
+  position:absolute;right:11%;top:8%;width:84px;height:84px;border-radius:50%;
+  pointer-events:none;z-index:1;opacity:.92;
+  background:radial-gradient(circle at 37% 34%, #fdf8ea, #ecdfc2 55%, #c9bfa2);
+  box-shadow:0 0 70px 22px rgba(240,228,196,.16), inset -18px -12px 28px rgba(120,108,84,.5);
+}
+.moon::after{content:"";position:absolute;inset:0;border-radius:50%;
+  background:
+    radial-gradient(10px 10px at 62% 30%, rgba(140,128,100,.35), transparent 70%),
+    radial-gradient(14px 14px at 36% 58%, rgba(140,128,100,.3), transparent 70%),
+    radial-gradient(8px 8px at 66% 66%, rgba(140,128,100,.28), transparent 70%);}
 
 /* light beacon rising from the selected hall */
 .beacon{
@@ -360,9 +406,12 @@ body{
 
 @media (max-width:1023px){
   #scene{--zoom:.66;}
+  #stage{padding-top:7.5rem;}
+  .moon{width:54px;height:54px;top:5%;right:5%;}
 }
 @media (max-width:639px){
   #scene{--zoom:.5;}
+  #stage{padding-top:8.5rem;}
 }
 </style>
 </head>
@@ -417,10 +466,11 @@ body{
     <div class="gsplat" style="right:2%;top:40%;width:300px;height:280px;background:rgba(167,139,250,.13);animation-delay:-8s"></div>
     <div class="gsplat" style="left:26%;bottom:2%;width:360px;height:260px;background:rgba(16,185,129,.11);animation-delay:-14s"></div>
     <div class="gsplat" style="right:24%;top:6%;width:240px;height:220px;background:rgba(245,158,11,.10);animation-delay:-4s"></div>
+    <div class="moon"></div>
 
     <div class="absolute inset-x-0 top-0 pt-6 sm:pt-8 px-6 sm:px-10 z-10 pointer-events-none">
-      <h1 class="font-serif-d text-3xl sm:text-4xl font-semibold text-[color:var(--parchment)] leading-tight drop-shadow-lg">The Campus <span class="italic text-[color:var(--brass)]">Quadrangle</span></h1>
-      <p class="text-[13px] text-slate-400 mt-1.5 max-w-md">Four halls, one degree. <span class="text-slate-300">Click a building</span> to step inside its lecture wing — or wander the lawn with the cohort.</p>
+      <h1 class="font-serif-d text-3xl sm:text-4xl font-semibold text-[color:var(--parchment)] leading-tight drop-shadow-lg">The Gothic <span class="italic text-[color:var(--brass)]">Quadrangle</span></h1>
+      <p class="text-[13px] text-slate-400 mt-1.5 max-w-md">Four halls of hewn granite, glowing tracery, and slate spires. <span class="text-slate-300">Click a building</span> to step inside its lecture wing — or wander the lawn with the cohort.</p>
     </div>
 
     <!-- the perspective stage -->
@@ -1013,101 +1063,231 @@ const byId = Object.fromEntries(COURSES.map(c => [c.id, c]));
    ══════════════════════════════════════════════════════════════════ */
 const scene = document.getElementById("scene");
 
+/* ── the stone mason: collegiate-gothic SVG wall textures ────────
+   Each wall face is painted with an inline SVG — coursed ashlar stone,
+   buttress piers, crenellated merlons (transparent notches!), battered
+   plinth, hood-moulded lancet windows glowing in the quad's color, ivy. */
+function lancet(cx, y, w, h, acc, dark){
+  const x1 = cx - w/2, x2 = cx + w/2, ys = y + h*0.34, yb = y + h;
+  const arch = `M ${x1} ${yb} L ${x1} ${ys} Q ${x1} ${y+2} ${cx} ${y} Q ${x2} ${y+2} ${x2} ${ys} L ${x2} ${yb} Z`;
+  let s = `<path d="${arch}" fill="${dark ? "#16130f" : "url(#wg)"}" stroke="#221d16" stroke-width="1.2"/>`;
+  /* hood moulding tracing the arch */
+  s += `<path d="M ${x1-2} ${yb} L ${x1-2} ${ys} Q ${x1-2} ${y-0.5} ${cx} ${y-2.5} Q ${x2+2} ${y-0.5} ${x2+2} ${ys} L ${x2+2} ${yb}" fill="none" stroke="#7a7160" stroke-width="1.1" opacity=".8"/>`;
+  if (w >= 13 && !dark){ /* mullion + transom tracery */
+    s += `<line x1="${cx}" y1="${y + h*0.22}" x2="${cx}" y2="${yb}" stroke="#241f18" stroke-width="1.4"/>`;
+    s += `<line x1="${x1}" y1="${ys+4}" x2="${x2}" y2="${ys+4}" stroke="#241f18" stroke-width="1.2"/>`;
+  }
+  return s;
+}
+
+function wallURI(orient, natW, natH, o){
+  o = o || {};
+  const p = o.parapet || 0, acc = o.accent || "#d4af6a", seed = o.seed || 0;
+  let g = "";
+  if (p){ /* crenellated merlons — gaps stay transparent above the roof */
+    for (let mx = 2; mx < natW - 2; mx += 19){
+      g += `<rect x="${mx}" y="0" width="11" height="${p+2}" fill="url(#st)"/>`;
+    }
+  }
+  g += `<rect x="0" y="${p}" width="${natW}" height="${natH-p}" fill="url(#st)"/>`;
+  g += `<rect x="0" y="${p}" width="${natW}" height="${natH-p}" fill="url(#course)"/>`;
+  g += `<rect x="0" y="${p}" width="${natW}" height="2.2" fill="#847b68" opacity=".85"/>`;
+  g += `<rect x="0" y="${natH-11}" width="${natW}" height="11" fill="#332e26"/>`;
+  g += `<rect x="0" y="${natH-12.6}" width="${natW}" height="1.6" fill="#151210"/>`;
+
+  if (o.windows === "lancet"){
+    const cell = 34, m = 8;
+    const n = Math.max(1, Math.floor((natW - m*2) / cell));
+    const x0 = (natW - n*cell) / 2;
+    for (let i = 0; i <= n; i++){ /* buttress piers between the bays */
+      const bx = x0 + i*cell - 3;
+      g += `<rect x="${bx}" y="${p}" width="6" height="${natH-p-9}" fill="#6f6858"/>`;
+      g += `<rect x="${bx+4.5}" y="${p}" width="1.5" height="${natH-p-9}" fill="rgba(10,9,7,.4)"/>`;
+    }
+    const top = p + 9, bot = natH - 15, sh = 35;
+    const stories = Math.max(1, Math.floor((bot - top) / sh));
+    for (let r = 0; r < stories; r++){
+      const wy = top + r*sh + 5;
+      for (let i = 0; i < n; i++){
+        const cx = x0 + i*cell + cell/2;
+        g += lancet(cx, wy, 12, 25, acc, (i*3 + r*2 + seed) % 4 === 0);
+      }
+      if (r < stories - 1) g += `<rect x="0" y="${top + (r+1)*sh - 1}" width="${natW}" height="1.6" fill="#786f5e" opacity=".55"/>`;
+    }
+  } else if (o.windows === "grand"){ /* tall traceried bell-tower lights */
+    const sh = 58;
+    const stories = Math.max(1, Math.floor((natH - p - 24) / sh));
+    for (let r = 0; r < stories; r++){
+      const wy = p + 12 + r*sh;
+      if (natW >= 78){
+        g += lancet(natW/2 - 13, wy, 17, 44, acc, false);
+        g += lancet(natW/2 + 13, wy, 17, 44, acc, false);
+      } else {
+        g += lancet(natW/2, wy, 19, 44, acc, false);
+      }
+    }
+    g += `<rect x="2" y="${p}" width="4.5" height="${natH-p-9}" fill="#6f6858"/>`;
+    g += `<rect x="${natW-6.5}" y="${p}" width="4.5" height="${natH-p-9}" fill="#6f6858"/>`;
+  }
+
+  if (o.ivy){
+    const iy = natH - 12;
+    g += `<g fill="#1d3d26" opacity=".62">`
+       + `<ellipse cx="8" cy="${iy-8}" rx="12" ry="16"/><ellipse cx="16" cy="${iy-24}" rx="8" ry="12"/>`
+       + `<ellipse cx="24" cy="${iy-6}" rx="10" ry="9"/><ellipse cx="10" cy="${iy-40}" rx="6" ry="9"/>`
+       + `<ellipse cx="${natW-10}" cy="${iy-6}" rx="11" ry="10"/><ellipse cx="${natW-16}" cy="${iy-20}" rx="7" ry="10"/>`
+       + `</g>`;
+  }
+
+  const defs = `<defs>`
+    + `<linearGradient id="st" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#665f50"/><stop offset="1" stop-color="#403b31"/></linearGradient>`
+    + `<linearGradient id="wg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${acc}" stop-opacity=".22"/><stop offset=".6" stop-color="${acc}" stop-opacity=".8"/><stop offset="1" stop-color="#ffedbe" stop-opacity=".95"/></linearGradient>`
+    + `<pattern id="course" width="30" height="20" patternUnits="userSpaceOnUse"><path d="M0 0.5 H30 M0 10.5 H30 M7.5 0.5 V10.5 M22.5 10.5 V20" stroke="rgba(12,11,8,.17)" stroke-width="1" fill="none"/></pattern>`
+    + `</defs>`;
+
+  let svg;
+  if (orient === "side" || orient === "plain-side"){ /* west/east walls: div-x axis is world-up */
+    svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${natH}" height="${natW}">${defs}<g transform="translate(${natH} 0) rotate(90)">${g}</g></svg>`;
+  } else if (orient === "south"){ /* rendered as a backface: pre-mirror it */
+    svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${natW}" height="${natH}">${defs}<g transform="translate(${natW} 0) scale(-1 1)">${g}</g></svg>`;
+  } else {
+    svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${natW}" height="${natH}">${defs}${g}</svg>`;
+  }
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+
 function buildBox(o){
-  /* o = {x, y, w, d, h, cls, roofBg, wallBg, glow, sector, deco} */
+  /* o = {x, y, w, d, h, cls, parent, deco, glow,
+          stone:true + {parapet, windows, ivy, accent, seed}  — gothic mode
+          roofBg/wallBg/wallBg2                               — plain mode } */
   const b = document.createElement("div");
   b.className = "b3d " + (o.cls || "") + (o.deco ? " deco" : "");
   b.style.cssText = `left:${o.x}px;top:${o.y}px;width:${o.w}px;height:${o.d}px;--glow:${o.glow || "transparent"}`;
-  if (o.sector) b.dataset.sector = o.sector;
 
   const shadow = document.createElement("div");
   shadow.className = "shadow";
   b.appendChild(shadow);
 
-  /* west wall — plane x=0, faces the lower-left of the screen */
-  const wl = document.createElement("div");
-  wl.className = "face wall wall-l" + (o.windows ? " win-v" : "");
-  wl.style.cssText = `width:${o.h}px;height:${o.d}px;transform-origin:left center;transform:rotateY(-90deg);background:${o.wallBg};--win:${o.winColor || "transparent"}`;
-  b.appendChild(wl);
+  const face = (cls, css) => {
+    const f = document.createElement("div");
+    f.className = cls; f.style.cssText = css;
+    b.appendChild(f); return f;
+  };
 
-  /* south wall — plane y=d, faces the lower-right of the screen */
-  const wr = document.createElement("div");
-  wr.className = "face wall wall-r" + (o.windows ? " win-v" : "");
-  wr.style.cssText = `width:${o.w}px;height:${o.h}px;top:${o.d}px;transform-origin:center top;transform:rotateX(90deg);background:${o.wallBg2 || o.wallBg};--win:${o.winColor || "transparent"}`;
-  b.appendChild(wr);
+  if (o.stone){
+    /* four stone walls — parapets rise above the roofline on every side */
+    const wallH = o.h + (o.parapet || 0);
+    const t = { accent:o.accent, parapet:o.parapet, seed:o.seed };
+    /* west wall — faces the lower-left of the screen */
+    face("face wall wall-l",
+      `width:${wallH}px;height:${o.d}px;transform-origin:left center;transform:rotateY(-90deg);` +
+      `background-image:${wallURI("side", o.d, wallH, {...t, windows:o.windows, ivy:o.ivy})};background-size:100% 100%;`);
+    /* south wall — faces the lower-right */
+    face("face wall wall-r",
+      `width:${o.w}px;height:${wallH}px;top:${o.d}px;transform-origin:center top;transform:rotateX(90deg);` +
+      `background-image:${wallURI("south", o.w, wallH, {...t, windows:o.windows})};background-size:100% 100%;`);
+    /* north & east walls — occluded, but their parapet crowns the silhouette */
+    face("face wall",
+      `width:${o.w}px;height:${wallH}px;top:0;transform-origin:center top;transform:rotateX(90deg);` +
+      `background-image:${wallURI("plain", o.w, wallH, t)};background-size:100% 100%;`);
+    face("face wall",
+      `width:${wallH}px;height:${o.d}px;left:${o.w}px;top:0;transform-origin:left center;transform:rotateY(-90deg);` +
+      `background-image:${wallURI("plain-side", o.d, wallH, t)};background-size:100% 100%;`);
+    /* flat lead roof, recessed inside the parapet walk */
+    face("face roof",
+      `transform:translateZ(${o.h}px);background:` +
+      `radial-gradient(62% 62% at 50% 50%, rgba(0,0,0,.3), transparent 78%),` +
+      `linear-gradient(135deg,#39352c,#242119 72%);`);
+  } else {
+    face("face wall wall-l", `width:${o.h}px;height:${o.d}px;transform-origin:left center;transform:rotateY(-90deg);background:${o.wallBg}`);
+    face("face wall wall-r", `width:${o.w}px;height:${o.h}px;top:${o.d}px;transform-origin:center top;transform:rotateX(90deg);background:${o.wallBg2 || o.wallBg}`);
+    face("face roof", `transform:translateZ(${o.h}px);background:${o.roofBg}`);
+  }
 
-  /* roof — lifted to full height */
-  const roof = document.createElement("div");
-  roof.className = "face roof";
-  roof.style.cssText = `transform:translateZ(${o.h}px);background:${o.roofBg}`;
-  b.appendChild(roof);
-
-  scene.appendChild(b);
+  (o.parent || scene).appendChild(b);
   return b;
 }
 
-/* the four halls: base slab + signature upper mass, per-quad glow */
+/* ── slate spires: four clip-path triangles leaning to one apex ── */
+function buildSpire(parent, o){
+  /* o = {x, y, w, d, z, h} — pyramid of height h sitting at altitude z */
+  const b = document.createElement("div");
+  b.className = "b3d spire";
+  b.style.cssText = `left:${o.x}px;top:${o.y}px;width:${o.w}px;height:${o.d}px`;
+  const sNS = Math.hypot(o.h, o.d/2), sEW = Math.hypot(o.h, o.w/2);
+  const aS = 180 - Math.atan2(o.h, o.d/2) * 180/Math.PI;
+  const aN = Math.atan2(o.h, o.d/2) * 180/Math.PI;
+  const aW = -Math.atan2(o.h, o.w/2) * 180/Math.PI;
+  const aE = -(180 - Math.atan2(o.h, o.w/2) * 180/Math.PI);
+  [ /* south face — catches the low light */
+    `left:0;top:${o.d}px;width:${o.w}px;height:${sNS}px;transform-origin:center top;transform:translateZ(${o.z}px) rotateX(${aS}deg);clip-path:polygon(0 0,100% 0,50% 100%);background:linear-gradient(180deg,#3d382e,#1d1b16 85%);`,
+    /* north face */
+    `left:0;top:0;width:${o.w}px;height:${sNS}px;transform-origin:center top;transform:translateZ(${o.z}px) rotateX(${aN}deg);clip-path:polygon(0 0,100% 0,50% 100%);background:#191712;`,
+    /* west face */
+    `left:0;top:0;width:${sEW}px;height:${o.d}px;transform-origin:left center;transform:translateZ(${o.z}px) rotateY(${aW}deg);clip-path:polygon(0 0,100% 50%,0 100%);background:linear-gradient(90deg,#343027,#191712 88%);`,
+    /* east face */
+    `left:${o.w}px;top:0;width:${sEW}px;height:${o.d}px;transform-origin:left center;transform:translateZ(${o.z}px) rotateY(${aE}deg);clip-path:polygon(0 0,100% 50%,0 100%);background:#14120e;`,
+  ].forEach(css => {
+    const f = document.createElement("div");
+    f.className = "face spire-face";
+    f.style.cssText = css;
+    b.appendChild(f);
+  });
+  parent.appendChild(b);
+  return b;
+}
+
+/* the four gothic halls: crenellated base court + bell tower + slate spire */
 const BUILDINGS = [
-  { sector:"lib", label:{x:160, y:160, z:200},
-    parts:[
-      { x:60,  y:60,  w:200, d:200, h:96,
-        roofBg:"linear-gradient(135deg,#123a30,#0c2b24 60%,#0a231e)",
-        wallBg:"linear-gradient(180deg,#0e2f28,#123a30)",
-        winColor:"rgba(110,231,183,.34)", windows:true, glow:"rgba(16,185,129,.55)" },
-      { x:108, y:108, w:104, d:104, h:172,
-        roofBg:"radial-gradient(circle at 35% 35%, #1f6f57, #0f3d31 70%)",
-        wallBg:"linear-gradient(180deg,#155343,#0e352b)",
-        winColor:"rgba(110,231,183,.42)", windows:true, glow:"rgba(16,185,129,.6)" },
-    ]},
-  { sector:"eng", label:{x:475, y:155, z:158},
-    parts:[
-      { x:380, y:80,  w:190, d:150, h:88,
-        roofBg:"linear-gradient(135deg,#4a3413,#332309 60%,#291c07)",
-        wallBg:"linear-gradient(180deg,#3d2b0f,#4a3413)",
-        winColor:"rgba(252,211,77,.4)", windows:true, glow:"rgba(245,158,11,.55)" },
-      { x:398, y:96,  w:80,  d:118, h:132,
-        roofBg:"linear-gradient(135deg,#7c5a1e,#4a3413 70%)",
-        wallBg:"linear-gradient(180deg,#5c431a,#3a2a0e)",
-        winColor:"rgba(252,211,77,.5)", windows:true, glow:"rgba(245,158,11,.6)" },
-    ]},
-  { sector:"sci", label:{x:160, y:460, z:176},
-    parts:[
-      { x:70,  y:380, w:180, d:160, h:84,
-        roofBg:"linear-gradient(135deg,#123650,#0c283d 60%,#0a2133)",
-        wallBg:"linear-gradient(180deg,#0e2c42,#123650)",
-        winColor:"rgba(125,211,252,.42)", windows:true, glow:"rgba(56,189,248,.55)" },
-      { x:150, y:398, w:84,  d:124, h:150,
-        roofBg:"linear-gradient(135deg,#1c5a82,#113a55 70%)",
-        wallBg:"linear-gradient(180deg,#164968,#0e2c42)",
-        winColor:"rgba(125,211,252,.5)", windows:true, glow:"rgba(56,189,248,.6)" },
-    ]},
-  { sector:"adm", label:{x:470, y:460, z:218},
-    parts:[
-      { x:380, y:370, w:180, d:180, h:104,
-        roofBg:"linear-gradient(135deg,#33254f,#251a3c 60%,#1d1430)",
-        wallBg:"linear-gradient(180deg,#2a1f42,#33254f)",
-        winColor:"rgba(196,181,253,.4)", windows:true, glow:"rgba(167,139,250,.55)" },
-      { x:434, y:424, w:72,  d:72,  h:192,
-        roofBg:"radial-gradient(circle at 35% 35%, #6d54ab, #3a2a63 72%)",
-        wallBg:"linear-gradient(180deg,#4a3878,#291d47)",
-        winColor:"rgba(196,181,253,.55)", windows:true, glow:"rgba(167,139,250,.65)" },
-    ]},
+  { sector:"lib", label:{x:160, y:160, z:238},
+    hall:{x:60,  y:60,  w:200, d:200, h:84,  seed:1},
+    tower:{x:114, y:114, w:92, d:92, h:146, spire:78} },
+  { sector:"eng", label:{x:475, y:155, z:196},
+    hall:{x:380, y:80,  w:190, d:150, h:76,  seed:2},
+    tower:{x:386, y:86,  w:66, d:66, h:118, spire:62} },
+  { sector:"sci", label:{x:160, y:460, z:210},
+    hall:{x:70,  y:380, w:180, d:160, h:74,  seed:3},
+    tower:{x:152, y:396, w:72, d:72, h:126, spire:68} },
+  { sector:"adm", label:{x:470, y:460, z:270},
+    hall:{x:380, y:370, w:180, d:180, h:92,  seed:4},
+    tower:{x:432, y:422, w:76, d:76, h:158, spire:96} },
 ];
 
-const buildingEls = {};   // sector -> [box elements]
+const buildingEls = {};   // sector -> [group element]
 const labelEls = {};      // sector -> progress span
 
 BUILDINGS.forEach(spec => {
   const S = SECTORS[spec.sector];
-  buildingEls[spec.sector] = spec.parts.map(p =>
-    buildBox({ ...p, sector: spec.sector, cls: "hall-" + spec.sector })
-  );
-  buildingEls[spec.sector].forEach(el => {
-    el.addEventListener("click", () => selectSector(spec.sector, true));
-    el.setAttribute("role", "button");
-    el.setAttribute("aria-label", "Enter " + S.hall);
-    el.title = S.hall + " — " + S.track;
-  });
+  const group = document.createElement("div");
+  group.className = "bgroup";
+  group.dataset.sector = spec.sector;
+  scene.appendChild(group);
+
+  /* the great hall — crenellated parapet, lancet bays, ivy at the plinth */
+  buildBox({ ...spec.hall, stone:true, parapet:9, windows:"lancet", ivy:true,
+             accent:S.color, glow:S.soft + ".55)", parent:group, cls:"hall-" + spec.sector });
+  /* the bell tower — crenellated crown, traceried lights, steep slate
+     spire rising from inside the parapet walk */
+  const t = spec.tower;
+  buildBox({ x:t.x, y:t.y, w:t.w, d:t.d, h:t.h, stone:true, parapet:7, windows:"grand",
+             seed:spec.hall.seed + 3, accent:S.color, glow:S.soft + ".6)",
+             parent:group, cls:"hall-" + spec.sector });
+  const inset = Math.round(t.w * 0.15);
+  buildSpire(group, { x:t.x + inset, y:t.y + inset,
+                      w:t.w - inset*2, d:t.d - inset*2, z:t.h, h:t.spire });
+
+  /* lamp burning at the spire's peak, in the quad's color */
+  const fin = document.createElement("div");
+  fin.className = "billboard finial";
+  fin.style.transform = `translate3d(${t.x + t.w/2}px, ${t.y + t.d/2}px, ${t.h + t.spire + 2}px)`;
+  fin.innerHTML = `<div class="bb-inner"><div class="fdot" style="--fc:${S.color}"></div></div>`;
+  group.appendChild(fin);
+
+  buildingEls[spec.sector] = [group];
+  group.addEventListener("click", () => selectSector(spec.sector, true));
+  group.setAttribute("role", "button");
+  group.setAttribute("aria-label", "Enter " + S.hall);
+  group.querySelectorAll(".b3d").forEach(el => el.title = S.hall + " — " + S.track);
 
   /* floating billboarded nameplate above the hall */
   const lab = document.createElement("div");
@@ -1150,6 +1330,19 @@ BUILDINGS.forEach(spec => {
   halo.className = "fly";
   halo.style.cssText = `left:${lx - 6}px;top:${ly - 6}px;width:26px;height:26px;--dx:0px;--dy:0px;--t:4s;transform:translateZ(70px);animation-name:twinkle;`;
   scene.appendChild(halo);
+});
+
+/* campus elms — formal allées flanking the walks, groves at the bounds */
+[
+  [36,168,1.0],[168,36,.85],[472,36,.9],[604,96,1.0],[36,244,.8],
+  [36,472,1.05],[90,606,1.0],[240,606,.9],[470,606,1.05],[604,472,.95],
+  [285,90,.8],[355,92,.85],[285,556,.85],[355,554,.8],
+].forEach(([tx,ty,ts]) => {
+  const el = document.createElement("div");
+  el.className = "tree billboard";
+  el.style.transform = `translate3d(${tx}px, ${ty}px, 0.5px)`;
+  el.innerHTML = `<div class="bb-inner"><div class="sprite" style="--s:${ts}"><div class="tshadow"></div><div class="trunk"></div><div class="c2"></div><div class="c3"></div><div class="c1"></div></div></div>`;
+  scene.appendChild(el);
 });
 
 /* fireflies drifting over the lawn */
@@ -1591,7 +1784,7 @@ function selectSector(key, fromCampus){
   localStorage.setItem(LS_SECTOR, key);
 
   /* campus visuals */
-  document.querySelectorAll(".b3d[data-sector]").forEach(el =>
+  document.querySelectorAll(".bgroup[data-sector]").forEach(el =>
     el.classList.toggle("active", el.dataset.sector === key));
   scene.classList.remove("warp-pulse");
   void scene.offsetWidth;            /* restart the pulse animation */
@@ -1651,7 +1844,7 @@ renderBanner();
 renderCourses();
 refreshProgress();
 if (currentSector !== "all"){
-  document.querySelectorAll(".b3d[data-sector]").forEach(el =>
+  document.querySelectorAll(".bgroup[data-sector]").forEach(el =>
     el.classList.toggle("active", el.dataset.sector === currentSector));
 }
 setTimeout(() => toast("Welcome to Pembroke Academy", "Click any hall on the quad to step inside — or press 0 for the full master syllabus. Your progress is saved automatically.", "#d4af6a", 6500), 900);
