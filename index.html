@@ -1935,6 +1935,7 @@ function pathPlane(px, py, w, d, y = 0.25){
   world.add(m);
   return m;
 }
+let fountainWater = null;
 /* the great oval ring + spokes (same plan as before) */
 {
   const ring = new THREE.Mesh(new THREE.RingGeometry(168, 197, 96), pathMat);
@@ -1985,14 +1986,29 @@ function pathPlane(px, py, w, d, y = 0.25){
     new THREE.MeshStandardMaterial({ color: 0x8a8272, roughness: 1 }));
   basin.position.y = 3.5; basin.castShadow = basin.receiveShadow = true;
   world.add(basin);
+  /* moving water: rippled disc that swirls, plus a spray plume */
+  const rippleTex = canvasTex(128, (x, px) => {
+    x.fillStyle = "#2e5f80"; x.fillRect(0, 0, px, px);
+    for (let r2 = 8; r2 < 96; r2 += 9){
+      x.strokeStyle = `rgba(210,235,250,${0.05 + (r2 % 27) / 200})`;
+      x.lineWidth = 1.6;
+      x.beginPath(); x.arc(64, 64, r2, 0, Math.PI * 2); x.stroke();
+    }
+    speck(x, px, 400, ["#3e7098", "#245070", "#5a8cb0"], 0.6);
+  });
   const water = new THREE.Mesh(new THREE.CircleGeometry(21, 24),
-    new THREE.MeshStandardMaterial({ color: 0x2e5f80, roughness: 0.08, metalness: 0.55 }));
+    new THREE.MeshStandardMaterial({ map: rippleTex, roughness: 0.06, metalness: 0.55, envMapIntensity: 1.2 }));
   water.rotation.x = -Math.PI / 2; water.position.y = 7.2;
+  fountainWater = water;
   world.add(water);
   const jet = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 3.2, 15, 10),
     basin.material);
   jet.position.y = 11; jet.castShadow = true;
   world.add(jet);
+  const spray = new THREE.Mesh(new THREE.ConeGeometry(3.4, 11, 10, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xdff0fa, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide }));
+  spray.position.y = 20.5; spray.rotation.x = Math.PI;
+  world.add(spray);
   COLLIDERS.push({ x: 474, y: 474, w: 52, d: 52 });   /* fountain */
 }
 /* parking lots with stall stripes */
@@ -2731,8 +2747,17 @@ for (let k = 0; k < 8; k++){
   LAMPS.push([500 + 210 * Math.cos(a), 500 + 210 * Math.sin(a)]);
 }
 const lampGlowMats = [];
+/* college pennants hung from every lamp post */
+const bannerTex = canvasTex(64, (x) => {
+  x.fillStyle = "#0f1b2d"; x.fillRect(0, 0, 64, 64);
+  x.strokeStyle = "#d4af6a"; x.lineWidth = 5; x.strokeRect(4, 4, 56, 56);
+  x.fillStyle = "#d4af6a"; x.font = "bold 40px Georgia";
+  x.textAlign = "center"; x.textBaseline = "middle";
+  x.fillText("P", 32, 36);
+});
+const bannerMat = new THREE.MeshStandardMaterial({ map: bannerTex, side: THREE.DoubleSide, roughness: 0.85 });
 gltf.load("assets/lamp.glb", (g) => {
-  LAMPS.forEach(([px, py]) => {
+  LAMPS.forEach(([px, py], li) => {
     const lamp = g.scene.clone(true);
     lamp.traverse(o => {
       if (o.isMesh){
@@ -2745,6 +2770,15 @@ gltf.load("assets/lamp.glb", (g) => {
     });
     lamp.position.set(W(px), 0, W(py));
     world.add(lamp);
+    const ba = (li * 2.1) % (Math.PI * 2);
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.9, 6), bannerMat);
+    arm.position.set(W(px) + Math.sin(ba) * 3, 37, W(py) + Math.cos(ba) * 3);
+    arm.rotation.y = ba;
+    world.add(arm);
+    const banner = new THREE.Mesh(new THREE.PlaneGeometry(7, 10), bannerMat);
+    banner.position.set(W(px) + Math.sin(ba) * 5.6, 31.4, W(py) + Math.cos(ba) * 5.6);
+    banner.rotation.y = ba + Math.PI / 2;
+    world.add(banner);
     const pl = new THREE.PointLight(0xffb45e, 0, 130, 1.8);
     pl.position.set(W(px), 44, W(py));
     world.add(pl);
@@ -2752,6 +2786,36 @@ gltf.load("assets/lamp.glb", (g) => {
   });
   engineSetMode(typeof mode === "string" ? mode : "day");
 });
+/* bike racks by the hall doors, Adirondack pairs on the lawn */
+{
+  const rackMat = new THREE.MeshStandardMaterial({ color: 0x2c2f34, metalness: 0.65, roughness: 0.4 });
+  [[288,318],[712,298],[264,812],[758,824]].forEach(([px, py]) => {
+    for (let k = 0; k < 3; k++){
+      const hoop = new THREE.Mesh(new THREE.TorusGeometry(3.2, 0.4, 6, 10, Math.PI), rackMat);
+      hoop.position.set(W(px + k * 7), 0.4, W(py));
+      hoop.castShadow = true;
+      world.add(hoop);
+    }
+  });
+  const CHAIR_TONES = [0xe8e2d2, 0x9db89a, 0x9fb9cc, 0xd8c37a];
+  [[432,362,0],[578,342,1],[356,548,2],[642,572,3],[540,652,0]].forEach(([px, py, ti]) => {
+    const mat = new THREE.MeshStandardMaterial({ color: CHAIR_TONES[ti], roughness: 0.85 });
+    const ch = new THREE.Group();
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(8, 1.2, 8), mat);
+    seat.position.y = 4.6; seat.rotation.x = -0.16; seat.castShadow = true; ch.add(seat);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(8.4, 10, 1.2), mat);
+    back.position.set(0, 8.6, -4.4); back.rotation.x = 0.3; back.castShadow = true; ch.add(back);
+    [-1, 1].forEach(sx => {
+      const armr = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.9, 9), mat);
+      armr.position.set(sx * 4.9, 6.6, 0); armr.castShadow = true; ch.add(armr);
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(1.2, 4.6, 1.2), mat);
+      leg.position.set(sx * 4.4, 2.3, 3.2); ch.add(leg);
+    });
+    ch.position.set(W(px), 0, W(py));
+    ch.rotation.y = Math.atan2(W(500) - W(px), W(500) - W(py));   /* face the fountain */
+    world.add(ch);
+  });
+}
 /* "Campus Conversation" by restore50 (CC-BY-4.0) — a scanned group of
    students mid-chat, posed on the lawn just off the fountain plaza */
 gltf.load("assets/students.glb", (g) => {
@@ -2795,6 +2859,11 @@ world.add(stars);
 const fireflies = pointsCloud(60, 900, 6, 60, 4, 0xffe9a8);
 fireflies.visible = false;
 world.add(fireflies);
+/* drifting leaves over the quad, all seasons, all hours */
+const leaves = pointsCloud(90, 760, 4, 85, 3.2, 0xc98a3e);
+leaves.material.blending = THREE.NormalBlending;
+leaves.material.opacity = 0.75;
+world.add(leaves);
 
 /* ── students of the quad ────────────────────────────────────────── */
 const WAYPOINTS = { C: [500, 500] };
@@ -3309,6 +3378,7 @@ let cycleT = 0.42, autoCycle = false;
 function engineSetMode(m){
   autoCycle = m === "auto";
   if (m === "day") setTimeOfDay(0.42);
+  else if (m === "golden") setTimeOfDay(0.712);
   else if (m === "night") setTimeOfDay(0.02);
   else { cycleT = 0.28; setTimeOfDay(cycleT); }
 }
@@ -3501,6 +3571,17 @@ renderer.setAnimationLoop(() => {
   if (fireflies.visible){
     fireflies.rotation.y += dt * 0.02;
     fireflies.position.y = Math.sin(now / 1700) * 4;
+  }
+  if (fountainWater) fountainWater.rotation.z += dt * 0.4;
+  {  /* leaves drift down and sideways, respawning at the canopy */
+    const lp = leaves.geometry.attributes.position;
+    for (let i = 0; i < lp.count; i++){
+      let y = lp.getY(i) - dt * (4 + (i % 5));
+      if (y < 1) y = 60 + (i % 7) * 4;
+      lp.setY(i, y);
+      lp.setX(i, lp.getX(i) + Math.sin(now / 900 + i) * dt * 3);
+    }
+    lp.needsUpdate = true;
   }
   drawMinimap();
   if (interiorView){
@@ -3921,23 +4002,24 @@ document.getElementById("int-courses").addEventListener("click", () => {
 
 /* ── day / auto / night ──────────────────────────────────────────── */
 const LS_MODE = "pembroke.registrar.mode";
-let mode = ["day", "night", "auto"].includes(localStorage.getItem(LS_MODE))
+let mode = ["day", "golden", "night", "auto"].includes(localStorage.getItem(LS_MODE))
   ? localStorage.getItem(LS_MODE) : "day";
 function applyMode(){
-  const icons = { day: "☀️", auto: "🌗", night: "🌙" };
+  const icons = { day: "☀️", golden: "🌇", auto: "🌗", night: "🌙" };
   const btn = document.getElementById("daynight");
   btn.textContent = icons[mode];
   btn.title = "Time of day: " + mode + " (N to change)";
   engineSetMode(mode);
 }
 document.getElementById("daynight").addEventListener("click", () => {
-  mode = mode === "day" ? "auto" : mode === "auto" ? "night" : "day";
+  mode = mode === "day" ? "golden" : mode === "golden" ? "night" : mode === "night" ? "auto" : "day";
   localStorage.setItem(LS_MODE, mode);
   applyMode();
   const blurb = {
-    day:   ["High noon over the quad", "Fixed daylight — clean shadows, blue sky."],
-    auto:  ["The sun is loosed", "A full day sweeps past in three minutes — dawn, noon, golden hour, and lamplit night, shadows wheeling as it goes."],
-    night: ["Night falls on Pembroke", "The lancets glow with lamplit rooms, and the plaza mirrors the halls."],
+    day:    ["High noon over the quad", "Fixed daylight — clean shadows, blue sky."],
+    golden: ["Golden hour", "The sun sits low and warm over the halls — the light the postcards are shot in."],
+    auto:   ["The sun is loosed", "A full day sweeps past in three minutes — dawn, noon, golden hour, and lamplit night, shadows wheeling as it goes."],
+    night:  ["Night falls on Pembroke", "The lancets glow with lamplit rooms, and the plaza mirrors the halls."],
   }[mode];
   toast(blurb[0], blurb[1], "#d4af6a");
 });
