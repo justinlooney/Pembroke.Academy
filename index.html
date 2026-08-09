@@ -1,0 +1,1660 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pembroke Academy — The Autonomous Systems Campus</title>
+<meta name="description" content="An immersive 3D collegiate campus for the Pembroke Academy curriculum — Algebra to Calculus III, first program to autonomous flight.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 4 L58 14 V34 C58 48 46 58 32 62 C18 58 6 48 6 34 V14 Z' fill='%230f1b2d' stroke='%23d4af6a' stroke-width='3'/%3E%3Ctext x='32' y='42' font-family='Georgia' font-size='28' fill='%23d4af6a' text-anchor='middle'%3EP%3C/text%3E%3C/svg%3E">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   PEMBROKE ACADEMY — DESIGN SYSTEM
+   Slate-dark collegiate palette · CSS 3D isometric campus engine
+   ══════════════════════════════════════════════════════════════════ */
+:root{
+  --ink:#070b14;
+  --parchment:#e8e3d5;
+  --brass:#d4af6a;
+  --brass-dim:#8a744a;
+  --quad-eng:#f59e0b;   /* Engineering — amber        */
+  --quad-sci:#38bdf8;   /* Science Lab — electric blue */
+  --quad-lib:#10b981;   /* Library — deep emerald      */
+  --quad-adm:#a78bfa;   /* Administration — imperial purple */
+  --tiltX:0deg;
+  --tiltZ:0deg;
+}
+html,body{background:var(--ink);}
+body{
+  font-family:'Inter',system-ui,sans-serif;
+  color:#cbd5e1;
+  overflow-x:hidden;
+}
+.font-serif-d{font-family:'Cormorant Garamond',Georgia,serif;}
+.font-mono-d{font-family:'JetBrains Mono',ui-monospace,monospace;}
+
+/* ── Star-dusk sky ─────────────────────────────────────────────── */
+.sky{
+  position:fixed;inset:0;z-index:-2;pointer-events:none;
+  background:
+    radial-gradient(1100px 620px at 18% -8%, rgba(56,90,160,.28), transparent 62%),
+    radial-gradient(900px 560px at 86% 4%,  rgba(120,80,190,.16), transparent 60%),
+    radial-gradient(1200px 800px at 50% 118%, rgba(16,58,54,.30), transparent 62%),
+    linear-gradient(180deg,#05070f 0%,#0a1020 44%,#0b1526 100%);
+}
+.stars{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.8;}
+.stars i{position:absolute;width:2px;height:2px;border-radius:50%;background:#dbe6ff;animation:twinkle 5s ease-in-out infinite;}
+@keyframes twinkle{0%,100%{opacity:.12;transform:scale(.7)}50%{opacity:.85;transform:scale(1.2)}}
+
+/* Gaussian ambience — soft volumetric light splats drifting over the quad */
+.gsplat{position:absolute;border-radius:50%;filter:blur(46px);mix-blend-mode:screen;pointer-events:none;animation:drift 22s ease-in-out infinite alternate;}
+@keyframes drift{from{transform:translate3d(0,0,0) scale(1)}to{transform:translate3d(46px,-34px,0) scale(1.18)}}
+
+/* ── Top registrar bar ─────────────────────────────────────────── */
+#topbar{
+  backdrop-filter:blur(14px);
+  background:linear-gradient(180deg,rgba(10,16,30,.92),rgba(10,16,30,.78));
+  border-bottom:1px solid rgba(212,175,106,.22);
+  box-shadow:0 10px 40px -18px rgba(0,0,0,.9);
+}
+.brass-rule{height:1px;background:linear-gradient(90deg,transparent,rgba(212,175,106,.7),transparent);}
+#gpbar-track{background:rgba(148,163,184,.14);box-shadow:inset 0 1px 3px rgba(0,0,0,.55);}
+#gpbar-fill{
+  background:linear-gradient(90deg,#8a744a,#d4af6a 40%,#f1d9a5 70%,#d4af6a);
+  box-shadow:0 0 14px rgba(212,175,106,.55);
+  transition:width .8s cubic-bezier(.22,1,.36,1);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   THE 3D ISOMETRIC CAMPUS ENGINE
+   perspective 1200px → rotateX(55deg) rotateZ(-45deg), preserve-3d
+   ══════════════════════════════════════════════════════════════════ */
+#stage{
+  perspective:1200px;
+  perspective-origin:50% 32%;
+}
+#scene{
+  --zoom:.86;
+  position:relative;
+  width:640px;height:640px;
+  transform-style:preserve-3d;
+  transform:scale(var(--zoom)) rotateX(calc(55deg + var(--tiltX))) rotateZ(calc(-45deg + var(--tiltZ)));
+  transition:transform .35s cubic-bezier(.22,1,.36,1);
+  animation:campus-breathe 9s ease-in-out infinite;
+}
+@keyframes campus-breathe{0%,100%{translate:0 0}50%{translate:0 -10px}}
+#scene.warp-pulse{animation:campus-breathe 9s ease-in-out infinite, warp .9s cubic-bezier(.22,1,.36,1);}
+@keyframes warp{0%{scale:1}35%{scale:1.055}100%{scale:1}}
+
+/* The great lawn */
+.ground{
+  position:absolute;inset:0;
+  transform-style:preserve-3d;
+  border-radius:26px;
+  background:
+    radial-gradient(340px 340px at 160px 160px, rgba(16,185,129,.14), transparent 70%),
+    radial-gradient(300px 300px at 475px 155px, rgba(245,158,11,.12), transparent 70%),
+    radial-gradient(300px 300px at 160px 460px, rgba(56,189,248,.13), transparent 70%),
+    radial-gradient(320px 320px at 470px 460px, rgba(167,139,250,.13), transparent 70%),
+    repeating-linear-gradient(0deg, rgba(148,163,184,.055) 0 1px, transparent 1px 40px),
+    repeating-linear-gradient(90deg, rgba(148,163,184,.055) 0 1px, transparent 1px 40px),
+    linear-gradient(135deg,#101a2c 0%,#0d1626 45%,#0c1a26 100%);
+  border:1px solid rgba(148,163,184,.22);
+  box-shadow:
+    0 0 0 1px rgba(7,11,20,.9),
+    0 0 90px rgba(56,90,160,.25),
+    inset 0 0 120px rgba(0,0,0,.55);
+}
+.ground::after{ /* soft rim light on the plane edge */
+  content:"";position:absolute;inset:-2px;border-radius:26px;pointer-events:none;
+  box-shadow:inset 0 0 0 1px rgba(212,175,106,.14);
+}
+.plinth{ /* stone underside of the floating campus slab */
+  position:absolute;inset:0;border-radius:26px;
+  transform:translateZ(-26px);
+  background:linear-gradient(135deg,#0a1322,#070d18);
+  box-shadow:0 0 80px 30px rgba(0,0,0,.65);
+}
+.walk{position:absolute;background:
+    repeating-linear-gradient(90deg, rgba(232,227,213,.05) 0 14px, rgba(232,227,213,.10) 14px 16px),
+    linear-gradient(180deg,rgba(203,213,225,.16),rgba(203,213,225,.09));
+  border:1px solid rgba(203,213,225,.14);
+  box-shadow:inset 0 0 12px rgba(0,0,0,.35);
+}
+.plaza{
+  position:absolute;border-radius:50%;
+  background:
+    radial-gradient(circle, rgba(212,175,106,.28) 0 8%, rgba(232,227,213,.10) 9% 30%, rgba(232,227,213,.16) 31% 33%, rgba(232,227,213,.07) 34% 62%, rgba(232,227,213,.15) 63% 65%, transparent 66%);
+  border:1px solid rgba(212,175,106,.25);
+}
+.plaza .pulse{
+  position:absolute;inset:0;border-radius:50%;
+  border:1px solid rgba(212,175,106,.5);
+  animation:ripple 4s ease-out infinite;
+}
+.plaza .pulse.p2{animation-delay:2s;}
+@keyframes ripple{0%{transform:scale(.18);opacity:.9}100%{transform:scale(1.05);opacity:0}}
+
+/* ── Building boxes: roof + left(west) wall + right(south) wall ── */
+.b3d{
+  position:absolute;
+  transform-style:preserve-3d;
+  cursor:pointer;
+  transition:transform .35s cubic-bezier(.22,1,.36,1), filter .35s ease;
+}
+.b3d .face{position:absolute;left:0;top:0;backface-visibility:visible;}
+.b3d .roof{
+  width:100%;height:100%;
+  border:1px solid rgba(255,255,255,.16);
+  box-shadow:inset 0 0 30px rgba(0,0,0,.35), inset 0 0 0 1px rgba(0,0,0,.25);
+}
+.b3d .wall{border:1px solid rgba(0,0,0,.45);}
+.b3d .wall-r::after{content:"";position:absolute;inset:0;background:rgba(2,6,14,.3);pointer-events:none;}
+.b3d.lit .face{filter:brightness(1.25) saturate(1.3);}
+.b3d .shadow{
+  position:absolute;left:6%;top:8%;width:112%;height:112%;
+  background:radial-gradient(closest-side, rgba(0,0,0,.52), transparent 72%);
+  transform:translateZ(0.5px);
+  filter:blur(6px);pointer-events:none;
+}
+.b3d.deco{cursor:default;}
+/* NOTE: never put filter/opacity on .b3d itself — any grouping property
+   flattens its preserve-3d children in Chromium. Filter the faces only. */
+.b3d:not(.deco):hover{transform:translateZ(14px);}
+.b3d:not(.deco):hover .face{filter:brightness(1.18) saturate(1.15);}
+.b3d:not(.deco).active{transform:translateZ(10px);}
+.b3d:not(.deco).active .face{filter:brightness(1.24) saturate(1.25);}
+.b3d:not(.deco).active .roof{box-shadow:inset 0 0 30px rgba(0,0,0,.3), 0 0 34px var(--glow);}
+.b3d .face{transition:filter .3s ease;}
+
+/* window texture painted on walls */
+.win-v{
+  background-image:
+    repeating-linear-gradient(90deg, transparent 0 12px, var(--win) 12px 20px, transparent 20px 30px),
+    repeating-linear-gradient(0deg, transparent 0 10px, rgba(255,255,240,.06) 10px 22px, transparent 22px 34px);
+}
+
+/* light beacon rising from the selected hall */
+.beacon{
+  position:absolute;width:8px;height:150px;
+  transform-origin:bottom center;
+  background:linear-gradient(0deg, var(--glow), transparent);
+  filter:blur(2px);opacity:0;pointer-events:none;
+  transition:opacity .5s ease;
+}
+.b3d.active ~ .beacon-of{opacity:1;}
+
+/* Billboard elements: undo the plane rotation so they face the viewer.
+   NOTE: preserve-3d on .bb-inner is load-bearing — without it Chromium
+   flattens the counter-rotated card into the ground plane at paint time. */
+.billboard{transform-style:preserve-3d;pointer-events:none;}
+.bb-inner{transform:rotateZ(45deg) rotateX(-55deg);transform-origin:center bottom;transform-style:preserve-3d;}
+
+.b-label{
+  position:absolute;left:0;top:0;pointer-events:none;
+}
+.b-label .card{
+  transform:translate(-50%,-100%);
+  text-align:center;white-space:nowrap;
+  padding:.3rem .65rem .38rem;
+  background:linear-gradient(180deg, rgba(10,16,30,.92), rgba(10,16,30,.78));
+  border:1px solid color-mix(in srgb, var(--glow) 55%, transparent);
+  border-radius:10px;
+  box-shadow:0 8px 30px -6px rgba(0,0,0,.8), 0 0 18px -6px var(--glow);
+  backdrop-filter:blur(6px);
+}
+.b-label .flag{width:8px;height:8px;border-radius:50%;background:var(--glow);box-shadow:0 0 10px var(--glow);}
+.b-label .stem{
+  position:absolute;left:50%;top:0;width:1px;height:26px;
+  transform:translateX(-50%);
+  background:linear-gradient(180deg, var(--glow), transparent);
+}
+
+/* ── Students of the quad ──────────────────────────────────────── */
+.student{position:absolute;left:0;top:0;transform-style:preserve-3d;pointer-events:none;}
+.student .rig{pointer-events:auto;cursor:pointer;}
+.student .figure{position:relative;width:22px;height:40px;transform:translate(-50%,-100%);animation:stride .55s ease-in-out infinite alternate;}
+.student.idle .figure{animation:hover-bob 2.6s ease-in-out infinite;}
+@keyframes stride{from{translate:0 0}to{translate:0 -3.5px}}
+@keyframes hover-bob{0%,100%{translate:0 0}50%{translate:0 -2px}}
+.student .head{position:absolute;left:50%;top:0;width:9px;height:9px;border-radius:50%;transform:translateX(-50%);background:#e6d3b5;box-shadow:inset -2px -2px 3px rgba(0,0,0,.3);}
+.student .torso{position:absolute;left:50%;top:9px;width:13px;height:17px;border-radius:6px 6px 4px 4px;transform:translateX(-50%);box-shadow:inset -3px -3px 5px rgba(0,0,0,.35), 0 0 10px -2px var(--c);background:linear-gradient(180deg, var(--c), color-mix(in srgb, var(--c) 55%, #000));}
+.student .legs{position:absolute;left:50%;top:25px;width:11px;height:11px;transform:translateX(-50%);border-radius:0 0 3px 3px;background:#1e293b;}
+.student .sshadow{position:absolute;left:50%;bottom:-3px;width:20px;height:6px;transform:translateX(-50%);border-radius:50%;background:rgba(0,0,0,.45);filter:blur(2px);}
+.student .tag{
+  position:absolute;left:50%;top:-14px;transform:translateX(-50%);
+  font-size:8.5px;letter-spacing:.08em;color:#e2e8f0;opacity:.75;
+  text-shadow:0 1px 3px #000;white-space:nowrap;
+}
+.student .say{
+  position:absolute;left:50%;top:-34px;transform:translateX(-50%);
+  white-space:nowrap;font-size:9.5px;color:#0b1220;font-weight:600;
+  background:var(--parchment);border-radius:8px;padding:2px 8px;
+  box-shadow:0 4px 14px rgba(0,0,0,.5);
+  opacity:0;transition:opacity .3s ease;
+}
+.student .say::after{content:"";position:absolute;left:50%;bottom:-4px;width:8px;height:8px;background:var(--parchment);transform:translateX(-50%) rotate(45deg);}
+.student.talking .say{opacity:1;}
+
+/* fireflies over the lawn */
+.fly{position:absolute;width:4px;height:4px;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,#ffe9a8,rgba(255,233,168,0) 70%);
+  animation:firefly var(--t,9s) ease-in-out infinite alternate;}
+@keyframes firefly{
+  0%{transform:translate3d(0,0,14px);opacity:.15}
+  30%{opacity:.9}
+  100%{transform:translate3d(var(--dx,60px),var(--dy,-50px),46px);opacity:.2}
+}
+
+/* ── Workspace terminal ────────────────────────────────────────── */
+#workspace{scrollbar-width:thin;scrollbar-color:rgba(212,175,106,.35) transparent;}
+#workspace::-webkit-scrollbar{width:9px;}
+#workspace::-webkit-scrollbar-thumb{background:linear-gradient(180deg,rgba(212,175,106,.35),rgba(212,175,106,.15));border-radius:8px;}
+#workspace::-webkit-scrollbar-track{background:rgba(148,163,184,.06);}
+
+.chip{
+  border:1px solid rgba(148,163,184,.25);
+  background:rgba(148,163,184,.07);
+  transition:all .25s ease;
+}
+.chip:hover{border-color:rgba(212,175,106,.5);background:rgba(212,175,106,.08);}
+.chip.on{
+  border-color:color-mix(in srgb, var(--c,#d4af6a) 75%, transparent);
+  background:color-mix(in srgb, var(--c,#d4af6a) 14%, transparent);
+  color:#f1f5f9;
+  box-shadow:0 0 18px -6px var(--c,#d4af6a);
+}
+
+.course-card{
+  position:relative;
+  background:linear-gradient(165deg, rgba(20,28,46,.9), rgba(13,20,34,.92));
+  border:1px solid rgba(148,163,184,.16);
+  border-left:3px solid var(--c);
+  border-radius:16px;
+  box-shadow:0 18px 44px -20px rgba(0,0,0,.85);
+  transition:transform .3s ease, box-shadow .3s ease, border-color .3s ease;
+  overflow:hidden;
+}
+.course-card:hover{transform:translateY(-3px);box-shadow:0 26px 54px -22px rgba(0,0,0,.9), 0 0 30px -14px var(--c);border-color:color-mix(in srgb, var(--c) 40%, rgba(148,163,184,.2));}
+.course-card::before{ /* corner illumination */
+  content:"";position:absolute;top:-70px;right:-70px;width:200px;height:200px;border-radius:50%;
+  background:radial-gradient(circle, color-mix(in srgb, var(--c) 20%, transparent), transparent 65%);
+  pointer-events:none;
+}
+.course-card.done{border-left-color:var(--brass);}
+.course-card.done .seal{opacity:1;transform:rotate(-11deg) scale(1);}
+.seal{
+  position:absolute;top:16px;right:16px;z-index:5;
+  padding:.3rem .7rem;border-radius:8px;
+  border:2px solid rgba(212,175,106,.85);color:var(--brass);
+  font-family:'Cormorant Garamond',serif;font-weight:700;letter-spacing:.14em;font-size:.72rem;
+  background:rgba(10,16,30,.68);
+  box-shadow:0 0 22px -6px rgba(212,175,106,.7), inset 0 0 12px rgba(212,175,106,.15);
+  opacity:0;transform:rotate(-11deg) scale(1.5);
+  transition:all .45s cubic-bezier(.34,1.56,.64,1);
+  pointer-events:none;text-transform:uppercase;
+}
+
+.checkbox-b{
+  border:1.5px solid rgba(148,163,184,.4);
+  transition:all .25s ease;
+}
+.checkbox-b:hover{border-color:var(--brass);box-shadow:0 0 14px -4px var(--brass);}
+.done .checkbox-b{background:linear-gradient(135deg,#d4af6a,#a8843f);border-color:#f1d9a5;color:#0b1220;box-shadow:0 0 16px -3px rgba(212,175,106,.8);}
+
+.outcome-tick{color:var(--c);filter:drop-shadow(0 0 5px color-mix(in srgb, var(--c) 60%, transparent));}
+.prereq-pill{border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.07);}
+.prereq-pill.met{border-color:rgba(16,185,129,.5);background:rgba(16,185,129,.1);color:#6ee7b7;}
+
+/* Computational Playground */
+.playground{max-height:0;opacity:0;overflow:hidden;transition:max-height .6s cubic-bezier(.22,1,.36,1), opacity .45s ease;}
+.playground.open{max-height:1200px;opacity:1;}
+.codebox{
+  background:#080d18;
+  border:1px solid rgba(148,163,184,.18);
+  box-shadow:inset 0 0 40px rgba(0,0,0,.6), 0 0 24px -14px var(--c);
+}
+.codebox pre{font-family:'JetBrains Mono',monospace;font-size:.74rem;line-height:1.62;}
+.tok-c{color:#64748b;font-style:italic;}          /* comments  */
+.tok-k{color:#93c5fd;}                            /* keywords  */
+.tok-s{color:#fcd9a0;}                            /* strings   */
+.tok-n{color:#7ee0c3;}                            /* numbers   */
+.tok-f{color:#c4b5fd;}                            /* defs      */
+.chev{transition:transform .4s cubic-bezier(.22,1,.36,1);}
+.open-toggle .chev{transform:rotate(180deg);}
+
+/* Deployment panel */
+.deploy{
+  background:
+    radial-gradient(500px 200px at 110% -30%, rgba(212,175,106,.12), transparent 60%),
+    linear-gradient(160deg, rgba(26,34,54,.95), rgba(13,20,34,.97));
+  border:1px solid rgba(212,175,106,.35);
+  box-shadow:0 24px 60px -24px rgba(0,0,0,.9), inset 0 1px 0 rgba(212,175,106,.18);
+}
+.deploy .step-n{
+  width:26px;height:26px;flex:none;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,#d4af6a,#8a744a);color:#0b1220;
+  font-weight:700;font-size:.78rem;
+  box-shadow:0 0 14px -3px rgba(212,175,106,.7);
+}
+
+/* sector banner crossfade */
+#sector-banner{transition:opacity .35s ease, transform .35s ease;}
+#sector-banner.fading{opacity:0;transform:translateY(10px);}
+#courses.fading{opacity:0;transform:translateY(14px);}
+#courses{transition:opacity .35s ease, transform .35s ease;}
+
+/* toasts */
+.toast{
+  background:linear-gradient(160deg, rgba(20,28,46,.96), rgba(10,16,30,.96));
+  border:1px solid rgba(212,175,106,.4);
+  box-shadow:0 18px 50px -14px rgba(0,0,0,.9), 0 0 24px -10px rgba(212,175,106,.5);
+  animation:toast-in .45s cubic-bezier(.34,1.4,.64,1);
+}
+@keyframes toast-in{from{opacity:0;transform:translateY(18px) scale(.95)}to{opacity:1;transform:none}}
+.toast.bye{opacity:0;transform:translateY(10px);transition:all .4s ease;}
+
+@media (max-width:1023px){
+  #scene{--zoom:.66;}
+}
+@media (max-width:639px){
+  #scene{--zoom:.5;}
+}
+</style>
+</head>
+<body class="antialiased">
+
+<div class="sky"></div>
+<div class="stars" id="stars"></div>
+
+<!-- ═══════════════ REGISTRAR PROGRESS BAR (global header) ═══════════════ -->
+<header id="topbar" class="sticky top-0 z-50">
+  <div class="max-w-[1700px] mx-auto px-4 sm:px-7 py-3 flex flex-wrap items-center gap-x-4 gap-y-2 sm:gap-x-6">
+    <!-- Crest -->
+    <div class="flex items-center gap-3 flex-none min-w-0">
+      <svg id="crest" width="42" height="42" viewBox="0 0 64 64" class="drop-shadow-[0_0_10px_rgba(212,175,106,.35)]">
+        <path d="M32 4 L58 14 V34 C58 48 46 58 32 62 C18 58 6 48 6 34 V14 Z" fill="#0f1b2d" stroke="#d4af6a" stroke-width="2.5"/>
+        <path d="M32 9 L53 17 V33.5 C53 44.7 43.5 53.5 32 57 C20.5 53.5 11 44.7 11 33.5 V17 Z" fill="none" stroke="rgba(212,175,106,.35)" stroke-width="1"/>
+        <text x="32" y="41" font-family="Georgia,serif" font-size="26" fill="#d4af6a" text-anchor="middle" font-weight="bold">P</text>
+        <path d="M17 48 Q32 55 47 48" fill="none" stroke="#d4af6a" stroke-width="1.4"/>
+      </svg>
+      <div class="leading-tight">
+        <div class="font-serif-d text-xl sm:text-2xl font-semibold text-[color:var(--parchment)] tracking-wide">Pembroke <span class="text-[color:var(--brass)]">Academy</span></div>
+        <div class="hidden sm:block text-[10px] uppercase tracking-[.28em] text-slate-400">Lux · Mathesis · Machina — est. MMXXVI</div>
+      </div>
+    </div>
+
+    <!-- Live progress module -->
+    <div class="w-full sm:w-auto sm:flex-1 min-w-0 max-w-2xl sm:ml-auto">
+      <div class="flex items-baseline justify-between gap-3 mb-1.5">
+        <span class="text-[10px] sm:text-[11px] uppercase tracking-[.22em] text-slate-400 truncate">Registrar Ledger — <span id="gp-count" class="text-slate-200 font-medium">0 of 12</span> courses sealed</span>
+        <span class="flex items-baseline gap-2 flex-none">
+          <span id="gp-standing" class="hidden sm:inline font-serif-d italic text-[13px] text-[color:var(--brass)]">Matriculated</span>
+          <span id="gp-pct" class="font-serif-d text-xl sm:text-2xl font-bold text-[color:var(--parchment)]">0%</span>
+        </span>
+      </div>
+      <div id="gpbar-track" class="h-[9px] rounded-full overflow-hidden">
+        <div id="gpbar-fill" class="h-full rounded-full" style="width:0%"></div>
+      </div>
+      <div class="flex justify-between mt-1 text-[9.5px] uppercase tracking-[.18em] text-slate-500">
+        <span>First-Year</span><span class="hidden sm:inline">Sophomore</span><span>Junior</span><span class="hidden sm:inline">Senior</span><span class="text-[color:var(--brass-dim)]">Laureate</span>
+      </div>
+    </div>
+  </div>
+  <div class="brass-rule"></div>
+</header>
+
+<main class="max-w-[1700px] mx-auto lg:flex lg:h-[calc(100vh-79px)]">
+
+  <!-- ═══════════════ ① THE 3D ISOMETRIC CAMPUS QUADRANT ═══════════════ -->
+  <section id="campus-wing" class="relative lg:w-[52%] flex-none h-[560px] lg:h-auto overflow-hidden select-none">
+    <!-- gaussian light splats -->
+    <div class="gsplat" style="left:6%;top:12%;width:340px;height:300px;background:rgba(56,120,220,.17)"></div>
+    <div class="gsplat" style="right:2%;top:40%;width:300px;height:280px;background:rgba(167,139,250,.13);animation-delay:-8s"></div>
+    <div class="gsplat" style="left:26%;bottom:2%;width:360px;height:260px;background:rgba(16,185,129,.11);animation-delay:-14s"></div>
+    <div class="gsplat" style="right:24%;top:6%;width:240px;height:220px;background:rgba(245,158,11,.10);animation-delay:-4s"></div>
+
+    <div class="absolute inset-x-0 top-0 pt-6 sm:pt-8 px-6 sm:px-10 z-10 pointer-events-none">
+      <h1 class="font-serif-d text-3xl sm:text-4xl font-semibold text-[color:var(--parchment)] leading-tight drop-shadow-lg">The Campus <span class="italic text-[color:var(--brass)]">Quadrangle</span></h1>
+      <p class="text-[13px] text-slate-400 mt-1.5 max-w-md">Four halls, one degree. <span class="text-slate-300">Click a building</span> to step inside its lecture wing — or wander the lawn with the cohort.</p>
+    </div>
+
+    <!-- the perspective stage -->
+    <div id="stage" class="absolute inset-0 flex items-center justify-center pt-16">
+      <div id="scene">
+        <div class="plinth"></div>
+        <div class="ground"></div>
+        <!-- walkways: campus cross axis -->
+        <div class="walk" style="left:298px;top:16px;width:44px;height:608px"></div>
+        <div class="walk" style="left:16px;top:298px;width:608px;height:44px"></div>
+        <!-- central ceremonial plaza + fountain rings -->
+        <div class="plaza" style="left:255px;top:255px;width:130px;height:130px">
+          <div class="pulse"></div><div class="pulse p2"></div>
+        </div>
+        <!-- buildings, hedges, students & labels are constructed by JS -->
+      </div>
+    </div>
+
+    <!-- HUD: sector legend -->
+    <div class="absolute left-5 sm:left-8 bottom-5 z-10 space-y-1.5 text-[11px] pointer-events-none">
+      <div class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-sm inline-block" style="background:var(--quad-eng);box-shadow:0 0 8px var(--quad-eng)"></i><span class="text-slate-300">Engineering Quad · Software</span></div>
+      <div class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-sm inline-block" style="background:var(--quad-sci);box-shadow:0 0 8px var(--quad-sci)"></i><span class="text-slate-300">Science Lab · Hardware &amp; µProcessors</span></div>
+      <div class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-sm inline-block" style="background:var(--quad-lib);box-shadow:0 0 8px var(--quad-lib)"></i><span class="text-slate-300">Great Library · Pure Mathematics</span></div>
+      <div class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-sm inline-block" style="background:var(--quad-adm);box-shadow:0 0 8px var(--quad-adm)"></i><span class="text-slate-300">Administration · AI Robotics &amp; Flight</span></div>
+    </div>
+    <div class="absolute right-5 sm:right-8 bottom-5 z-10 text-right pointer-events-none">
+      <div class="text-[10px] uppercase tracking-[.24em] text-slate-500">Keys 1–4 · quads &nbsp;·&nbsp; 0 · full syllabus</div>
+      <div class="text-[10px] uppercase tracking-[.24em] text-slate-600 mt-1">move the mouse to survey the grounds</div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ ② + ③ CLASSROOM WORKSPACE TERMINAL ═══════════════ -->
+  <section id="workspace" class="relative lg:flex-1 lg:overflow-y-auto border-t lg:border-t-0 lg:border-l border-slate-700/40 bg-[rgba(9,14,26,.72)] backdrop-blur-sm">
+    <div class="px-5 sm:px-9 py-7 sm:py-9 max-w-3xl mx-auto">
+
+      <!-- sector filter chips -->
+      <nav id="chips" class="flex flex-wrap gap-2 mb-7" aria-label="Campus sectors"></nav>
+
+      <!-- morphing sector banner -->
+      <div id="sector-banner" class="mb-7"></div>
+
+      <!-- course cards -->
+      <div id="courses" class="space-y-6"></div>
+
+      <!-- ═══════════════ ④ DEPLOYMENT DOCUMENTATION PANEL ═══════════════ -->
+      <div class="deploy rounded-2xl mt-12 p-6 sm:p-8">
+        <div class="flex items-start gap-4">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" class="flex-none mt-1 drop-shadow-[0_0_8px_rgba(212,175,106,.4)]">
+            <path d="M12 2 L21 6 V11 C21 16.5 17.2 20.6 12 22 C6.8 20.6 3 16.5 3 11 V6 Z" stroke="#d4af6a" stroke-width="1.5" fill="rgba(212,175,106,.07)"/>
+            <path d="M8.5 12 L11 14.5 L15.5 9.5" stroke="#d4af6a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <div>
+            <div class="text-[10px] uppercase tracking-[.3em] text-[color:var(--brass-dim)]">The Registrar's Office · Publishing Charter</div>
+            <h3 class="font-serif-d text-2xl font-semibold text-[color:var(--parchment)] mt-1">Deploy Your Campus to the World</h3>
+            <p class="text-[13px] text-slate-400 mt-1.5 leading-relaxed">This entire university lives in a single <code class="font-mono-d text-[12px] text-[color:var(--brass)]">index.html</code> — no build tools, no frameworks to install. Four steps place it live on GitHub Pages under your own domain.</p>
+          </div>
+        </div>
+
+        <div class="mt-6 space-y-5">
+          <div class="flex gap-4">
+            <div class="step-n">1</div>
+            <div class="text-[13px] text-slate-300 leading-relaxed pt-0.5">
+              <span class="font-semibold text-slate-100">Create a public repository</span> on GitHub — name it anything (e.g. <code class="font-mono-d text-[12px] text-sky-300">pembroke.academy</code>), or <code class="font-mono-d text-[12px] text-sky-300">your-username.github.io</code> to publish at your root address.
+            </div>
+          </div>
+          <div class="flex gap-4">
+            <div class="step-n">2</div>
+            <div class="text-[13px] text-slate-300 leading-relaxed pt-0.5 min-w-0">
+              <span class="font-semibold text-slate-100">Commit this file as <code class="font-mono-d text-[12px] text-sky-300">index.html</code></span> at the repository root, on the <code class="font-mono-d text-[12px] text-sky-300">main</code> branch:
+              <div class="codebox rounded-xl mt-3 overflow-hidden" style="--c:#d4af6a">
+                <div class="flex items-center justify-between px-4 py-2 border-b border-slate-700/50">
+                  <span class="font-mono-d text-[10px] uppercase tracking-[.2em] text-slate-500">terminal</span>
+                  <button class="copy-btn font-mono-d text-[10px] uppercase tracking-[.15em] text-[color:var(--brass)] hover:text-[color:var(--parchment)] transition" data-copy="git init&#10;git add index.html&#10;git commit -m &quot;Open the Pembroke Academy campus&quot;&#10;git branch -M main&#10;git remote add origin https://github.com/YOUR-USERNAME/pembroke.academy.git&#10;git push -u origin main">copy ⧉</button>
+                </div>
+                <pre class="p-4 overflow-x-auto text-slate-300">git init
+git add index.html
+git commit -m "Open the Pembroke Academy campus"
+git branch -M main
+git remote add origin https://github.com/YOUR-USERNAME/pembroke.academy.git
+git push -u origin main</pre>
+              </div>
+            </div>
+          </div>
+          <div class="flex gap-4">
+            <div class="step-n">3</div>
+            <div class="text-[13px] text-slate-300 leading-relaxed pt-0.5">
+              <span class="font-semibold text-slate-100">Enable Pages:</span> in the repository open <span class="text-[color:var(--parchment)]">Settings → Pages</span>, set <span class="text-[color:var(--parchment)]">Source: Deploy from a branch</span>, choose branch <code class="font-mono-d text-[12px] text-sky-300">main</code> and folder <code class="font-mono-d text-[12px] text-sky-300">/ (root)</code>, then press <span class="text-[color:var(--parchment)]">Save</span>.
+            </div>
+          </div>
+          <div class="flex gap-4">
+            <div class="step-n">4</div>
+            <div class="text-[13px] text-slate-300 leading-relaxed pt-0.5">
+              <span class="font-semibold text-slate-100">Walk through the gates.</span> Within about a minute the campus is live at <code class="font-mono-d text-[12px] text-sky-300">https://YOUR-USERNAME.github.io/pembroke.academy/</code>. For a custom domain, add <span class="text-[color:var(--parchment)]">pembroke.academy</span> in the Pages "Custom domain" field, point a DNS <code class="font-mono-d text-[12px] text-sky-300">CNAME</code> record at <code class="font-mono-d text-[12px] text-sky-300">YOUR-USERNAME.github.io</code>, and tick <span class="text-[color:var(--parchment)]">Enforce HTTPS</span>.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- footer / ledger controls -->
+      <footer class="mt-10 mb-4 flex flex-wrap items-center justify-between gap-4 text-[11px] text-slate-500">
+        <div>
+          <span class="font-serif-d italic text-[13px] text-slate-400">"Lux, Mathesis, Machina"</span> — Light, Learning, and the Machine.
+          <div class="mt-1">Progress is inscribed to your browser's <code class="font-mono-d text-[10.5px]">localStorage</code> ledger — it survives every visit.</div>
+        </div>
+        <button id="reset-ledger" class="chip rounded-full px-4 py-1.5 text-[11px] uppercase tracking-[.15em] text-slate-400 hover:text-red-300 hover:border-red-400/50">Reset ledger</button>
+      </footer>
+    </div>
+  </section>
+</main>
+
+<div id="toasts" class="fixed bottom-5 left-5 z-[90] space-y-3 max-w-sm"></div>
+
+<script>
+"use strict";
+/* ════════════════════════════════════════════════════════════════════
+   PEMBROKE ACADEMY — CAMPUS OPERATING SYSTEM
+   ① 3D isometric campus builder   ② context-driven workspace
+   ③ localStorage progress ledger  ④ ambient student simulation
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── The four campus sectors ─────────────────────────────────────── */
+const SECTORS = {
+  lib: { key:"lib", hall:"The Pembroke Great Library", track:"Pure Mathematics Sequence",
+         color:"#10b981", soft:"rgba(16,185,129,", icon:"◈",
+         motto:"Every theorem here was once a stranger.",
+         blurb:"Vaulted reading rooms and chalk-dusted lecture halls. The five-course mathematics spine — from College Algebra to the vector fields of Calculus III — is taught beneath the great emerald dome." },
+  eng: { key:"eng", hall:"Whitmore Engineering Quad", track:"Software Foundations Track",
+         color:"#f59e0b", soft:"rgba(245,158,11,", icon:"⌬",
+         motto:"First make it work. Then make it beautiful.",
+         blurb:"Amber-lit ateliers where code is a craft. Three studio courses carry a complete beginner from a first Python print statement to disciplined systems engineering in C." },
+  sci: { key:"sci", hall:"Alden Science Laboratory", track:"Electrical Hardware & Microprocessors Track",
+         color:"#38bdf8", soft:"rgba(56,189,248,", icon:"⚡",
+         blurb:"Oscilloscopes hum under electric-blue skylights. Here software meets silicon: boolean logic becomes gates, gates become registers, and registers become machines you command in assembly.",
+         motto:"The machine keeps no secrets from those who read registers." },
+  adm: { key:"adm", hall:"Aldergate Administration Hall", track:"AI Robotics & Flight Planners Track",
+         color:"#a78bfa", soft:"rgba(167,139,250,", icon:"✈",
+         motto:"Autonomy is mathematics given wings.",
+         blurb:"Behind the imperial-purple spire sits the Autonomy Wing — capstone territory. State estimation, control loops, and flight planners that let machines navigate the world alone." },
+};
+const SECTOR_ORDER = ["lib","eng","sci","adm"];
+
+/* ── ③ THE COMPLETE 12-COURSE ACADEMIC DATABASE ──────────────────────
+   Full degree path for a student entering at College Algebra with zero
+   coding experience, ending at autonomous aerial systems. No placeholders. */
+const COURSES = [
+
+  /* ═════════ THE GREAT LIBRARY — PURE MATHEMATICS SEQUENCE ═════════ */
+  {
+    id:"MATH101", code:"MATH 101", title:"College Algebra", sector:"lib",
+    credits:4, level:"Foundation · Semester 1", prereqs:[],
+    desc:"The gateway course, assuming nothing beyond arithmetic. Functions become objects you can hold, transform, and compose — the single most important habit of mind for everything that follows.",
+    outcomes:[
+      "Solve linear, quadratic, rational, and radical equations analytically, and verify every root by substitution.",
+      "Master function notation, domain and range, inverse functions, and the transformation grammar of shifts, stretches, and reflections.",
+      "Model growth and decay with exponential and logarithmic functions, including compound interest and half-life problems."
+    ],
+    book:{ title:"College Algebra", author:"Robert Blitzer", pub:"Pearson · 8th Edition",
+           why:"Famously gentle on-ramp: every abstraction is introduced through a concrete, real-world scene before the symbols arrive." },
+    lang:"python", snippetNote:"Your first bridge between algebra and code — the quadratic formula as a program.",
+    snippet:[
+"# Pembroke Academy · MATH 101",
+"# Solving any quadratic:  ax^2 + bx + c = 0",
+"import math",
+"",
+"def solve_quadratic(a, b, c):",
+"    \"\"\"Return the real roots of ax^2 + bx + c = 0.\"\"\"",
+"    discriminant = b**2 - 4*a*c",
+"    if discriminant < 0:",
+"        return None   # no real roots — the complex plane awaits in MATH 120",
+"    root_a = (-b + math.sqrt(discriminant)) / (2*a)",
+"    root_b = (-b - math.sqrt(discriminant)) / (2*a)",
+"    return root_a, root_b",
+"",
+"# Where does a projectile return to earth?  h(t) = -5t^2 + 20t",
+"print(solve_quadratic(-5, 20, 0))   # (0.0, 4.0) — four seconds aloft",
+"print(solve_quadratic(1, -7, 12))   # (4.0, 3.0)"
+    ].join("\n")
+  },
+  {
+    id:"MATH120", code:"MATH 120", title:"Precalculus & Trigonometry", sector:"lib",
+    credits:4, level:"Foundation · Semester 2", prereqs:["MATH101"],
+    desc:"The unit circle becomes second nature. Polynomials, rationals, trigonometry, vectors, and complex numbers — the complete toolkit calculus will assume you carry.",
+    outcomes:[
+      "Evaluate the six trigonometric functions from the unit circle and prove identities including sum, double-angle, and Pythagorean forms.",
+      "Analyze polynomial and rational functions: zeros, multiplicity, asymptotes, and end behavior, sketching accurate graphs by hand.",
+      "Operate fluently with vectors, polar coordinates, and complex numbers in both rectangular and polar (De Moivre) form."
+    ],
+    book:{ title:"Precalculus: Mathematics for Calculus", author:"James Stewart, Lothar Redlin & Saleem Watson", pub:"Cengage · 7th Edition",
+           why:"Written by the calculus author himself — every chapter is aimed precisely at what Calculus I will demand." },
+    lang:"python", snippetNote:"Walk the entire unit circle in code, then prove the Pythagorean identity holds at every degree.",
+    snippet:[
+"# MATH 120 · Walking the Unit Circle",
+"import math",
+"",
+"print(f\"{'deg':>5} {'rad':>8} {'sin':>8} {'cos':>8}\")",
+"for degrees in range(0, 361, 30):",
+"    radians = math.radians(degrees)",
+"    print(f\"{degrees:>5} {radians:>8.4f} \"",
+"          f\"{math.sin(radians):>8.4f} {math.cos(radians):>8.4f}\")",
+"",
+"# The identity sin^2 + cos^2 = 1, verified at all 360 degrees:",
+"assert all(",
+"    abs(math.sin(math.radians(d))**2",
+"      + math.cos(math.radians(d))**2 - 1.0) < 1e-9",
+"    for d in range(360)",
+")",
+"print(\"Pythagoras holds everywhere on the circle.\")"
+    ].join("\n")
+  },
+  {
+    id:"MATH201", code:"MATH 201", title:"Calculus I — Limits & Derivatives", sector:"lib",
+    credits:4, level:"Core · Semester 3", prereqs:["MATH120"],
+    desc:"The mathematics of instantaneous change. Limits give the derivative rigor; the derivative gives you optimization, related rates, and the first half of the Fundamental Theorem.",
+    outcomes:[
+      "Compute limits analytically, graphically, and with epsilon-delta reasoning, and classify every kind of discontinuity.",
+      "Differentiate using the product, quotient, and chain rules, plus implicit and logarithmic differentiation.",
+      "Apply derivatives to optimization, related-rates, and curve-sketching problems, and state the Fundamental Theorem of Calculus."
+    ],
+    book:{ title:"Calculus: Early Transcendentals", author:"James Stewart", pub:"Cengage · 9th Edition",
+           why:"The canonical university calculus text — the same book on the shelf of nearly every engineering graduate of the last thirty years." },
+    lang:"python", snippetNote:"The limit definition of the derivative, computed numerically with a central difference.",
+    snippet:[
+"# MATH 201 · The derivative as a limit",
+"def derivative(f, x, h=1e-6):",
+"    \"\"\"Central difference — the limit definition, made numeric.\"\"\"",
+"    return (f(x + h) - f(x - h)) / (2 * h)",
+"",
+"f = lambda x: x**3 - 2*x        # by hand:  f'(x) = 3x^2 - 2",
+"",
+"for x in [0.0, 1.0, 2.0, 3.0]:",
+"    approx = derivative(f, x)",
+"    exact  = 3*x**2 - 2",
+"    print(f\"x={x:.1f}   numeric={approx:.6f}   exact={exact:.6f}\")",
+"",
+"# As h -> 0 the secant line becomes the tangent — that arrow IS calculus."
+    ].join("\n")
+  },
+  {
+    id:"MATH202", code:"MATH 202", title:"Calculus II — Integration & Series", sector:"lib",
+    credits:4, level:"Core · Semester 4", prereqs:["MATH201"],
+    desc:"Accumulation, area, and the infinite. Integration techniques become power tools, and infinite series reveal that functions like e^x are secretly polynomials of unbounded degree.",
+    outcomes:[
+      "Integrate by parts, by partial fractions, and by trigonometric substitution, and evaluate improper integrals with limits.",
+      "Determine convergence of sequences and series using comparison, ratio, and integral tests.",
+      "Construct Taylor and Maclaurin series with error bounds, and apply calculus to parametric and polar curves."
+    ],
+    book:{ title:"Calculus: Early Transcendentals (Chapters 7–11)", author:"James Stewart", pub:"Cengage · 9th Edition",
+           why:"Continuity of voice matters mid-sequence — same author, same notation, deeper water." },
+    lang:"python", snippetNote:"Simpson's Rule conquering the Gaussian bell curve — an integral with no elementary antiderivative.",
+    snippet:[
+"# MATH 202 · Simpson's Rule — integration, industrialized",
+"import math",
+"",
+"def simpson(f, a, b, n=1000):",
+"    if n % 2:",
+"        n += 1                      # Simpson needs an even panel count",
+"    h = (b - a) / n",
+"    total = f(a) + f(b)",
+"    for i in range(1, n):",
+"        total += f(a + i*h) * (4 if i % 2 else 2)",
+"    return total * h / 3",
+"",
+"# The Gaussian bell has NO elementary antiderivative —",
+"# numerical integration is the only door in.",
+"area = simpson(lambda x: math.exp(-x*x), -4, 4)",
+"print(f\"computed  = {area:.10f}\")",
+"print(f\"sqrt(pi)  = {math.sqrt(math.pi):.10f}\")"
+    ].join("\n")
+  },
+  {
+    id:"MATH301", code:"MATH 301", title:"Calculus III — Multivariable & Vector Calculus", sector:"lib",
+    credits:4, level:"Advanced · Semester 5", prereqs:["MATH202"],
+    desc:"Calculus leaves the number line for three-dimensional space — the native language of robotics, graphics, and flight. Gradients, Jacobians, and the great theorems of Green, Stokes, and Gauss.",
+    outcomes:[
+      "Compute partial derivatives, gradients, and directional derivatives, and optimize multivariable functions with Lagrange multipliers.",
+      "Evaluate double and triple integrals over general regions, changing variables with the Jacobian determinant.",
+      "Apply vector calculus — line and surface integrals, and the theorems of Green, Stokes, and the Divergence — to real fields."
+    ],
+    book:{ title:"Vector Calculus", author:"Jerrold E. Marsden & Anthony Tromba", pub:"W. H. Freeman · 6th Edition",
+           why:"The geometric, physics-flavored treatment — exactly the intuition autonomous-systems engineering runs on." },
+    lang:"python", snippetNote:"A clean rotation-matrix loop in R³ — the very transformation rendering this campus in 3D.",
+    snippet:[
+"# MATH 301 · Rotating R^3 — the same math drawing this campus",
+"import math",
+"",
+"def rot_z(theta):",
+"    c, s = math.cos(theta), math.sin(theta)",
+"    return [[c, -s, 0.0],",
+"            [s,  c, 0.0],",
+"            [0.0, 0.0, 1.0]]",
+"",
+"def mat_vec(m, v):",
+"    return [sum(m[r][k] * v[k] for k in range(3)) for r in range(3)]",
+"",
+"point = [1.0, 0.0, 0.0]",
+"for step in range(8):               # sweep the full circle in 45-degree strides",
+"    theta = math.radians(step * 45)",
+"    x, y, z = mat_vec(rot_z(theta), point)",
+"    print(f\"{step*45:>3} deg -> ({x:+.3f}, {y:+.3f}, {z:+.3f})\")",
+"",
+"# Chain rot_x * rot_z and you have an isometric camera — this page uses",
+"# rotateX(55deg) rotateZ(-45deg): the identical matrices, in CSS."
+    ].join("\n")
+  },
+
+  /* ═════════ WHITMORE ENGINEERING QUAD — SOFTWARE FOUNDATIONS ═════════ */
+  {
+    id:"CS101", code:"CS 101", title:"Foundations of Computing with Python", sector:"eng",
+    credits:3, level:"Foundation · Semester 1", prereqs:[],
+    desc:"Zero experience assumed. You will write your first program in week one and, by finals, decompose real problems into functions, loops, and data — the craft of telling a machine exactly what you mean.",
+    outcomes:[
+      "Write Python fluently with variables, conditionals, loops, and functions, tracing execution by hand before running it.",
+      "Decompose word problems into small testable functions, and debug systematically with print-tracing and unit checks.",
+      "Manipulate real data using lists, dictionaries, strings, and file input/output."
+    ],
+    book:{ title:"Python Crash Course", author:"Eric Matthes", pub:"No Starch Press · 3rd Edition",
+           why:"The best-selling introduction to programming on Earth for a reason — project-driven, patient, and never patronizing." },
+    lang:"python", snippetNote:"A complete first program: your own transcript, computed with loops, tuples, and a dictionary.",
+    snippet:[
+"# CS 101 · Your first real program at Pembroke",
+"gpa_points = {\"A\": 4.0, \"B\": 3.0, \"C\": 2.0}",
+"",
+"transcript = [",
+"    (\"College Algebra\",          \"A\"),",
+"    (\"Foundations of Computing\", \"B\"),",
+"]",
+"",
+"total = 0.0",
+"for course_name, grade in transcript:",
+"    points = gpa_points[grade]",
+"    total += points",
+"    print(f\"{course_name:<28} {grade}   ({points} pts)\")",
+"",
+"print(f\"Semester GPA: {total / len(transcript):.2f}\")",
+"",
+"# Every autonomous drone at Aldergate Hall began with a loop like this one."
+    ].join("\n")
+  },
+  {
+    id:"CS201", code:"CS 201", title:"Data Structures & Algorithms", sector:"eng",
+    credits:4, level:"Core · Semester 3", prereqs:["CS101","MATH120"],
+    desc:"Programs that stay fast when the data gets enormous. You will build the classic structures from scratch, then learn to read Big-O the way a pilot reads instruments.",
+    outcomes:[
+      "Implement stacks, queues, linked lists, hash maps, and binary search trees from first principles in Python.",
+      "Analyze time and space complexity with Big-O notation, predicting performance before ever running the code.",
+      "Apply classic algorithms — binary search, merge/quick sort, and BFS/DFS graph traversal — to practical problems."
+    ],
+    book:{ title:"A Common-Sense Guide to Data Structures and Algorithms", author:"Jay Wengrow", pub:"Pragmatic Bookshelf · 2nd Edition",
+           why:"Big-O taught through intuition and honest diagrams instead of proofs — ideal for a self-taught ascent." },
+    lang:"python", snippetNote:"Binary search finding one item among 142,858 in seventeen comparisons — logarithms made visceral.",
+    snippet:[
+"# CS 201 · Binary search — O(log n) beats O(n), every single time",
+"def binary_search(sorted_items, target):",
+"    low, high = 0, len(sorted_items) - 1",
+"    steps = 0",
+"    while low <= high:",
+"        steps += 1",
+"        mid = (low + high) // 2",
+"        if sorted_items[mid] == target:",
+"            return mid, steps",
+"        if sorted_items[mid] < target:",
+"            low = mid + 1",
+"        else:",
+"            high = mid - 1",
+"    return -1, steps",
+"",
+"catalog = list(range(0, 1_000_000, 7))     # 142,858 entries",
+"index, steps = binary_search(catalog, 699993)",
+"print(f\"found at index {index} in only {steps} comparisons\")",
+"# Linear scan: ~100,000 looks.  Binary search: 17.  That gap is the course."
+    ].join("\n")
+  },
+  {
+    id:"CS301", code:"CS 301", title:"Systems Programming & Software Engineering", sector:"eng",
+    credits:4, level:"Advanced · Semester 5", prereqs:["CS201"],
+    desc:"Descend one level of the tower: C, pointers, and the memory model — plus the professional discipline (version control, testing, modular design) that turns scripts into engineering.",
+    outcomes:[
+      "Program confidently in C with pointers, structs, manual memory management, and a clear model of stack versus heap.",
+      "Explain how source code becomes machine code: compilation, linking, the call stack, and data representation in memory.",
+      "Practice professional engineering workflow — Git branching, code review, unit testing, and deliberate modular design."
+    ],
+    book:{ title:"Computer Systems: A Programmer's Perspective", author:"Randal E. Bryant & David R. O'Hallaron", pub:"Pearson · 3rd Edition",
+           why:"The legendary CMU text that connects the code you write to the machine that runs it — the perfect bridge into the Science Lab." },
+    lang:"c", snippetNote:"Memory is not magic — walking an array of structs by raw address in C.",
+    snippet:[
+"/* CS 301 · Memory is not magic: structs and pointers in C */",
+"#include <stdio.h>",
+"",
+"struct Student {",
+"    const char *name;",
+"    int         credits;",
+"};",
+"",
+"int main(void) {",
+"    struct Student cohort[3] = {",
+"        { \"Elowen\", 42 }, { \"Marcus\", 30 }, { \"Priya\", 57 }",
+"    };",
+"",
+"    int total = 0;",
+"    /* walk the array by address, not by index */",
+"    for (struct Student *s = cohort; s < cohort + 3; s++) {",
+"        printf(\"%-8s %2d credits  (at %p)\\n\",",
+"               s->name, s->credits, (void *)s);",
+"        total += s->credits;",
+"    }",
+"    printf(\"cohort total: %d credits\\n\", total);",
+"    return 0;",
+"}"
+    ].join("\n")
+  },
+
+  /* ═════════ ALDEN SCIENCE LAB — HARDWARE & MICROPROCESSORS ═════════ */
+  {
+    id:"EE210", code:"EE 210", title:"Digital Logic & Circuit Design", sector:"sci",
+    credits:4, level:"Core · Semester 4", prereqs:["MATH120","CS101"],
+    desc:"Where boolean algebra becomes physical. Gates, Karnaugh maps, flip-flops, and finite-state machines — you will design the small circuits from which every computer is composed.",
+    outcomes:[
+      "Simplify boolean expressions with algebra and Karnaugh maps, and realize them as minimal gate networks.",
+      "Design combinational blocks (adders, multiplexers, decoders) and sequential circuits built on flip-flops and registers.",
+      "Analyze basic electrical behavior — Ohm's law, RC charging curves, and timing constraints in clocked logic."
+    ],
+    book:{ title:"Digital Design and Computer Architecture", author:"David Harris & Sarah Harris", pub:"Morgan Kaufmann · 2nd Edition",
+           why:"Marches from a single transistor to a working microprocessor in one coherent story — the exact arc of this track." },
+    lang:"python", snippetNote:"A full adder simulated in pure boolean logic — these eight truth-table rows ARE the silicon.",
+    snippet:[
+"# EE 210 · Every circuit begins as a truth table",
+"from itertools import product",
+"",
+"def full_adder(a, b, carry_in):",
+"    total     = a ^ b ^ carry_in                   # XOR chain",
+"    carry_out = (a & b) | (carry_in & (a ^ b))     # majority logic",
+"    return total, carry_out",
+"",
+"print(\" A  B  Cin | Sum  Cout\")",
+"print(\"-----------+----------\")",
+"for a, b, cin in product([0, 1], repeat=3):",
+"    s, cout = full_adder(a, b, cin)",
+"    print(f\" {a}  {b}   {cin}  |  {s}    {cout}\")",
+"",
+"# Chain 64 of these and you have the adder inside every CPU on campus.",
+"# Gates are frozen boolean algebra; computers are frozen proofs."
+    ].join("\n")
+  },
+  {
+    id:"EE310", code:"EE 310", title:"Microprocessors & Assembly Architecture", sector:"sci",
+    credits:4, level:"Advanced · Semester 6", prereqs:["EE210","CS301"],
+    desc:"Meet the machine on its own terms. The x86-64 register file, memory addressing, the stack discipline, and interrupts — then command a microcontroller pin by pin.",
+    outcomes:[
+      "Describe the x86-64 register file and addressing modes, tracing instruction execution through fetch–decode–execute.",
+      "Write and debug assembly routines using data movement, arithmetic, branching, and correct stack-frame conventions.",
+      "Interface a microcontroller with the physical world through GPIO, timers, and interrupt service routines."
+    ],
+    book:{ title:"The Art of 64-Bit Assembly, Volume 1", author:"Randall Hyde", pub:"No Starch Press · 1st Edition",
+           why:"The modern successor to the most beloved assembly text ever written — rigorous, current, and genuinely readable." },
+    lang:"asm", snippetNote:"Pure x86-64: summing an array with nothing but registers, in Intel syntax (NASM).",
+    snippet:[
+"; EE 310 · x86-64 — summing an array with raw registers (Intel syntax, NASM)",
+"section .data",
+"    grades  dq 88, 92, 79, 95, 84    ; five 64-bit integers",
+"    count   equ 5",
+"",
+"section .text",
+"    global _start",
+"_start:",
+"    lea   rsi, [grades]      ; RSI <- base address of the array",
+"    mov   rcx, count         ; RCX <- loop counter",
+"    xor   rax, rax           ; RAX <- running sum, zeroed the fast way",
+"",
+".accumulate:",
+"    add   rax, [rsi]         ; sum += *pointer",
+"    add   rsi, 8             ; advance one quadword (8 bytes)",
+"    loop  .accumulate        ; dec RCX, branch while RCX != 0",
+"",
+"    ; RAX now holds 438 — the total, living entirely in a register",
+"    mov   rdi, rax           ; exit code = sum (mod 256)",
+"    mov   rax, 60            ; syscall number: exit",
+"    syscall"
+    ].join("\n")
+  },
+
+  /* ═════════ ALDERGATE HALL — AI ROBOTICS & FLIGHT PLANNERS ═════════ */
+  {
+    id:"AI401", code:"AI 401", title:"Autonomous Robotics & Machine Intelligence", sector:"adm",
+    credits:4, level:"Capstone I · Semester 7", prereqs:["MATH301","CS201","EE310"],
+    desc:"Everything converges. Multivariable calculus supplies the gradients, data structures supply the maps, microprocessors supply the muscles — and a robot begins to perceive, decide, and act.",
+    outcomes:[
+      "Implement state estimation with Kalman-filter fundamentals, fusing noisy sensor streams into a confident belief.",
+      "Design and tune PID control loops that hold a physical system — wheel, arm, or rotor — on its commanded setpoint.",
+      "Build machine-learning foundations from scratch: gradient descent, loss surfaces, and a working neural network."
+    ],
+    book:{ title:"Probabilistic Robotics", author:"Sebastian Thrun, Wolfram Burgard & Dieter Fox", pub:"MIT Press",
+           why:"Written by the team behind the first vehicles to drive themselves across a desert — the founding text of modern autonomy." },
+    lang:"python", snippetNote:"A PID control loop holding a drone at 50 meters — gravity always votes, the controller always answers.",
+    snippet:[
+"# AI 401 · A PID loop holding a drone at altitude",
+"class PID:",
+"    def __init__(self, kp, ki, kd, setpoint):",
+"        self.kp, self.ki, self.kd = kp, ki, kd",
+"        self.setpoint   = setpoint",
+"        self.integral   = 0.0",
+"        self.prev_error = 0.0",
+"",
+"    def update(self, measured, dt):",
+"        error            = self.setpoint - measured",
+"        self.integral   += error * dt",
+"        derivative       = (error - self.prev_error) / dt",
+"        self.prev_error  = error",
+"        return (self.kp * error",
+"              + self.ki * self.integral",
+"              + self.kd * derivative)",
+"",
+"pid      = PID(kp=1.2, ki=0.35, kd=0.75, setpoint=50.0)",
+"altitude = velocity = 0.0",
+"for tick in range(61):                    # six seconds at 10 Hz",
+"    thrust    = pid.update(altitude, dt=0.1)",
+"    velocity += (thrust - 9.81) * 0.1     # gravity always votes",
+"    altitude += velocity * 0.1",
+"    if tick % 10 == 0:",
+"        print(f\"t={tick/10:>4.1f}s   altitude={altitude:6.2f} m\")"
+    ].join("\n")
+  },
+  {
+    id:"AI450", code:"AI 450", title:"Flight Planners & Aerial Autonomy", sector:"adm",
+    credits:4, level:"Capstone II · Semester 8", prereqs:["AI401"],
+    desc:"The summit of the degree. Autonomous aircraft that plan their own routes through hazard fields, respect geofences, and navigate even when GPS goes dark — then a graduation flight over the quad.",
+    outcomes:[
+      "Implement A* and grid-based path planning over 3D occupancy maps, producing safe, optimal flight corridors.",
+      "Generate complete waypoint missions with altitude profiles, geofence constraints, and contingency return-to-home logic.",
+      "Fuse GPS, IMU, and barometric data for robust navigation, degrading gracefully in GPS-denied environments."
+    ],
+    book:{ title:"Small Unmanned Aircraft: Theory and Practice", author:"Randal W. Beard & Timothy W. McLain", pub:"Princeton University Press",
+           why:"The standard reference for fixed-wing autonomy — the mathematics of this book is the flight controller." },
+    lang:"python", snippetNote:"A complete A* flight planner threading a hazard grid — the capstone algorithm, whole and working.",
+    snippet:[
+"# AI 450 · A* flight planning across a hazard grid",
+"import heapq",
+"",
+"def a_star(grid, start, goal):",
+"    rows, cols = len(grid), len(grid[0])",
+"    frontier   = [(0, start)]",
+"    came_from  = {start: None}",
+"    cost       = {start: 0}",
+"    while frontier:",
+"        _, current = heapq.heappop(frontier)",
+"        if current == goal:",
+"            break",
+"        for dr, dc in ((1,0), (-1,0), (0,1), (0,-1)):",
+"            nxt = (current[0] + dr, current[1] + dc)",
+"            if not (0 <= nxt[0] < rows and 0 <= nxt[1] < cols):",
+"                continue",
+"            if grid[nxt[0]][nxt[1]] == 1:      # hazard cell — no-fly",
+"                continue",
+"            new_cost = cost[current] + 1",
+"            if nxt not in cost or new_cost < cost[nxt]:",
+"                cost[nxt] = new_cost",
+"                manhattan = abs(goal[0]-nxt[0]) + abs(goal[1]-nxt[1])",
+"                heapq.heappush(frontier, (new_cost + manhattan, nxt))",
+"                came_from[nxt] = current",
+"    path, node = [], goal",
+"    while node is not None:",
+"        path.append(node)",
+"        node = came_from.get(node)",
+"    return path[::-1]",
+"",
+"hazards = [[0,0,0,1,0],",
+"           [1,1,0,1,0],",
+"           [0,0,0,0,0],",
+"           [0,1,1,1,0],",
+"           [0,0,0,0,0]]",
+"route = a_star(hazards, (0,0), (4,4))",
+"print(\"flight corridor:\", route)"
+    ].join("\n")
+  },
+];
+
+/* ── ③ localStorage progress ledger ──────────────────────────────── */
+const LS_DONE   = "pembroke.registrar.completed";
+const LS_SECTOR = "pembroke.registrar.sector";
+function loadDone(){
+  try{ const a = JSON.parse(localStorage.getItem(LS_DONE) || "[]"); return Array.isArray(a) ? a : []; }
+  catch(e){ return []; }
+}
+function saveDone(arr){ localStorage.setItem(LS_DONE, JSON.stringify(arr)); }
+let done = loadDone();
+let currentSector = localStorage.getItem(LS_SECTOR) || "all";
+const byId = Object.fromEntries(COURSES.map(c => [c.id, c]));
+
+/* ══════════════════════════════════════════════════════════════════
+   ① CAMPUS BUILDER — raw CSS 3D faces (roof + west wall + south wall)
+   ══════════════════════════════════════════════════════════════════ */
+const scene = document.getElementById("scene");
+
+function buildBox(o){
+  /* o = {x, y, w, d, h, cls, roofBg, wallBg, glow, sector, deco} */
+  const b = document.createElement("div");
+  b.className = "b3d " + (o.cls || "") + (o.deco ? " deco" : "");
+  b.style.cssText = `left:${o.x}px;top:${o.y}px;width:${o.w}px;height:${o.d}px;--glow:${o.glow || "transparent"}`;
+  if (o.sector) b.dataset.sector = o.sector;
+
+  const shadow = document.createElement("div");
+  shadow.className = "shadow";
+  b.appendChild(shadow);
+
+  /* west wall — plane x=0, faces the lower-left of the screen */
+  const wl = document.createElement("div");
+  wl.className = "face wall wall-l" + (o.windows ? " win-v" : "");
+  wl.style.cssText = `width:${o.h}px;height:${o.d}px;transform-origin:left center;transform:rotateY(-90deg);background:${o.wallBg};--win:${o.winColor || "transparent"}`;
+  b.appendChild(wl);
+
+  /* south wall — plane y=d, faces the lower-right of the screen */
+  const wr = document.createElement("div");
+  wr.className = "face wall wall-r" + (o.windows ? " win-v" : "");
+  wr.style.cssText = `width:${o.w}px;height:${o.h}px;top:${o.d}px;transform-origin:center top;transform:rotateX(90deg);background:${o.wallBg2 || o.wallBg};--win:${o.winColor || "transparent"}`;
+  b.appendChild(wr);
+
+  /* roof — lifted to full height */
+  const roof = document.createElement("div");
+  roof.className = "face roof";
+  roof.style.cssText = `transform:translateZ(${o.h}px);background:${o.roofBg}`;
+  b.appendChild(roof);
+
+  scene.appendChild(b);
+  return b;
+}
+
+/* the four halls: base slab + signature upper mass, per-quad glow */
+const BUILDINGS = [
+  { sector:"lib", label:{x:160, y:160, z:200},
+    parts:[
+      { x:60,  y:60,  w:200, d:200, h:96,
+        roofBg:"linear-gradient(135deg,#123a30,#0c2b24 60%,#0a231e)",
+        wallBg:"linear-gradient(180deg,#0e2f28,#123a30)",
+        winColor:"rgba(110,231,183,.34)", windows:true, glow:"rgba(16,185,129,.55)" },
+      { x:108, y:108, w:104, d:104, h:172,
+        roofBg:"radial-gradient(circle at 35% 35%, #1f6f57, #0f3d31 70%)",
+        wallBg:"linear-gradient(180deg,#155343,#0e352b)",
+        winColor:"rgba(110,231,183,.42)", windows:true, glow:"rgba(16,185,129,.6)" },
+    ]},
+  { sector:"eng", label:{x:475, y:155, z:158},
+    parts:[
+      { x:380, y:80,  w:190, d:150, h:88,
+        roofBg:"linear-gradient(135deg,#4a3413,#332309 60%,#291c07)",
+        wallBg:"linear-gradient(180deg,#3d2b0f,#4a3413)",
+        winColor:"rgba(252,211,77,.4)", windows:true, glow:"rgba(245,158,11,.55)" },
+      { x:398, y:96,  w:80,  d:118, h:132,
+        roofBg:"linear-gradient(135deg,#7c5a1e,#4a3413 70%)",
+        wallBg:"linear-gradient(180deg,#5c431a,#3a2a0e)",
+        winColor:"rgba(252,211,77,.5)", windows:true, glow:"rgba(245,158,11,.6)" },
+    ]},
+  { sector:"sci", label:{x:160, y:460, z:176},
+    parts:[
+      { x:70,  y:380, w:180, d:160, h:84,
+        roofBg:"linear-gradient(135deg,#123650,#0c283d 60%,#0a2133)",
+        wallBg:"linear-gradient(180deg,#0e2c42,#123650)",
+        winColor:"rgba(125,211,252,.42)", windows:true, glow:"rgba(56,189,248,.55)" },
+      { x:150, y:398, w:84,  d:124, h:150,
+        roofBg:"linear-gradient(135deg,#1c5a82,#113a55 70%)",
+        wallBg:"linear-gradient(180deg,#164968,#0e2c42)",
+        winColor:"rgba(125,211,252,.5)", windows:true, glow:"rgba(56,189,248,.6)" },
+    ]},
+  { sector:"adm", label:{x:470, y:460, z:218},
+    parts:[
+      { x:380, y:370, w:180, d:180, h:104,
+        roofBg:"linear-gradient(135deg,#33254f,#251a3c 60%,#1d1430)",
+        wallBg:"linear-gradient(180deg,#2a1f42,#33254f)",
+        winColor:"rgba(196,181,253,.4)", windows:true, glow:"rgba(167,139,250,.55)" },
+      { x:434, y:424, w:72,  d:72,  h:192,
+        roofBg:"radial-gradient(circle at 35% 35%, #6d54ab, #3a2a63 72%)",
+        wallBg:"linear-gradient(180deg,#4a3878,#291d47)",
+        winColor:"rgba(196,181,253,.55)", windows:true, glow:"rgba(167,139,250,.65)" },
+    ]},
+];
+
+const buildingEls = {};   // sector -> [box elements]
+const labelEls = {};      // sector -> progress span
+
+BUILDINGS.forEach(spec => {
+  const S = SECTORS[spec.sector];
+  buildingEls[spec.sector] = spec.parts.map(p =>
+    buildBox({ ...p, sector: spec.sector, cls: "hall-" + spec.sector })
+  );
+  buildingEls[spec.sector].forEach(el => {
+    el.addEventListener("click", () => selectSector(spec.sector, true));
+    el.setAttribute("role", "button");
+    el.setAttribute("aria-label", "Enter " + S.hall);
+    el.title = S.hall + " — " + S.track;
+  });
+
+  /* floating billboarded nameplate above the hall */
+  const lab = document.createElement("div");
+  lab.className = "b-label billboard";
+  lab.style.setProperty("--glow", S.color);
+  lab.style.transform = `translate3d(${spec.label.x}px, ${spec.label.y}px, ${spec.label.z}px)`;
+  lab.innerHTML =
+    `<div class="bb-inner">
+       <div class="card">
+         <div class="flex items-center justify-center gap-1.5">
+           <span class="flag"></span>
+           <span class="font-serif-d text-[11.5px] font-semibold" style="color:${S.color}">${S.hall}</span>
+         </div>
+         <div class="text-[7.5px] uppercase tracking-[.2em] text-slate-400 mt-0.5">${S.track}</div>
+         <div class="text-[8px] mt-0.5 text-slate-300"><span data-labprog="${spec.sector}">0/0</span> courses sealed</div>
+       </div>
+     </div>`;
+  scene.appendChild(lab);
+  labelEls[spec.sector] = lab.querySelector(`[data-labprog="${spec.sector}"]`);
+});
+
+/* hedgerows & lantern posts — decorative geometry for depth */
+[
+  { x:280, y:60,  w:14, d:90 },  { x:346, y:60,  w:14, d:90 },
+  { x:280, y:490, w:14, d:90 },  { x:346, y:490, w:14, d:90 },
+  { x:60,  y:280, w:90, d:14 },  { x:60,  y:346, w:90, d:14 },
+  { x:490, y:280, w:90, d:14 },  { x:490, y:346, w:90, d:14 },
+].forEach(hd => buildBox({
+  ...hd, h:16, deco:true,
+  roofBg:"linear-gradient(135deg,#14532d,#0c3d20)",
+  wallBg:"linear-gradient(180deg,#0f4526,#092e18)",
+}));
+
+/* corner obelisk lanterns */
+[[34,34],[588,34],[34,588],[588,588]].forEach(([lx,ly]) => {
+  buildBox({ x:lx, y:ly, w:14, d:14, h:64, deco:true,
+    roofBg:"radial-gradient(circle,#ffe9a8,#8a744a)",
+    wallBg:"linear-gradient(180deg,#334155,#111827)" });
+  const halo = document.createElement("div");
+  halo.className = "fly";
+  halo.style.cssText = `left:${lx - 6}px;top:${ly - 6}px;width:26px;height:26px;--dx:0px;--dy:0px;--t:4s;transform:translateZ(70px);animation-name:twinkle;`;
+  scene.appendChild(halo);
+});
+
+/* fireflies drifting over the lawn */
+for (let i = 0; i < 14; i++){
+  const f = document.createElement("div");
+  f.className = "fly";
+  const x = 60 + Math.random() * 520, y = 60 + Math.random() * 520;
+  f.style.cssText = `left:${x}px;top:${y}px;--dx:${(Math.random()*120-60).toFixed(0)}px;--dy:${(Math.random()*120-60).toFixed(0)}px;--t:${(6+Math.random()*8).toFixed(1)}s;animation-delay:-${(Math.random()*9).toFixed(1)}s;`;
+  scene.appendChild(f);
+}
+
+/* ── ambient cohort: students strolling the quad ─────────────────── */
+const WAYPOINTS = {
+  C:[320,320],  N:[320,120],  S:[320,540],  W:[120,320],  E:[540,320],
+  NN:[320,50],  SS:[320,592], WW:[50,320],  EE:[592,320],
+  libDoor:[270,270], engDoor:[372,250], sciDoor:[262,372], admDoor:[372,368],
+};
+const EDGES = {
+  C:["N","S","W","E","libDoor","engDoor","sciDoor","admDoor"],
+  N:["C","NN"], S:["C","SS"], W:["C","WW"], E:["C","EE"],
+  NN:["N"], SS:["S"], WW:["W"], EE:["E"],
+  libDoor:["C"], engDoor:["C"], sciDoor:["C"], admDoor:["C"],
+};
+const STUDENT_ROSTER = [
+  { name:"Elowen", c:"#34d399", says:["Off to Calc III — gradients await!","The Library dome at dusk… unbeatable.","Stokes' theorem finally clicked!"] },
+  { name:"Marcus", c:"#fbbf24", says:["My first Python script ran — no errors!","Binary search in 17 steps. SEVENTEEN.","Whitmore Quad study group, 8pm."] },
+  { name:"Priya",  c:"#38bdf8", says:["My full adder passed every row!","RAX holds the whole sum. Registers are elegant.","Lab practical on flip-flops today."] },
+  { name:"Jun",    c:"#a78bfa", says:["Tuned my PID — no more overshoot!","A* found a corridor through the no-fly grid.","Capstone flight over the quad Friday!"] },
+  { name:"Sofia",  c:"#f472b6", says:["Simpson's rule tamed the Gaussian bell.","Unit circle from memory. All of it.","Meet at the fountain after lecture?"] },
+  { name:"Theo",   c:"#5eead4", says:["Pointers finally make sense!","Committed my problem sets — git push, done.","K-maps are just crossword puzzles."] },
+];
+const students = [];
+STUDENT_ROSTER.forEach((st, i) => {
+  const el = document.createElement("div");
+  el.className = "student billboard";
+  el.style.setProperty("--c", st.c);
+  el.innerHTML =
+    `<div class="bb-inner rig">
+       <div class="figure">
+         <div class="say"></div>
+         <div class="tag">${st.name}</div>
+         <div class="head"></div><div class="torso"></div><div class="legs"></div>
+         <div class="sshadow"></div>
+       </div>
+     </div>`;
+  scene.appendChild(el);
+  const keys = Object.keys(WAYPOINTS);
+  const startKey = ["C","N","S","W","E"][i % 5];
+  const s = {
+    el, data:st,
+    node:startKey,
+    pos:[...WAYPOINTS[startKey]],
+    target:null, speed:26 + Math.random()*18,
+    pauseUntil:0, sayUntil:0,
+  };
+  el.querySelector(".rig").addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    speak(s, true);
+  });
+  students.push(s);
+});
+
+function speak(s, fromClick){
+  const q = s.data.says[Math.floor(Math.random() * s.data.says.length)];
+  s.el.querySelector(".say").textContent = q;
+  s.el.classList.add("talking");
+  s.sayUntil = performance.now() + 3200;
+  if (fromClick) toast(`${s.data.name} says`, "“" + q + "”", "#d4af6a");
+}
+
+let lastT = performance.now();
+function stepStudents(now){
+  const dt = Math.min(0.05, (now - lastT) / 1000);
+  lastT = now;
+  for (const s of students){
+    if (s.sayUntil && now > s.sayUntil){ s.el.classList.remove("talking"); s.sayUntil = 0; }
+    if (now < s.pauseUntil){ s.el.classList.add("idle"); }
+    else {
+      s.el.classList.remove("idle");
+      if (!s.target){
+        const opts = EDGES[s.node];
+        const nextKey = opts[Math.floor(Math.random() * opts.length)];
+        s.target = nextKey;
+      }
+      const [tx, ty] = WAYPOINTS[s.target];
+      const dx = tx - s.pos[0], dy = ty - s.pos[1];
+      const dist = Math.hypot(dx, dy);
+      if (dist < 2){
+        s.node = s.target; s.target = null;
+        if (Math.random() < 0.55){
+          s.pauseUntil = now + 900 + Math.random() * 2600;
+          if (Math.random() < 0.3) speak(s, false);
+        }
+      } else {
+        s.pos[0] += (dx / dist) * s.speed * dt;
+        s.pos[1] += (dy / dist) * s.speed * dt;
+      }
+    }
+    s.el.style.transform = `translate3d(${s.pos[0]}px, ${s.pos[1]}px, 1px)`;
+  }
+  requestAnimationFrame(stepStudents);
+}
+requestAnimationFrame(stepStudents);
+
+/* ── parallax survey of the grounds ──────────────────────────────── */
+const rootStyle = document.documentElement.style;
+let tiltTX = 0, tiltTZ = 0, curTX = 0, curTZ = 0;
+document.getElementById("campus-wing").addEventListener("mousemove", (e) => {
+  const r = e.currentTarget.getBoundingClientRect();
+  tiltTZ = ((e.clientX - r.left) / r.width  - 0.5) *  7;   // degrees
+  tiltTX = ((e.clientY - r.top)  / r.height - 0.5) * -6;
+});
+document.getElementById("campus-wing").addEventListener("mouseleave", () => { tiltTX = 0; tiltTZ = 0; });
+(function tiltLoop(){
+  curTX += (tiltTX - curTX) * 0.06;
+  curTZ += (tiltTZ - curTZ) * 0.06;
+  rootStyle.setProperty("--tiltX", curTX.toFixed(2) + "deg");
+  rootStyle.setProperty("--tiltZ", curTZ.toFixed(2) + "deg");
+  requestAnimationFrame(tiltLoop);
+})();
+
+/* starfield */
+(function stars(){
+  const host = document.getElementById("stars");
+  for (let i = 0; i < 70; i++){
+    const s = document.createElement("i");
+    s.style.cssText = `left:${(Math.random()*100).toFixed(2)}%;top:${(Math.random()*62).toFixed(2)}%;animation-delay:-${(Math.random()*5).toFixed(1)}s;opacity:${(0.2+Math.random()*0.6).toFixed(2)}`;
+    host.appendChild(s);
+  }
+})();
+
+/* ══════════════════════════════════════════════════════════════════
+   ② CONTEXT-DRIVEN WORKSPACE — the morphing instructional terminal
+   ══════════════════════════════════════════════════════════════════ */
+const chipsEl   = document.getElementById("chips");
+const bannerEl  = document.getElementById("sector-banner");
+const coursesEl = document.getElementById("courses");
+
+function esc(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+/* minimal, safe syntax illumination: split each line at its comment,
+   colorize keywords / numbers / strings only on the code half */
+const KEYWORDS = {
+  python:["def","return","for","while","if","else","elif","import","from","class","lambda","in","not","and","or","assert","print","range","len","abs","sum","None","True","False","self","break","continue","yield","with","as","try","except"],
+  c:["#include","struct","int","const","char","void","for","while","if","else","return","printf","sizeof","static","main"],
+  asm:["section","global","dq","equ","lea","mov","xor","add","loop","syscall","dec","jmp","jnz","cmp"],
+};
+function highlightLine(line, lang){
+  let code = line, comment = "";
+  const markers = lang === "c" ? ["//","/*"] : lang === "asm" ? [";"] : ["#"];
+  let cut = -1;
+  for (const m of markers){
+    const idx = line.indexOf(m);
+    if (idx !== -1 && (cut === -1 || idx < cut)) cut = idx;
+  }
+  if (cut !== -1){ code = line.slice(0, cut); comment = line.slice(cut); }
+  let html = esc(code)
+    .replace(/(&quot;|")((?:[^"\\]|\\.)*)(")/g, (m) => `<span class="tok-s">${m}</span>`)
+    .replace(/\b(\d[\d_]*\.?\d*(?:e-?\d+)?)\b/g, `<span class="tok-n">$1</span>`);
+  const kws = KEYWORDS[lang] || [];
+  for (const kw of kws){
+    const safe = kw.replace(/[#*]/g, "\\$&");
+    html = html.replace(new RegExp(`(^|[^\\w<>"'])(${safe})(?![\\w<])`, "g"), `$1<span class="tok-k">$2</span>`);
+  }
+  if (comment) html += `<span class="tok-c">${esc(comment)}</span>`;
+  return html;
+}
+function highlight(codeStr, lang){
+  return codeStr.split("\n").map(l => highlightLine(l, lang)).join("\n");
+}
+
+const LANG_BADGE = { python:"Python 3", c:"C (GCC)", asm:"x86-64 · NASM" };
+
+function sectorOf(c){ return SECTORS[c.sector]; }
+function courseCountText(key){
+  const list = COURSES.filter(c => c.sector === key);
+  const d = list.filter(c => done.includes(c.id)).length;
+  return `${d}/${list.length}`;
+}
+
+function renderChips(){
+  const mk = (key, label, color, count) => {
+    const on = currentSector === key;
+    return `<button data-chip="${key}" class="chip ${on ? "on":""} rounded-full px-4 py-1.5 text-[11.5px] tracking-wide font-medium text-slate-300" style="--c:${color}">
+      ${label} <span class="opacity-60 ml-1 font-mono-d text-[10px]">${count}</span>
+    </button>`;
+  };
+  chipsEl.innerHTML =
+    mk("all", "⌂ Full Syllabus", "#d4af6a", `${done.length}/${COURSES.length}`) +
+    SECTOR_ORDER.map(k => mk(k, SECTORS[k].icon + " " + SECTORS[k].hall.replace("The ",""), SECTORS[k].color, courseCountText(k))).join("");
+  chipsEl.querySelectorAll("[data-chip]").forEach(b =>
+    b.addEventListener("click", () => selectSector(b.dataset.chip, false)));
+}
+
+function renderBanner(){
+  if (currentSector === "all"){
+    bannerEl.innerHTML = `
+      <div class="rounded-2xl border border-[rgba(212,175,106,.3)] bg-gradient-to-br from-[rgba(26,34,54,.85)] to-[rgba(13,20,34,.9)] p-6 sm:p-7 relative overflow-hidden">
+        <div class="absolute -top-16 -right-16 w-56 h-56 rounded-full pointer-events-none" style="background:radial-gradient(circle, rgba(212,175,106,.14), transparent 65%)"></div>
+        <div class="text-[10px] uppercase tracking-[.3em] text-[color:var(--brass-dim)]">Master Academic Syllabus</div>
+        <h2 class="font-serif-d text-3xl font-semibold text-[color:var(--parchment)] mt-1.5 leading-tight">Bachelor of Autonomous Systems <span class="italic text-[color:var(--brass)]">Engineering</span></h2>
+        <p class="text-[13.5px] text-slate-400 mt-3 leading-relaxed max-w-xl">
+          Twelve courses, four halls, one continuous ascent — designed for a student who begins at
+          <span class="text-slate-200">College Algebra with no programming experience</span> and graduates
+          engineering <span class="text-slate-200">autonomous flight systems</span>. Mathematics climbs from
+          algebra to Calculus III in the Great Library; computing rises in parallel from a first
+          <code class="font-mono-d text-[12px] text-amber-300/90">print()</code> to raw x86-64 assembly —
+          and the two paths converge at Aldergate Hall, where machines learn to fly themselves.
+        </p>
+        <div class="flex flex-wrap gap-x-5 gap-y-1.5 mt-4 text-[11px] text-slate-400">
+          <span>◈ <span class="text-emerald-300/90">5 mathematics courses</span></span>
+          <span>⌬ <span class="text-amber-300/90">3 software studios</span></span>
+          <span>⚡ <span class="text-sky-300/90">2 hardware laboratories</span></span>
+          <span>✈ <span class="text-violet-300/90">2 autonomy capstones</span></span>
+          <span class="text-[color:var(--brass)]">Σ 45 credits</span>
+        </div>
+      </div>`;
+  } else {
+    const S = SECTORS[currentSector];
+    const list = COURSES.filter(c => c.sector === currentSector);
+    const dcount = list.filter(c => done.includes(c.id)).length;
+    bannerEl.innerHTML = `
+      <div class="rounded-2xl border p-6 sm:p-7 relative overflow-hidden"
+           style="border-color:${S.soft}.38);background:linear-gradient(150deg, ${S.soft}.10) 0%, rgba(13,20,34,.92) 55%)">
+        <div class="absolute -top-16 -right-16 w-64 h-64 rounded-full pointer-events-none" style="background:radial-gradient(circle, ${S.soft}.16), transparent 65%)"></div>
+        <div class="flex items-center gap-2 text-[10px] uppercase tracking-[.3em]" style="color:${S.color}">
+          <span class="inline-block w-2 h-2 rounded-full" style="background:${S.color};box-shadow:0 0 10px ${S.color}"></span>
+          Now inside · ${S.track}
+        </div>
+        <h2 class="font-serif-d text-3xl font-semibold text-[color:var(--parchment)] mt-1.5">${S.hall}</h2>
+        <p class="text-[13.5px] text-slate-400 mt-2.5 leading-relaxed max-w-xl">${S.blurb}</p>
+        <div class="flex items-center justify-between flex-wrap gap-3 mt-4">
+          <span class="font-serif-d italic text-[14px]" style="color:${S.color}">“${S.motto}”</span>
+          <span class="text-[11px] text-slate-400">${dcount} of ${list.length} courses sealed in this hall</span>
+        </div>
+      </div>`;
+  }
+}
+
+function prereqPill(pid){
+  const met = done.includes(pid);
+  const c = byId[pid];
+  return `<span class="prereq-pill ${met ? "met":""} rounded-md px-2 py-0.5 text-[10.5px] font-mono-d tracking-wide">${met ? "✓ ":""}${c ? c.code : pid}</span>`;
+}
+
+function courseCard(c){
+  const S = sectorOf(c);
+  const isDone = done.includes(c.id);
+  const prereqs = c.prereqs.length
+    ? c.prereqs.map(prereqPill).join(" ")
+    : `<span class="prereq-pill met rounded-md px-2 py-0.5 text-[10.5px] font-mono-d tracking-wide">✓ None — open enrollment</span>`;
+  return `
+  <article class="course-card ${isDone ? "done":""} p-5 sm:p-6" style="--c:${S.color}" data-course="${c.id}">
+    <div class="seal">✦ Completed ✦</div>
+
+    <div class="flex items-start justify-between gap-4">
+      <div class="min-w-0">
+        <div class="flex items-center flex-wrap gap-2 text-[10px] uppercase tracking-[.18em]">
+          <span class="font-mono-d font-semibold px-2 py-0.5 rounded" style="color:${S.color};background:${S.soft}.12);border:1px solid ${S.soft}.35)">${c.code}</span>
+          <span class="text-slate-500">${c.level}</span>
+          <span class="text-slate-500">· ${c.credits} credits</span>
+        </div>
+        <h3 class="font-serif-d text-[22px] sm:text-2xl font-semibold text-slate-100 mt-2 leading-snug">${c.title}</h3>
+        <div class="text-[10.5px] uppercase tracking-[.2em] mt-0.5" style="color:${S.color}">${S.hall}</div>
+      </div>
+      <button class="mark-btn flex-none flex flex-col items-center gap-1.5 group mt-1" data-mark="${c.id}" aria-pressed="${isDone}">
+        <span class="checkbox-b w-9 h-9 rounded-lg flex items-center justify-center text-lg">${isDone ? "✓" : ""}</span>
+        <span class="text-[8.5px] uppercase tracking-[.14em] text-slate-500 group-hover:text-[color:var(--brass)] transition whitespace-nowrap">${isDone ? "Sealed" : "Mark Completed"}</span>
+      </button>
+    </div>
+
+    <p class="text-[13px] text-slate-400 leading-relaxed mt-3">${c.desc}</p>
+
+    <div class="mt-4">
+      <div class="text-[9.5px] uppercase tracking-[.24em] text-slate-500 mb-1.5">Prerequisites</div>
+      <div class="flex flex-wrap gap-1.5">${prereqs}</div>
+    </div>
+
+    <div class="mt-4">
+      <div class="text-[9.5px] uppercase tracking-[.24em] text-slate-500 mb-2">Learning Outcomes</div>
+      <ul class="space-y-1.5">
+        ${c.outcomes.map(o => `
+          <li class="flex gap-2.5 text-[12.5px] text-slate-300 leading-relaxed">
+            <span class="outcome-tick flex-none mt-0.5">✦</span><span>${o}</span>
+          </li>`).join("")}
+      </ul>
+    </div>
+
+    <div class="mt-4 flex gap-3 items-start rounded-xl p-3.5" style="background:${S.soft}.06);border:1px solid ${S.soft}.18)">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" class="flex-none mt-0.5">
+        <path d="M4 5.5 C4 4.7 4.7 4 5.5 4 H11 V20 H5.5 C4.7 20 4 19.3 4 18.5 Z" stroke="${S.color}" stroke-width="1.3" fill="${S.soft}.10)"/>
+        <path d="M20 5.5 C20 4.7 19.3 4 18.5 4 H13 V20 H18.5 C19.3 20 20 19.3 20 18.5 Z" stroke="${S.color}" stroke-width="1.3" fill="${S.soft}.10)"/>
+        <path d="M11 4 C11.7 4.8 12.3 4.8 13 4" stroke="${S.color}" stroke-width="1.3"/>
+      </svg>
+      <div class="min-w-0">
+        <div class="text-[9.5px] uppercase tracking-[.24em] text-slate-500">Primary Text</div>
+        <div class="text-[13px] text-slate-200 font-medium mt-0.5 leading-snug"><em class="font-serif-d not-italic text-[14.5px]">${c.book.title}</em> — ${c.book.author}</div>
+        <div class="text-[11px] text-slate-500 mt-0.5">${c.book.pub}</div>
+        <div class="text-[11.5px] text-slate-400 mt-1.5 italic leading-relaxed">${c.book.why}</div>
+      </div>
+    </div>
+
+    <button class="pg-toggle w-full mt-4 flex items-center justify-between rounded-xl px-4 py-2.5 text-left transition hover:brightness-125"
+            data-toggle="${c.id}" style="background:${S.soft}.08);border:1px solid ${S.soft}.25)">
+      <span class="flex items-center gap-2.5">
+        <span class="font-mono-d text-[13px]" style="color:${S.color}">&gt;_</span>
+        <span class="text-[11px] uppercase tracking-[.2em] text-slate-300">Computational Playground</span>
+        <span class="font-mono-d text-[9.5px] px-1.5 py-0.5 rounded border" style="color:${S.color};border-color:${S.soft}.4)">${LANG_BADGE[c.lang]}</span>
+      </span>
+      <span class="chev text-slate-400 text-xs">▼</span>
+    </button>
+    <div class="playground" data-panel="${c.id}">
+      <div class="codebox rounded-xl mt-3 overflow-hidden" style="--c:${S.color}">
+        <div class="flex items-center justify-between gap-3 px-4 py-2 border-b border-slate-700/50">
+          <span class="text-[10.5px] text-slate-500 italic truncate">${c.snippetNote}</span>
+          <button class="copy-btn flex-none font-mono-d text-[10px] uppercase tracking-[.15em] hover:text-[color:var(--parchment)] transition" style="color:${S.color}" data-copy-course="${c.id}">copy ⧉</button>
+        </div>
+        <pre class="p-4 overflow-x-auto text-slate-300"><code>${highlight(c.snippet, c.lang)}</code></pre>
+      </div>
+    </div>
+  </article>`;
+}
+
+function renderCourses(){
+  /* keep playground panels open across re-renders */
+  const openIds = [...coursesEl.querySelectorAll(".playground.open")].map(p => p.dataset.panel);
+  const list = currentSector === "all" ? COURSES : COURSES.filter(c => c.sector === currentSector);
+  if (currentSector === "all"){
+    /* master syllabus: grouped checklist by hall, in degree order */
+    coursesEl.innerHTML = SECTOR_ORDER.map(k => {
+      const S = SECTORS[k];
+      const group = COURSES.filter(c => c.sector === k);
+      return `
+        <div class="flex items-center gap-3 pt-3 first:pt-0">
+          <span class="w-2.5 h-2.5 rounded-sm flex-none" style="background:${S.color};box-shadow:0 0 10px ${S.color}"></span>
+          <h3 class="font-serif-d text-lg font-semibold text-slate-200 whitespace-nowrap">${S.hall}</h3>
+          <span class="text-[10px] uppercase tracking-[.18em] text-slate-500 truncate">${S.track}</span>
+          <span class="flex-1 h-px" style="background:linear-gradient(90deg, ${S.soft}.35), transparent)"></span>
+          <span class="font-mono-d text-[10.5px] text-slate-500 flex-none">${courseCountText(k)}</span>
+        </div>
+        ${group.map(courseCard).join("")}`;
+    }).join("");
+  } else {
+    coursesEl.innerHTML = list.map(courseCard).join("");
+  }
+  openIds.forEach(id => {
+    const p = coursesEl.querySelector(`[data-panel="${id}"]`);
+    const t = coursesEl.querySelector(`[data-toggle="${id}"]`);
+    if (p){ p.classList.add("open"); t && t.classList.add("open-toggle"); }
+  });
+  wireCards();
+}
+
+function wireCards(){
+  coursesEl.querySelectorAll("[data-mark]").forEach(b =>
+    b.addEventListener("click", () => toggleDone(b.dataset.mark)));
+  coursesEl.querySelectorAll("[data-toggle]").forEach(b =>
+    b.addEventListener("click", () => {
+      const panel = coursesEl.querySelector(`[data-panel="${b.dataset.toggle}"]`);
+      const opening = !panel.classList.contains("open");
+      panel.classList.toggle("open", opening);
+      b.classList.toggle("open-toggle", opening);
+    }));
+  coursesEl.querySelectorAll("[data-copy-course]").forEach(b =>
+    b.addEventListener("click", () => {
+      const c = byId[b.dataset.copyCourse];
+      navigator.clipboard.writeText(c.snippet).then(() => {
+        b.textContent = "copied ✓";
+        setTimeout(() => { b.innerHTML = "copy ⧉"; }, 1600);
+      });
+    }));
+}
+document.querySelectorAll(".copy-btn[data-copy]").forEach(b =>
+  b.addEventListener("click", () => {
+    navigator.clipboard.writeText(b.dataset.copy).then(() => {
+      b.textContent = "copied ✓";
+      setTimeout(() => { b.innerHTML = "copy ⧉"; }, 1600);
+    });
+  }));
+
+/* ── ③ progress ledger math ──────────────────────────────────────── */
+function standingFor(pct){
+  if (pct >= 100) return "Summa Cum Laude";
+  if (pct >= 75)  return "Senior Standing";
+  if (pct >= 50)  return "Junior Standing";
+  if (pct >= 25)  return "Sophomore Standing";
+  if (pct > 0)    return "First-Year";
+  return "Matriculated";
+}
+function refreshProgress(){
+  const pct = Math.round((done.length / COURSES.length) * 100);
+  document.getElementById("gp-pct").textContent = pct + "%";
+  document.getElementById("gp-count").textContent = `${done.length} of ${COURSES.length}`;
+  document.getElementById("gpbar-fill").style.width = pct + "%";
+  document.getElementById("gp-standing").textContent = standingFor(pct);
+  SECTOR_ORDER.forEach(k => {
+    if (labelEls[k]) labelEls[k].textContent = courseCountText(k);
+    const doneAll = COURSES.filter(c => c.sector === k).every(c => done.includes(c.id));
+    buildingEls[k].forEach(el => el.classList.toggle("lit", doneAll));
+  });
+}
+
+function toggleDone(id){
+  const was = done.includes(id);
+  done = was ? done.filter(x => x !== id) : [...done, id];
+  saveDone(done);
+  const card = coursesEl.querySelector(`[data-course="${id}"]`);
+  if (card){
+    card.classList.toggle("done", !was);
+    const btn = card.querySelector(".mark-btn");
+    btn.querySelector(".checkbox-b").textContent = was ? "" : "✓";
+    btn.querySelector("span:last-child").textContent = was ? "Mark Completed" : "Sealed";
+    btn.setAttribute("aria-pressed", String(!was));
+    card.querySelectorAll(".prereq-pill").forEach(() => {});
+  }
+  renderChips();
+  refreshProgress();
+  if (currentSector === "all") { /* keep group counters honest */ renderCourses(); }
+  else {
+    /* prerequisite pills elsewhere may reference this course */
+    coursesEl.querySelectorAll("[data-course]").forEach(el => {
+      const c = byId[el.dataset.course];
+      if (c && c.prereqs.includes(id)){ renderCourses(); }
+    });
+  }
+  const c = byId[id];
+  if (!was){
+    toast("Registrar's Seal Affixed", `${c.code} · ${c.title} — recorded to your ledger.`, sectorOf(c).color);
+    if (done.length === COURSES.length){
+      setTimeout(() => toast("✦ SUMMA CUM LAUDE ✦", "All twelve courses sealed. Pembroke Academy confers upon you the degree of Autonomous Systems Engineer. The quad is yours.", "#d4af6a", 9000), 600);
+    }
+  }
+}
+
+/* ── ① ⇄ ② the transport: building click → workspace morph ───────── */
+function selectSector(key, fromCampus){
+  if (currentSector === key && !fromCampus) key = key; /* re-selection allowed */
+  currentSector = key;
+  localStorage.setItem(LS_SECTOR, key);
+
+  /* campus visuals */
+  document.querySelectorAll(".b3d[data-sector]").forEach(el =>
+    el.classList.toggle("active", el.dataset.sector === key));
+  scene.classList.remove("warp-pulse");
+  void scene.offsetWidth;            /* restart the pulse animation */
+  scene.classList.add("warp-pulse");
+
+  /* workspace morph */
+  bannerEl.classList.add("fading");
+  coursesEl.classList.add("fading");
+  setTimeout(() => {
+    renderChips(); renderBanner(); renderCourses();
+    bannerEl.classList.remove("fading");
+    coursesEl.classList.remove("fading");
+    if (fromCampus){
+      document.getElementById("workspace").scrollTo({ top: 0, behavior: "smooth" });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      const S = SECTORS[key];
+      if (S) toast("Now entering", `${S.hall} — ${S.track}`, S.color);
+    }
+  }, 240);
+}
+
+/* keyboard wayfinding: 1–4 quads, 0 full syllabus */
+window.addEventListener("keydown", (e) => {
+  if (e.target.matches("input,textarea")) return;
+  const map = { "1":"lib", "2":"eng", "3":"sci", "4":"adm", "0":"all" };
+  if (map[e.key]) selectSector(map[e.key], true);
+});
+
+/* reset ledger */
+document.getElementById("reset-ledger").addEventListener("click", () => {
+  if (!done.length){ toast("Ledger already clear", "No seals to remove.", "#94a3b8"); return; }
+  if (confirm("Strike all " + done.length + " seals from your registrar ledger?")){
+    done = []; saveDone(done);
+    renderChips(); renderBanner(); renderCourses(); refreshProgress();
+    toast("Ledger cleared", "A blank transcript — the whole climb awaits again.", "#94a3b8");
+  }
+});
+
+/* ── toasts ──────────────────────────────────────────────────────── */
+function toast(title, body, color, ms){
+  const host = document.getElementById("toasts");
+  const t = document.createElement("div");
+  t.className = "toast rounded-xl px-4 py-3";
+  t.innerHTML = `
+    <div class="flex items-center gap-2">
+      <span class="w-2 h-2 rounded-full flex-none" style="background:${color};box-shadow:0 0 10px ${color}"></span>
+      <span class="font-serif-d font-semibold text-[15px] text-[color:var(--parchment)]">${title}</span>
+    </div>
+    <div class="text-[12px] text-slate-400 mt-1 leading-relaxed">${body}</div>`;
+  host.appendChild(t);
+  setTimeout(() => { t.classList.add("bye"); setTimeout(() => t.remove(), 450); }, ms || 4200);
+}
+
+/* ── ignition ────────────────────────────────────────────────────── */
+renderChips();
+renderBanner();
+renderCourses();
+refreshProgress();
+if (currentSector !== "all"){
+  document.querySelectorAll(".b3d[data-sector]").forEach(el =>
+    el.classList.toggle("active", el.dataset.sector === currentSector));
+}
+setTimeout(() => toast("Welcome to Pembroke Academy", "Click any hall on the quad to step inside — or press 0 for the full master syllabus. Your progress is saved automatically.", "#d4af6a", 6500), 900);
+</script>
+</body>
+</html>
