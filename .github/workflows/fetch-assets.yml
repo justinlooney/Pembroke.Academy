@@ -14,17 +14,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install gdown
+      - name: Install gdown in a clean venv
         run: |
-          pip install -q --upgrade "gdown>=5"
-          python3 -m gdown --version
+          python3 -m venv /tmp/gd
+          /tmp/gd/bin/pip install -q "gdown>=5"
+          /tmp/gd/bin/gdown --version
       - name: Download models from Google Drive
         run: |
           mkdir -p incoming
           rm -f incoming/FETCH_ERRORS.txt
           fetch(){
-            python3 -m gdown --fuzzy "https://drive.google.com/file/d/$2/view" -O "incoming/$1" \
-              || echo "$1 ($2) failed — is the file shared as 'Anyone with the link'?" >> incoming/FETCH_ERRORS.txt
+            /tmp/gd/bin/gdown --fuzzy "https://drive.google.com/file/d/$2/view" -O "incoming/$1" || true
+            if [ ! -s "incoming/$1" ] || head -c 300 "incoming/$1" | grep -qi "<html"; then
+              echo "gdown failed for $1, trying direct endpoint..."
+              curl -sSL "https://drive.usercontent.google.com/download?id=$2&export=download&confirm=t" -o "incoming/$1" || true
+            fi
+            size=$(stat -c%s "incoming/$1" 2>/dev/null || echo 0)
+            if [ "$size" -lt 1000000 ] || head -c 300 "incoming/$1" | grep -qi "<html"; then
+              echo "$1 ($2): download invalid (size=$size)" >> incoming/FETCH_ERRORS.txt
+              rm -f "incoming/$1"
+            fi
           }
           fetch cologne_cathedral.glb        1V1toxmuvKkgFdn9SpphBRH3Fi8oE_yyq
           fetch moscow_state_university.glb  1qzuML2KaxI3dXZIzZzmsER1imYpDWWCR
