@@ -1409,6 +1409,12 @@ const byId = Object.fromEntries(COURSES.map(c => [c.id, c]));
 function wallURI(orient, natW, natH, o, mode){
   o = o || {};
   const day = mode === "day";
+  if (mode === "mask"){
+    /* height/material mask: gray = stone plane, light = protruding
+       (buttresses, hoods), near-black = glass recess. Feeds the
+       normal-map and roughness/metalness generators. */
+    return wallURIMask(orient, natW, natH, o);
+  }
   const p = o.parapet || 0, acc = o.accent || "#d4af6a", seed = o.seed || 0;
   const P = day ? {
     st1:"#c4b598", st2:"#a3947a", line:"rgba(74,60,40,.2)",
@@ -1561,6 +1567,62 @@ function wallURI(orient, natW, natH, o, mode){
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 }
 
+function wallURIMask(orient, natW, natH, o){
+  const p = o.parapet || 0, seed = o.seed || 0;
+  const ST = "#7d7d7d", HI = "#b4b4b4", LO = "#0a0a0a", GROOVE = "#5e5e5e";
+  const win = (cx, y, w, h) => {
+    const x1 = cx - w/2, x2 = cx + w/2, ys = y + h*0.34, yb = y + h;
+    let t = `<path d="M ${x1} ${yb} L ${x1} ${ys} Q ${x1} ${y+2} ${cx} ${y} Q ${x2} ${y+2} ${x2} ${ys} L ${x2} ${yb} Z" fill="${LO}"/>`;
+    t += `<path d="M ${x1-2} ${yb} L ${x1-2} ${ys} Q ${x1-2} ${y-0.5} ${cx} ${y-2.5} Q ${x2+2} ${y-0.5} ${x2+2} ${ys} L ${x2+2} ${yb}" fill="none" stroke="${HI}" stroke-width="2"/>`;
+    if (w >= 13){
+      t += `<line x1="${cx}" y1="${y + h*0.22}" x2="${cx}" y2="${yb}" stroke="#909090" stroke-width="1.6"/>`;
+      t += `<line x1="${x1}" y1="${ys+4}" x2="${x2}" y2="${ys+4}" stroke="#909090" stroke-width="1.4"/>`;
+    }
+    return t;
+  };
+  let g = `<rect x="0" y="0" width="${natW}" height="${natH}" fill="${ST}"/>`;
+  g += `<rect x="0" y="${natH-11}" width="${natW}" height="11" fill="#8e8e8e"/>`;
+  if (o.windows === "lancet"){
+    const cell = 34, m = 8;
+    const n = Math.max(1, Math.floor((natW - m*2) / cell));
+    const x0 = (natW - n*cell) / 2;
+    for (let i2 = 0; i2 <= n; i2++){
+      g += `<rect x="${x0 + i2*cell - 3}" y="${p}" width="6" height="${natH-p-9}" fill="${HI}"/>`;
+    }
+    const top = p + 9, bot = natH - 15, sh = 35;
+    const stories = Math.max(1, Math.floor((bot - top) / sh));
+    for (let r = 0; r < stories; r++){
+      const wy = top + r*sh + 5;
+      for (let i2 = 0; i2 < n; i2++) g += win(x0 + i2*cell + cell/2, wy, 12, 25);
+    }
+  } else if (o.windows === "grand"){
+    const sh = 58, wy0 = p + (o.clock ? 46 : 12);
+    const stories = Math.max(1, Math.floor((natH - wy0 - 12) / sh));
+    for (let r = 0; r < stories; r++){
+      const wy = wy0 + r*sh;
+      if (natW >= 78){ g += win(natW/2 - 13, wy, 17, 44); g += win(natW/2 + 13, wy, 17, 44); }
+      else g += win(natW/2, wy, 19, 44);
+    }
+  } else if (o.windows === "modern"){
+    const rows = Math.max(2, Math.floor((natH - p - 26) / 26));
+    for (let r = 0; r < rows; r++) g += `<rect x="8" y="${p + 10 + r*26}" width="${natW-16}" height="13" fill="${LO}"/>`;
+  } else if (o.windows === "slits"){
+    for (let sy = p + 14; sy < natH - 26; sy += 30)
+      g += `<rect x="${natW/2 - 2}" y="${sy}" width="4" height="15" fill="${LO}"/>`;
+  }
+  if (o.arch){
+    const aw = Math.min(34, natW * 0.42), ah = Math.min(natH - p - 16, 46);
+    const ax1 = natW/2 - aw/2, ax2 = natW/2 + aw/2, ay = natH - ah, ays = ay + ah*0.3;
+    g += `<path d="M ${ax1} ${natH} L ${ax1} ${ays} Q ${ax1} ${ay} ${natW/2} ${ay - 4} Q ${ax2} ${ay} ${ax2} ${ays} L ${ax2} ${natH} Z" fill="#000000"/>`;
+  }
+  /* mortar grooves */
+  g += `<g stroke="${GROOVE}" stroke-width="1">`;
+  for (let y2 = p + 10; y2 < natH - 12; y2 += 10) g += `<line x1="0" y1="${y2}" x2="${natW}" y2="${y2}"/>`;
+  g += `</g>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${natW*2}" height="${natH*2}" viewBox="0 0 ${natW} ${natH}">${g}</svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+
 /* ══════════════════════════════════════════════════════════════════
    ① THE CAMPUS ENGINE — Three.js / WebGL with a glTF 2.0 asset pipeline
    Real sun with shadow maps, fog, PBR stone from the SVG mason above,
@@ -1572,6 +1634,13 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { SSAOPass } from "three/addons/postprocessing/SSAOPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { SMAAPass } from "three/addons/postprocessing/SMAAPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -1594,12 +1663,37 @@ labelRenderer.domElement.id = "labels2d";
 stageEl.appendChild(labelRenderer.domElement);
 
 const world = new THREE.Scene();
+/* image-based lighting: glass, water and paint pick up a real environment */
+const pmrem = new THREE.PMREMGenerator(renderer);
+world.environment = pmrem.fromScene(new RoomEnvironment(), 0.06).texture;
+world.environmentIntensity = 0.55;
 const camera = new THREE.PerspectiveCamera(46, 1, 2, 6000);
 camera.position.set(-640, 690, 640);
+
+/* archviz post chain: SSAO contact shadows + bloom + SMAA.
+   Software rasterizers (SwiftShader) choke on the AO depth buffers,
+   so AO auto-disables there; ?noao / ?nobloom / ?nosmaa force-toggle. */
+const q = new URLSearchParams(location.search);
+const glInfo = (renderer.getContext().getParameter(
+  renderer.getContext().getExtension("WEBGL_debug_renderer_info")?.UNMASKED_RENDERER_WEBGL || 7937) || "") + "";
+const softGL = /swiftshader|llvmpipe|software/i.test(glInfo);
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(world, camera));
+let ssao = null;
+if (!softGL && !q.has("noao")){
+  ssao = new SSAOPass(world, camera, 800, 600);
+  ssao.kernelRadius = 14; ssao.minDistance = 0.002; ssao.maxDistance = 0.09;
+  composer.addPass(ssao);
+}
+const bloom = new UnrealBloomPass(new THREE.Vector2(800, 600), 0.28, 0.35, 0.86);
+if (!q.has("nobloom")) composer.addPass(bloom);
+if (!q.has("nosmaa")) composer.addPass(new SMAAPass(800, 600));
+composer.addPass(new OutputPass());
 
 function resize(){
   const w = stageEl.clientWidth || 800, h = stageEl.clientHeight || 600;
   renderer.setSize(w, h);
+  composer.setSize(w, h);
   labelRenderer.setSize(w, h);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
@@ -1628,7 +1722,7 @@ world.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff0d2, 2.6);
 sun.position.set(-520, 760, 430);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(3072, 3072);
 Object.assign(sun.shadow.camera, { left: -760, right: 760, top: 760, bottom: -760, near: 100, far: 2200 });
 sun.shadow.bias = -0.0006;
 world.add(sun, sun.target);
@@ -1772,16 +1866,62 @@ function stoneMaterial(natW, natH, o){
   };
   const day = load("day"), night = load("night");
   const mat = new THREE.MeshStandardMaterial({
-    map: day, roughness: 0.96, metalness: 0,
+    map: day, roughness: 1, metalness: 1,   /* the maps carry the values */
     alphaTest: o.parapet ? 0.4 : 0, side: THREE.FrontSide,
+    envMapIntensity: 0.9,
   });
   mat.userData.baseEmissive = 0;      /* raised at night so lancets glow */
   skinSwaps.push({ mat, day, night });
+  buildWallMaps(natW, natH, o, mat);
   return mat;
+}
+
+/* derive normal + roughness/metalness maps from the height mask so
+   glass turns mirror-smooth (sky reflections) and stone stays matte,
+   with buttresses and reveals shaded in true relief */
+function buildWallMaps(natW, natH, o, mat){
+  const img = new Image();
+  img.onload = () => {
+    const w = img.width, h = img.height;
+    const src = document.createElement("canvas"); src.width = w; src.height = h;
+    const sx = src.getContext("2d"); sx.drawImage(img, 0, 0);
+    const d = sx.getImageData(0, 0, w, h).data;
+    const H = (x2, y2) => d[(Math.min(h-1, Math.max(0, y2)) * w + Math.min(w-1, Math.max(0, x2))) * 4];
+    const nrm = document.createElement("canvas"); nrm.width = w; nrm.height = h;
+    const rmc = document.createElement("canvas"); rmc.width = w; rmc.height = h;
+    const nx = nrm.getContext("2d"), rx = rmc.getContext("2d");
+    const nd = nx.createImageData(w, h), rd = rx.createImageData(w, h);
+    for (let y2 = 0; y2 < h; y2++){
+      for (let x2 = 0; x2 < w; x2++){
+        const i2 = (y2 * w + x2) * 4;
+        const gx = (H(x2-1, y2) - H(x2+1, y2)) / 255;
+        const gy = (H(x2, y2-1) - H(x2, y2+1)) / 255;
+        nd.data[i2]   = 128 + gx * 220;
+        nd.data[i2+1] = 128 - gy * 220;
+        nd.data[i2+2] = 255;
+        nd.data[i2+3] = 255;
+        const hgt = H(x2, y2);
+        const glass = hgt < 50;
+        rd.data[i2]   = 0;
+        rd.data[i2+1] = glass ? 42 : 238;    /* G = roughness */
+        rd.data[i2+2] = glass ? 130 : 0;     /* B = metalness */
+        rd.data[i2+3] = 255;
+      }
+    }
+    nx.putImageData(nd, 0, 0); rx.putImageData(rd, 0, 0);
+    mat.normalMap = new THREE.CanvasTexture(nrm);
+    mat.normalScale.set(0.85, 0.85);
+    const rm = new THREE.CanvasTexture(rmc);
+    mat.roughnessMap = rm;
+    mat.metalnessMap = rm;
+    mat.needsUpdate = true;
+  };
+  img.src = wallURI("plain", natW, natH, o, "mask").slice(5, -2);
 }
 
 /* ── building constructors ───────────────────────────────────────── */
 const hallMats = {};     /* sector -> materials for highlight */
+const PIERS = [];        /* [wx, wz, height, rot?] — instanced after build */
 function noteMat(sector, ...mats){
   if (!sector) return;
   (hallMats[sector] = hallMats[sector] || []).push(...mats);
@@ -1807,6 +1947,23 @@ function stoneBox(parent, o){
   mkWall(o.w, Math.PI,      cx, W(o.y), { ...base, arch: o.arch });        /* north */
   mkWall(o.d, -Math.PI / 2, W(o.x), cz, { ...base, clock: undefined });    /* west  */
   mkWall(o.d,  Math.PI / 2, W(o.x + o.w), cz, { ...base, clock: undefined }); /* east */
+  /* true relief: projecting buttress piers on lancet facades + a cornice */
+  if (o.windows === "lancet"){
+    const pier = (faceLen, place) => {
+      const cell = 34, n = Math.max(1, Math.floor((faceLen - 16) / cell));
+      const x0 = (faceLen - n * cell) / 2;
+      for (let i = 0; i <= n; i++) place(x0 + i * cell);
+    };
+    const ph = wallH - 8;
+    pier(o.w, off => { PIERS.push([W(o.x + off), W(o.y + o.d) + 2, ph]); PIERS.push([W(o.x + off), W(o.y) - 2, ph]); });
+    pier(o.d, off => { PIERS.push([W(o.x) - 2, W(o.y + off), ph, 1]); PIERS.push([W(o.x + o.w) + 2, W(o.y + off), ph, 1]); });
+  }
+  {
+    const led = new THREE.Mesh(new THREE.BoxGeometry(o.w + 5, 2.6, o.d + 5), stoneTrimMat);
+    led.position.set(cx, o.h - (o.parapet ? 10 : 2), cz);
+    led.castShadow = led.receiveShadow = true;
+    g.add(led);
+  }
   if (!o.noRoof){
     const roof = new THREE.Mesh(new THREE.BoxGeometry(o.w - 3, 2.5, o.d - 3),
       new THREE.MeshStandardMaterial({ map: leadTex, roughness: 0.9 }));
@@ -1968,6 +2125,20 @@ BUILDINGS.forEach(spec => {
   [[466,338,12,86],[522,338,12,86],[466,576,12,86],[522,576,12,86],
    [338,466,86,12],[338,522,86,12],[576,466,86,12],[576,522,86,12]]
     .forEach(([px, py, w2, d2]) => boxMesh(amb, hedgeMat, px, py, w2, d2, 16));
+}
+
+/* instanced buttress piers collected from every lancet facade */
+{
+  const geo = new THREE.BoxGeometry(6, 1, 7);
+  const inst = new THREE.InstancedMesh(geo, stoneTrimMat, PIERS.length || 1);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
+  PIERS.forEach(([wx, wz, ph, rot], i) => {
+    q.setFromAxisAngle(up, rot ? Math.PI / 2 : 0);
+    m4.compose(new THREE.Vector3(wx, ph / 2, wz), q, new THREE.Vector3(1, ph, 1));
+    inst.setMatrixAt(i, m4);
+  });
+  inst.castShadow = inst.receiveShadow = true;
+  world.add(inst);
 }
 
 /* ── glTF 2.0 prop library (assets/*.glb) ────────────────────────── */
@@ -2196,7 +2367,9 @@ function engineSetMode(m){
   sun.color.set(day ? 0xfff0d2 : 0x9fb4dd);
   sun.intensity = day ? 2.6 : 1.1;
   sun.position.set(day ? -520 : 420, day ? 760 : 620, day ? 430 : -300);
-  renderer.toneMappingExposure = day ? 1.02 : 1.0;
+  renderer.toneMappingExposure = day ? 1.02 : 0.95;
+  bloom.strength = day ? 0.22 : 0.6;
+  world.environmentIntensity = day ? 0.55 : 0.05;
   stars.visible = !day;
   fireflies.visible = !day;
   lampLights.forEach(l => l.intensity = day ? 0 : 1400);
@@ -2388,7 +2561,7 @@ renderer.setAnimationLoop(() => {
   }
   drawMinimap();
   labelRenderer.render(world, camera);
-  renderer.render(world, camera);
+  composer.render();
 });
 resize();
 
