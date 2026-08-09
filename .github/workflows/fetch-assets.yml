@@ -15,13 +15,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install gdown
-        run: pip install -q gdown
+        run: |
+          pip install -q --upgrade "gdown>=5"
+          python3 -m gdown --version
       - name: Download models from Google Drive
         run: |
           mkdir -p incoming
           rm -f incoming/FETCH_ERRORS.txt
           fetch(){
-            gdown --fuzzy "https://drive.google.com/file/d/$2/view" -O "incoming/$1" \
+            python3 -m gdown --fuzzy "https://drive.google.com/file/d/$2/view" -O "incoming/$1" \
               || echo "$1 ($2) failed — is the file shared as 'Anyone with the link'?" >> incoming/FETCH_ERRORS.txt
           }
           fetch cologne_cathedral.glb        1V1toxmuvKkgFdn9SpphBRH3Fi8oE_yyq
