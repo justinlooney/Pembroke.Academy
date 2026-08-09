@@ -1,0 +1,38 @@
+name: fetch-assets
+# Courier workflow: runs on GitHub's servers (which have open internet),
+# pulls the campus models from Google Drive share links, and commits them
+# to this branch so the development sandbox can fetch them over git.
+# The branch is temporary and gets deleted once assets are extracted.
+on:
+  push:
+    branches: [assets-inbox]
+permissions:
+  contents: write
+concurrency: fetch-assets
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install gdown
+        run: pip install -q gdown
+      - name: Download models from Google Drive
+        run: |
+          mkdir -p incoming
+          rm -f incoming/FETCH_ERRORS.txt
+          fetch(){
+            gdown --fuzzy "https://drive.google.com/file/d/$2/view" -O "incoming/$1" \
+              || echo "$1 ($2) failed — is the file shared as 'Anyone with the link'?" >> incoming/FETCH_ERRORS.txt
+          }
+          fetch cologne_cathedral.glb        1V1toxmuvKkgFdn9SpphBRH3Fi8oE_yyq
+          fetch moscow_state_university.glb  1qzuML2KaxI3dXZIzZzmsER1imYpDWWCR
+          fetch scene.bin                    1Sbl1tUyCvRR9I7iMGVq4r6M6MdifT7Lj
+          ls -la incoming
+          sha256sum incoming/* > incoming/MANIFEST.txt || true
+      - name: Commit results
+        run: |
+          git config user.name "pembroke-asset-courier"
+          git config user.email "actions@users.noreply.github.com"
+          git add incoming
+          git commit -m "Courier: fetch models from Drive" || echo "nothing new"
+          git push
