@@ -35,7 +35,21 @@ jobs:
               rm -f "incoming/$1"
             fi
           }
-          fetch tree_user.glb 1TLWCi8y1KiYGNK43VDWctDHpiG4uVMIP
+          fetch person01.glb 1_hWqPvUAAM6p8XGFv_m4Nf11--_l5Jno
+          fetch person02.glb 1s9GUrbNSJpxQ60z8HR4_-Ew6wTwwKar0
+          fetch person03.glb 182t9161zrXrNC63kjD6EOO9LQKDpLsYn
+          fetch person04.glb 1k5qwNx8zGqx2dKIaAe19LREWy3HT_5fD
+          fetch person05.glb 1HWMjuO9njv1nA2ztTTn9eORAneyToguB
+          fetch person06.glb 1tINv5sP6PUrRg3bXUUGJoCMYS9BrHw7_
+          fetch person07.glb 1itBCPRuXp1LPHOgq1f0Im_cqQBPSYZvq
+          fetch person08.glb 1fPZbnqwBhKre4iOocJW4K6qO8e-gEaEK
+          fetch person09.glb 1-_r-Qik46g14mEK79j_8jtvflDgDdQYs
+          fetch person10.glb 1dXuPYq4hza6t1HHQPQd_3lfZ3iQGccH2
+          fetch person11.glb 14Udu9NV09GbWDrotocwqfEoeORxJ6FQ0
+          fetch person12.glb 1VzsGZT72le3pgoJv4C56zhXqinp34Nck
+          fetch person13.glb 1wzPsDDEGPqrmshkOkwd_nKwZgFkRmuaA
+          fetch person14.glb 1OPVehSzpr94wDudgI7wjrBUiojIque1U
+          fetch person15.glb 1VjKkE12mEPorCJotDZOMbw93S8EytXNr
           ls -la incoming
           sha256sum incoming/* > incoming/MANIFEST.txt || true
       - name: Commit results
