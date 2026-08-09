@@ -608,12 +608,11 @@ body.day .hall-tag{background:linear-gradient(180deg, rgba(24,30,44,.86), rgba(2
   transition:opacity .45s ease;
 }
 #interior.open{opacity:1;pointer-events:auto;}
-#interior .int-room{
-  position:absolute;inset:0;overflow:hidden;
-  transform:scale(1.05);transition:transform .6s cubic-bezier(.22,1,.36,1);
-  background:linear-gradient(180deg,#221d15 0%,#2b241a 58%,#171310 100%);
-}
-#interior.open .int-room{transform:scale(1);}
+/* the room itself is rendered in WebGL; this overlay is HUD only */
+.interior-open #labels2d, .interior-open #quest, .interior-open #walkhud,
+.interior-open #doorprompt, .interior-open #minimap{display:none !important;}
+.interior-open #campus-wing-intro, .interior-open #campus-legend,
+.interior-open #campus-hints{opacity:0;}
 .int-wall{position:absolute;left:0;right:0;top:0;height:64%;background-size:100% 100%;}
 .int-wall::after{content:"";position:absolute;inset:0;
   background:radial-gradient(120% 90% at 50% 108%, transparent 40%, rgba(0,0,0,.5) 100%);}
@@ -791,32 +790,15 @@ body.day .int-lamp::after{opacity:.45;}
 
     <!-- ═══════ INTERIOR CLASSROOM SCENE (revealed on entering a hall) ═══════ -->
     <div id="interior" aria-hidden="true">
-      <div class="int-room">
-        <div class="int-wall" id="int-wall"></div>
-        <div class="int-window" style="left:7%"></div>
-        <div class="int-window" style="right:7%"></div>
-        <div class="int-lamp" style="left:27%"></div>
-        <div class="int-lamp" style="right:27%"></div>
-        <div class="int-board">
-          <div class="chalk-title" id="int-title"></div>
-          <div id="int-lines"></div>
+      <div class="int-hud">
+        <div>
+          <div class="text-[9.5px] uppercase tracking-[.3em]" id="int-track" style="color:var(--brass)"></div>
+          <div class="font-serif-d text-2xl font-semibold text-[color:var(--parchment)] leading-tight" id="int-hall"></div>
+          <div class="text-[11.5px] text-slate-400 mt-0.5" id="int-teaching"></div>
         </div>
-        <div class="int-floor"></div>
-        <div class="int-prof" style="left:16%;bottom:31%"><div class="gown"></div><div class="cap"></div></div>
-        <div class="int-lectern" style="left:21%;bottom:29.5%"></div>
-        <div class="int-desk-row" style="bottom:23%;transform:scale(.82)" id="int-row3"></div>
-        <div class="int-desk-row" style="bottom:13%;transform:scale(.94)" id="int-row2"></div>
-        <div class="int-desk-row" style="bottom:2%;transform:scale(1.08)" id="int-row1"></div>
-        <div class="int-hud">
-          <div>
-            <div class="text-[9.5px] uppercase tracking-[.3em]" id="int-track" style="color:var(--brass)"></div>
-            <div class="font-serif-d text-2xl font-semibold text-[color:var(--parchment)] leading-tight" id="int-hall"></div>
-            <div class="text-[11.5px] text-slate-400 mt-0.5" id="int-teaching"></div>
-          </div>
-          <div class="flex gap-2.5 flex-wrap">
-            <button class="int-btn" id="int-courses">Open course ledger</button>
-            <button class="int-btn" id="int-leave">← Return to the quad</button>
-          </div>
+        <div class="flex gap-2.5 flex-wrap">
+          <button class="int-btn" id="int-courses">Open course ledger</button>
+          <button class="int-btn" id="int-leave">← Return to the quad</button>
         </div>
       </div>
     </div>
@@ -1425,6 +1407,8 @@ function wallURI(orient, natW, natH, o, mode){
     speck:["#c9ba98","#877a62","#a3906f","#7b7060"],
     wg:'<stop offset="0" stop-color="#a9c3d9" stop-opacity=".92"/><stop offset=".32" stop-color="#54667a"/><stop offset="1" stop-color="#222b35"/>',
     clockFace:"#f6efdc",
+    roomBack:"#83725a", roomCeil:"#3d372d", roomLight:"#fff6d8", roomShelf:"#54402b",
+    books:["#96382f","#2f4f86","#a8842c","#3a6642"], sheen:".34", dimGlass:".5",
   } : {
     st1:"#665f50", st2:"#403b31", line:"rgba(12,11,8,.17)",
     butt:"#6f6858", buttEdge:"rgba(10,9,7,.4)", cap:"#847b68",
@@ -1434,15 +1418,41 @@ function wallURI(orient, natW, natH, o, mode){
     speck:["#57503f","#3a352b","#4c463a","#332f27"],
     wg:'<stop offset="0" stop-color="' + acc + '" stop-opacity=".22"/><stop offset=".6" stop-color="' + acc + '" stop-opacity=".8"/><stop offset="1" stop-color="#ffedbe" stop-opacity=".95"/>',
     clockFace:"#f0e5c4",
+    roomBack:"#d9a860", roomCeil:"#7c5f38", roomLight:"#fffbe8", roomShelf:"#9a7042",
+    books:["#c05a4e","#5a7ec0", "#d8ae52","#6a9a70"], sheen:".08", dimGlass:".82",
   };
 
-  /* one lancet window, palette-aware (day: leaded glass; night: lamplight) */
+  /* one lancet window with a furnished room behind the glass:
+     back wall, ceiling + light fixtures, book-lined shelves, and the
+     occasional scholar — dim through day glass, lamplit after dark */
+  let winSeq = 0;
   const win = (cx, y, w, h, dark) => {
     const x1 = cx - w/2, x2 = cx + w/2, ys = y + h*0.34, yb = y + h;
     const arch = `M ${x1} ${yb} L ${x1} ${ys} Q ${x1} ${y+2} ${cx} ${y} Q ${x2} ${y+2} ${x2} ${ys} L ${x2} ${yb} Z`;
-    let t = `<path d="${arch}" fill="${dark ? P.winDark : "url(#wg)"}" stroke="${P.frame}" stroke-width="1.2"/>`;
+    const cid = "wc" + (seed || 0) + "_" + (winSeq++);
+    let t = `<clipPath id="${cid}"><path d="${arch}"/></clipPath>`;
+    t += `<g clip-path="url(#${cid})">`;
+    t += `<rect x="${x1}" y="${y}" width="${w}" height="${h}" fill="${P.roomBack}"/>`;
+    t += `<rect x="${x1}" y="${y}" width="${w}" height="${h*0.24}" fill="${P.roomCeil}"/>`;
+    t += `<circle cx="${cx - w*0.2}" cy="${y + h*0.18}" r="1.5" fill="${P.roomLight}"/>`;
+    t += `<circle cx="${cx + w*0.2}" cy="${y + h*0.18}" r="1.5" fill="${P.roomLight}"/>`;
+    for (let sh2 = 0; sh2 < 2; sh2++){
+      const sy2 = y + h * (0.46 + sh2 * 0.24);
+      t += `<rect x="${x1}" y="${sy2}" width="${w}" height="${h*0.045}" fill="${P.roomShelf}"/>`;
+      for (let b = 0; b < 4; b++){
+        t += `<rect x="${(x1 + 1.2 + b * (w - 3) / 4).toFixed(1)}" y="${(sy2 - 3.4).toFixed(1)}" width="1.7" height="3.4" fill="${P.books[(b + sh2 + winSeq) % 4]}"/>`;
+      }
+    }
+    if ((winSeq * 7 + seed * 3) % 6 === 0){ /* a scholar at the window */
+      t += `<circle cx="${cx + 1}" cy="${yb - 10.5}" r="1.9" fill="#241d14"/>`;
+      t += `<path d="M ${cx - 1.6} ${yb} L ${cx - 1.2} ${yb - 8.6} Q ${cx + 1} ${yb - 10} ${cx + 3.2} ${yb - 8.4} L ${cx + 3.6} ${yb} Z" fill="#241d14"/>`;
+    }
+    if (dark) t += `<path d="${arch}" fill="rgba(6,7,10,${P.dimGlass})"/>`;
+    t += `<rect x="${x1 - 4}" y="${y - 4}" width="${w * 0.5}" height="${h * 1.6}" fill="#ffffff" opacity="${P.sheen}" transform="rotate(18 ${cx} ${y + h/2})"/>`;
+    t += `</g>`;
+    t += `<path d="${arch}" fill="none" stroke="${P.frame}" stroke-width="1.2"/>`;
     t += `<path d="M ${x1-2} ${yb} L ${x1-2} ${ys} Q ${x1-2} ${y-0.5} ${cx} ${y-2.5} Q ${x2+2} ${y-0.5} ${x2+2} ${ys} L ${x2+2} ${yb}" fill="none" stroke="${P.hood}" stroke-width="1.1" opacity=".85"/>`;
-    if (w >= 13 && !dark){
+    if (w >= 13){
       t += `<line x1="${cx}" y1="${y + h*0.22}" x2="${cx}" y2="${yb}" stroke="${P.frame}" stroke-width="1.4"/>`;
       t += `<line x1="${x1}" y1="${ys+4}" x2="${x2}" y2="${ys+4}" stroke="${P.frame}" stroke-width="1.2"/>`;
     }
@@ -1506,11 +1516,18 @@ function wallURI(orient, natW, natH, o, mode){
     }
     g += `<rect x="2" y="${p}" width="4.5" height="${natH-p-9}" fill="${P.butt}"/>`;
     g += `<rect x="${natW-6.5}" y="${p}" width="4.5" height="${natH-p-9}" fill="${P.butt}"/>`;
-  } else if (o.windows === "modern"){ /* mid-century ribbon glazing */
+  } else if (o.windows === "modern"){ /* ribbon glazing with lit offices */
     const rows = Math.max(2, Math.floor((natH - p - 26) / 26));
     for (let r = 0; r < rows; r++){
       const wy = p + 10 + r*26;
-      g += `<rect x="8" y="${wy}" width="${natW-16}" height="13" fill="url(#wg)" stroke="${P.frame}" stroke-width="1"/>`;
+      g += `<rect x="8" y="${wy}" width="${natW-16}" height="13" fill="${P.roomBack}"/>`;
+      g += `<rect x="8" y="${wy}" width="${natW-16}" height="3.4" fill="${P.roomCeil}"/>`;
+      for (let lx = 20; lx < natW - 12; lx += 24){
+        g += `<circle cx="${lx}" cy="${wy + 2}" r="1.1" fill="${P.roomLight}"/>`;
+        g += `<rect x="${lx - 5}" y="${wy + 8.4}" width="10" height="4.6" fill="${P.roomShelf}"/>`;
+      }
+      g += `<rect x="8" y="${wy}" width="${(natW-16) * 0.4}" height="13" fill="#ffffff" opacity="${P.sheen}"/>`;
+      g += `<rect x="8" y="${wy}" width="${natW-16}" height="13" fill="none" stroke="${P.frame}" stroke-width="1"/>`;
       for (let mx = 26; mx < natW - 8; mx += 18){
         g += `<line x1="${mx}" y1="${wy}" x2="${mx}" y2="${wy+13}" stroke="${P.frame}" stroke-width="1"/>`;
       }
@@ -1635,6 +1652,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { Reflector } from "three/addons/objects/Reflector.js";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { SSAOPass } from "three/addons/postprocessing/SSAOPass.js";
@@ -1700,21 +1718,16 @@ function resize(){
 }
 window.addEventListener("resize", resize);
 
-/* ── sky dome + fog ──────────────────────────────────────────────── */
-function skyTexture(day){
-  const c = document.createElement("canvas"); c.width = 4; c.height = 256;
-  const g = c.getContext("2d").createLinearGradient(0, 0, 0, 256);
-  if (day){ g.addColorStop(0, "#4f93d8"); g.addColorStop(.55, "#a7cdf0"); g.addColorStop(1, "#e6f0f8"); }
-  else    { g.addColorStop(0, "#04060f"); g.addColorStop(.55, "#0b1226"); g.addColorStop(1, "#1b2a4a"); }
-  const x = c.getContext("2d"); x.fillStyle = g; x.fillRect(0, 0, 4, 256);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-const SKY = { day: skyTexture(true), night: skyTexture(false) };
-const skyDome = new THREE.Mesh(
-  new THREE.SphereGeometry(2800, 24, 12),
-  new THREE.MeshBasicMaterial({ map: SKY.day, side: THREE.BackSide, fog: false, depthWrite: false }));
+/* ── sky dome: gradient shader driven by time-of-day uniforms ────── */
+const skyMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false, fog: false,
+  uniforms: { top: { value: new THREE.Color("#4f93d8") }, hor: { value: new THREE.Color("#e6f0f8") } },
+  vertexShader: "varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+  fragmentShader: "varying vec3 vP; uniform vec3 top; uniform vec3 hor; void main(){ float h = clamp(normalize(vP).y * 1.6, 0.0, 1.0); gl_FragColor = vec4(mix(hor, top, pow(h, 0.75)), 1.0); }",
+});
+const skyDome = new THREE.Mesh(new THREE.SphereGeometry(2800, 24, 12), skyMat);
 world.add(skyDome);
+world.fog = new THREE.Fog(0xc3d9ee, 900, 3000);
 
 /* ── lights ──────────────────────────────────────────────────────── */
 const hemi = new THREE.HemisphereLight(0xbdd8f2, 0x4a5b3a, 0.85);
@@ -1791,7 +1804,7 @@ ground.receiveShadow = true;
 world.add(ground);
 ground.material.map.repeat.set(15, 15);
 
-const pathMat = new THREE.MeshStandardMaterial({ map: pathTex, roughness: 1 });
+const pathMat = new THREE.MeshStandardMaterial({ map: pathTex, roughness: 0.55, metalness: 0.06, envMapIntensity: 0.6 });
 function pathPlane(px, py, w, d, y = 0.25){
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), pathMat);
   m.rotation.x = -Math.PI / 2;
@@ -1818,9 +1831,16 @@ function pathPlane(px, py, w, d, y = 0.25){
     m.receiveShadow = true;
     world.add(m);
   });
-  /* plaza + fountain */
-  const plaza = new THREE.Mesh(new THREE.CircleGeometry(66, 48), pathMat);
-  plaza.rotation.x = -Math.PI / 2; plaza.position.y = 0.35; plaza.receiveShadow = true;
+  /* plaza: rain-slicked stone — a true planar mirror under a
+     translucent stone veil, so the halls and lamps reflect in it */
+  const mirror = new Reflector(new THREE.CircleGeometry(66, 48), {
+    textureWidth: 1024, textureHeight: 1024, clipBias: 0.004, color: 0x8a9096 });
+  mirror.rotation.x = -Math.PI / 2; mirror.position.y = 0.3;
+  world.add(mirror);
+  const plaza = new THREE.Mesh(new THREE.CircleGeometry(66, 48),
+    new THREE.MeshStandardMaterial({ map: pathTex, roughness: 0.35, metalness: 0.05,
+      transparent: true, opacity: 0.62 }));
+  plaza.rotation.x = -Math.PI / 2; plaza.position.y = 0.42; plaza.receiveShadow = true;
   world.add(plaza);
   const basin = new THREE.Mesh(new THREE.CylinderGeometry(24, 26, 7, 24),
     new THREE.MeshStandardMaterial({ color: 0x8a8272, roughness: 1 }));
@@ -2333,6 +2353,200 @@ function stepStudents(dt, now){
   }
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   AMPHITHEATER LECTURE HALLS — real 3D interiors, one per sector.
+   Curved tiered rows, green triple chalkboard carrying the hall's
+   actual lesson, wood-slat wall, projector screen, seated cohort.
+   ══════════════════════════════════════════════════════════════════ */
+let interiorView = null;
+const interiorScenes = {};
+const intCamera = new THREE.PerspectiveCamera(52, 1, 1, 4000);
+
+const woodFloorTex = canvasTex(256, (x, px) => {
+  x.fillStyle = "#c8a878"; x.fillRect(0, 0, px, px);
+  for (let r = 0; r < 16; r++){
+    x.fillStyle = ["#c2a06e","#cfae7e","#bd9a68","#c9a97a"][r % 4];
+    x.fillRect(0, r * 16, px, 15);
+    x.fillStyle = "rgba(90,60,30,.25)"; x.fillRect(0, r * 16 + 15, px, 1);
+    x.fillRect((r * 73) % px, r * 16, 1, 15);
+  }
+}, 4);
+const woodWallTex = canvasTex(256, (x, px) => {
+  x.fillStyle = "#c9a26b"; x.fillRect(0, 0, px, px);
+  for (let r = 0; r < 26; r++){
+    x.fillStyle = ["#c49c64","#d0aa74","#bd9660"][r % 3];
+    x.fillRect(0, r * 10, px, 9);
+    x.fillStyle = "rgba(80,52,24,.3)"; x.fillRect(0, r * 10 + 9, px, 1);
+  }
+}, 3);
+const carpetTex = canvasTex(128, (x, px) => {
+  x.fillStyle = "#8a6a5e"; x.fillRect(0, 0, px, px);
+  speck(x, px, 1600, ["#9c7c6e","#7a5a50","#a89086","#6a4c44"], 1);
+}, 6);
+
+function boardTexture(S){
+  const c = document.createElement("canvas"); c.width = 1024; c.height = 300;
+  const x = c.getContext("2d");
+  x.fillStyle = "#3a6b4e"; x.fillRect(0, 0, 1024, 300);
+  for (let i = 0; i < 500; i++){
+    x.fillStyle = `rgba(255,255,255,${0.015 + (i % 5) * 0.006})`;
+    x.fillRect((i * 53.7) % 1024, (i * 91.3) % 300, 8 + (i % 20), 1.5);
+  }
+  x.fillStyle = "#2c2620";
+  x.fillRect(336, 0, 5, 300); x.fillRect(682, 0, 5, 300);
+  x.fillStyle = "rgba(240,236,220,.92)";
+  x.font = "italic 30px Georgia, serif";
+  x.fillText(S.hall, 30, 52);
+  x.strokeStyle = "rgba(240,236,220,.5)"; x.setLineDash([6, 5]);
+  x.beginPath(); x.moveTo(30, 66); x.lineTo(320, 66); x.stroke(); x.setLineDash([]);
+  x.font = "22px 'Courier New', monospace";
+  S.board.forEach((line, i) => x.fillText(line, 30 + (i > 1 ? 330 : 0), (i > 1 ? 60 : 116) + (i % 2) * 46));
+  x.font = "20px 'Courier New', monospace";
+  x.fillText("E = mc²", 730, 250);
+  /* the traditional stick figure, asking for help */
+  x.strokeStyle = "rgba(240,236,220,.85)"; x.lineWidth = 2;
+  x.beginPath(); x.arc(940, 190, 10, 0, 7); x.stroke();
+  x.beginPath(); x.moveTo(940, 200); x.lineTo(940, 228); x.moveTo(925, 210); x.lineTo(955, 214);
+  x.moveTo(940, 228); x.lineTo(928, 248); x.moveTo(940, 228); x.lineTo(952, 248); x.stroke();
+  x.font = "16px 'Courier New', monospace"; x.fillText("Help", 926, 266);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+function buildInteriorScene(key){
+  const S = SECTORS[key];
+  const sc = new THREE.Scene();
+  sc.background = new THREE.Color(0x23262c);
+  sc.add(new THREE.HemisphereLight(0xfff4e0, 0x6a5a48, 1.05));
+  const keyLight = new THREE.DirectionalLight(0xfff0d8, 1.5);
+  keyLight.position.set(-160, 300, 200);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.set(1024, 1024);
+  Object.assign(keyLight.shadow.camera, { left: -400, right: 400, top: 400, bottom: -400, far: 1200 });
+  sc.add(keyLight, keyLight.target);
+
+  const mat = {
+    floor:  new THREE.MeshStandardMaterial({ map: woodFloorTex, roughness: 0.4, metalness: 0.05 }),
+    wood:   new THREE.MeshStandardMaterial({ map: woodWallTex, roughness: 0.8 }),
+    white:  new THREE.MeshStandardMaterial({ color: 0xf2f0ea, roughness: 0.9 }),
+    carpet: new THREE.MeshStandardMaterial({ map: carpetTex, roughness: 1 }),
+    desk:   new THREE.MeshStandardMaterial({ map: woodFloorTex, roughness: 0.55 }),
+    dark:   new THREE.MeshStandardMaterial({ color: 0x2e3138, roughness: 0.7 }),
+    brown:  new THREE.MeshStandardMaterial({ color: 0x5a3a22, roughness: 0.6 }),
+    winGlow:new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.2 }),
+    strip:  new THREE.MeshStandardMaterial({ color: 0xf8f8f4, emissive: 0xfff6dc, emissiveIntensity: 0.9 }),
+  };
+  const box = (m, w, h, d, x2, y2, z2, ry = 0) => {
+    const ms = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+    ms.position.set(x2, y2, z2); ms.rotation.y = ry;
+    ms.castShadow = ms.receiveShadow = true;
+    sc.add(ms); return ms;
+  };
+  /* the shell */
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(680, 560), mat.floor);
+  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; sc.add(floor);
+  const front = new THREE.Mesh(new THREE.PlaneGeometry(680, 185), mat.wood);
+  front.position.set(0, 92, -260); front.receiveShadow = true; sc.add(front);
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(680, 185), mat.white);
+  back.position.set(0, 92, 275); back.rotation.y = Math.PI; sc.add(back);
+  [[-1, 0], [1, Math.PI]].forEach(([sx, ry]) => {
+    const side = new THREE.Mesh(new THREE.PlaneGeometry(560, 185), mat.white);
+    side.position.set(sx * 338, 92, 5); side.rotation.y = sx > 0 ? -Math.PI / 2 : Math.PI / 2;
+    sc.add(side);
+  });
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(680, 560), mat.white);
+  ceil.rotation.x = Math.PI / 2; ceil.position.y = 184; sc.add(ceil);
+  for (let lx = -2; lx <= 2; lx++)
+    for (let lz = 0; lz < 3; lz++)
+      box(mat.strip, 56, 2.4, 9, lx * 120, 182, -140 + lz * 160);
+  /* daylight band: right wall + clerestory over the back rows */
+  for (let wz = -1; wz <= 1; wz++)
+    box(mat.winGlow, 4, 74, 118, 336, 116, wz * 150);
+  for (let wx = -2; wx <= 2; wx++)
+    box(mat.winGlow, 108, 60, 4, wx * 124, 128, 272);
+  /* the teaching wall */
+  box(mat.dark, 310, 92, 3, -40, 84, -257);
+  const board = new THREE.Mesh(new THREE.PlaneGeometry(304, 88), 
+    new THREE.MeshStandardMaterial({ map: boardTexture(S), roughness: 0.75 }));
+  board.position.set(-40, 84, -255); sc.add(board);
+  box(mat.white, 210, 13, 3, 60, 152, -257);              /* projector screen (rolled) */
+  box(mat.dark, 12, 16, 8, -240, 148, -254);              /* speakers */
+  box(mat.dark, 12, 16, 8, 170, 148, -254);
+  box(mat.brown, 62, 4, 30, 90, 30, -196);                /* professor's desk */
+  box(mat.brown, 5, 28, 26, 64, 14, -196);
+  box(mat.brown, 5, 28, 26, 116, 14, -196);
+  box(mat.dark, 16, 1.6, 11, 82, 33, -196);               /* laptop */
+  box(mat.dark, 15, 22, 2.5, 82, 43, -191);
+  const bin = new THREE.Mesh(new THREE.CylinderGeometry(5, 4, 11, 10), mat.dark);
+  bin.position.set(130, 5.5, -190); sc.add(bin);
+
+  /* five curved tiers rising toward the back — arcs centered on stage */
+  const AC = new THREE.Vector3(0, 0, -180);               /* arc center     */
+  const T0 = Math.PI * 1.5, TL = Math.PI * 0.58;          /* facing stage   */
+  const seatMats = {};
+  const seat = new THREE.BoxGeometry(13, 2.2, 12);
+  const backG = new THREE.BoxGeometry(13, 14, 2.2);
+  for (let r = 0; r < 5; r++){
+    const R0 = 150 + r * 62, y2 = 12 + r * 15;
+    const tierGeo = new THREE.RingGeometry(R0 - 12, R0 + 50, 48, 1, T0 - TL / 2, TL);
+    const tier = new THREE.Mesh(tierGeo, mat.carpet);
+    tier.rotation.x = -Math.PI / 2;
+    tier.position.set(AC.x, y2, AC.z);
+    tier.receiveShadow = true; sc.add(tier);
+    const riser = new THREE.Mesh(
+      new THREE.CylinderGeometry(R0 - 12, R0 - 12, y2, 48, 1, true, Math.PI - TL / 2, TL), mat.white);
+    riser.position.set(AC.x, y2 / 2, AC.z); sc.add(riser);
+    const deskR = new THREE.Mesh(new THREE.RingGeometry(R0, R0 + 15, 48, 1, T0 - TL / 2, TL), mat.desk);
+    deskR.rotation.x = -Math.PI / 2;
+    deskR.position.set(AC.x, y2 + 25, AC.z); sc.add(deskR);
+    const fascia = new THREE.Mesh(
+      new THREE.CylinderGeometry(R0, R0, 25, 48, 1, true, Math.PI - TL / 2, TL), mat.wood);
+    fascia.position.set(AC.x, y2 + 12.5, AC.z); sc.add(fascia);
+    /* chairs along the arc, aisle gap at center */
+    const seats = 12;
+    for (let k2 = 0; k2 < seats; k2++){
+      const a = (k2 / (seats - 1) - 0.5) * (TL * 0.86);
+      if (Math.abs(a) < 0.055) continue;
+      const px2 = AC.x + Math.sin(a) * (R0 + 27);
+      const pz2 = AC.z + Math.cos(a) * (R0 + 27);
+      const sm = new THREE.Mesh(seat, mat.dark);
+      sm.position.set(px2, y2 + 14, pz2); sm.rotation.y = -a + Math.PI;
+      sm.castShadow = true; sc.add(sm);
+      const bm = new THREE.Mesh(backG, mat.dark);
+      bm.position.set(px2 + Math.sin(a) * 6, y2 + 21, pz2 + Math.cos(a) * 6);
+      bm.rotation.y = -a + Math.PI; bm.castShadow = true; sc.add(bm);
+      /* a scattered cohort in attendance */
+      if ((k2 * 7 + r * 5) % 3 === 0){
+        const col = STUDENT_ROSTER[(k2 + r) % STUDENT_ROSTER.length].c;
+        const torso = new THREE.Mesh(new THREE.CapsuleGeometry(4.6, 7, 3, 8),
+          seatMats[col] || (seatMats[col] = new THREE.MeshStandardMaterial({ color: col, roughness: 0.85 })));
+        torso.position.set(px2, y2 + 23, pz2); torso.castShadow = true; sc.add(torso);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(4, 9, 7), skinMat);
+        head.position.set(px2, y2 + 33.5, pz2); head.castShadow = true; sc.add(head);
+      }
+    }
+    /* aisle steps */
+    box(mat.white, 20, 3, 9, AC.x, y2 - 4, AC.z + R0 - 17);
+  }
+  /* the professor at the lectern */
+  const prof = new THREE.Mesh(new THREE.CapsuleGeometry(5.2, 11, 3, 8),
+    new THREE.MeshStandardMaterial({ color: 0x2c2c34, roughness: 0.85 }));
+  prof.position.set(52, 22, -200); prof.castShadow = true; sc.add(prof);
+  const profHead = new THREE.Mesh(new THREE.SphereGeometry(4.4, 9, 7), skinMat);
+  profHead.position.set(52, 35, -200); profHead.castShadow = true; sc.add(profHead);
+  return sc;
+}
+
+function engineOpenInterior(key){
+  if (!interiorScenes[key]) interiorScenes[key] = buildInteriorScene(key);
+  interiorView = key;
+  wingEl.classList.add("interior-open");
+}
+function engineCloseInterior(){
+  interiorView = null;
+  wingEl.classList.remove("interior-open");
+}
+
 /* ── highlight hooks used by the workspace ───────────────────────── */
 let activeSector = null;
 function applyHallGlow(){
@@ -2355,33 +2569,80 @@ const litSectors = new Set();
 function engineSetActive(key){ activeSector = key; applyHallGlow(); }
 function engineSetLit(key, isLit){ isLit ? litSectors.add(key) : litSectors.delete(key); applyHallGlow(); }
 
-/* ── day / night ─────────────────────────────────────────────────── */
-function engineSetMode(m){
-  const day = m === "day";
-  skyDome.material.map = day ? SKY.day : SKY.night;
-  skyDome.material.needsUpdate = true;
-  world.fog = day ? new THREE.Fog(0xc3d9ee, 900, 3000) : new THREE.Fog(0x070b16, 500, 2400);
-  hemi.color.set(day ? 0xbdd8f2 : 0x25304d);
-  hemi.groundColor.set(day ? 0x4a5b3a : 0x0b140d);
-  hemi.intensity = day ? 0.85 : 0.5;
-  sun.color.set(day ? 0xfff0d2 : 0x9fb4dd);
-  sun.intensity = day ? 2.6 : 1.1;
-  sun.position.set(day ? -520 : 420, day ? 760 : 620, day ? 430 : -300);
-  renderer.toneMappingExposure = day ? 1.02 : 0.95;
-  bloom.strength = day ? 0.22 : 0.6;
-  world.environmentIntensity = day ? 0.55 : 0.05;
+/* ── the day cycle: dawn to dusk, a real sun on a real arc ───────── */
+/*            t   sky-top    horizon    sun-color  sunI  hemiI  envI  */
+const PHASES = [
+  [0.000, "#05060e", "#131c33", "#8fa8d8", 0.00, 0.30, 0.05],
+  [0.210, "#070a18", "#241f3d", "#c88a6a", 0.00, 0.32, 0.05],
+  [0.265, "#20305e", "#e08a5a", "#ffb27a", 0.90, 0.45, 0.20],
+  [0.330, "#3f78c0", "#d8e6f0", "#ffe6c0", 1.90, 0.70, 0.40],
+  [0.500, "#4f93d8", "#e6f0f8", "#fff0d2", 2.60, 0.85, 0.55],
+  [0.670, "#4a7fc4", "#e8ddc8", "#ffd9a0", 1.90, 0.72, 0.42],
+  [0.735, "#2d2c58", "#f0955c", "#ff9a5e", 0.95, 0.45, 0.20],
+  [0.790, "#0a0d20", "#3d2540", "#b07a6a", 0.00, 0.32, 0.06],
+  [1.000, "#05060e", "#131c33", "#8fa8d8", 0.00, 0.30, 0.05],
+];
+const _cA = new THREE.Color(), _cB = new THREE.Color();
+function setTimeOfDay(t){
+  t = ((t % 1) + 1) % 1;
+  let i = 0;
+  while (i < PHASES.length - 2 && PHASES[i + 1][0] < t) i++;
+  const A = PHASES[i], B = PHASES[i + 1];
+  const f = (t - A[0]) / Math.max(1e-5, B[0] - A[0]);
+  const lerpC = (ai) => _cA.set(A[ai]).lerp(_cB.set(B[ai]), f);
+  const lerpN = (ai) => A[ai] + (B[ai] - A[ai]) * f;
+  skyMat.uniforms.top.value.copy(lerpC(1));
+  skyMat.uniforms.hor.value.copy(lerpC(2));
+  const sunI = lerpN(4);
+  const night = sunI < 0.15;
+  sun.color.copy(lerpC(3));
+  if (!night){
+    /* rises in the east (+x), sets in the west (−x) */
+    const p = (t - 0.25) / 0.5;                     /* 0..1 across the sky */
+    const el = Math.max(0.06, Math.sin(p * Math.PI));
+    const az = (0.5 - p) * Math.PI;                 /* +90° → −90° */
+    sun.position.set(Math.sin(az) * 850, 160 + 760 * el, Math.cos(az) * -520 + 240);
+    sun.intensity = sunI;
+  } else {
+    sun.position.set(420, 620, -300);               /* moonlight */
+    sun.intensity = 0.5;
+  }
+  hemi.intensity = lerpN(5);
+  hemi.color.copy(lerpC(1)).lerp(_cB.set(0xffffff), 0.45);
+  hemi.groundColor.set(night ? 0x0b140d : 0x4a5b3a);
+  world.environmentIntensity = lerpN(6);
+  world.fog.color.copy(lerpC(2)).multiplyScalar(night ? 0.55 : 0.92);
+  renderer.toneMappingExposure = night ? 0.95 : 1.02;
+  bloom.strength = night ? 0.6 : 0.24;
+  setVisualBinary(night ? "night" : "day");
+}
+let visual = null;
+function setVisualBinary(v){
+  if (v === visual) return;
+  visual = v;
+  window.__visual = v;
+  const day = v === "day";
+  document.body.classList.toggle("day", day);
+  world.fog.near = day ? 900 : 500;
+  world.fog.far = day ? 3000 : 2400;
   stars.visible = !day;
   fireflies.visible = !day;
   lampLights.forEach(l => l.intensity = day ? 0 : 1400);
   lampGlowMats.forEach(mm => mm.emissiveIntensity = day ? 0.05 : 1.9);
   skinSwaps.forEach(({ mat, day: dTex, night: nTex }) => {
     mat.map = day ? dTex : nTex;
-    /* after dark, the skin lights itself — every lancet glows */
     mat.emissiveMap = day ? null : nTex;
     mat.userData.baseEmissive = day ? 0 : 0.85;
     mat.needsUpdate = true;
   });
   applyHallGlow();
+}
+let cycleT = 0.42, autoCycle = false;
+function engineSetMode(m){
+  autoCycle = m === "auto";
+  if (m === "day") setTimeOfDay(0.42);
+  else if (m === "night") setTimeOfDay(0.02);
+  else { cycleT = 0.28; setTimeOfDay(cycleT); }
 }
 
 /* ── aerial orbit controls + hall picking ────────────────────────── */
@@ -2555,13 +2816,26 @@ renderer.setAnimationLoop(() => {
   stepStudents(dt, now);
   if (walker.on) walkUpdate(dt);
   else controls.update();
+  if (autoCycle && !interiorView){
+    cycleT += dt / 180;                /* a full day in three minutes */
+    setTimeOfDay(cycleT);
+  }
   if (fireflies.visible){
     fireflies.rotation.y += dt * 0.02;
     fireflies.position.y = Math.sin(now / 1700) * 4;
   }
   drawMinimap();
-  labelRenderer.render(world, camera);
-  composer.render();
+  if (interiorView){
+    const sway = Math.sin(now / 5200);
+    intCamera.position.set(60 + sway * 80, 148 + sway * 5, 228);
+    intCamera.lookAt(-30, 30, -200);
+    intCamera.aspect = camera.aspect;
+    intCamera.updateProjectionMatrix();
+    renderer.render(interiorScenes[interiorView], intCamera);
+  } else {
+    labelRenderer.render(world, camera);
+    composer.render();
+  }
 });
 resize();
 
@@ -2940,36 +3214,18 @@ const interiorEl = document.getElementById("interior");
 function openInterior(key){
   const S = SECTORS[key];
   if (!S) return;
-  const wall = document.getElementById("int-wall");
-  wall.dataset.skin = "1";
-  wall.dataset.day = wallURI("plain", 980, 560, {accent:S.color, seed:11}, "day");
-  wall.dataset.night = wallURI("plain", 980, 560, {accent:S.color, seed:11}, "night");
-  wall.style.backgroundImage = wall.dataset[mode];
   document.getElementById("int-track").textContent = S.track;
   document.getElementById("int-hall").textContent = S.room;
   const next = COURSES.find(c => c.sector === key && !done.includes(c.id));
   document.getElementById("int-teaching").textContent = next
     ? `Now in session: ${next.code} — ${next.title}`
     : "Every course sealed — the hall stands in your honor.";
-  document.querySelector("#interior .chalk-title").textContent = S.hall;
-  document.getElementById("int-lines").innerHTML =
-    S.board.map(l => `<div class="chalk-line">${esc(l)}</div>`).join("");
-  /* seat a scattered cohort at the desks */
-  ["int-row1","int-row2","int-row3"].forEach((id, ri) => {
-    let html = "";
-    for (let i = 0; i < 3; i++){
-      const a = STUDENT_ROSTER[(i + ri*2) % STUDENT_ROSTER.length].c;
-      const b2 = STUDENT_ROSTER[(i + ri*2 + 3) % STUDENT_ROSTER.length].c;
-      const p1 = Math.random() < 0.8 ? `<div class="pupil" style="--pc:${a};left:${14 + Math.round(Math.random()*22)}%"><i></i><b></b></div>` : "";
-      const p2 = Math.random() < 0.55 ? `<div class="pupil" style="--pc:${b2};left:${56 + Math.round(Math.random()*22)}%"><i></i><b></b></div>` : "";
-      html += `<div class="int-desk">${p1}${p2}</div>`;
-    }
-    document.getElementById(id).innerHTML = html;
-  });
+  engineOpenInterior(key);
   interiorEl.classList.add("open");
   interiorEl.setAttribute("aria-hidden", "false");
 }
 function closeInterior(){
+  engineCloseInterior();
   interiorEl.classList.remove("open");
   interiorEl.setAttribute("aria-hidden", "true");
 }
@@ -2981,28 +3237,28 @@ document.getElementById("int-courses").addEventListener("click", () => {
   ws.scrollIntoView({ behavior: "smooth" });
 });
 
-/* ── day / night engine ──────────────────────────────────────────── */
+/* ── day / auto / night ──────────────────────────────────────────── */
 const LS_MODE = "pembroke.registrar.mode";
-let mode = localStorage.getItem(LS_MODE) === "night" ? "night" : "day";
+let mode = ["day", "night", "auto"].includes(localStorage.getItem(LS_MODE))
+  ? localStorage.getItem(LS_MODE) : "day";
 function applyMode(){
-  document.body.classList.toggle("day", mode === "day");
-  document.querySelectorAll("[data-skin]").forEach(el => {
-    el.style.backgroundImage = el.dataset[mode];
-  });
+  const icons = { day: "☀️", auto: "🌗", night: "🌙" };
+  const btn = document.getElementById("daynight");
+  btn.textContent = icons[mode];
+  btn.title = "Time of day: " + mode + " (N to change)";
   engineSetMode(mode);
-  document.getElementById("daynight").textContent = mode === "day" ? "🌙" : "☀️";
 }
 document.getElementById("daynight").addEventListener("click", () => {
-  mode = mode === "day" ? "night" : "day";
+  mode = mode === "day" ? "auto" : mode === "auto" ? "night" : "day";
   localStorage.setItem(LS_MODE, mode);
   applyMode();
-  toast(mode === "day" ? "Dawn over the quadrangle" : "Night falls on Pembroke",
-        mode === "day"
-          ? "Morning light on buff stone — fair-weather clouds over the spires."
-          : "The lancets glow, lamplight pools on the walks, and the fireflies rise.",
-        "#d4af6a");
+  const blurb = {
+    day:   ["High noon over the quad", "Fixed daylight — clean shadows, blue sky."],
+    auto:  ["The sun is loosed", "A full day sweeps past in three minutes — dawn, noon, golden hour, and lamplit night, shadows wheeling as it goes."],
+    night: ["Night falls on Pembroke", "The lancets glow with lamplit rooms, and the plaza mirrors the halls."],
+  }[mode];
+  toast(blurb[0], blurb[1], "#d4af6a");
 });
-
 
 /* ── ignition ────────────────────────────────────────────────────── */
 window.__app = { selectSector, openInterior };   /* test/debug hooks */
