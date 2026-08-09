@@ -1,1 +1,2 @@
 95ff0c0b11eb3d8f1b317905f94a6bca873adf1a0813c1ac225848546bf850cb  incoming/FETCH_ERRORS.txt
+efbd5cd39c2ac4e909a82748e0eea830c7a4cde62c0dea2e2c26be7484044825  incoming/MANIFEST.txt
