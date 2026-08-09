@@ -2011,6 +2011,55 @@ function lot(px, py, w, d, stalls){
 }
 lot(900, 310, 84, 300, 6);
 lot(16, 430, 70, 240, 5);
+/* the campus drive: a U of asphalt hugging west, south, and east
+   edges (the cathedral closes the north), with curbs, lane dashes,
+   lot connectors, and a zebra crossing at the gatehouse spur */
+{
+  const curbMat = new THREE.MeshStandardMaterial({ color: 0xb9b2a2, roughness: 0.9 });
+  const dashMat = new THREE.MeshBasicMaterial({ color: 0xd8d4c8 });
+  const road = (px, py, w, d) => {
+    const t = asphaltTex.clone();
+    t.repeat.set(Math.max(1, w / 34), Math.max(1, d / 34));
+    t.needsUpdate = true;
+    const roadMat = new THREE.MeshStandardMaterial({ map: t, color: 0xb8bcc2, roughness: 1 });
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), roadMat);
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(W(px + w / 2), 0.2, W(py + d / 2));
+    m.receiveShadow = true;
+    world.add(m);
+    const horiz = w > d;
+    for (const side of [-1, 1]){
+      const c = new THREE.Mesh(
+        horiz ? new THREE.BoxGeometry(w + 3, 2, 3) : new THREE.BoxGeometry(3, 2, d + 3), curbMat);
+      c.position.set(W(px + w / 2) + (horiz ? 0 : side * (w / 2 + 1.5)), 1,
+                     W(py + d / 2) + (horiz ? side * (d / 2 + 1.5) : 0));
+      c.receiveShadow = true;
+      world.add(c);
+    }
+    const len = horiz ? w : d, n = Math.floor(len / 46);
+    for (let k = 0; k < n; k++){
+      const dash = new THREE.Mesh(new THREE.PlaneGeometry(horiz ? 18 : 2.2, horiz ? 2.2 : 18), dashMat);
+      dash.rotation.x = -Math.PI / 2;
+      dash.position.set(
+        horiz ? W(px + 24 + k * 46) : W(px + w / 2),
+        0.3,
+        horiz ? W(py + d / 2) : W(py + 24 + k * 46));
+      world.add(dash);
+    }
+  };
+  road(-48, 80, 30, 950);          /* west leg  */
+  road(1012, 60, 30, 970);         /* east leg  */
+  road(-48, 1000, 1090, 30);       /* south leg */
+  road(-18, 516, 34, 30);          /* west lot connector */
+  road(984, 430, 28, 30);          /* east lot connector */
+  road(478, 948, 44, 52);          /* gatehouse spur */
+  for (let k = 0; k < 6; k++){     /* zebra crossing on the south leg */
+    const stripe = new THREE.Mesh(new THREE.PlaneGeometry(30, 3.2), dashMat);
+    stripe.rotation.x = -Math.PI / 2;
+    stripe.position.set(W(500), 0.34, W(1003 + 4.8 * k));
+    world.add(stripe);
+  }
+}
 
 /* ── the stone mason feeds PBR materials ─────────────────────────── */
 const texLoader = new THREE.TextureLoader();
@@ -2635,26 +2684,45 @@ const TREE_TARGET_H = { oak: 50, elm: 64, pine: 54, maple: 58 };
     });
   });
 });
-const CARS = [
-  [906,326,0.62,0.16,0.13],[906,372,0.24,0.30,0.42],[906,418,0.79,0.77,0.72],[906,510,0.13,0.14,0.16],
-  [906,556,0.48,0.29,0.18],[952,440,0.29,0.35,0.28],
-  [24,446,0.79,0.77,0.72],[24,494,0.35,0.19,0.31],[24,588,0.20,0.26,0.31],[44,540,0.62,0.16,0.13],
+/* the fleet: mostly-full lots plus a few cars out on the drive,
+   one InstancedMesh per body part with per-instance paint */
+const CAR_TONES = [
+  [0.62,0.16,0.13],[0.24,0.30,0.42],[0.79,0.77,0.72],[0.13,0.14,0.16],[0.48,0.29,0.18],
+  [0.29,0.35,0.28],[0.35,0.19,0.31],[0.20,0.26,0.31],[0.72,0.70,0.66],[0.55,0.08,0.09],
 ];
+const CARS = [];
+for (let i = 0; i < 10; i++){          /* east lot, two columns nose-in */
+  if (i !== 3 && i !== 7) CARS.push([921, 330 + i * 27, 0]);
+  if (i !== 1 && i !== 8) CARS.push([963, 330 + i * 27, Math.PI]);
+}
+for (let i = 0; i < 8; i++){           /* west lot */
+  if (i !== 2 && i !== 5) CARS.push([38, 446 + i * 27, Math.PI]);
+}
+CARS.push([240, 1008, 0], [720, 1022, Math.PI], [-33, 640, Math.PI / 2],
+          [1027, 300, -Math.PI / 2], [1027, 760, -Math.PI / 2]);
 gltf.load("assets/car.glb", (g) => {
-  CARS.forEach(([px, py, r, g2, b]) => {
-    const car = g.scene.clone(true);
-    car.traverse(o => {
-      if (o.isMesh){
-        o.castShadow = true;
-        if (o.material.name === "paint"){
-          o.material = o.material.clone();
-          o.material.color.setRGB(r, g2, b);
-        }
+  const prims = [];
+  g.scene.traverse(o => { if (o.isMesh) prims.push(o); });
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1);
+  const up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
+  prims.forEach(src => {
+    const isPaint = src.material.name === "paint";
+    const mat = isPaint
+      ? new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.35, roughness: 0.35 })
+      : src.material;
+    const inst = new THREE.InstancedMesh(src.geometry, mat, CARS.length);
+    inst.castShadow = true;
+    CARS.forEach(([px, py, rot], i) => {
+      q.setFromAxisAngle(up, rot);
+      m4.compose(new THREE.Vector3(W(px), 0, W(py)), q, one);
+      inst.setMatrixAt(i, m4);
+      if (isPaint){
+        const t = CAR_TONES[i % CAR_TONES.length];
+        inst.setColorAt(i, col.setRGB(t[0], t[1], t[2]));
       }
     });
-    car.position.set(W(px + 15), 0, W(py + 8));
-    car.rotation.y = px < 500 ? Math.PI : 0;
-    world.add(car);
+    if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+    world.add(inst);
   });
 });
 const LAMPS = [[34,34],[952,34],[34,952],[952,952],[471,92],[529,92]];
@@ -3875,7 +3943,7 @@ document.getElementById("daynight").addEventListener("click", () => {
 });
 
 /* ── ignition ────────────────────────────────────────────────────── */
-window.__app = { selectSector, openInterior, camera, controls };   /* test/debug hooks */
+window.__app = { selectSector, openInterior, camera, controls, world };   /* test/debug hooks */
 applyMode();
 renderChips();
 renderBanner();
