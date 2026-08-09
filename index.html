@@ -1847,16 +1847,26 @@ const asphaltTex = canvasTex(128, (x, px) => {
   speck(x, px, 1000, ["#484a50", "#606268", "#3e4045"], 0.9);
 }, 2);
 const shingleTex = canvasTex(128, (x, px) => {
-  x.fillStyle = "#7d848e"; x.fillRect(0, 0, px, px);
+  x.fillStyle = "#5d6470"; x.fillRect(0, 0, px, px);
   for (let r = 0; r < 8; r++){
     const y = r * 16;
-    x.fillStyle = "rgba(0,0,0,.28)"; x.fillRect(0, y + 14, px, 2);
-    x.fillStyle = "rgba(255,255,255,.05)"; x.fillRect(0, y, px, 2);
+    for (let cx2 = ((r % 2) * 16) - 32; cx2 < px; cx2 += 32){
+      x.fillStyle = ["#5a616d", "#646c79", "#555c67", "#6a7280"][((r * 7 + cx2 / 32) | 0) & 3];
+      x.fillRect(cx2 + 1, y + 1, 30, 14);
+    }
+    x.fillStyle = "rgba(0,0,0,.38)"; x.fillRect(0, y + 14, px, 2.4);
+    x.fillStyle = "rgba(255,255,255,.07)"; x.fillRect(0, y, px, 1.6);
     for (let cx2 = ((r % 2) * 16); cx2 < px; cx2 += 32){
-      x.fillStyle = "rgba(0,0,0,.15)"; x.fillRect(cx2, y, 1.6, 16);
+      x.fillStyle = "rgba(0,0,0,.22)"; x.fillRect(cx2, y, 1.8, 16);
     }
   }
-  speck(x, px, 500, ["#6a707a", "#8b939e"], 0.6);
+  speck(x, px, 420, ["#525862", "#79818e"], 0.5);
+});
+const copperTex = canvasTex(128, (x, px) => {
+  x.fillStyle = "#4d8a74"; x.fillRect(0, 0, px, px);
+  for (let i = 0; i < 6; i++){ x.fillStyle = "rgba(18,52,40,.28)"; x.fillRect(i * 22, 0, 2, px); }
+  for (let r = 0; r < 8; r++){ x.fillStyle = "rgba(20,60,45,.22)"; x.fillRect(0, r * 16 + 14, px, 2); }
+  speck(x, px, 700, ["#5d9a82", "#3e755f", "#6aa892", "#35604e"], 0.7);
 });
 const leadTex = canvasTex(128, (x, px) => {
   x.fillStyle = "#5c5e60"; x.fillRect(0, 0, px, px);
@@ -2267,12 +2277,19 @@ function gableRoof(parent, o){
   geo.setAttribute("normal", new THREE.Float32BufferAttribute(nrm, 3));
   geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
   geo.setIndex(idx);
-  const mat = new THREE.MeshStandardMaterial({ map: o.terra ? terraTex : shingleTex, roughness: 0.92 });
+  const mat = new THREE.MeshStandardMaterial({
+    map: o.copper ? copperTex : o.terra ? terraTex : shingleTex, roughness: 0.92 });
   const m = new THREE.Mesh(geo, mat);
   m.position.set(W(o.x + o.w / 2), o.z, W(o.y + o.d / 2));
   if (along) m.rotation.y = Math.PI / 2;
   m.castShadow = m.receiveShadow = true;
   parent.add(m);
+  /* lead ridge cap so the roofline reads from the air */
+  const cap = new THREE.Mesh(new THREE.BoxGeometry(L + 5, 2.2, 4.4),
+    new THREE.MeshStandardMaterial({ map: leadTex, roughness: 0.85 }));
+  cap.position.set(0, o.h + 0.9, 0);
+  cap.castShadow = true;
+  m.add(cap);
   noteMat(o.sector, mat);
   return m;
 }
@@ -2380,9 +2397,29 @@ BUILDINGS.forEach(spec => {
   gableRoof(amb, { x: 700, y: 330, w: 110, d: 72, z: 46, h: 30, terra: true });
   /* south hall + moderns */
   stoneBox(amb, { x: 340, y: 795, w: 140, d: 100, h: 58, windows: "lancet", ivy: true, seed: 19, accent: "#d9c48a", noRoof: true });
-  gableRoof(amb, { x: 340, y: 795, w: 140, d: 100, z: 58, h: 34 });
+  gableRoof(amb, { x: 340, y: 795, w: 140, d: 100, z: 58, h: 34, copper: true });
   stoneBox(amb, { x: 120, y: 852, w: 190, d: 86, h: 64, parapet: 5, windows: "modern", seed: 20, accent: "#bcd2de" });
   stoneBox(amb, { x: 740, y: 872, w: 160, d: 74, h: 52, parapet: 5, windows: "modern", seed: 21, accent: "#bcd2de" });
+  /* chimney stacks along the range ridges, rooftop units on the moderns */
+  {
+    const flueMat = new THREE.MeshStandardMaterial({ color: 0x8a7f6d, roughness: 0.95 });
+    const capMat = new THREE.MeshStandardMaterial({ color: 0x3c3e42, roughness: 0.8 });
+    const chimney = (px, py, baseY, h3) => {
+      const c = new THREE.Mesh(new THREE.BoxGeometry(9, h3, 9), flueMat);
+      c.position.set(W(px), baseY + h3 / 2, W(py)); c.castShadow = true; amb.add(c);
+      const k = new THREE.Mesh(new THREE.BoxGeometry(11, 2.4, 11), capMat);
+      k.position.set(W(px), baseY + h3 + 1.2, W(py)); k.castShadow = true; amb.add(k);
+    };
+    [[888, 290], [888, 395], [888, 500]].forEach(([px, py]) => chimney(px, py, 88, 18));
+    [[118, 385], [118, 480], [118, 575]].forEach(([px, py]) => chimney(px, py, 88, 18));
+    [[372, 845], [448, 845]].forEach(([px, py]) => chimney(px, py, 78, 16));
+    const acMat = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.7, metalness: 0.3 });
+    [[168, 880], [242, 902], [788, 894], [852, 906]].forEach(([px, py], i) => {
+      const u = new THREE.Mesh(new THREE.BoxGeometry(15, 7, 11), acMat);
+      u.position.set(W(px), (i < 2 ? 64 : 52) + 3.5, W(py));
+      u.castShadow = true; amb.add(u);
+    });
+  }
   /* gatehouse over the south walk (tunnel jambs collide, center passes) */
   stoneBox(amb, { x: 456, y: 880, w: 88, d: 46, h: 62, parapet: 7, arch: true, clock: true,
                   seed: 7, accent: "#d4af6a", noCollide: true });
