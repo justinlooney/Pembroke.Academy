@@ -877,7 +877,7 @@ git push -u origin main</pre>
         <div>
           <span class="font-serif-d italic text-[13px] text-slate-400">"Lux, Mathesis, Machina"</span> — Light, Learning, and the Machine.
           <div class="mt-1">Progress is inscribed to your browser's <code class="font-mono-d text-[10.5px]">localStorage</code> ledger — it survives every visit.</div>
-          <div class="mt-1 text-slate-600">3D (all <a class="underline hover:text-slate-400" href="http://creativecommons.org/licenses/by/4.0/">CC-BY-4.0</a>, adapted): "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/campus-conversation-228d51c9b87b40fdb655ad10213bff8e">Campus Conversation</a>" by restore50 · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/gothic-cathedral-8b8f08c852e949ecba39ca0dd29448f0">Gothic cathedral</a>" by Gnemegorl · "Cologne Cathedral" by Shahriar Shahrabi · "МГУ Moscow State University" by Neo_minigan · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/tabitown">Cathedral</a>" by tabitown · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/zagreb-cathedral-facade-croatia-827a80ec7d90434c94f4fc99293d0938">Zagreb Cathedral facade</a>" by HoangHiepVu.</div>
+          <div class="mt-1 text-slate-600">3D (all <a class="underline hover:text-slate-400" href="http://creativecommons.org/licenses/by/4.0/">CC-BY-4.0</a>, adapted): "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/campus-conversation-228d51c9b87b40fdb655ad10213bff8e">Campus Conversation</a>" by restore50 · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/gothic-cathedral-8b8f08c852e949ecba39ca0dd29448f0">Gothic cathedral</a>" by Gnemegorl · "Cologne Cathedral" by Shahriar Shahrabi · "МГУ Moscow State University" by Neo_minigan · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/tabitown">Cathedral</a>" by tabitown · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/zagreb-cathedral-facade-croatia-827a80ec7d90434c94f4fc99293d0938">Zagreb Cathedral facade</a>" by HoangHiepVu · "Casual Student with Laptop" by restore50 · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/vmmaniac">STUDENT_2</a>" by vmmaniac.</div>
         </div>
         <button id="reset-ledger" class="chip rounded-full px-4 py-1.5 text-[11px] uppercase tracking-[.15em] text-slate-400 hover:text-red-300 hover:border-red-400/50">Reset ledger</button>
       </footer>
@@ -1662,6 +1662,7 @@ import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { Reflector } from "three/addons/objects/Reflector.js";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+import { clone as skeletonClone } from "three/addons/utils/SkeletonUtils.js";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { SSAOPass } from "three/addons/postprocessing/SSAOPass.js";
@@ -2937,22 +2938,75 @@ function mkPerson(jacketColor, seed){
   }
   return { g, legL, legR, armL, armR };
 }
-STUDENT_ROSTER.forEach((st, i) => {
-  const p = mkPerson(st.c, i * 13 + 5);
-  const tagEl = document.createElement("div");
-  tagEl.className = "stu-tag";
-  tagEl.textContent = st.name;
-  const tag = new CSS2DObject(tagEl);
-  tag.position.y = 46;
-  p.g.add(tag);
-  world.add(p.g);
-  const startKey = ["R0","R1","R2","R3","R4","R5","R6","R7"][i % 8];
-  students.push({ g: p.g, limbs: p, data: st, node: startKey, pos: [...WAYPOINTS[startKey]],
-                  target: null, speed: 26 + Math.random() * 18, pauseUntil: 0,
-                  phase: Math.random() * 9, walkT: 0, gait: 0 });
-});
+/* the photoreal cast, ferried in by the registrar: a mid-stride
+   walker, a rigged student frozen in a natural stance, a talker
+   mid-gesture, and a coder folded up with her laptop */
+const CAST_FILES = { walk: "assets/stu_walk.glb", stand: "assets/stu_anim.glb",
+                     chat: "assets/stu_chat.glb", laptop: "assets/stu_laptop.glb" };
+const CAST_HEIGHT = { walk: 42, stand: 41, chat: 42, laptop: 25 };
+const CAST_PLAN = [
+  { k: "walk" },                                      /* Elowen  — roams   */
+  { k: "stand" },                                     /* Marcus  — roams   */
+  { k: "chat",   at: [449, 449], face:  0.8 },        /* Priya   — plaza   */
+  { k: "laptop", at: [543, 449], face: -2.4 },        /* Sofia   — lawn    */
+  { k: "walk" },                                      /* Theo    — roams   */
+  { k: "stand" },                                     /* Jun     — roams   */
+  { k: "chat",   at: [536, 262], face:  2.9 },        /* Amara   — n. walk */
+  { k: "walk" },                                      /* Kenji   — roams   */
+];
+const castLib = {};
+function prepFigure(k, height){
+  const src = castLib[k];
+  const root = k === "stand" ? skeletonClone(src.scene) : src.scene.clone(true);
+  if (k === "stand" && src.animations.length){
+    const mixer = new THREE.AnimationMixer(root);
+    mixer.clipAction(src.animations[0]).play();
+    mixer.update(0.7);                    /* freeze in a natural stance */
+  }
+  root.updateMatrixWorld(true);
+  const bb = new THREE.Box3().setFromObject(root);
+  const sc2 = (height || CAST_HEIGHT[k]) / Math.max(1e-6, bb.max.y - bb.min.y);
+  const g2 = new THREE.Group();
+  root.scale.setScalar(sc2);
+  root.position.set(-(bb.min.x + bb.max.x) / 2 * sc2, -bb.min.y * sc2, -(bb.min.z + bb.max.z) / 2 * sc2);
+  root.traverse(o => { if (o.isMesh){ o.castShadow = true; o.frustumCulled = false; } });
+  g2.add(root);
+  return g2;
+}
+{
+  let castReady = 0;
+  const keys = Object.keys(CAST_FILES);
+  keys.forEach(k => gltf.load(CAST_FILES[k], (g) => {
+    castLib[k] = g;
+    if (++castReady === keys.length) buildCast();
+  }));
+}
+function buildCast(){
+  STUDENT_ROSTER.forEach((st, i) => {
+    const plan = CAST_PLAN[i];
+    const g = prepFigure(plan.k);
+    const tagEl = document.createElement("div");
+    tagEl.className = "stu-tag";
+    tagEl.textContent = st.name;
+    const tag = new CSS2DObject(tagEl);
+    tag.position.y = plan.k === "laptop" ? 32 : 48;
+    g.add(tag);
+    world.add(g);
+    if (plan.at){
+      g.position.set(W(plan.at[0]), 0, W(plan.at[1]));
+      g.rotation.y = plan.face || 0;
+      students.push({ g, data: st, static: true, pos: [...plan.at] });
+      return;
+    }
+    const startKey = ["R0","R1","R2","R3","R4","R5","R6","R7"][i % 8];
+    students.push({ g, data: st, node: startKey, pos: [...WAYPOINTS[startKey]],
+                    target: null, speed: 26 + Math.random() * 18, pauseUntil: 0,
+                    phase: Math.random() * 9, walkT: 0, gait: 0 });
+  });
+}
 function stepStudents(dt, now){
   for (const s of students){
+    if (s.static) continue;
     let moving = false;
     if (now < s.pauseUntil){ /* idle */ }
     else {
@@ -2973,16 +3027,18 @@ function stepStudents(dt, now){
         s.g.rotation.y = Math.atan2(dx, dy) + Math.PI;
       }
     }
-    /* gait eases in and out; limbs swing from the hips and shoulders */
+    /* eased gait drives a soft step-bob; the scans carry their own pose */
     s.gait += ((moving ? 1 : 0) - s.gait) * Math.min(1, dt * 6);
     if (s.gait > 0.01) s.walkT += dt * (4.2 + s.speed * 0.09);
-    const sw = Math.sin(s.walkT) * 0.52 * s.gait;
-    s.limbs.legL.rotation.x = sw;
-    s.limbs.legR.rotation.x = -sw;
-    s.limbs.armL.rotation.x = -sw * 0.75;
-    s.limbs.armR.rotation.x = sw * 0.75;
-    const bounce = Math.abs(Math.cos(s.walkT)) * 1.1 * s.gait;
-    const idleSway = (1 - s.gait) * Math.sin(now / 900 + s.phase) * 0.03;
+    if (s.limbs){
+      const sw = Math.sin(s.walkT) * 0.52 * s.gait;
+      s.limbs.legL.rotation.x = sw;
+      s.limbs.legR.rotation.x = -sw;
+      s.limbs.armL.rotation.x = -sw * 0.75;
+      s.limbs.armR.rotation.x = sw * 0.75;
+    }
+    const bounce = Math.abs(Math.cos(s.walkT)) * 0.6 * s.gait;
+    const idleSway = (1 - s.gait) * Math.sin(now / 900 + s.phase) * 0.02;
     s.g.rotation.z = idleSway;
     s.g.position.set(W(s.pos[0]), bounce, W(s.pos[1]));
   }
@@ -3151,25 +3207,30 @@ function buildInteriorScene(key){
       const bm = new THREE.Mesh(backG, mat.dark);
       bm.position.set(px2 + Math.sin(a) * 6, y2 + 21, pz2 + Math.cos(a) * 6);
       bm.rotation.y = -a + Math.PI; bm.castShadow = true; sc.add(bm);
-      /* a scattered cohort in attendance */
-      if ((k2 * 7 + r * 5) % 3 === 0){
-        const col = STUDENT_ROSTER[(k2 + r) % STUDENT_ROSTER.length].c;
-        const torso = new THREE.Mesh(new THREE.CapsuleGeometry(4.6, 7, 3, 8),
-          seatMats[col] || (seatMats[col] = new THREE.MeshStandardMaterial({ color: col, roughness: 0.85 })));
-        torso.position.set(px2, y2 + 23, pz2); torso.castShadow = true; sc.add(torso);
-        const head = new THREE.Mesh(new THREE.SphereGeometry(4, 9, 7), skinMat);
-        head.position.set(px2, y2 + 33.5, pz2); head.castShadow = true; sc.add(head);
+      /* a scattered cohort in attendance — laptop coders on the seats */
+      if ((k2 * 7 + r * 5) % 3 === 0 && castLib.laptop){
+        const fig = prepFigure("laptop", 22);
+        fig.position.set(px2, y2 + 15.2, pz2);
+        fig.rotation.y = -a + Math.PI;
+        sc.add(fig);
       }
     }
     /* aisle steps */
     box(mat.white, 20, 3, 9, AC.x, y2 - 4, AC.z + R0 - 17);
   }
-  /* the professor at the lectern, mid-gesture toward the boards */
-  const prof = mkPerson(0x2c2c34, 97);
-  prof.g.position.set(52, 11, -200);
-  prof.g.rotation.y = Math.PI * 0.9;
-  prof.armR.rotation.x = -1.2;
-  sc.add(prof.g);
+  /* the professor at the lectern, caught mid-gesture */
+  if (castLib.chat){
+    const prof = prepFigure("chat", 42);
+    prof.position.set(52, 11, -200);
+    prof.rotation.y = Math.PI * 0.55;
+    sc.add(prof);
+  } else {
+    const prof = mkPerson(0x2c2c34, 97);
+    prof.g.position.set(52, 11, -200);
+    prof.g.rotation.y = Math.PI * 0.9;
+    prof.armR.rotation.x = -1.2;
+    sc.add(prof.g);
+  }
   return sc;
 }
 
