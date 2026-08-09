@@ -35,9 +35,7 @@ jobs:
               rm -f "incoming/$1"
             fi
           }
-          fetch cologne_cathedral.glb        1V1toxmuvKkgFdn9SpphBRH3Fi8oE_yyq
-          fetch moscow_state_university.glb  1qzuML2KaxI3dXZIzZzmsER1imYpDWWCR
-          fetch scene.bin                    1Sbl1tUyCvRR9I7iMGVq4r6M6MdifT7Lj
+          fetch cathedral2.glb 15XOlXYdU06HHR5a22nq2F1FO71Lka45H
           ls -la incoming
           sha256sum incoming/* > incoming/MANIFEST.txt || true
       - name: Commit results
