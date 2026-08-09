@@ -877,7 +877,7 @@ git push -u origin main</pre>
         <div>
           <span class="font-serif-d italic text-[13px] text-slate-400">"Lux, Mathesis, Machina"</span> — Light, Learning, and the Machine.
           <div class="mt-1">Progress is inscribed to your browser's <code class="font-mono-d text-[10.5px]">localStorage</code> ledger — it survives every visit.</div>
-          <div class="mt-1 text-slate-600">3D (all <a class="underline hover:text-slate-400" href="http://creativecommons.org/licenses/by/4.0/">CC-BY-4.0</a>, adapted): "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/campus-conversation-228d51c9b87b40fdb655ad10213bff8e">Campus Conversation</a>" by restore50 · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/gothic-cathedral-8b8f08c852e949ecba39ca0dd29448f0">Gothic cathedral</a>" by Gnemegorl · "Cologne Cathedral" by Shahriar Shahrabi · "МГУ Moscow State University" by Neo_minigan.</div>
+          <div class="mt-1 text-slate-600">3D (all <a class="underline hover:text-slate-400" href="http://creativecommons.org/licenses/by/4.0/">CC-BY-4.0</a>, adapted): "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/campus-conversation-228d51c9b87b40fdb655ad10213bff8e">Campus Conversation</a>" by restore50 · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/gothic-cathedral-8b8f08c852e949ecba39ca0dd29448f0">Gothic cathedral</a>" by Gnemegorl · "Cologne Cathedral" by Shahriar Shahrabi · "МГУ Moscow State University" by Neo_minigan · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/tabitown">Cathedral</a>" by tabitown.</div>
         </div>
         <button id="reset-ledger" class="chip rounded-full px-4 py-1.5 text-[11px] uppercase tracking-[.15em] text-slate-400 hover:text-red-300 hover:border-red-400/50">Reset ledger</button>
       </footer>
@@ -1827,6 +1827,7 @@ function pathPlane(px, py, w, d, y = 0.25){
   ring.rotation.x = -Math.PI / 2; ring.position.set(0, 0.3, 0); ring.receiveShadow = true;
   world.add(ring);
   pathPlane(485, 178, 30, 140); pathPlane(485, 668, 30, 282);
+  pathPlane(485, 62, 30, 116);  /* processional walk to the cathedral doors */
   pathPlane(668, 485, 272, 30); pathPlane(60, 485, 272, 30);
   pathPlane(485, 332, 30, 106); pathPlane(485, 562, 30, 106);
   pathPlane(332, 485, 106, 30); pathPlane(562, 485, 106, 30);
@@ -2176,16 +2177,19 @@ BUILDINGS.forEach(spec => {
 {
   const amb = new THREE.Group();
   world.add(amb);
-  /* the Pembroke Cathedral — "Gothic cathedral" by Gnemegorl (CC-BY-4.0),
-     re-materialed and lit by the campus day cycle; its stained glass,
-     rose windows, and great lights burn from within after dark */
-  loadLandmark("assets/gothic_cathedral.glb", {
-    plane: [500, 122], height: 300, rotY: 0, maxFoot: [250, 195],
-    glassNames: ["vitral", "roseton", "ventanal"],
-    dropMatNames: ["metal"],
-    tint: 0xe8dcc6,
+  /* the Pembroke Cathedral — "Cathedral" by tabitown (CC-BY-4.0),
+     enterable, crowning the north axis; its stained glass burns
+     from within after dark */
+  loadLandmark("assets/cathedral2.glb", {
+    plane: [500, -160], height: 340, rotY: Math.PI, maxFoot: [400, 440],
+    glassNames: ["glass"],
     collider: "auto",
     onLoaded: (r) => { cathedralRoot = r; },
+  });
+  /* the white cathedral (Gnemegorl) joins the horizon, west */
+  loadLandmark("assets/gothic_cathedral.glb", {
+    plane: [-560, 380], height: 420, rotY: 1.9, maxFoot: [520, 420],
+    dropMatNames: ["metal"], tint: 0xe8dcc6,
   });
   /* the city of learning on the horizon: Cologne Cathedral (Shahriar
      Shahrabi, CC-BY-4.0) NW and Moscow State University (Neo_minigan,
@@ -2677,6 +2681,37 @@ function buildCathedralInterior(){
   const sc = new THREE.Scene();
   sc.background = new THREE.Color(0x0c0a0e);
   sc.userData.cam = { pos: [0, 100, 330], look: [0, 92, -380], sway: [46, 5] };
+  /* stand inside tabitown's real modeled nave, fixed-lit like a shrine */
+  gltf.load("assets/cathedral2.glb", (g) => {
+    const root = g.scene;
+    root.updateMatrixWorld(true);
+    let box = new THREE.Box3().setFromObject(root);
+    const size = new THREE.Vector3(); box.getSize(size);
+    const sc2 = 340 / size.y;
+    root.scale.setScalar(sc2);
+    root.updateMatrixWorld(true);
+    box = new THREE.Box3().setFromObject(root);
+    const ctr = new THREE.Vector3(); box.getCenter(ctr);
+    root.position.set(-ctr.x, -box.min.y, -ctr.z);
+    root.traverse(o => {
+      if (o.isMesh){
+        o.castShadow = o.receiveShadow = true;
+        const nm = (o.material && o.material.name || "").toLowerCase();
+        if (nm.includes("glass")){
+          o.material = o.material.clone();
+          o.material.emissiveMap = o.material.map || null;
+          o.material.emissive = new THREE.Color(0xffffff);
+          o.material.emissiveIntensity = 1.15;
+        }
+      }
+    });
+    sc.add(root);
+    sc.userData.cam = {
+      pos: [0, size.y * sc2 * 0.28, size.z * sc2 * 0.24],
+      look: [0, size.y * sc2 * 0.24, -size.z * sc2 * 0.4],
+      sway: [size.x * sc2 * 0.06, 4],
+    };
+  });
   sc.add(new THREE.HemisphereLight(0xa8956e, 0x2c241a, 0.95));
   const glow1 = new THREE.PointLight(0xffc878, 4200, 900, 1.8);
   glow1.position.set(0, 150, -320); sc.add(glow1);
@@ -2685,135 +2720,6 @@ function buildCathedralInterior(){
   const moon = new THREE.DirectionalLight(0xcfd8ff, 0.55);
   moon.position.set(-260, 380, 60); sc.add(moon);
 
-  const stoneMat2 = new THREE.MeshStandardMaterial({ map: canvasTex(256, (x, px) => {
-    x.fillStyle = "#5e5749"; x.fillRect(0, 0, px, px);
-    for (let r = 0; r < 12; r++){ x.fillStyle = "rgba(20,16,10,.35)"; x.fillRect(0, r * 22 + 20, px, 2); }
-    speck(x, px, 900, ["#6a6254","#544d40","#726a5a"], 0.8);
-  }, 2), roughness: 0.95 });
-  const floorMat = new THREE.MeshStandardMaterial({ map: canvasTex(256, (x, px) => {
-    for (let ry = 0; ry < 4; ry++) for (let rx = 0; rx < 4; rx++){
-      x.fillStyle = (rx + ry) % 2 ? "#3a352e" : "#8a8172";
-      x.fillRect(rx * 64, ry * 64, 64, 64);
-    }
-    speck(x, px, 700, ["#6a6254","#2c2822"], 0.5);
-  }, 4), roughness: 0.4, metalness: 0.05 });
-  const woodMat2 = new THREE.MeshStandardMaterial({ color: 0x4a3826, roughness: 0.75 });
-  const goldMat = new THREE.MeshStandardMaterial({ color: 0xc8a23c, roughness: 0.35, metalness: 0.7 });
-
-  const box2 = (mat, w, h, d, px, py, pz) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-    m.position.set(px, py + h / 2, pz);
-    m.castShadow = m.receiveShadow = true;
-    sc.add(m); return m;
-  };
-  /* shell: floor, side walls, end walls, dark vault */
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(380, 920), floorMat);
-  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; sc.add(floor);
-  floor.material.map.repeat.set(3, 8);
-  [[-190, 0], [190, Math.PI]].forEach(([sx, ry]) => {
-    const w = new THREE.Mesh(new THREE.PlaneGeometry(920, 260), stoneMat2);
-    w.position.set(sx, 130, 0); w.rotation.y = sx < 0 ? Math.PI / 2 : -Math.PI / 2;
-    w.receiveShadow = true; sc.add(w);
-  });
-  [[-450, 0], [450, Math.PI]].forEach(([sz, ry]) => {
-    const w = new THREE.Mesh(new THREE.PlaneGeometry(380, 260), stoneMat2);
-    w.position.set(0, 130, sz); w.rotation.y = sz < 0 ? 0 : Math.PI;
-    w.receiveShadow = true; sc.add(w);
-  });
-  const vault = new THREE.Mesh(new THREE.PlaneGeometry(380, 920),
-    new THREE.MeshStandardMaterial({ color: 0x17130f, roughness: 1 }));
-  vault.rotation.x = Math.PI / 2; vault.position.y = 258; sc.add(vault);
-
-  /* twin colonnades with capitals */
-  for (let z = -370; z <= 330; z += 100){
-    for (const px of [-100, 100]){
-      const col = new THREE.Mesh(new THREE.CylinderGeometry(12, 14, 210, 10), stoneMat2);
-      col.position.set(px, 105, z); col.castShadow = true; sc.add(col);
-      box2(stoneMat2, 34, 12, 34, px, 210, z);
-      box2(stoneMat2, 30, 8, 30, px, 0, z);
-    }
-  }
-
-  /* stained-glass lancets down both aisles, lit from within */
-  for (let i = 0; i < 7; i++){
-    const z = -330 + i * 106;
-    for (const side of [-1, 1]){
-      const g = new THREE.Mesh(new THREE.PlaneGeometry(52, 168),
-        new THREE.MeshStandardMaterial({
-          color: 0x000000, emissive: 0xffffff, emissiveIntensity: 1.35,
-          emissiveMap: stainedGlassTex(i * 2 + (side > 0 ? 1 : 0)),
-        }));
-      g.position.set(side * 187, 152, z);
-      g.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2;
-      sc.add(g);
-    }
-  }
-  /* soft shafts of colored light falling into the nave */
-  for (let i = 0; i < 4; i++){
-    const z = -280 + i * 170;
-    const shaft = new THREE.Mesh(new THREE.PlaneGeometry(64, 320),
-      new THREE.MeshBasicMaterial({ color: 0xffe2b8, transparent: true, opacity: 0.05,
-        blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-    shaft.position.set(-120, 130, z);
-    shaft.rotation.set(0, 0.35, 0.62);
-    sc.add(shaft);
-  }
-
-  /* the great rose window above the altar */
-  const rose = new THREE.Mesh(new THREE.CircleGeometry(64, 48),
-    new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffffff,
-      emissiveIntensity: 1.5, emissiveMap: roseWindowTex() }));
-  rose.position.set(0, 168, -448); sc.add(rose);
-  const roseRing = new THREE.Mesh(new THREE.TorusGeometry(66, 5, 10, 48), stoneMat2);
-  roseRing.position.copy(rose.position); sc.add(roseRing);
-
-  /* altar upon its steps, dressed in candlelight */
-  box2(stoneMat2, 300, 10, 130, 0, 0, -370);
-  box2(stoneMat2, 260, 10, 100, 0, 10, -378);
-  box2(woodMat2, 110, 34, 40, 0, 20, -385);
-  box2(goldMat, 116, 3, 44, 0, 54, -385);
-  for (let i = 0; i < 9; i++){
-    const cx2 = -48 + i * 12;
-    const candle = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.8, 8 + (i % 3) * 3, 6),
-      new THREE.MeshStandardMaterial({ color: 0xf2e8ce, emissive: 0xffc878, emissiveIntensity: 0.9 }));
-    candle.position.set(cx2, 61, -385); sc.add(candle);
-  }
-  const cLight = new THREE.PointLight(0xffb45e, 1100, 320, 1.8);
-  cLight.position.set(0, 80, -380); sc.add(cLight);
-  /* lectern + a robed reader */
-  box2(woodMat2, 26, 40, 20, 90, 10, -330);
-  const robe = new THREE.Mesh(new THREE.CapsuleGeometry(5.4, 12, 3, 8),
-    new THREE.MeshStandardMaterial({ color: 0x1e1b24, roughness: 0.9 }));
-  robe.position.set(90, 30, -348); robe.castShadow = true; sc.add(robe);
-  const rHead = new THREE.Mesh(new THREE.SphereGeometry(4.4, 9, 7), skinMat);
-  rHead.position.set(90, 44, -348); sc.add(rHead);
-
-  /* pews flanking the aisle, with a scattered handful of scholars */
-  for (let r = 0; r < 11; r++){
-    const z = -180 + r * 46;
-    for (const side of [-1, 1]){
-      box2(woodMat2, 120, 5, 15, side * 82, 20, z);
-      box2(woodMat2, 120, 26, 4, side * 82, 22, z + 9);
-      box2(woodMat2, 4, 20, 15, side * 82 - 58, 0, z);
-      box2(woodMat2, 4, 20, 15, side * 82 + 58, 0, z);
-      if ((r * 5 + side) % 4 === 0){
-        const stu = new THREE.Mesh(new THREE.CapsuleGeometry(4.6, 7, 3, 8),
-          new THREE.MeshStandardMaterial({ color: STUDENT_ROSTER[(r + side + 4) % STUDENT_ROSTER.length].c, roughness: 0.85 }));
-        stu.position.set(side * 82 + (r % 3 - 1) * 30, 30, z - 2); stu.castShadow = true; sc.add(stu);
-        const sh = new THREE.Mesh(new THREE.SphereGeometry(4, 9, 7), skinMat);
-        sh.position.set(stu.position.x, 41, z - 2); sc.add(sh);
-      }
-    }
-  }
-  /* hanging lanterns down the nave */
-  for (let z = -260; z <= 260; z += 130){
-    const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 46, 4),
-      new THREE.MeshStandardMaterial({ color: 0x1a1712 }));
-    cord.position.set(0, 235, z); sc.add(cord);
-    const lamp = new THREE.Mesh(new THREE.BoxGeometry(9, 12, 9),
-      new THREE.MeshStandardMaterial({ color: 0x2a2118, emissive: 0xffc878, emissiveIntensity: 1.3 }));
-    lamp.position.set(0, 206, z); sc.add(lamp);
-  }
   return sc;
 }
 
@@ -2965,7 +2871,7 @@ const wing = wingEl;
 const DOORS = [
   { sector:"lib", x:260, y:326 }, { sector:"eng", x:740, y:306 },
   { sector:"sci", x:240, y:822 }, { sector:"adm", x:735, y:832 },
-  { sector:"cathedral", x:500, y:232 },
+  { sector:"cathedral", x:500, y:118 },
 ];
 const walker = { on:false, x:500, y:802, h:0, eye:34, bobT:0, door:null, keys:{} };
 window.__walker = walker;
@@ -3556,7 +3462,7 @@ document.getElementById("daynight").addEventListener("click", () => {
 });
 
 /* ── ignition ────────────────────────────────────────────────────── */
-window.__app = { selectSector, openInterior };   /* test/debug hooks */
+window.__app = { selectSector, openInterior, camera, controls };   /* test/debug hooks */
 applyMode();
 renderChips();
 renderBanner();
