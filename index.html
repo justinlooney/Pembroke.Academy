@@ -2095,6 +2095,42 @@ function loadLandmark(url, opts){
    Cathedral facade, Croatia" by HoangHiepVu (CC-BY-4.0) — cropped to
    its gabled entrance, statues and all — is grafted onto the true
    wall plane (found by ray, since buttresses overhang) */
+/* the cathedral's crown: the scan ends in bare white ceiling slabs
+   and a towerless front, so a slate nave roof, aisle strips, and twin
+   spires with crosses complete the silhouette (see Villanova chapel) */
+function buildCathedralCrown(rootObj){
+  const bb = new THREE.Box3().setFromObject(rootObj);
+  const size = new THREE.Vector3(); bb.getSize(size);
+  const cx = (bb.min.x + bb.max.x) / 2, cz = (bb.min.z + bb.max.z) / 2;
+  const topY = bb.max.y;
+  /* nave gable running the length of the church */
+  gableRoof(world, { x: cx + 500 - size.x * 0.29, y: cz + 500 - (size.z - 8) / 2,
+                     w: size.x * 0.58, d: size.z - 8, z: topY - 3, h: 44, axis: "y" });
+  /* low slate strips over the aisle slabs */
+  const slateFlat = new THREE.MeshStandardMaterial({ map: shingleTex, roughness: 0.92 });
+  [-1, 1].forEach(sx => {
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(size.x * 0.24, 3.2, size.z - 8), slateFlat);
+    strip.position.set(cx + sx * size.x * 0.37, topY - 1.2, cz);
+    strip.castShadow = strip.receiveShadow = true;
+    world.add(strip);
+  });
+  /* twin spires flanking the west front */
+  const drumMat = new THREE.MeshStandardMaterial({ color: 0xb5a68c, roughness: 0.95 });
+  const spireMat = new THREE.MeshStandardMaterial({ map: shingleTex, roughness: 0.85 });
+  const crossMat = new THREE.MeshStandardMaterial({ color: 0xd4af6a, metalness: 0.75, roughness: 0.3 });
+  [-1, 1].forEach(sx => {
+    const x = cx + sx * (size.x / 2 - 26), z = bb.max.z - 20;
+    const drum = new THREE.Mesh(new THREE.CylinderGeometry(15, 16.5, 26, 8), drumMat);
+    drum.position.set(x, topY + 13, z);
+    const spire = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 14, 80, 8), spireMat);
+    spire.position.set(x, topY + 26 + 40, z);
+    const crossV = new THREE.Mesh(new THREE.BoxGeometry(1.6, 14, 1.6), crossMat);
+    crossV.position.set(x, topY + 26 + 80 + 6, z);
+    const crossH = new THREE.Mesh(new THREE.BoxGeometry(8, 1.6, 1.6), crossMat);
+    crossH.position.set(x, topY + 26 + 80 + 8.5, z);
+    [drum, spire, crossV, crossH].forEach(m => { m.castShadow = true; world.add(m); });
+  });
+}
 function buildCathedralPortal(rootObj){
   const probe = new THREE.Raycaster(new THREE.Vector3(0, 40, W(220)), new THREE.Vector3(0, 0, -1));
   const hit = probe.intersectObject(rootObj, true)[0];
@@ -2375,7 +2411,7 @@ BUILDINGS.forEach(spec => {
     plane: [500, -160], height: 340, rotY: Math.PI, maxFoot: [400, 440],
     glassNames: ["glass"],
     collider: "auto",
-    onLoaded: (r) => { cathedralRoot = r; buildCathedralPortal(r); },
+    onLoaded: (r) => { cathedralRoot = r; buildCathedralPortal(r); buildCathedralCrown(r); },
   });
   /* the white cathedral (Gnemegorl) joins the horizon, west */
   loadLandmark("assets/gothic_cathedral.glb", {
