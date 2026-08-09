@@ -2605,31 +2605,65 @@ const STUDENT_ROSTER = [
 ];
 const students = [];
 const skinMat = new THREE.MeshStandardMaterial({ color: 0xe2cfae, roughness: 0.8 });
-const legMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9 });
-STUDENT_ROSTER.forEach((st, i) => {
+/* articulated low-poly people: pivoted hips and shoulders so limbs
+   swing in a real walk cycle; varied skin, hair, trousers, packs */
+const SKIN_TONES = [0xe8cfae, 0xd9b48f, 0xb98a5e, 0x8a5f3d, 0x6b452b, 0xf0d8bc];
+const HAIR_TONES = [0x2b2118, 0x4a3423, 0x8a6a3f, 0xc9a15a, 0x1c1c22, 0x5b4632];
+const PANT_TONES = [0x1e293b, 0x3f4a5a, 0x6b5d43, 0x2f3e2f, 0x30363f, 0x54423a];
+function mkPerson(jacketColor, seed){
+  const R = (i) => { const s = Math.sin(seed * 91.7 + i * 47.3) * 43758.545; return s - Math.floor(s); };
+  const skin = new THREE.MeshStandardMaterial({ color: SKIN_TONES[Math.floor(R(1) * SKIN_TONES.length)], roughness: 0.75 });
+  const hair = new THREE.MeshStandardMaterial({ color: HAIR_TONES[Math.floor(R(2) * HAIR_TONES.length)], roughness: 0.9 });
+  const pant = new THREE.MeshStandardMaterial({ color: PANT_TONES[Math.floor(R(3) * PANT_TONES.length)], roughness: 0.9 });
+  const jac  = new THREE.MeshStandardMaterial({ color: jacketColor, roughness: 0.85 });
+  const shoe = new THREE.MeshStandardMaterial({ color: 0x26221e, roughness: 0.7 });
   const g = new THREE.Group();
-  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(5.2, 10, 3, 8),
-    new THREE.MeshStandardMaterial({ color: st.c, roughness: 0.8 }));
-  torso.position.y = 21; torso.castShadow = true;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(4.6, 10, 8), skinMat);
-  head.position.y = 34; head.castShadow = true;
-  const legs = new THREE.Mesh(new THREE.CylinderGeometry(3.6, 3.2, 13, 8), legMat);
-  legs.position.y = 7; legs.castShadow = true;
-  g.add(torso, head, legs);
+  const box = (w, h, d, mat, x, y, z, parent = g) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m;
+  };
+  const legL = new THREE.Group(); legL.position.set(-2.2, 19, 0); g.add(legL);
+  box(2.8, 16.4, 3.4, pant, 0, -8.2, 0, legL);
+  box(3.2, 2, 5.4, shoe, 0, -17.3, 0.9, legL);
+  const legR = new THREE.Group(); legR.position.set(2.2, 19, 0); g.add(legR);
+  box(2.8, 16.4, 3.4, pant, 0, -8.2, 0, legR);
+  box(3.2, 2, 5.4, shoe, 0, -17.3, 0.9, legR);
+  box(9.6, 13.5, 5.4, jac, 0, 25.8, 0);
+  const armL = new THREE.Group(); armL.position.set(-5.9, 31, 0); armL.rotation.z = 0.1; g.add(armL);
+  box(2.3, 12.5, 2.7, jac, 0, -6.2, 0, armL);
+  box(2.1, 2.6, 2.3, skin, 0, -13.4, 0, armL);
+  const armR = new THREE.Group(); armR.position.set(5.9, 31, 0); armR.rotation.z = -0.1; g.add(armR);
+  box(2.3, 12.5, 2.7, jac, 0, -6.2, 0, armR);
+  box(2.1, 2.6, 2.3, skin, 0, -13.4, 0, armR);
+  box(2.6, 2.4, 2.6, skin, 0, 33.4, 0);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(3.8, 12, 10), skin);
+  head.position.y = 37; head.castShadow = true; g.add(head);
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(4.05, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.58), hair);
+  cap.position.set(0, 37.2, -0.4); cap.rotation.x = -0.22; g.add(cap);
+  if (R(9) > 0.45){
+    const packMat = new THREE.MeshStandardMaterial({ color: [0x7a2e2e, 0x2e4a7a, 0x3d5a3a, 0x6b5535][Math.floor(R(10) * 4)], roughness: 0.9 });
+    box(6.4, 8.6, 2.8, packMat, 0, 26, -4.4);
+  }
+  return { g, legL, legR, armL, armR };
+}
+STUDENT_ROSTER.forEach((st, i) => {
+  const p = mkPerson(st.c, i * 13 + 5);
   const tagEl = document.createElement("div");
   tagEl.className = "stu-tag";
   tagEl.textContent = st.name;
   const tag = new CSS2DObject(tagEl);
-  tag.position.y = 44;
-  g.add(tag);
-  world.add(g);
+  tag.position.y = 46;
+  p.g.add(tag);
+  world.add(p.g);
   const startKey = ["R0","R1","R2","R3","R4","R5","R6","R7"][i % 8];
-  students.push({ g, data: st, node: startKey, pos: [...WAYPOINTS[startKey]],
-                  target: null, speed: 26 + Math.random() * 18, pauseUntil: 0, phase: Math.random() * 9 });
+  students.push({ g: p.g, limbs: p, data: st, node: startKey, pos: [...WAYPOINTS[startKey]],
+                  target: null, speed: 26 + Math.random() * 18, pauseUntil: 0,
+                  phase: Math.random() * 9, walkT: 0, gait: 0 });
 });
 function stepStudents(dt, now){
   for (const s of students){
-    if (now < s.pauseUntil){ /* idle sway */ }
+    let moving = false;
+    if (now < s.pauseUntil){ /* idle */ }
     else {
       if (!s.target){
         const opts = EDGES[s.node];
@@ -2642,12 +2676,24 @@ function stepStudents(dt, now){
         s.node = s.target; s.target = null;
         if (Math.random() < 0.5) s.pauseUntil = now + 900 + Math.random() * 2600;
       } else {
+        moving = true;
         s.pos[0] += dx / dist * s.speed * dt;
         s.pos[1] += dy / dist * s.speed * dt;
         s.g.rotation.y = Math.atan2(dx, dy) + Math.PI;
       }
     }
-    s.g.position.set(W(s.pos[0]), Math.sin(now / 150 + s.phase) * 0.8 + 0.4, W(s.pos[1]));
+    /* gait eases in and out; limbs swing from the hips and shoulders */
+    s.gait += ((moving ? 1 : 0) - s.gait) * Math.min(1, dt * 6);
+    if (s.gait > 0.01) s.walkT += dt * (4.2 + s.speed * 0.09);
+    const sw = Math.sin(s.walkT) * 0.52 * s.gait;
+    s.limbs.legL.rotation.x = sw;
+    s.limbs.legR.rotation.x = -sw;
+    s.limbs.armL.rotation.x = -sw * 0.75;
+    s.limbs.armR.rotation.x = sw * 0.75;
+    const bounce = Math.abs(Math.cos(s.walkT)) * 1.1 * s.gait;
+    const idleSway = (1 - s.gait) * Math.sin(now / 900 + s.phase) * 0.03;
+    s.g.rotation.z = idleSway;
+    s.g.position.set(W(s.pos[0]), bounce, W(s.pos[1]));
   }
 }
 
@@ -2827,12 +2873,12 @@ function buildInteriorScene(key){
     /* aisle steps */
     box(mat.white, 20, 3, 9, AC.x, y2 - 4, AC.z + R0 - 17);
   }
-  /* the professor at the lectern */
-  const prof = new THREE.Mesh(new THREE.CapsuleGeometry(5.2, 11, 3, 8),
-    new THREE.MeshStandardMaterial({ color: 0x2c2c34, roughness: 0.85 }));
-  prof.position.set(52, 22, -200); prof.castShadow = true; sc.add(prof);
-  const profHead = new THREE.Mesh(new THREE.SphereGeometry(4.4, 9, 7), skinMat);
-  profHead.position.set(52, 35, -200); profHead.castShadow = true; sc.add(profHead);
+  /* the professor at the lectern, mid-gesture toward the boards */
+  const prof = mkPerson(0x2c2c34, 97);
+  prof.g.position.set(52, 11, -200);
+  prof.g.rotation.y = Math.PI * 0.9;
+  prof.armR.rotation.x = -1.2;
+  sc.add(prof.g);
   return sc;
 }
 
