@@ -44,6 +44,24 @@ jobs:
           fetch flora07.glb 1SIUOraCzQC57k2iC79Y_IHtlAGJoh_td
           ls -la incoming
           sha256sum incoming/* > incoming/MANIFEST.txt || true
+      - name: Shrink oversized models
+        run: |
+          need=0
+          for f in incoming/*.glb; do
+            [ -f "$f" ] || continue
+            if [ "$(stat -c%s "$f")" -gt 90000000 ]; then need=1; fi
+          done
+          if [ "$need" = 1 ]; then
+            npm install -g @gltf-transform/cli
+            for f in incoming/*.glb; do
+              [ -f "$f" ] || continue
+              size=$(stat -c%s "$f")
+              if [ "$size" -gt 90000000 ]; then
+                echo "compressing $f ($size bytes)"
+                gltf-transform optimize "$f" "$f.tmp" --compress meshopt --texture-compress webp --texture-size 2048 && mv "$f.tmp" "$f" || rm -f "$f.tmp"
+              fi
+            done
+          fi
       - name: Commit results
         run: |
           git config user.name "pembroke-asset-courier"
