@@ -37,10 +37,10 @@
 }
 body.day{
   --roofA:#9aa1ab; --roofB:#737a85;
-  --slate1:#9aa2ad; --slate2:#6e757f; --slate3:#7d848f; --slate4:#697079;
-  --lawn1:#4e8c49; --lawn2:#3f7a3d; --lawn3:#346b34;
+  --slate1:#a7aeb7; --slate2:#7d848e; --slate3:#8b929c; --slate4:#757c86;
+  --lawn1:#83ad6c; --lawn2:#74a05d; --lawn3:#639252;
   --lawnEdge:rgba(235,230,210,.5);
-  --walk1:rgba(233,226,206,.88); --walk2:rgba(206,196,170,.85);
+  --walk1:rgba(238,232,214,.92); --walk2:rgba(214,205,182,.88);
   --isky1:#8fc3ee; --isky2:#d6e9f8;
   --terra1:#c26243; --terra2:#9c4a32; --terra3:#7e3a27;
 }
@@ -78,7 +78,6 @@ body.day .fdot{opacity:.3;animation:none;}
 body.day .deco .face{filter:brightness(1.65) saturate(.95);}
 body.day .plinth{filter:brightness(2.2);}
 body.day .plaza{filter:brightness(1.7);}
-body.day .tree .sprite{filter:brightness(1.75) saturate(1.05);}
 body.day .student .figure{filter:brightness(1.35);}
 body.day .b3d .shadow{opacity:.55;}
 body.day .b-label .card{background:linear-gradient(180deg, rgba(24,30,44,.88), rgba(24,30,44,.74));}
@@ -165,6 +164,14 @@ body.day #campus-wing .text-slate-600{color:#55657e;}
     0 0 90px rgba(46,90,60,.28),
     inset 0 0 120px rgba(0,0,0,.5);
 }
+.ground::before{ /* photoreal turf: fractal noise over the gradients */
+  content:"";position:absolute;inset:0;border-radius:26px;pointer-events:none;
+  background:var(--tex-noise,none);background-size:230px 230px;opacity:.8;
+}
+.walk::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:var(--tex-noise,none);background-size:110px 110px;opacity:.45;}
+.lot::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:var(--tex-noise,none);background-size:150px 150px;opacity:.55;filter:grayscale(1);}
 .ground::after{ /* soft rim light on the plane edge */
   content:"";position:absolute;inset:-2px;border-radius:26px;pointer-events:none;
   box-shadow:inset 0 0 0 1px rgba(212,175,106,.15);
@@ -197,12 +204,8 @@ body.day #campus-wing .text-slate-600{color:#55657e;}
 }
 body.day .lot{filter:brightness(1.9);}
 /* terracotta roofs (the red-roofed refectory in the aerial) */
-.slope-s.terra{background:
-  repeating-linear-gradient(0deg, rgba(0,0,0,.15) 0 1.5px, transparent 1.5px 7px),
-  linear-gradient(180deg,var(--terra1),var(--terra2));}
-.slope-n.terra{background:
-  repeating-linear-gradient(0deg, rgba(0,0,0,.15) 0 1.5px, transparent 1.5px 7px),
-  linear-gradient(180deg,var(--terra2),var(--terra3));}
+.slope-s.terra{background-image:var(--tex-shingle,none), linear-gradient(180deg,var(--terra1),var(--terra2));background-size:26px 12px,100% 100%;}
+.slope-n.terra{background-image:var(--tex-shingle,none), linear-gradient(180deg,var(--terra2),var(--terra3));background-size:26px 12px,100% 100%;}
 /* warm pools of lamplight on the paving (night) */
 .lamppool{
   position:absolute;border-radius:50%;pointer-events:none;
@@ -242,12 +245,10 @@ body.day .lot{filter:brightness(1.9);}
     linear-gradient(135deg,var(--roofA),var(--roofB) 72%);
 }
 /* pitched slate — course lines run parallel to the ridge */
-.slope-s{background:
-    repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 1.5px, transparent 1.5px 8px),
-    linear-gradient(180deg,var(--slate1),var(--slate2));}
-.slope-n{background:
-    repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 1.5px, transparent 1.5px 8px),
-    linear-gradient(180deg,var(--slate3),var(--slate4));}
+.slope-s{background-image:var(--tex-shingle,none), linear-gradient(180deg,var(--slate1),var(--slate2));
+  background-size:36px 16px, 100% 100%;}
+.slope-n{background-image:var(--tex-shingle,none), linear-gradient(180deg,var(--slate3),var(--slate4));
+  background-size:36px 16px, 100% 100%;}
 .spire-s{background:linear-gradient(180deg,var(--slate1),var(--slate2) 85%);}
 .spire-n{background:var(--slate4);}
 .spire-w{background:linear-gradient(90deg,var(--slate3),var(--slate4) 88%);}
@@ -255,12 +256,14 @@ body.day .lot{filter:brightness(1.9);}
 .b3d .wall{border:1px solid rgba(0,0,0,.45);}
 .b3d .wall-r::after{content:"";position:absolute;inset:0;background:rgba(2,6,14,.3);pointer-events:none;}
 .b3d.lit .face{filter:brightness(1.25) saturate(1.3);}
-.b3d .shadow{
-  position:absolute;left:6%;top:8%;width:112%;height:112%;
-  background:radial-gradient(closest-side, rgba(0,0,0,.52), transparent 72%);
-  transform:translateZ(0.5px);
-  filter:blur(6px);pointer-events:none;
+.b3d .shadow{ /* soft directional shadow, offset NE by building height */
+  position:absolute;left:0;top:0;width:104%;height:104%;
+  border-radius:12px;
+  background:rgba(9,12,9,.5);
+  filter:blur(9px);pointer-events:none;
+  opacity:.34;
 }
+body.day .b3d .shadow{opacity:.5;}
 .b3d.deco{cursor:default;}
 /* A whole hall (base + tower + spire + finial) travels as one group.
    NOTE: never put filter/opacity on a preserve-3d container — any grouping
@@ -296,7 +299,7 @@ body.day .chimney .face,body.day .pinn .face{filter:brightness(1.6);}
 /* campus elms — billboarded, gently swaying */
 .tree{position:absolute;left:0;top:0;transform-style:preserve-3d;pointer-events:none;}
 .tree .sprite{
-  position:relative;width:58px;height:80px;
+  position:relative;width:96px;height:122px;
   transform-origin:50% 100%;
   animation:tree-sway 8s ease-in-out infinite alternate;
 }
@@ -304,16 +307,11 @@ body.day .chimney .face,body.day .pinn .face{filter:brightness(1.6);}
   from{transform:translate(-50%,-100%) scale(var(--s,1)) rotate(-1.4deg)}
   to  {transform:translate(-50%,-100%) scale(var(--s,1)) rotate(1.4deg)}
 }
-.tree .c1,.tree .c2,.tree .c3{position:absolute;border-radius:50%;
-  background:radial-gradient(circle at 34% 28%, #35663f, #1d4426 55%, #122b17 100%);
-  box-shadow:inset -6px -8px 14px rgba(0,0,0,.45);}
-.tree .c1{left:7px;top:0;width:44px;height:40px;}
-.tree .c2{left:0;top:16px;width:32px;height:30px;}
-.tree .c3{left:27px;top:15px;width:31px;height:29px;}
-.tree .trunk{position:absolute;left:50%;bottom:6px;width:7px;height:26px;transform:translateX(-50%);
-  border-radius:3px;background:linear-gradient(90deg,#4a3a28,#2c2115 70%);}
-.tree .tshadow{position:absolute;left:50%;bottom:0;width:40px;height:10px;transform:translateX(-50%);
-  border-radius:50%;background:rgba(0,0,0,.42);filter:blur(3px);}
+.tree .sprite{background-size:100% 100%;background-repeat:no-repeat;
+  filter:brightness(.55) saturate(.85);}
+body.day .tree .sprite{filter:brightness(1.02) saturate(1.02);}
+.tree .tshadow{position:absolute;left:60%;bottom:1px;width:54px;height:13px;transform:translateX(-50%);
+  border-radius:50%;background:rgba(0,0,0,.4);filter:blur(4px);}
 
 /* harvest moon over the quad */
 .moon{
@@ -342,7 +340,7 @@ body.day .chimney .face,body.day .pinn .face{filter:brightness(1.6);}
    NOTE: preserve-3d on .bb-inner is load-bearing — without it Chromium
    flattens the counter-rotated card into the ground plane at paint time. */
 .billboard{transform-style:preserve-3d;pointer-events:none;}
-.bb-inner{transform:var(--bb, rotateZ(45deg) rotateX(-55deg));transform-origin:center bottom;transform-style:preserve-3d;}
+.bb-inner{transform:var(--bb, rotateZ(45deg) rotateX(-55deg));transform-origin:0 0;transform-style:preserve-3d;}
 
 .b-label{
   position:absolute;left:0;top:0;pointer-events:none;
@@ -374,7 +372,7 @@ body.day .chimney .face,body.day .pinn .face{filter:brightness(1.6);}
 .student .head{position:absolute;left:50%;top:0;width:9px;height:9px;border-radius:50%;transform:translateX(-50%);background:#e6d3b5;box-shadow:inset -2px -2px 3px rgba(0,0,0,.3);}
 .student .torso{position:absolute;left:50%;top:9px;width:13px;height:17px;border-radius:6px 6px 4px 4px;transform:translateX(-50%);box-shadow:inset -3px -3px 5px rgba(0,0,0,.35), 0 0 10px -2px var(--c);background:linear-gradient(180deg, var(--c), color-mix(in srgb, var(--c) 55%, #000));}
 .student .legs{position:absolute;left:50%;top:25px;width:11px;height:11px;transform:translateX(-50%);border-radius:0 0 3px 3px;background:#1e293b;}
-.student .sshadow{position:absolute;left:50%;bottom:-3px;width:20px;height:6px;transform:translateX(-50%);border-radius:50%;background:rgba(0,0,0,.45);filter:blur(2px);}
+.student .sshadow{position:absolute;left:58%;bottom:-3px;width:22px;height:6px;transform:translateX(-50%);border-radius:50%;background:rgba(0,0,0,.42);filter:blur(2px);}
 .student .tag{
   position:absolute;left:50%;top:-14px;transform:translateX(-50%);
   font-size:8.5px;letter-spacing:.08em;color:#e2e8f0;opacity:.75;
@@ -1426,7 +1424,7 @@ function wallURI(orient, natW, natH, o, mode){
   const day = mode === "day";
   const p = o.parapet || 0, acc = o.accent || "#d4af6a", seed = o.seed || 0;
   const P = day ? {
-    st1:"#b7a88c", st2:"#94856c", line:"rgba(74,60,40,.22)",
+    st1:"#c4b598", st2:"#a3947a", line:"rgba(74,60,40,.2)",
     butt:"#a89877", buttEdge:"rgba(60,48,30,.35)", cap:"#cfc3a6",
     plinth:"#6e6352", plinthLn:"#494136",
     frame:"#3a3227", hood:"#d9cdb0", winDark:"#1e262e",
@@ -1476,6 +1474,10 @@ function wallURI(orient, natW, natH, o, mode){
   g += `<rect x="0" y="${p}" width="${natW}" height="2.2" fill="${P.cap}" opacity=".9"/>`;
   g += `<rect x="0" y="${natH-11}" width="${natW}" height="11" fill="${P.plinth}"/>`;
   g += `<rect x="0" y="${natH-12.6}" width="${natW}" height="1.6" fill="${P.plinthLn}"/>`;
+  /* weathering: shadow under the eave, ambient occlusion at grade, grain */
+  g += `<rect x="0" y="${p}" width="${natW}" height="9" fill="url(#eave)"/>`;
+  g += `<rect x="0" y="${natH-27}" width="${natW}" height="15" fill="url(#ao)"/>`;
+  g += `<rect x="0" y="${p}" width="${natW}" height="${natH-p}" filter="url(#grain)" opacity="${day ? "0.10" : "0.14"}"/>`;
 
   if (o.windows === "lancet"){
     const cell = 34, m = 8;
@@ -1555,6 +1557,9 @@ function wallURI(orient, natW, natH, o, mode){
     + `<linearGradient id="wg" x1="0" y1="0" x2="0" y2="1">${P.wg}</linearGradient>`
     + `<linearGradient id="tun" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b0906"/><stop offset="1" stop-color="#1a130c"/></linearGradient>`
     + `<pattern id="course" width="30" height="20" patternUnits="userSpaceOnUse"><path d="M0 0.5 H30 M0 10.5 H30 M7.5 0.5 V10.5 M22.5 10.5 V20" stroke="${P.line}" stroke-width="1" fill="none"/></pattern>`
+    + `<linearGradient id="eave" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(0,0,0,.4)"/><stop offset="1" stop-color="rgba(0,0,0,0)"/></linearGradient>`
+    + `<linearGradient id="ao" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(0,0,0,0)"/><stop offset="1" stop-color="rgba(0,0,0,.33)"/></linearGradient>`
+    + `<filter id="grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.5" numOctaves="2" seed="${seed + 5}"/><feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0.4 0.4 0.4 0 0"/></filter>`
     + `</defs>`;
 
   let svg; /* 2x raster size (via width/height vs viewBox) keeps walls crisp
@@ -1579,6 +1584,7 @@ function buildBox(o){
 
   const shadow = document.createElement("div");
   shadow.className = "shadow";
+  shadow.style.transform = `translate3d(${Math.round((o.h||20)*0.32)}px, ${-Math.round((o.h||20)*0.2)}px, 0.4px)`;
   b.appendChild(shadow);
 
   const face = (cls, css) => {
@@ -1851,9 +1857,14 @@ BUILDINGS.forEach(spec => {
     [906,556,"#7b4a2e"],[952,440,"#4a5a48"],
     [24,446,"#c9c4ba"],[24,494,"#5a3050"],[24,588,"#33424e"],[44,540,"#a13c34"],
   ];
-  CARS.forEach(([cx, cy, col]) => buildBox({ x:cx, y:cy, w:30, d:16, h:9, parent:amb, deco:true, cls:"car",
-    roofBg:`linear-gradient(135deg, ${col}, #14161a 88%)`,
-    wallBg:`linear-gradient(180deg, ${col}, #101216 82%)` }));
+  CARS.forEach(([cx, cy, col]) => {
+    buildBox({ x:cx, y:cy, w:30, d:16, h:8, parent:amb, deco:true, cls:"car", noCollide:true,
+      roofBg:`linear-gradient(135deg, ${col}, #14161a 92%)`,
+      wallBg:`linear-gradient(180deg, ${col}, #101216 82%)` });
+    buildBox({ x:cx+7, y:cy+2.5, w:15, d:11, h:13, parent:amb, deco:true, cls:"car", noCollide:true,
+      roofBg:`linear-gradient(135deg, ${col}, #101216 94%)`,
+      wallBg:"linear-gradient(180deg,#3d4c5e,#141a22 85%)" });
+  });
 })();
 
 /* wrought-iron lamps — corner obelisks and path lanterns, each pooling
@@ -1878,6 +1889,44 @@ for (let k = 0; k < 8; k++){ /* lantern ring around the great lawn */
   makeLamp(Math.round(500 + 210*Math.cos(a)) - 5, Math.round(500 + 210*Math.sin(a)) - 5, 10, 48);
 }
 
+/* ── procedural texture tiles: turf noise + slate shingles ───────
+   Translucent overlays, so one tile serves both day and night. */
+(function textures(){
+  const noise = `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240">`
+    + `<filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" seed="11" stitchTiles="stitch"/>`
+    + `<feColorMatrix type="matrix" values="0 0 0 0 0.02  0 0 0 0 0.05  0 0 0 0 0.01  0.35 0.45 0.2 0 0"/></filter>`
+    + `<rect width="240" height="240" filter="url(#n)" opacity="0.55"/></svg>`;
+  const shingle = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="16">`
+    + `<rect width="36" height="8" fill="rgba(255,255,255,0.035)"/>`
+    + `<path d="M0 7.5 H36 M0 15.5 H36" stroke="rgba(0,0,0,0.3)" stroke-width="1"/>`
+    + `<path d="M9 0 V8 M27 8 V16" stroke="rgba(0,0,0,0.18)" stroke-width="1"/></svg>`;
+  document.documentElement.style.setProperty("--tex-noise", `url("data:image/svg+xml,${encodeURIComponent(noise)}")`);
+  document.documentElement.style.setProperty("--tex-shingle", `url("data:image/svg+xml,${encodeURIComponent(shingle)}")`);
+})();
+
+/* organic tree sprites: displacement-mapped canopies, tapering trunks */
+function treeURI(seed){
+  const g1 = ["#4a7a41","#42703b","#517f45"][seed % 3];
+  const g2 = ["#375f2f","#31572b","#3c6533"][seed % 3];
+  const hi = ["#699a52","#5f8f4d","#6f9e58"][seed % 3];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="192" height="244" viewBox="0 0 96 122">`
+    + `<defs><filter id="d" x="-25%" y="-25%" width="150%" height="150%">`
+    + `<feTurbulence type="fractalNoise" baseFrequency="0.13" numOctaves="2" seed="${seed*7 + 3}"/>`
+    + `<feDisplacementMap in="SourceGraphic" scale="13"/></filter>`
+    + `<linearGradient id="t" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6d573c"/><stop offset="1" stop-color="#3a2c1b"/></linearGradient></defs>`
+    + `<path d="M44 120 Q45 92 46 72 H50 Q51 92 52 120 Z" fill="url(#t)"/>`
+    + `<path d="M46 84 Q38 76 32 72 M50 82 Q58 74 64 70" stroke="#4a3a26" stroke-width="2.4" fill="none"/>`
+    + `<g filter="url(#d)">`
+    + `<ellipse cx="48" cy="46" rx="35" ry="31" fill="${g2}"/>`
+    + `<ellipse cx="31" cy="56" rx="21" ry="17" fill="${g2}"/>`
+    + `<ellipse cx="65" cy="54" rx="22" ry="18" fill="${g1}"/>`
+    + `<ellipse cx="49" cy="39" rx="26" ry="21" fill="${g1}"/>`
+    + `<ellipse cx="39" cy="32" rx="15" ry="11" fill="${hi}"/>`
+    + `</g></svg>`;
+  /* single-quoted url() — this lands inside a double-quoted style attribute */
+  return `url('data:image/svg+xml,${encodeURIComponent(svg)}')`;
+}
+
 /* campus trees — great elms ringing the lawn, groves at the bounds */
 (function plantTrees(){
   const TREES = [];
@@ -1891,11 +1940,11 @@ for (let k = 0; k < 8; k++){ /* lantern ring around the great lawn */
     [60,940,1.1],[300,880,.9],[400,952,.85],[660,940,.95],[950,945,1.05],[462,240,.85],[538,240,.85],
     [95,610,.9],[930,215,.9],[240,95,.95],[760,95,.9],[60,760,.95],[940,760,1],[560,952,.9],[875,205,.85]
   );
-  TREES.forEach(([tx, ty, ts]) => {
+  TREES.forEach(([tx, ty, ts], i) => {
     const el = document.createElement("div");
     el.className = "tree billboard";
     el.style.transform = `translate3d(${tx}px, ${ty}px, 0.5px)`;
-    el.innerHTML = `<div class="bb-inner"><div class="sprite" style="--s:${ts}"><div class="tshadow"></div><div class="trunk"></div><div class="c2"></div><div class="c3"></div><div class="c1"></div></div></div>`;
+    el.innerHTML = `<div class="bb-inner"><div class="sprite" style="--s:${ts};background-image:${treeURI(i)}"><div class="tshadow"></div></div></div>`;
     scene.appendChild(el);
   });
 })();
