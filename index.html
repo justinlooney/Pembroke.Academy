@@ -1767,14 +1767,80 @@ const speck = (x, px, n, tones, a) => {
   }
   x.globalAlpha = 1;
 };
-const grassTex = canvasTex(256, (x, px) => {
+/* turf: low-frequency patch variation (drawn wrap-safe so the tile
+   repeats without seams) under fine speckle grain — the difference
+   between vinyl green and a lawn */
+const h2 = (i) => { const s = Math.sin(i * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const grassTex = canvasTex(1024, (x, px) => {
   x.fillStyle = "#5c8a48"; x.fillRect(0, 0, px, px);
-  speck(x, px, 2600, ["#4c7a3c", "#6d9a55", "#548346", "#3f6b33"], 0.8);
-}, 8);
-const pathTex = canvasTex(128, (x, px) => {
+  const tones = ["#6d9a55", "#4c7a3c", "#7ba15c", "#456f36", "#83a55c", "#548346", "#9aa863"];
+  for (let i = 0; i < 240; i++){
+    const bx = h2(i * 3 + 1) * px, by = h2(i * 3 + 2) * px;
+    const r = 36 + h2(i * 3 + 3) * 150;
+    const tone = tones[i % tones.length];
+    x.globalAlpha = 0.10 + h2(i * 7) * 0.14;
+    for (const ox of [-px, 0, px]) for (const oy of [-px, 0, px]){
+      const g = x.createRadialGradient(bx + ox, by + oy, 0, bx + ox, by + oy, r);
+      g.addColorStop(0, tone); g.addColorStop(1, "rgba(0,0,0,0)");
+      x.fillStyle = g; x.fillRect(bx + ox - r, by + oy - r, r * 2, r * 2);
+    }
+  }
+  x.globalAlpha = 1;
+  speck(x, px, 9000, ["#4c7a3c", "#6d9a55", "#548346", "#3f6b33", "#7fa45f"], 0.5);
+}, 4);
+const grassBump = canvasTex(256, (x, px) => {
+  x.fillStyle = "#808080"; x.fillRect(0, 0, px, px);
+  speck(x, px, 5200, ["#6a6a6a", "#969696", "#585858", "#a8a8a8"], 0.9);
+}, 60);
+/* limestone pavers in running bond, joints read in the bump */
+const drawPavers = (x, px) => {
   x.fillStyle = "#cfc5ac"; x.fillRect(0, 0, px, px);
-  speck(x, px, 900, ["#bcb096", "#ddd4bc", "#a89d84"], 0.8);
+  const pw = 64, ph = 32;
+  const pTones = ["#cfc5ac", "#c7bca0", "#d7cdb5", "#c1b69a", "#d1c5a8"];
+  for (let ry = 0; ry < px / ph; ry++){
+    for (let cx2 = ((ry % 2) * pw / 2) - pw; cx2 < px; cx2 += pw){
+      x.fillStyle = pTones[Math.floor(h2(ry * 17 + cx2) * pTones.length)];
+      x.fillRect(cx2 + 1.5, ry * ph + 1.5, pw - 3, ph - 3);
+    }
+    x.fillStyle = "rgba(96,86,64,.55)"; x.fillRect(0, ry * ph, px, 1.6);
+  }
+  for (let ry = 0; ry < px / ph; ry++)
+    for (let cx2 = ((ry % 2) * pw / 2); cx2 < px + pw; cx2 += pw){
+      x.fillStyle = "rgba(96,86,64,.5)"; x.fillRect(cx2 - pw + 0.2, ry * ph, 1.4, ph);
+    }
+  speck(x, px, 700, ["#bcb096", "#ddd4bc", "#a89d84"], 0.5);
+};
+const pathTex = canvasTex(256, drawPavers, 3);
+const pathBump = canvasTex(256, (x, px) => {
+  x.fillStyle = "#909090"; x.fillRect(0, 0, px, px);
+  const ph = 32, pw = 64;
+  for (let ry = 0; ry < px / ph; ry++){
+    x.fillStyle = "#3a3a3a"; x.fillRect(0, ry * ph, px, 2);
+    for (let cx2 = ((ry % 2) * pw / 2); cx2 < px + pw; cx2 += pw){
+      x.fillStyle = "#3a3a3a"; x.fillRect(cx2 - pw, ry * ph, 2, ph);
+    }
+  }
+  speck(x, px, 600, ["#7a7a7a", "#a2a2a2"], 0.8);
 }, 3);
+/* a soft-edged dirt verge that hugs every walk — worn turf where
+   feet cut the corner */
+const vergeTex = (() => {
+  const c = document.createElement("canvas"); c.width = c.height = 128;
+  const x = c.getContext("2d");
+  x.fillStyle = "#6f5f42"; x.fillRect(0, 0, 128, 128);
+  speck(x, 128, 900, ["#5f5138", "#7d6c4c", "#8a7a58", "#514433"], 0.9);
+  x.globalCompositeOperation = "destination-in";
+  const g = x.createRadialGradient(64, 64, 26, 64, 64, 64);
+  g.addColorStop(0, "rgba(255,255,255,.85)");
+  g.addColorStop(0.72, "rgba(255,255,255,.45)");
+  g.addColorStop(1, "rgba(255,255,255,0)");
+  x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+})();
+const vergeMat = new THREE.MeshStandardMaterial({
+  map: vergeTex, transparent: true, depthWrite: false, roughness: 1 });
 const asphaltTex = canvasTex(128, (x, px) => {
   x.fillStyle = "#54565c"; x.fillRect(0, 0, px, px);
   speck(x, px, 1000, ["#484a50", "#606268", "#3e4045"], 0.9);
@@ -1806,14 +1872,51 @@ const terraTex = canvasTex(128, (x, px) => {
 
 /* ── grounds ─────────────────────────────────────────────────────── */
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(3600, 3600),
-  new THREE.MeshStandardMaterial({ map: grassTex, roughness: 1 }));
+  new THREE.MeshStandardMaterial({ map: grassTex, bumpMap: grassBump, bumpScale: 0.5, roughness: 1 }));
 ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 world.add(ground);
-ground.material.map.repeat.set(15, 15);
 
-const pathMat = new THREE.MeshStandardMaterial({ map: pathTex, roughness: 0.55, metalness: 0.06, envMapIntensity: 0.6 });
+/* the city on the horizon — a silhouette in the northern haze, its
+   windows lighting up after dark */
+function skylineCanvas(day){
+  const wpx = 1024, hpx = 128;
+  const c = document.createElement("canvas"); c.width = wpx; c.height = hpx;
+  const x = c.getContext("2d");
+  let bx = 0, i = 0;
+  while (bx < wpx - 20){
+    const w2 = 14 + h2(i * 5 + 2) * 40;
+    const ht = 24 + h2(i * 5 + 3) * (i % 7 === 3 ? 95 : 58);
+    x.fillStyle = day ? "rgba(129,146,164,0.9)" : "rgba(22,28,42,0.95)";
+    x.fillRect(bx, hpx - ht, w2, ht);
+    if (i % 6 === 2) x.fillRect(bx + w2 / 2 - 1, hpx - ht - 12, 2, 12);
+    if (!day){
+      x.fillStyle = "rgba(255,214,130,0.85)";
+      for (let wy = hpx - ht + 4; wy < hpx - 6; wy += 7)
+        for (let wx = bx + 3; wx < bx + w2 - 3; wx += 6)
+          if (h2(wx * 13.7 + wy * 7.3) > 0.78) x.fillRect(wx, wy, 1.7, 2.6);
+    }
+    bx += w2 + 4 + h2(i * 5 + 4) * 20;
+    i++;
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const skylinePair = { day: skylineCanvas(true), night: skylineCanvas(false) };
+const skylineMat = new THREE.MeshBasicMaterial({
+  map: skylinePair.day, transparent: true, depthWrite: false, fog: true });
+const skyline = new THREE.Mesh(new THREE.PlaneGeometry(3000, 250), skylineMat);
+skyline.position.set(-260, 92, -1650);
+world.add(skyline);
+
+const pathMat = new THREE.MeshStandardMaterial({ map: pathTex, bumpMap: pathBump, bumpScale: 0.4,
+  roughness: 0.55, metalness: 0.06, envMapIntensity: 0.6 });
 function pathPlane(px, py, w, d, y = 0.25){
+  const v = new THREE.Mesh(new THREE.PlaneGeometry(w + 16, d + 16), vergeMat);
+  v.rotation.x = -Math.PI / 2;
+  v.position.set(W(px + w / 2), 0.12, W(py + d / 2));
+  world.add(v);
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), pathMat);
   m.rotation.x = -Math.PI / 2;
   m.position.set(W(px + w / 2), y, W(py + d / 2));
@@ -1832,14 +1935,30 @@ function pathPlane(px, py, w, d, y = 0.25){
   pathPlane(485, 332, 30, 106); pathPlane(485, 562, 30, 106);
   pathPlane(332, 485, 106, 30); pathPlane(562, 485, 106, 30);
   [[368,368,-135],[631,369,-45],[369,631,135],[631,631,45]].forEach(([px, py, deg]) => {
+    const a = deg * Math.PI / 180;
+    const v = new THREE.Mesh(new THREE.PlaneGeometry(164, 40), vergeMat);
+    v.rotation.x = -Math.PI / 2; v.rotation.z = -a;
+    v.position.set(W(px) + Math.cos(a) * 75, 0.12, W(py) + Math.sin(a) * 75);
+    world.add(v);
     const m = new THREE.Mesh(new THREE.PlaneGeometry(150, 26), pathMat);
     m.rotation.x = -Math.PI / 2;
-    m.rotation.z = -deg * Math.PI / 180;
-    const a = deg * Math.PI / 180;
+    m.rotation.z = -a;
     m.position.set(W(px) + Math.cos(a) * 75, 0.28, W(py) + Math.sin(a) * 75);
     m.receiveShadow = true;
     world.add(m);
   });
+  /* mowing stripes on the great oval, faint and angled like the photo */
+  const stripeTex = canvasTex(256, (x) => {
+    for (let ry = 0; ry < 8; ry++){
+      x.fillStyle = ry % 2 ? "rgba(255,255,255,0.05)" : "rgba(20,40,16,0.05)";
+      x.fillRect(0, ry * 32, 256, 32);
+    }
+  }, 3);
+  const stripes = new THREE.Mesh(new THREE.CircleGeometry(166, 48),
+    new THREE.MeshBasicMaterial({ map: stripeTex, transparent: true, depthWrite: false }));
+  stripes.rotation.x = -Math.PI / 2; stripes.rotation.z = 0.35;
+  stripes.position.y = 0.16;
+  world.add(stripes);
   /* plaza: rain-slicked stone — a true planar mirror under a
      translucent stone veil, so the halls and lamps reflect in it */
   const mirror = new Reflector(new THREE.CircleGeometry(66, 48), {
@@ -2909,6 +3028,7 @@ function setVisualBinary(v){
   lampLights.forEach(l => l.intensity = day ? 0 : 1400);
   lampGlowMats.forEach(mm => mm.emissiveIntensity = day ? 0.05 : 1.9);
   glassGlowMats.forEach(mm => mm.emissiveIntensity = day ? 0 : 2.4);
+  skylineMat.map = day ? skylinePair.day : skylinePair.night;
   skinSwaps.forEach(({ mat, day: dTex, night: nTex }) => {
     mat.map = day ? dTex : nTex;
     mat.emissiveMap = day ? null : nTex;
