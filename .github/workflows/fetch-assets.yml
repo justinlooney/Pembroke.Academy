@@ -35,7 +35,7 @@ jobs:
               rm -f "incoming/$1"
             fi
           }
-          fetch cathedral_entrance.glb 1JuZZjDDb3Fb1DjO-ZwPGulqKAgsV-lh1
+          fetch tree_user.glb 1TLWCi8y1KiYGNK43VDWctDHpiG4uVMIP
           ls -la incoming
           sha256sum incoming/* > incoming/MANIFEST.txt || true
       - name: Commit results
