@@ -876,6 +876,7 @@ git push -u origin main</pre>
         <div>
           <span class="font-serif-d italic text-[13px] text-slate-400">"Lux, Mathesis, Machina"</span> — Light, Learning, and the Machine.
           <div class="mt-1">Progress is inscribed to your browser's <code class="font-mono-d text-[10.5px]">localStorage</code> ledger — it survives every visit.</div>
+          <div class="mt-1 text-slate-600">3D: "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/campus-conversation-228d51c9b87b40fdb655ad10213bff8e">Campus Conversation</a>" by <a class="underline hover:text-slate-400" href="https://sketchfab.com/restore50">restore50</a>, <a class="underline hover:text-slate-400" href="http://creativecommons.org/licenses/by/4.0/">CC-BY-4.0</a>.</div>
         </div>
         <button id="reset-ledger" class="chip rounded-full px-4 py-1.5 text-[11px] uppercase tracking-[.15em] text-slate-400 hover:text-red-300 hover:border-red-400/50">Reset ledger</button>
       </footer>
@@ -1649,6 +1650,7 @@ function wallURIMask(orient, natW, natH, o){
    ══════════════════════════════════════════════════════════════════ */
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
@@ -2163,6 +2165,7 @@ BUILDINGS.forEach(spec => {
 
 /* ── glTF 2.0 prop library (assets/*.glb) ────────────────────────── */
 const gltf = new GLTFLoader();
+gltf.setMeshoptDecoder(MeshoptDecoder);
 const TREES = [];
 [[10,235],[80,235],[100,235],[170,235],[190,235],[260,235],[280,235],[350,235],
  [35,258],[145,258],[215,258],[325,258]].forEach(([a, r]) => {
@@ -2243,6 +2246,18 @@ gltf.load("assets/lamp.glb", (g) => {
     lampLights.push(pl);
   });
   engineSetMode(typeof mode === "string" ? mode : "day");
+});
+/* "Campus Conversation" by restore50 (CC-BY-4.0) — a scanned group of
+   students mid-chat, posed on the lawn just off the fountain plaza */
+gltf.load("assets/students.glb", (g) => {
+  const grp = g.scene;
+  const SCALE = 21;                       /* scan is ~1.9 units tall → people ≈ 40 */
+  grp.scale.setScalar(SCALE);
+  grp.position.set(W(444), 0.95 * SCALE, W(546));
+  grp.rotation.y = -0.7;                  /* facing the fountain */
+  grp.traverse(o => { if (o.isMesh){ o.castShadow = o.receiveShadow = true; } });
+  world.add(grp);
+  COLLIDERS.push({ x: 430, y: 532, w: 28, d: 28 });
 });
 gltf.load("assets/bench.glb", (g) => {
   for (let k = 0; k < 6; k++){
