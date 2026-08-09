@@ -2522,29 +2522,29 @@ BUILDINGS.forEach(spec => {
    processional walk, specimen oaks on the lawn, groves flanking the
    diagonal spokes, shade belts at the campus edges, and a pine-heavy
    forest rolling to the horizon. */
-const TREE_SETS = { oak: [], elm: [], pine: [] };
+const TREE_SETS = { oak: [], elm: [], pine: [], maple: [] };
 {
   const T = TREE_SETS;
-  /* the ring arc along the oval's north side */
+  /* the ring arc along the oval's north side — photoreal maples up close */
   [[10,235],[80,235],[100,235],[170,235],[190,235],[260,235],[280,235],[350,235],
    [35,258],[145,258],[215,258],[325,258]].forEach(([a, r], i) => {
     const rad = a * Math.PI / 180;
-    T[i % 3 === 2 ? "elm" : "oak"].push([500 + r * Math.cos(rad), 500 + r * Math.sin(rad), 0.95 + (a % 7) / 16]);
+    T[i % 3 === 2 ? "elm" : "maple"].push([500 + r * Math.cos(rad), 500 + r * Math.sin(rad), 0.95 + (a % 7) / 16]);
   });
-  /* four specimen oaks on the great lawn (collidable) */
+  /* four specimen maples on the great lawn (collidable) */
   [[608,539],[463,608],[392,461],[537,392]].forEach(([px, py], i) => {
-    T.oak.push([px, py, 1.45 + (i % 3) * 0.08]);
+    T.maple.push([px, py, 1.1 + (i % 3) * 0.06]);
     COLLIDERS.push({ x: px - 5, y: py - 5, w: 10, d: 10 });
   });
-  /* elm allées flanking the walk, north approach and south entry */
-  [130, 195, 265, 345].forEach(y => { T.elm.push([462, y, 0.72 + (y % 20) / 90], [538, y, 0.75 + (y % 17) / 90]); });
-  [655, 735, 815].forEach(y => { T.elm.push([462, y, 0.72 + (y % 19) / 90], [538, y, 0.75 + (y % 23) / 90]); });
+  /* maple allées flanking the walk, north approach and south entry */
+  [130, 195, 265, 345].forEach(y => { T.maple.push([462, y, 0.76 + (y % 20) / 160], [538, y, 0.8 + (y % 17) / 160]); });
+  [655, 735, 815].forEach(y => { T.maple.push([462, y, 0.76 + (y % 19) / 160], [538, y, 0.8 + (y % 23) / 160]); });
   /* paired groves flanking each diagonal spoke */
   [[280,352],[352,280],[648,280],[720,352],[280,648],[352,720],[648,720],[720,648]].forEach(([cx, cy], ci) => {
     for (let i = 0; i < 3; i++){
       const a = (i / 3) * Math.PI * 2 + ci * 0.9;
       const r = 14 + ((i * 53 + ci * 31) % 14);
-      const sp = (i + ci) % 4 === 0 ? "pine" : ((i + ci) % 2 ? "oak" : "elm");
+      const sp = (i + ci) % 4 === 0 ? "pine" : ((i + ci) % 2 ? "maple" : "elm");
       T[sp].push([cx + Math.cos(a) * r, cy + Math.sin(a) * r, 0.85 + ((i * 29 + ci * 17) % 30) / 55]);
     }
   });
@@ -2571,18 +2571,28 @@ const TREE_SETS = { oak: [], elm: [], pine: [] };
     T[sp].push([px, py, 1.1 + ((i * 31) % 60) / 50]);
   }
 }
-["oak", "elm", "pine"].forEach(sp => {
+const TREE_TARGET_H = { oak: 50, elm: 64, pine: 54, maple: 58 };
+["oak", "elm", "pine", "maple"].forEach(sp => {
   gltf.load(`assets/${sp}.glb`, (g) => {
     const list = TREE_SETS[sp];
+    if (!list.length) return;
+    g.scene.updateMatrixWorld(true);
+    const bb = new THREE.Box3().setFromObject(g.scene);
+    const norm = TREE_TARGET_H[sp] / Math.max(1e-6, bb.max.y - bb.min.y);
     g.scene.traverse(src => {
       if (!src.isMesh) return;
-      const inst = new THREE.InstancedMesh(src.geometry, src.material, list.length);
+      src.updateWorldMatrix(true, false);
+      const geo = src.geometry.clone();
+      geo.applyMatrix4(src.matrixWorld);      /* bake node transforms for instancing */
+      if (src.material.alphaTest) src.material.alphaTest = 0.12;  /* keep leaf cards at distance */
+      const inst = new THREE.InstancedMesh(geo, src.material, list.length);
       inst.castShadow = true;
       const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
       list.forEach(([px, py, s2], i) => {
+        const k = s2 * 1.5 * norm;
         q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (i * 2.39996) % (Math.PI * 2));
-        sc.setScalar(s2 * 1.5);
-        m4.compose(new THREE.Vector3(W(px), 0, W(py)), q, sc);
+        sc.setScalar(k);
+        m4.compose(new THREE.Vector3(W(px), -bb.min.y * k, W(py)), q, sc);
         inst.setMatrixAt(i, m4);
       });
       world.add(inst);
