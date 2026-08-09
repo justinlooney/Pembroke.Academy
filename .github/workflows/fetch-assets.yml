@@ -35,13 +35,8 @@ jobs:
               rm -f "incoming/$1"
             fi
           }
-          fetch flora01.glb 1xxNdLQeZdx3H8jmut7lqz-U8Wz20Plsa
-          fetch flora02.glb 19v1kVnu_Lz0sgep8x6FiyRsnD_EfI9Iu
-          fetch flora03.glb 1HazMTnK-RrUMEbqtBSG7kGlBb8K4h_Jr
+          rm -f incoming/flora04.glb incoming/flora04.glb.bin
           fetch flora04.glb 1l4ZtjurKGBkozlXBJo3iWwKZxvke6w9r
-          fetch flora05.glb 1Lmq0DfWOWlB2loE3SqNlDFpnnSHksgJW
-          fetch flora06.glb 16nVBkr9OZw97u1nglU9mNms5z58Wtm3X
-          fetch flora07.glb 1SIUOraCzQC57k2iC79Y_IHtlAGJoh_td
           ls -la incoming
           sha256sum incoming/* > incoming/MANIFEST.txt || true
       - name: Shrink oversized models
@@ -58,7 +53,7 @@ jobs:
               size=$(stat -c%s "$f")
               if [ "$size" -gt 90000000 ]; then
                 echo "compressing $f ($size bytes)"
-                gltf-transform optimize "$f" "$f.tmp" --compress meshopt --texture-compress webp --texture-size 2048 && mv "$f.tmp" "$f" || rm -f "$f.tmp"
+                gltf-transform optimize "$f" "${f%.glb}.opt.glb" --compress meshopt --texture-compress webp --texture-size 2048 && mv "${f%.glb}.opt.glb" "$f" || rm -f "${f%.glb}.opt.glb"
               fi
             done
           fi
