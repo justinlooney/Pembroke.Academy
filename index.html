@@ -877,7 +877,7 @@ git push -u origin main</pre>
         <div>
           <span class="font-serif-d italic text-[13px] text-slate-400">"Lux, Mathesis, Machina"</span> — Light, Learning, and the Machine.
           <div class="mt-1">Progress is inscribed to your browser's <code class="font-mono-d text-[10.5px]">localStorage</code> ledger — it survives every visit.</div>
-          <div class="mt-1 text-slate-600">3D (all <a class="underline hover:text-slate-400" href="http://creativecommons.org/licenses/by/4.0/">CC-BY-4.0</a>, adapted): "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/campus-conversation-228d51c9b87b40fdb655ad10213bff8e">Campus Conversation</a>" by restore50 · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/gothic-cathedral-8b8f08c852e949ecba39ca0dd29448f0">Gothic cathedral</a>" by Gnemegorl · "Cologne Cathedral" by Shahriar Shahrabi · "МГУ Moscow State University" by Neo_minigan · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/tabitown">Cathedral</a>" by tabitown.</div>
+          <div class="mt-1 text-slate-600">3D (all <a class="underline hover:text-slate-400" href="http://creativecommons.org/licenses/by/4.0/">CC-BY-4.0</a>, adapted): "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/campus-conversation-228d51c9b87b40fdb655ad10213bff8e">Campus Conversation</a>" by restore50 · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/gothic-cathedral-8b8f08c852e949ecba39ca0dd29448f0">Gothic cathedral</a>" by Gnemegorl · "Cologne Cathedral" by Shahriar Shahrabi · "МГУ Moscow State University" by Neo_minigan · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/tabitown">Cathedral</a>" by tabitown · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/zagreb-cathedral-facade-croatia-827a80ec7d90434c94f4fc99293d0938">Zagreb Cathedral facade</a>" by HoangHiepVu.</div>
         </div>
         <button id="reset-ledger" class="chip rounded-full px-4 py-1.5 text-[11px] uppercase tracking-[.15em] text-slate-400 hover:text-red-300 hover:border-red-400/50">Reset ledger</button>
       </footer>
@@ -1960,6 +1960,60 @@ function loadLandmark(url, opts){
   });
 }
 
+/* the cathedral's west-front portal: the source model ends in blind
+   masonry at ground level, so the scanned portal porch from "Zagreb
+   Cathedral facade, Croatia" by HoangHiepVu (CC-BY-4.0) — cropped to
+   its gabled entrance, statues and all — is grafted onto the true
+   wall plane (found by ray, since buttresses overhang) */
+function buildCathedralPortal(rootObj){
+  const probe = new THREE.Raycaster(new THREE.Vector3(0, 40, W(220)), new THREE.Vector3(0, 0, -1));
+  const hit = probe.intersectObject(rootObj, true)[0];
+  const wallZ = hit ? hit.point.z
+    : new THREE.Box3().setFromObject(rootObj).max.z - 6;
+  gltf.load("assets/portal.glb", (g) => {
+    const porch = g.scene;
+    porch.rotation.y = Math.PI / 2;          /* the scan's face looks -x; turn it south */
+    porch.updateMatrixWorld(true);
+    let bb = new THREE.Box3().setFromObject(porch);
+    const size = new THREE.Vector3(); bb.getSize(size);
+    porch.scale.setScalar(100 / size.y);
+    porch.updateMatrixWorld(true);
+    bb = new THREE.Box3().setFromObject(porch);
+    const ctr = new THREE.Vector3(); bb.getCenter(ctr);
+    porch.position.x += -ctr.x;
+    porch.position.y += -bb.min.y;
+    porch.position.z += (wallZ - 17) - bb.min.z;   /* backing band sinks into the facade */
+    porch.updateMatrixWorld(true);
+    /* the flanking band skews the bbox, so find the true arch axis by
+       probing where rays pass through the opening to the facade behind */
+    const rc = new THREE.Raycaster();
+    const openXs = [];
+    for (let px = -34; px <= 34; px += 1){
+      rc.set(new THREE.Vector3(px, 26, wallZ + 60), new THREE.Vector3(0, 0, -1));
+      const h = rc.intersectObject(porch, true)[0];
+      if (!h || h.point.z < wallZ + 6) openXs.push(px);
+    }
+    if (openXs.length > 4) porch.position.x -= (openXs[0] + openXs[openXs.length - 1]) / 2;
+    porch.traverse(o => {
+      if (o.isMesh){
+        o.castShadow = o.receiveShadow = true;
+        o.material = new THREE.MeshStandardMaterial({
+          vertexColors: true, color: 0xe8ddc8,     /* warm the scan toward the facade brick */
+          roughness: 0.93, envMapIntensity: 0.7 });
+      }
+    });
+    world.add(porch);
+    COLLIDERS.push({ x: 455, y: 58, w: 90, d: 34 });
+    /* dark oak doors deep in the recess, where the scan's archway
+       would otherwise open onto bare facade brick */
+    const doors = new THREE.Mesh(new THREE.BoxGeometry(21, 36, 2),
+      new THREE.MeshStandardMaterial({ color: 0x3e2a18, roughness: 0.82, metalness: 0.05 }));
+    doors.position.set(0, 18, wallZ + 1.2);
+    doors.receiveShadow = true;
+    world.add(doors);
+  });
+}
+
 /* derive normal + roughness/metalness maps from the height mask so
    glass turns mirror-smooth (sky reflections) and stone stays matte,
    with buttresses and reveals shaded in true relief */
@@ -2184,7 +2238,7 @@ BUILDINGS.forEach(spec => {
     plane: [500, -160], height: 340, rotY: Math.PI, maxFoot: [400, 440],
     glassNames: ["glass"],
     collider: "auto",
-    onLoaded: (r) => { cathedralRoot = r; },
+    onLoaded: (r) => { cathedralRoot = r; buildCathedralPortal(r); },
   });
   /* the white cathedral (Gnemegorl) joins the horizon, west */
   loadLandmark("assets/gothic_cathedral.glb", {
@@ -2291,7 +2345,7 @@ gltf.load("assets/car.glb", (g) => {
     world.add(car);
   });
 });
-const LAMPS = [[34,34],[952,34],[34,952],[952,952]];
+const LAMPS = [[34,34],[952,34],[34,952],[952,952],[471,92],[529,92]];
 for (let k = 0; k < 8; k++){
   const a = (22.5 + 45 * k) * Math.PI / 180;
   LAMPS.push([500 + 210 * Math.cos(a), 500 + 210 * Math.sin(a)]);
