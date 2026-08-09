@@ -876,7 +876,7 @@ git push -u origin main</pre>
         <div>
           <span class="font-serif-d italic text-[13px] text-slate-400">"Lux, Mathesis, Machina"</span> — Light, Learning, and the Machine.
           <div class="mt-1">Progress is inscribed to your browser's <code class="font-mono-d text-[10.5px]">localStorage</code> ledger — it survives every visit.</div>
-          <div class="mt-1 text-slate-600">3D: "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/campus-conversation-228d51c9b87b40fdb655ad10213bff8e">Campus Conversation</a>" by <a class="underline hover:text-slate-400" href="https://sketchfab.com/restore50">restore50</a>, <a class="underline hover:text-slate-400" href="http://creativecommons.org/licenses/by/4.0/">CC-BY-4.0</a>.</div>
+          <div class="mt-1 text-slate-600">3D (all <a class="underline hover:text-slate-400" href="http://creativecommons.org/licenses/by/4.0/">CC-BY-4.0</a>, adapted): "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/campus-conversation-228d51c9b87b40fdb655ad10213bff8e">Campus Conversation</a>" by restore50 · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/gothic-cathedral-8b8f08c852e949ecba39ca0dd29448f0">Gothic cathedral</a>" by Gnemegorl · "Cologne Cathedral" by Shahriar Shahrabi · "МГУ Moscow State University" by Neo_minigan.</div>
         </div>
         <button id="reset-ledger" class="chip rounded-full px-4 py-1.5 text-[11px] uppercase tracking-[.15em] text-slate-400 hover:text-red-300 hover:border-red-400/50">Reset ledger</button>
       </footer>
@@ -1898,6 +1898,59 @@ function stoneMaterial(natW, natH, o){
   return mat;
 }
 
+const gltf = new GLTFLoader();
+gltf.setMeshoptDecoder(MeshoptDecoder);
+
+/* imported-landmark loader: normalize any glb to a target height,
+   plant it base-down at a plane coordinate, and register stained-glass
+   materials so the night cycle can light them from within */
+const glassGlowMats = [];
+function loadLandmark(url, opts){
+  gltf.load(url, (g) => {
+    const root = g.scene;
+    root.rotation.y = opts.rotY || 0;
+    root.updateMatrixWorld(true);
+    let box = new THREE.Box3().setFromObject(root);
+    const size = new THREE.Vector3(); box.getSize(size);
+    /* scale to target height, but never overflow the allotted plot */
+    let sc = opts.height / size.y;
+    if (opts.maxFoot){
+      sc = Math.min(sc, opts.maxFoot[0] / size.x, opts.maxFoot[1] / size.z);
+    }
+    root.scale.setScalar(sc);
+    root.updateMatrixWorld(true);
+    box = new THREE.Box3().setFromObject(root);
+    const ctr = new THREE.Vector3(); box.getCenter(ctr);
+    root.position.x += W(opts.plane[0]) - ctr.x;
+    root.position.z += W(opts.plane[1]) - ctr.z;
+    root.position.y += -box.min.y + (opts.sink || 0);
+    root.traverse(o => {
+      if (o.isMesh){
+        o.castShadow = o.receiveShadow = true;
+        const nm = (o.material && o.material.name || "").toLowerCase();
+        if ((opts.dropMatNames || []).some(dn => nm === dn)){
+          o.visible = false;            /* scene clutter from the source scan */
+          return;
+        }
+        if ((opts.glassNames || []).some(gn => nm.includes(gn))){
+          o.material.emissiveMap = o.material.map || null;
+          o.material.emissive = new THREE.Color(0xffffff);
+          o.material.emissiveIntensity = visual === "night" ? 2.4 : 0;
+          glassGlowMats.push(o.material);
+        } else if (opts.tint){
+          o.material.color = new THREE.Color(opts.tint);
+        }
+      }
+    });
+    world.add(root);
+    if (opts.collider === "auto"){
+      box = new THREE.Box3().setFromObject(root);
+      COLLIDERS.push({ x: box.min.x + 500, y: box.min.z + 500,
+                       w: box.max.x - box.min.x, d: box.max.z - box.min.z });
+    } else if (opts.collider) COLLIDERS.push(opts.collider);
+  });
+}
+
 /* derive normal + roughness/metalness maps from the height mask so
    glass turns mirror-smooth (sky reflections) and stone stays matte,
    with buttresses and reveals shaded in true relief */
@@ -2115,14 +2168,21 @@ BUILDINGS.forEach(spec => {
 {
   const amb = new THREE.Group();
   world.add(amb);
-  /* chapel with twin spires at the head of the north walk */
-  stoneBox(amb, { x: 425, y: 58, w: 150, d: 120, h: 56, windows: "lancet", ivy: true,
-                  arch: true, seed: 12, accent: "#e8d9a0", noRoof: true });
-  gableRoof(amb, { x: 425, y: 58, w: 150, d: 120, z: 56, h: 46 });
-  [[428, 150], [565, 150]].forEach(([tx, ty], i) => {
-    stoneBox(amb, { x: tx, y: ty, w: 32, d: 32, h: 140, windows: "slits", seed: 13 + i, accent: "#e8d9a0" });
-    spire(amb, tx + 16, 140, ty + 16, 32, 64);
+  /* the Pembroke Cathedral — "Gothic cathedral" by Gnemegorl (CC-BY-4.0),
+     re-materialed and lit by the campus day cycle; its stained glass,
+     rose windows, and great lights burn from within after dark */
+  loadLandmark("assets/gothic_cathedral.glb", {
+    plane: [500, 122], height: 300, rotY: 0, maxFoot: [250, 195],
+    glassNames: ["vitral", "roseton", "ventanal"],
+    dropMatNames: ["metal"],
+    tint: 0xe8dcc6,
+    collider: "auto",
   });
+  /* the city of learning on the horizon: Cologne Cathedral (Shahriar
+     Shahrabi, CC-BY-4.0) NW and Moscow State University (Neo_minigan,
+     CC-BY-4.0) NE, hazed by distance and fog */
+  loadLandmark("assets/cologne.glb", { plane: [-520, -420], height: 540, rotY: 2.6, maxFoot: [760, 760] });
+  loadLandmark("assets/msu.glb", { plane: [1680, -420], height: 780, rotY: -2.4, maxFoot: [1150, 950] });
   /* dormitory ranges */
   stoneBox(amb, { x: 856, y: 240, w: 64, d: 310, h: 70, windows: "lancet", seed: 16, accent: "#d9c48a", noRoof: true });
   gableRoof(amb, { x: 856, y: 240, w: 64, d: 310, z: 70, h: 28, axis: "y" });
@@ -2164,8 +2224,6 @@ BUILDINGS.forEach(spec => {
 }
 
 /* ── glTF 2.0 prop library (assets/*.glb) ────────────────────────── */
-const gltf = new GLTFLoader();
-gltf.setMeshoptDecoder(MeshoptDecoder);
 const TREES = [];
 [[10,235],[80,235],[100,235],[170,235],[190,235],[260,235],[280,235],[350,235],
  [35,258],[145,258],[215,258],[325,258]].forEach(([a, r]) => {
@@ -2300,7 +2358,7 @@ for (let k = 0; k < 8; k++){
 }
 for (let k = 0; k < 8; k++) EDGES["R" + k] = ["R" + ((k + 1) % 8), "R" + ((k + 7) % 8)];
 Object.assign(WAYPOINTS, {
-  chapel: [500, 196], gate: [500, 905], south: [500, 946], east: [928, 500], west: [72, 500],
+  chapel: [500, 218], gate: [500, 905], south: [500, 946], east: [928, 500], west: [72, 500],
   libDoor: [260, 326], engDoor: [740, 306], sciDoor: [240, 822], admDoor: [735, 832],
 });
 Object.assign(EDGES, {
@@ -2644,6 +2702,7 @@ function setVisualBinary(v){
   fireflies.visible = !day;
   lampLights.forEach(l => l.intensity = day ? 0 : 1400);
   lampGlowMats.forEach(mm => mm.emissiveIntensity = day ? 0.05 : 1.9);
+  glassGlowMats.forEach(mm => mm.emissiveIntensity = day ? 0 : 2.4);
   skinSwaps.forEach(({ mat, day: dTex, night: nTex }) => {
     mat.map = day ? dTex : nTex;
     mat.emissiveMap = day ? null : nTex;
