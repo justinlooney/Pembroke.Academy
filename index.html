@@ -2291,36 +2291,75 @@ BUILDINGS.forEach(spec => {
 }
 
 /* ── glTF 2.0 prop library (assets/*.glb) ────────────────────────── */
-const TREES = [];
-[[10,235],[80,235],[100,235],[170,235],[190,235],[260,235],[280,235],[350,235],
- [35,258],[145,258],[215,258],[325,258]].forEach(([a, r]) => {
-  const rad = a * Math.PI / 180;
-  TREES.push([500 + r * Math.cos(rad), 500 + r * Math.sin(rad), 0.95 + (a % 7) / 16]);
-});
-TREES.push(
-  [60,60,1.25],[100,42,.9],[42,105,.95],[940,64,1.1],[955,120,.9],[610,52,.95],[390,95,.85],
-  [60,940,1.15],[300,880,.95],[400,952,.9],[660,940,1],[950,945,1.1],[462,240,.9],[538,240,.9],
-  [95,610,.95],[930,215,.95],[240,95,1],[760,95,.95],[60,760,1],[940,760,1.05],[560,952,.95],[875,205,.9]);
-/* an outlying grove ring so walk mode never sees an empty horizon */
-for (let i = 0; i < 46; i++){
-  const a = (i / 46) * Math.PI * 2 + (i % 5) * 0.11;
-  const r = 760 + ((i * 137) % 420);
-  TREES.push([500 + r * Math.cos(a), 500 + r * Math.sin(a), 1.05 + ((i * 29) % 50) / 60]);
+/* Three species, placed like a groundskeeper would: an allée up the
+   processional walk, specimen oaks on the lawn, groves flanking the
+   diagonal spokes, shade belts at the campus edges, and a pine-heavy
+   forest rolling to the horizon. */
+const TREE_SETS = { oak: [], elm: [], pine: [] };
+{
+  const T = TREE_SETS;
+  /* the ring arc along the oval's north side */
+  [[10,235],[80,235],[100,235],[170,235],[190,235],[260,235],[280,235],[350,235],
+   [35,258],[145,258],[215,258],[325,258]].forEach(([a, r], i) => {
+    const rad = a * Math.PI / 180;
+    T[i % 3 === 2 ? "elm" : "oak"].push([500 + r * Math.cos(rad), 500 + r * Math.sin(rad), 0.95 + (a % 7) / 16]);
+  });
+  /* four specimen oaks on the great lawn (collidable) */
+  [[608,539],[463,608],[392,461],[537,392]].forEach(([px, py], i) => {
+    T.oak.push([px, py, 1.45 + (i % 3) * 0.08]);
+    COLLIDERS.push({ x: px - 5, y: py - 5, w: 10, d: 10 });
+  });
+  /* elm allées flanking the walk, north approach and south entry */
+  [130, 195, 265, 345].forEach(y => { T.elm.push([462, y, 0.72 + (y % 20) / 90], [538, y, 0.75 + (y % 17) / 90]); });
+  [655, 735, 815].forEach(y => { T.elm.push([462, y, 0.72 + (y % 19) / 90], [538, y, 0.75 + (y % 23) / 90]); });
+  /* paired groves flanking each diagonal spoke */
+  [[280,352],[352,280],[648,280],[720,352],[280,648],[352,720],[648,720],[720,648]].forEach(([cx, cy], ci) => {
+    for (let i = 0; i < 3; i++){
+      const a = (i / 3) * Math.PI * 2 + ci * 0.9;
+      const r = 14 + ((i * 53 + ci * 31) % 14);
+      const sp = (i + ci) % 4 === 0 ? "pine" : ((i + ci) % 2 ? "oak" : "elm");
+      T[sp].push([cx + Math.cos(a) * r, cy + Math.sin(a) * r, 0.85 + ((i * 29 + ci * 17) % 30) / 55]);
+    }
+  });
+  /* shade belts along the campus edges (clear of halls, lots, cathedral) */
+  for (let x = 110; x <= 290; x += 45) T[x % 90 < 45 ? "oak" : "pine"].push([x, 26 + (x * 13) % 30, 0.95 + (x * 7) % 25 / 60]);
+  for (let x = 710; x <= 890; x += 45) T[x % 90 < 45 ? "pine" : "oak"].push([x, 26 + (x * 11) % 30, 0.95 + (x * 3) % 25 / 60]);
+  for (let x = 80; x <= 920; x += 55){
+    if (Math.abs(x - 500) < 75) continue;               /* gatehouse */
+    T[x % 110 < 55 ? "oak" : "elm"].push([x, 935 + (x * 7) % 25, 1 + (x * 13) % 30 / 55]);
+  }
+  for (let y = 120; y <= 880; y += 60){
+    if (y < 640 && y > 400){} else T.oak.push([20 + (y * 7) % 18, y, 0.9 + (y * 11) % 25 / 55]);
+    if (y < 600 && y > 280){} else T.pine.push([950 + (y * 13) % 18, y, 0.95 + (y * 17) % 25 / 55]);
+  }
+  /* the forest to the horizon — pine-heavy, parting for the landmarks */
+  for (let i = 0; i < 90; i++){
+    const a = (i / 90) * Math.PI * 2 + (i % 7) * 0.09;
+    const r = 700 + ((i * 149) % 520);
+    const px = 500 + Math.cos(a) * r, py = 500 + Math.sin(a) * r;
+    if (px > 290 && px < 710 && py > -400 && py < 100) continue;   /* cathedral close */
+    if (px > 1400 || (px < -300 && py < -200)) continue;            /* MSU, Cologne */
+    if (px < -350 && py > 200 && py < 560) continue;                /* white cathedral */
+    const sp = i % 3 ? "pine" : (i % 2 ? "oak" : "elm");
+    T[sp].push([px, py, 1.1 + ((i * 31) % 60) / 50]);
+  }
 }
-gltf.load("assets/tree.glb", (g) => {
-  const prims = [];
-  g.scene.traverse(o => { if (o.isMesh) prims.push(o); });
-  prims.forEach(src => {
-    const inst = new THREE.InstancedMesh(src.geometry, src.material, TREES.length);
-    inst.castShadow = true;
-    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
-    TREES.forEach(([px, py, s2], i) => {
-      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (i * 2.39996) % (Math.PI * 2));
-      sc.setScalar(s2 * 1.5);
-      m4.compose(new THREE.Vector3(W(px), 0, W(py)), q, sc);
-      inst.setMatrixAt(i, m4);
+["oak", "elm", "pine"].forEach(sp => {
+  gltf.load(`assets/${sp}.glb`, (g) => {
+    const list = TREE_SETS[sp];
+    g.scene.traverse(src => {
+      if (!src.isMesh) return;
+      const inst = new THREE.InstancedMesh(src.geometry, src.material, list.length);
+      inst.castShadow = true;
+      const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
+      list.forEach(([px, py, s2], i) => {
+        q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (i * 2.39996) % (Math.PI * 2));
+        sc.setScalar(s2 * 1.5);
+        m4.compose(new THREE.Vector3(W(px), 0, W(py)), q, sc);
+        inst.setMatrixAt(i, m4);
+      });
+      world.add(inst);
     });
-    world.add(inst);
   });
 });
 const CARS = [

@@ -156,19 +156,112 @@ function writeGLB(path, name, parts){
   console.log(`wrote ${path}  (${(total/1024).toFixed(1)} KB, ${parts.length} prims)`);
 }
 
+function addBranch(p, a, b, r0, r1, seg = 6){
+  /* tapered tube from point a to point b with a tip cap */
+  const [ax, ay, az] = a, [bx, by, bz] = b;
+  const dx = bx - ax, dy = by - ay, dz = bz - az;
+  const len = Math.hypot(dx, dy, dz);
+  const ux = dx / len, uy = dy / len, uz = dz / len;
+  let vx, vy, vz;
+  if (Math.abs(uy) < 0.99){ vx = -uz; vy = 0; vz = ux; } else { vx = 1; vy = 0; vz = 0; }
+  const vl = Math.hypot(vx, vy, vz); vx /= vl; vy /= vl; vz /= vl;
+  const wx = uy * vz - uz * vy, wy = uz * vx - ux * vz, wz = ux * vy - uy * vx;
+  const start = p.pos.length / 3;
+  for (const [cx, cy, cz, r] of [[ax, ay, az, r0], [bx, by, bz, r1]]){
+    for (let i = 0; i <= seg; i++){
+      const t = (i / seg) * Math.PI * 2, c = Math.cos(t), s = Math.sin(t);
+      const nx = vx * c + wx * s, ny = vy * c + wy * s, nz = vz * c + wz * s;
+      p.pos.push(cx + nx * r, cy + ny * r, cz + nz * r);
+      p.nrm.push(nx, ny, nz);
+    }
+  }
+  for (let i = 0; i < seg; i++){
+    const A = start + i, B = start + i + 1, C = start + seg + 1 + i, D = start + seg + 2 + i;
+    p.idx.push(A, B, C, B, D, C);
+  }
+  const capC = p.pos.length / 3;
+  p.pos.push(bx, by, bz); p.nrm.push(ux, uy, uz);
+  const capR = p.pos.length / 3;
+  for (let i = 0; i <= seg; i++){
+    const t = (i / seg) * Math.PI * 2, c = Math.cos(t), s = Math.sin(t);
+    const nx = vx * c + wx * s, ny = vy * c + wy * s, nz = vz * c + wz * s;
+    p.pos.push(bx + nx * r1, by + ny * r1, bz + nz * r1);
+    p.nrm.push(ux, uy, uz);
+  }
+  for (let i = 0; i < seg; i++) p.idx.push(capC, capR + i + 1, capR + i);
+}
+const mulberry = (seed) => () => {
+  seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+  let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+  return ((t ^ t >>> 14) >>> 0) / 4294967296;
+};
+
 /* ── the props ───────────────────────────────────────────────────── */
-/* TREE — trunk + three-lobed jittered canopy (unit ~46 tall) */
+/* TREES — three species with true branching skeletons.
+   oak: broad spreading crown (~52 tall), elm: upright vase (~64),
+   pine: tiered conifer (~58). Foliage blobs sit on branch tips. */
 {
-  const trunk = prim(), canopyA = prim(), canopyB = prim();
-  addCylinder(trunk, 0, 0, 0, 2.6, 1.7, 17, 7);
-  addBlobSphere(canopyA, 0, 30, 0, 12.5, 0.86, 1);
-  addBlobSphere(canopyA, -7, 25, 3, 7.5, 0.8, 2);
-  addBlobSphere(canopyB, 7.5, 26, -2, 8, 0.82, 3);
-  addBlobSphere(canopyB, 1, 37, 1, 7, 0.75, 4);
-  writeGLB(join(root, "assets/tree.glb"), "elm", [
-    { prim: trunk,   material: { name:"bark",   baseColor: [0.30, 0.22, 0.13], roughness: 1.0 } },
-    { prim: canopyA, material: { name:"leafA",  baseColor: [0.22, 0.38, 0.16], roughness: 0.95 } },
-    { prim: canopyB, material: { name:"leafB",  baseColor: [0.28, 0.46, 0.20], roughness: 0.95 } },
+  const R = mulberry(7);
+  const trunk = prim(), leafA = prim(), leafB = prim();
+  addBranch(trunk, [0, 0, 0], [0.6, 15, -0.4], 3.4, 2.2, 7);
+  const tips = [];
+  const N = 5;
+  for (let i = 0; i < N; i++){
+    const a = (i / N) * Math.PI * 2 + R() * 0.8;
+    const rr = 9 + R() * 6, ty = 26 + R() * 9;
+    const mid = [Math.cos(a) * rr * 0.45, 20 + R() * 3, Math.sin(a) * rr * 0.45];
+    const tip = [Math.cos(a) * rr, ty, Math.sin(a) * rr];
+    addBranch(trunk, [0.6, 13, -0.4], mid, 1.9, 1.3);
+    addBranch(trunk, mid, tip, 1.3, 0.7);
+    tips.push(tip);
+  }
+  tips.forEach(([x, y, z], i) => {
+    addBlobSphere(i % 2 ? leafA : leafB, x, y + 3.5, z, 8 + R() * 3, 0.82, 11 + i);
+  });
+  addBlobSphere(leafA, 0, 40, 0, 10.5, 0.8, 31);
+  addBlobSphere(leafB, 3, 34, 4, 8, 0.85, 32);
+  writeGLB(join(root, "assets/oak.glb"), "oak", [
+    { prim: trunk, material: { name: "bark",  baseColor: [0.28, 0.21, 0.13], roughness: 1.0 } },
+    { prim: leafA, material: { name: "leafA", baseColor: [0.20, 0.36, 0.14], roughness: 0.95 } },
+    { prim: leafB, material: { name: "leafB", baseColor: [0.27, 0.44, 0.18], roughness: 0.95 } },
+  ]);
+}
+{
+  const R = mulberry(23);
+  const trunk = prim(), leafA = prim(), leafB = prim();
+  addBranch(trunk, [0, 0, 0], [-0.5, 19, 0.3], 2.9, 1.9, 7);
+  const tips = [];
+  for (let i = 0; i < 4; i++){
+    const a = (i / 4) * Math.PI * 2 + 0.5 + R() * 0.7;
+    const rr = 5.5 + R() * 3.5, ty = 40 + R() * 8;
+    const mid = [Math.cos(a) * rr * 0.7, 30 + R() * 3, Math.sin(a) * rr * 0.7];
+    addBranch(trunk, [-0.5, 17, 0.3], mid, 1.5, 1.0);
+    addBranch(trunk, mid, [Math.cos(a) * rr, ty, Math.sin(a) * rr], 1.0, 0.55);
+    tips.push([Math.cos(a) * rr, ty, Math.sin(a) * rr]);
+  }
+  tips.forEach(([x, y, z], i) => {
+    addBlobSphere(i % 2 ? leafA : leafB, x * 1.1, y + 2, z * 1.1, 7 + R() * 2.5, 0.9, 41 + i);
+  });
+  addBlobSphere(leafA, 0, 56, 0, 8.5, 0.78, 51);
+  addBlobSphere(leafB, -2, 47, 2, 7, 0.9, 52);
+  writeGLB(join(root, "assets/elm.glb"), "elm", [
+    { prim: trunk, material: { name: "bark",  baseColor: [0.31, 0.24, 0.15], roughness: 1.0 } },
+    { prim: leafA, material: { name: "leafA", baseColor: [0.24, 0.40, 0.16], roughness: 0.95 } },
+    { prim: leafB, material: { name: "leafB", baseColor: [0.30, 0.48, 0.21], roughness: 0.95 } },
+  ]);
+}
+{
+  const trunk = prim(), needleA = prim(), needleB = prim();
+  addBranch(trunk, [0, 0, 0], [0, 18, 0], 2.2, 1.5, 7);
+  const tiers = [[14, 13, 12], [22, 10.5, 11], [30, 8.2, 10], [38, 5.8, 9], [45, 3.6, 9]];
+  tiers.forEach(([y, r, h], i) => {
+    addCylinder(i % 2 ? needleA : needleB, 0, y, 0, r, 0.35, h, 9);
+  });
+  writeGLB(join(root, "assets/pine.glb"), "pine", [
+    { prim: trunk,   material: { name: "bark",  baseColor: [0.26, 0.19, 0.12], roughness: 1.0 } },
+    { prim: needleA, material: { name: "leafA", baseColor: [0.13, 0.28, 0.15], roughness: 0.95 } },
+    { prim: needleB, material: { name: "leafB", baseColor: [0.16, 0.33, 0.17], roughness: 0.95 } },
   ]);
 }
 /* CAR — body + cabin + wheels (~30 long) */
