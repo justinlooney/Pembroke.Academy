@@ -582,6 +582,25 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
 .walkmode #campus-wing-intro, .walkmode #campus-legend, .walkmode #campus-hints{opacity:0;pointer-events:none;transition:opacity .4s ease;}
 #campus-wing-intro, #campus-legend, #campus-hints{transition:opacity .4s ease;}
 
+/* ── WebGL stage + CSS2D labels ────────────────────────────────── */
+#stage canvas{display:block;}
+#labels2d{position:absolute;inset:0;pointer-events:none;z-index:6;overflow:hidden;}
+.hall-tag{
+  text-align:center;white-space:nowrap;
+  padding:.3rem .65rem .38rem;
+  background:linear-gradient(180deg, rgba(10,16,30,.9), rgba(10,16,30,.76));
+  border:1px solid color-mix(in srgb, var(--glow,#d4af6a) 55%, transparent);
+  border-radius:10px;
+  box-shadow:0 8px 30px -6px rgba(0,0,0,.8), 0 0 18px -6px var(--glow,#d4af6a);
+}
+.hall-tag .flag{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--glow);box-shadow:0 0 10px var(--glow);margin-right:5px;vertical-align:1px;}
+.hall-tag .t1{font-family:'Cormorant Garamond',serif;font-weight:600;font-size:12.5px;color:var(--glow);}
+.hall-tag .t2{font-size:7.5px;letter-spacing:.2em;text-transform:uppercase;color:#94a3b8;margin-top:1px;}
+.hall-tag .t3{font-size:8px;color:#cbd5e1;margin-top:1px;}
+body.day .hall-tag{background:linear-gradient(180deg, rgba(24,30,44,.86), rgba(24,30,44,.7));}
+.stu-tag{font-size:9px;letter-spacing:.08em;color:#f1f5f9;text-shadow:0 1px 3px rgba(0,0,0,.9);white-space:nowrap;}
+.walkmode .hall-tag .t2,.walkmode .hall-tag .t3{display:none;}
+
 /* ── interior classroom scene ──────────────────────────────────── */
 #interior{
   position:absolute;inset:0;z-index:30;
@@ -755,38 +774,8 @@ body.day .int-lamp::after{opacity:.45;}
       <p class="text-[13px] text-slate-400 mt-1.5 max-w-md">Four halls of hewn granite, glowing tracery, and slate spires. <span class="text-slate-300">Click a building</span> to step inside its lecture wing — or wander the lawn with the cohort.</p>
     </div>
 
-    <!-- the perspective stage -->
-    <div id="stage" class="absolute inset-0 flex items-center justify-center pt-16">
-      <div id="scene">
-        <div class="plinth"></div>
-        <div class="ground"></div>
-        <!-- the great oval: ring walk around the central lawn -->
-        <div class="walkring" style="left:280px;top:280px;width:440px;height:440px"></div>
-        <!-- outer spokes: chapel walk, gatehouse walk, east & west drives -->
-        <div class="walk" style="left:485px;top:178px;width:30px;height:140px"></div>
-        <div class="walk" style="left:485px;top:668px;width:30px;height:282px"></div>
-        <div class="walk" style="left:668px;top:485px;width:272px;height:30px"></div>
-        <div class="walk" style="left:60px;top:485px;width:272px;height:30px"></div>
-        <!-- inner spokes: ring to fountain plaza -->
-        <div class="walk" style="left:485px;top:332px;width:30px;height:106px"></div>
-        <div class="walk" style="left:485px;top:562px;width:30px;height:106px"></div>
-        <div class="walk" style="left:332px;top:485px;width:106px;height:30px"></div>
-        <div class="walk" style="left:562px;top:485px;width:106px;height:30px"></div>
-        <!-- diagonal door walks to the four halls -->
-        <div class="walk" style="left:368px;top:368px;width:150px;height:26px;transform-origin:0 50%;transform:rotate(-135deg)"></div>
-        <div class="walk" style="left:631px;top:369px;width:150px;height:26px;transform-origin:0 50%;transform:rotate(-45deg)"></div>
-        <div class="walk" style="left:369px;top:631px;width:150px;height:26px;transform-origin:0 50%;transform:rotate(135deg)"></div>
-        <div class="walk" style="left:631px;top:631px;width:150px;height:26px;transform-origin:0 50%;transform:rotate(45deg)"></div>
-        <!-- parking lots, east and west (with stalls) -->
-        <div class="lot" style="left:900px;top:310px;width:84px;height:300px"></div>
-        <div class="lot" style="left:16px;top:430px;width:70px;height:240px"></div>
-        <!-- central fountain plaza -->
-        <div class="plaza" style="left:435px;top:435px;width:130px;height:130px">
-          <div class="pulse"></div><div class="pulse p2"></div>
-        </div>
-        <!-- buildings, trees, students & labels are constructed by JS -->
-      </div>
-    </div>
+    <!-- the WebGL world (Three.js) + CSS2D label overlay mount here -->
+    <div id="stage" class="absolute inset-0 z-0"></div>
 
     <!-- HUD: sector legend -->
     <div id="campus-legend" class="absolute left-5 sm:left-8 bottom-5 z-10 space-y-1.5 text-[11px] pointer-events-none">
@@ -797,7 +786,7 @@ body.day .int-lamp::after{opacity:.45;}
     </div>
     <div id="campus-hints" class="absolute right-5 sm:right-8 bottom-5 z-10 text-right pointer-events-none">
       <div class="text-[10px] uppercase tracking-[.24em] text-slate-500">Keys 1–4 · quads · 0 · syllabus · N · day/night · F · walk mode</div>
-      <div class="text-[10px] uppercase tracking-[.24em] text-slate-600 mt-1">move the mouse to survey the grounds</div>
+      <div class="text-[10px] uppercase tracking-[.24em] text-slate-600 mt-1">drag to orbit · scroll to zoom</div>
     </div>
 
     <!-- ═══════ INTERIOR CLASSROOM SCENE (revealed on entering a hall) ═══════ -->
@@ -856,7 +845,7 @@ body.day .int-lamp::after{opacity:.45;}
           <div>
             <div class="text-[10px] uppercase tracking-[.3em] text-[color:var(--brass-dim)]">The Registrar's Office · Publishing Charter</div>
             <h3 class="font-serif-d text-2xl font-semibold text-[color:var(--parchment)] mt-1">Deploy Your Campus to the World</h3>
-            <p class="text-[13px] text-slate-400 mt-1.5 leading-relaxed">This entire university lives in a single <code class="font-mono-d text-[12px] text-[color:var(--brass)]">index.html</code> — no build tools, no frameworks to install. Four steps place it live on GitHub Pages under your own domain.</p>
+            <p class="text-[13px] text-slate-400 mt-1.5 leading-relaxed">This entire university is one <code class="font-mono-d text-[12px] text-[color:var(--brass)]">index.html</code> plus a small <code class="font-mono-d text-[12px] text-[color:var(--brass)]">assets/</code> folder of glTF 2.0 models — still zero build tools. Four steps place it live on GitHub Pages under your own domain.</p>
           </div>
         </div>
 
@@ -870,14 +859,14 @@ body.day .int-lamp::after{opacity:.45;}
           <div class="flex gap-4">
             <div class="step-n">2</div>
             <div class="text-[13px] text-slate-300 leading-relaxed pt-0.5 min-w-0">
-              <span class="font-semibold text-slate-100">Commit this file as <code class="font-mono-d text-[12px] text-sky-300">index.html</code></span> at the repository root, on the <code class="font-mono-d text-[12px] text-sky-300">main</code> branch:
+              <span class="font-semibold text-slate-100">Commit <code class="font-mono-d text-[12px] text-sky-300">index.html</code> and the <code class="font-mono-d text-[12px] text-sky-300">assets/</code> models</span> at the repository root, on the <code class="font-mono-d text-[12px] text-sky-300">main</code> branch:
               <div class="codebox rounded-xl mt-3 overflow-hidden" style="--c:#d4af6a">
                 <div class="flex items-center justify-between px-4 py-2 border-b border-slate-700/50">
                   <span class="font-mono-d text-[10px] uppercase tracking-[.2em] text-slate-500">terminal</span>
-                  <button class="copy-btn font-mono-d text-[10px] uppercase tracking-[.15em] text-[color:var(--brass)] hover:text-[color:var(--parchment)] transition" data-copy="git init&#10;git add index.html&#10;git commit -m &quot;Open the Pembroke Academy campus&quot;&#10;git branch -M main&#10;git remote add origin https://github.com/YOUR-USERNAME/pembroke.academy.git&#10;git push -u origin main">copy ⧉</button>
+                  <button class="copy-btn font-mono-d text-[10px] uppercase tracking-[.15em] text-[color:var(--brass)] hover:text-[color:var(--parchment)] transition" data-copy="git init&#10;git add index.html assets tools&#10;git commit -m &quot;Open the Pembroke Academy campus&quot;&#10;git branch -M main&#10;git remote add origin https://github.com/YOUR-USERNAME/pembroke.academy.git&#10;git push -u origin main">copy ⧉</button>
                 </div>
                 <pre class="p-4 overflow-x-auto text-slate-300">git init
-git add index.html
+git add index.html assets tools
 git commit -m "Open the Pembroke Academy campus"
 git branch -M main
 git remote add origin https://github.com/YOUR-USERNAME/pembroke.academy.git
@@ -914,7 +903,15 @@ git push -u origin main</pre>
 
 <div id="toasts" class="fixed bottom-5 left-5 z-[90] space-y-3 max-w-sm"></div>
 
-<script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
 "use strict";
 /* ════════════════════════════════════════════════════════════════════
    PEMBROKE ACADEMY — CAMPUS OPERATING SYSTEM
@@ -1409,16 +1406,6 @@ let done = loadDone();
 let currentSector = localStorage.getItem(LS_SECTOR) || "all";
 const byId = Object.fromEntries(COURSES.map(c => [c.id, c]));
 
-/* ══════════════════════════════════════════════════════════════════
-   ① CAMPUS BUILDER — raw CSS 3D faces (roof + west wall + south wall)
-   ══════════════════════════════════════════════════════════════════ */
-const scene = document.getElementById("scene");
-const COLLIDERS = [];   /* building footprints, for walk-mode collision + minimap */
-
-/* ── the stone mason: collegiate-gothic SVG wall textures ────────
-   Each wall face is painted with an inline SVG — coursed ashlar stone,
-   buttress piers, crenellated merlons (transparent notches!), battered
-   plinth, hood-moulded lancet windows glowing in the quad's color, ivy. */
 function wallURI(orient, natW, natH, o, mode){
   o = o || {};
   const day = mode === "day";
@@ -1574,520 +1561,836 @@ function wallURI(orient, natW, natH, o, mode){
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 }
 
-function buildBox(o){
-  /* o = {x, y, w, d, h, cls, parent, deco, glow,
-          stone:true + {parapet, windows, ivy, arch, clock, accent, seed, noRoof}
-          roofBg/wallBg/wallBg2 — plain mode (hedges, lamps, chimneys) } */
-  const b = document.createElement("div");
-  b.className = "b3d " + (o.cls || "") + (o.deco ? " deco" : "");
-  b.style.cssText = `left:${o.x}px;top:${o.y}px;width:${o.w}px;height:${o.d}px;--glow:${o.glow || "transparent"}`;
+/* ══════════════════════════════════════════════════════════════════
+   ① THE CAMPUS ENGINE — Three.js / WebGL with a glTF 2.0 asset pipeline
+   Real sun with shadow maps, fog, PBR stone from the SVG mason above,
+   instanced .glb props (assets/*.glb), orbit aerial + first-person walk.
+   World axes: x = east, z = south, y = up. Plane coords (0..1000) map
+   to world via W(px) = px - 500.
+   ══════════════════════════════════════════════════════════════════ */
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 
-  const shadow = document.createElement("div");
-  shadow.className = "shadow";
-  shadow.style.transform = `translate3d(${Math.round((o.h||20)*0.32)}px, ${-Math.round((o.h||20)*0.2)}px, 0.4px)`;
-  b.appendChild(shadow);
+const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
+const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
+const labelEls = {};                  /* sector -> progress <span>            */
+const W = p => p - 500;
 
-  const face = (cls, css) => {
-    const f = document.createElement("div");
-    f.className = cls; f.style.cssText = css;
-    b.appendChild(f); return f;
-  };
+const stageEl = document.getElementById("stage");
+const wingEl  = document.getElementById("campus-wing");
 
-  if (o.stone){
-    /* four stone walls; each carries a DAY and a NIGHT skin to swap */
-    const wallH = o.h + (o.parapet || 0);
-    const base = { accent:o.accent, parapet:o.parapet, seed:o.seed };
-    const skin = (cls, css, orient, nw, nh, opts) => {
-      const f = face(cls, css + "background-size:100% 100%;");
-      f.dataset.skin = "1";
-      f.dataset.day = wallURI(orient, nw, nh, opts, "day");
-      f.dataset.night = wallURI(orient, nw, nh, opts, "night");
-      return f;
-    };
-    /* west wall — faces the lower-left of the screen */
-    skin("face wall wall-l",
-      `width:${wallH}px;height:${o.d}px;transform-origin:left center;transform:rotateY(-90deg);`,
-      "side", o.d, wallH, {...base, windows:o.windows, ivy:o.ivy, clock:o.clock});
-    /* south wall — faces the lower-right */
-    skin("face wall wall-r",
-      `width:${o.w}px;height:${wallH}px;top:${o.d}px;transform-origin:center top;transform:rotateX(90deg);`,
-      "south", o.w, wallH, {...base, windows:o.windows, arch:o.arch, clock:o.clock});
-    /* north & east walls — windowed too, so walk mode looks right from
-       every side, and their parapets crown the silhouette */
-    skin("face wall",
-      `width:${o.w}px;height:${wallH}px;top:0;transform-origin:center top;transform:rotateX(90deg);`,
-      "plain", o.w, wallH, {...base, windows:o.windows, arch:o.arch});
-    skin("face wall",
-      `width:${wallH}px;height:${o.d}px;left:${o.w}px;top:0;transform-origin:left center;transform:rotateY(-90deg);`,
-      "plain-side", o.d, wallH, {...base, windows:o.windows});
-    if (!o.noRoof) face("face roof lead", `transform:translateZ(${o.h}px);`);
-  } else {
-    face("face wall wall-l", `width:${o.h}px;height:${o.d}px;transform-origin:left center;transform:rotateY(-90deg);background:${o.wallBg}`);
-    face("face wall wall-r", `width:${o.w}px;height:${o.h}px;top:${o.d}px;transform-origin:center top;transform:rotateX(90deg);background:${o.wallBg2 || o.wallBg}`);
-    face("face roof", `transform:translateZ(${o.h}px);background:${o.roofBg}`);
-  }
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+stageEl.appendChild(renderer.domElement);
 
-  if (!o.noCollide && o.w >= 20 && o.d >= 20 && o.h >= 40){
-    COLLIDERS.push({ x:o.x, y:o.y, w:o.w, d:o.d, sector:(o.cls || "").startsWith("hall-") ? (o.cls || "").slice(5) : null });
-  }
-  (o.parent || scene).appendChild(b);
-  return b;
+const labelRenderer = new CSS2DRenderer();
+labelRenderer.domElement.id = "labels2d";
+stageEl.appendChild(labelRenderer.domElement);
+
+const world = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(46, 1, 2, 6000);
+camera.position.set(-640, 690, 640);
+
+function resize(){
+  const w = stageEl.clientWidth || 800, h = stageEl.clientHeight || 600;
+  renderer.setSize(w, h);
+  labelRenderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
 }
+window.addEventListener("resize", resize);
 
-/* ── pitched slate gable roofs: two slopes + stone gable-end triangles.
-   axis:"x" (default) puts the ridge along x; axis:"y" along y. ── */
-function buildGable(parent, o){
-  const b = document.createElement("div");
-  b.className = "b3d gable";
-  b.style.cssText = `left:${o.x}px;top:${o.y}px;width:${o.w}px;height:${o.d}px`;
-  const terra = o.terra ? " terra" : "";
-  const mk = (cls, css) => {
-    const f = document.createElement("div");
-    f.className = cls; f.style.cssText = css;
-    b.appendChild(f); return f;
-  };
-  const gableEnd = (css) => { /* stone triangle, day/night skinned */
-    const f = mk("face wall", css + "background-size:100% 100%;");
-    f.dataset.skin = "1";
-    f.dataset.day = wallURI("side", o.axis === "y" ? o.w : o.d, o.h, {seed:5}, "day");
-    f.dataset.night = wallURI("side", o.axis === "y" ? o.w : o.d, o.h, {seed:5}, "night");
-    return f;
-  };
-  if (o.axis === "y"){
-    const sw = Math.hypot(o.h, o.w/2);
-    const aW = -Math.atan2(o.h, o.w/2) * 180/Math.PI;
-    const aE = -(180 - Math.atan2(o.h, o.w/2) * 180/Math.PI);
-    mk("face slope-s" + terra, `left:0;top:0;width:${sw}px;height:${o.d}px;transform-origin:left center;transform:translateZ(${o.z}px) rotateY(${aW}deg);`);
-    mk("face slope-n" + terra, `left:${o.w}px;top:0;width:${sw}px;height:${o.d}px;transform-origin:left center;transform:translateZ(${o.z}px) rotateY(${aE}deg);`);
-    gableEnd(`left:0;top:${o.d}px;width:${o.w}px;height:${o.h}px;transform-origin:center top;transform:translateZ(${o.z}px) rotateX(90deg);clip-path:polygon(0 0,100% 0,50% 100%);`);
-    gableEnd(`left:0;top:0;width:${o.w}px;height:${o.h}px;transform-origin:center top;transform:translateZ(${o.z}px) rotateX(90deg);clip-path:polygon(0 0,100% 0,50% 100%);`);
-  } else {
-    const sd = Math.hypot(o.h, o.d/2);
-    const aS = 180 - Math.atan2(o.h, o.d/2) * 180/Math.PI;
-    const aN = Math.atan2(o.h, o.d/2) * 180/Math.PI;
-    mk("face slope-s" + terra, `left:0;top:${o.d}px;width:${o.w}px;height:${sd}px;transform-origin:center top;transform:translateZ(${o.z}px) rotateX(${aS}deg);`);
-    mk("face slope-n" + terra, `left:0;top:0;width:${o.w}px;height:${sd}px;transform-origin:center top;transform:translateZ(${o.z}px) rotateX(${aN}deg);`);
-    gableEnd(`left:0;top:0;width:${o.h}px;height:${o.d}px;transform-origin:left center;transform:translateZ(${o.z}px) rotateY(-90deg);clip-path:polygon(0 0,100% 50%,0 100%);`);
-    gableEnd(`left:${o.w}px;top:0;width:${o.h}px;height:${o.d}px;transform-origin:left center;transform:translateZ(${o.z}px) rotateY(-90deg);clip-path:polygon(0 0,100% 50%,0 100%);`);
-  }
-  parent.appendChild(b);
-  return b;
+/* ── sky dome + fog ──────────────────────────────────────────────── */
+function skyTexture(day){
+  const c = document.createElement("canvas"); c.width = 4; c.height = 256;
+  const g = c.getContext("2d").createLinearGradient(0, 0, 0, 256);
+  if (day){ g.addColorStop(0, "#4f93d8"); g.addColorStop(.55, "#a7cdf0"); g.addColorStop(1, "#e6f0f8"); }
+  else    { g.addColorStop(0, "#04060f"); g.addColorStop(.55, "#0b1226"); g.addColorStop(1, "#1b2a4a"); }
+  const x = c.getContext("2d"); x.fillStyle = g; x.fillRect(0, 0, 4, 256);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
 }
+const SKY = { day: skyTexture(true), night: skyTexture(false) };
+const skyDome = new THREE.Mesh(
+  new THREE.SphereGeometry(2800, 24, 12),
+  new THREE.MeshBasicMaterial({ map: SKY.day, side: THREE.BackSide, fog: false, depthWrite: false }));
+world.add(skyDome);
 
-/* ── slate spires: four clip-path triangles leaning to one apex ── */
-function buildSpire(parent, o){
-  /* o = {x, y, w, d, z, h} — pyramid of height h sitting at altitude z */
-  const b = document.createElement("div");
-  b.className = "b3d spire";
-  b.style.cssText = `left:${o.x}px;top:${o.y}px;width:${o.w}px;height:${o.d}px`;
-  const sNS = Math.hypot(o.h, o.d/2), sEW = Math.hypot(o.h, o.w/2);
-  const aS = 180 - Math.atan2(o.h, o.d/2) * 180/Math.PI;
-  const aN = Math.atan2(o.h, o.d/2) * 180/Math.PI;
-  const aW = -Math.atan2(o.h, o.w/2) * 180/Math.PI;
-  const aE = -(180 - Math.atan2(o.h, o.w/2) * 180/Math.PI);
-  [ /* palette-token faces so day/night retints the slate */
-    ["spire-s", `left:0;top:${o.d}px;width:${o.w}px;height:${sNS}px;transform-origin:center top;transform:translateZ(${o.z}px) rotateX(${aS}deg);clip-path:polygon(0 0,100% 0,50% 100%);`],
-    ["spire-n", `left:0;top:0;width:${o.w}px;height:${sNS}px;transform-origin:center top;transform:translateZ(${o.z}px) rotateX(${aN}deg);clip-path:polygon(0 0,100% 0,50% 100%);`],
-    ["spire-w", `left:0;top:0;width:${sEW}px;height:${o.d}px;transform-origin:left center;transform:translateZ(${o.z}px) rotateY(${aW}deg);clip-path:polygon(0 0,100% 50%,0 100%);`],
-    ["spire-e", `left:${o.w}px;top:0;width:${sEW}px;height:${o.d}px;transform-origin:left center;transform:translateZ(${o.z}px) rotateY(${aE}deg);clip-path:polygon(0 0,100% 50%,0 100%);`],
-  ].forEach(([cls, css]) => {
-    const f = document.createElement("div");
-    f.className = "face spire-face " + cls;
-    f.style.cssText = css;
-    b.appendChild(f);
+/* ── lights ──────────────────────────────────────────────────────── */
+const hemi = new THREE.HemisphereLight(0xbdd8f2, 0x4a5b3a, 0.85);
+world.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff0d2, 2.6);
+sun.position.set(-520, 760, 430);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -760, right: 760, top: 760, bottom: -760, near: 100, far: 2200 });
+sun.shadow.bias = -0.0006;
+world.add(sun, sun.target);
+const lampLights = [];
+
+/* ── canvas texture helpers ──────────────────────────────────────── */
+function canvasTex(px, draw, repeat){
+  const c = document.createElement("canvas"); c.width = c.height = px;
+  draw(c.getContext("2d"), px);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  if (repeat) t.repeat.set(repeat, repeat);
+  return t;
+}
+const speck = (x, px, n, tones, a) => {
+  for (let i = 0; i < n; i++){
+    x.fillStyle = tones[i % tones.length];
+    x.globalAlpha = a * (0.4 + ((i * 37) % 60) / 100);
+    x.fillRect((i * 53.7) % px, (i * 91.3) % px, 2 + (i % 3), 1.6 + (i % 2));
+  }
+  x.globalAlpha = 1;
+};
+const grassTex = canvasTex(256, (x, px) => {
+  x.fillStyle = "#5c8a48"; x.fillRect(0, 0, px, px);
+  speck(x, px, 2600, ["#4c7a3c", "#6d9a55", "#548346", "#3f6b33"], 0.8);
+}, 8);
+const pathTex = canvasTex(128, (x, px) => {
+  x.fillStyle = "#cfc5ac"; x.fillRect(0, 0, px, px);
+  speck(x, px, 900, ["#bcb096", "#ddd4bc", "#a89d84"], 0.8);
+}, 3);
+const asphaltTex = canvasTex(128, (x, px) => {
+  x.fillStyle = "#54565c"; x.fillRect(0, 0, px, px);
+  speck(x, px, 1000, ["#484a50", "#606268", "#3e4045"], 0.9);
+}, 2);
+const shingleTex = canvasTex(128, (x, px) => {
+  x.fillStyle = "#7d848e"; x.fillRect(0, 0, px, px);
+  for (let r = 0; r < 8; r++){
+    const y = r * 16;
+    x.fillStyle = "rgba(0,0,0,.28)"; x.fillRect(0, y + 14, px, 2);
+    x.fillStyle = "rgba(255,255,255,.05)"; x.fillRect(0, y, px, 2);
+    for (let cx2 = ((r % 2) * 16); cx2 < px; cx2 += 32){
+      x.fillStyle = "rgba(0,0,0,.15)"; x.fillRect(cx2, y, 1.6, 16);
+    }
+  }
+  speck(x, px, 500, ["#6a707a", "#8b939e"], 0.6);
+});
+const leadTex = canvasTex(128, (x, px) => {
+  x.fillStyle = "#5c5e60"; x.fillRect(0, 0, px, px);
+  for (let i = 0; i < 4; i++){ x.fillStyle = "rgba(0,0,0,.2)"; x.fillRect(i * 32, 0, 2, px); }
+  speck(x, px, 600, ["#515356", "#67696c"], 0.7);
+});
+const terraTex = canvasTex(128, (x, px) => {
+  x.fillStyle = "#a3543a"; x.fillRect(0, 0, px, px);
+  for (let r = 0; r < 10; r++){
+    x.fillStyle = "rgba(60,20,10,.3)"; x.fillRect(0, r * 13 + 11, px, 2);
+  }
+  speck(x, px, 500, ["#96492f", "#b3624a"], 0.7);
+});
+
+/* ── grounds ─────────────────────────────────────────────────────── */
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(3600, 3600),
+  new THREE.MeshStandardMaterial({ map: grassTex, roughness: 1 }));
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+world.add(ground);
+ground.material.map.repeat.set(15, 15);
+
+const pathMat = new THREE.MeshStandardMaterial({ map: pathTex, roughness: 1 });
+function pathPlane(px, py, w, d, y = 0.25){
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), pathMat);
+  m.rotation.x = -Math.PI / 2;
+  m.position.set(W(px + w / 2), y, W(py + d / 2));
+  m.receiveShadow = true;
+  world.add(m);
+  return m;
+}
+/* the great oval ring + spokes (same plan as before) */
+{
+  const ring = new THREE.Mesh(new THREE.RingGeometry(168, 197, 96), pathMat);
+  ring.rotation.x = -Math.PI / 2; ring.position.set(0, 0.3, 0); ring.receiveShadow = true;
+  world.add(ring);
+  pathPlane(485, 178, 30, 140); pathPlane(485, 668, 30, 282);
+  pathPlane(668, 485, 272, 30); pathPlane(60, 485, 272, 30);
+  pathPlane(485, 332, 30, 106); pathPlane(485, 562, 30, 106);
+  pathPlane(332, 485, 106, 30); pathPlane(562, 485, 106, 30);
+  [[368,368,-135],[631,369,-45],[369,631,135],[631,631,45]].forEach(([px, py, deg]) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(150, 26), pathMat);
+    m.rotation.x = -Math.PI / 2;
+    m.rotation.z = -deg * Math.PI / 180;
+    const a = deg * Math.PI / 180;
+    m.position.set(W(px) + Math.cos(a) * 75, 0.28, W(py) + Math.sin(a) * 75);
+    m.receiveShadow = true;
+    world.add(m);
   });
-  parent.appendChild(b);
-  return b;
+  /* plaza + fountain */
+  const plaza = new THREE.Mesh(new THREE.CircleGeometry(66, 48), pathMat);
+  plaza.rotation.x = -Math.PI / 2; plaza.position.y = 0.35; plaza.receiveShadow = true;
+  world.add(plaza);
+  const basin = new THREE.Mesh(new THREE.CylinderGeometry(24, 26, 7, 24),
+    new THREE.MeshStandardMaterial({ color: 0x8a8272, roughness: 1 }));
+  basin.position.y = 3.5; basin.castShadow = basin.receiveShadow = true;
+  world.add(basin);
+  const water = new THREE.Mesh(new THREE.CircleGeometry(21, 24),
+    new THREE.MeshStandardMaterial({ color: 0x2e5f80, roughness: 0.08, metalness: 0.55 }));
+  water.rotation.x = -Math.PI / 2; water.position.y = 7.2;
+  world.add(water);
+  const jet = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 3.2, 15, 10),
+    basin.material);
+  jet.position.y = 11; jet.castShadow = true;
+  world.add(jet);
+  COLLIDERS.push({ x: 474, y: 474, w: 52, d: 52 });   /* fountain */
+}
+/* parking lots with stall stripes */
+const lotMat = new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: 1 });
+function lot(px, py, w, d, stalls){
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), lotMat);
+  m.rotation.x = -Math.PI / 2; m.position.set(W(px + w/2), 0.22, W(py + d/2)); m.receiveShadow = true;
+  world.add(m);
+  const lineMat = new THREE.MeshBasicMaterial({ color: 0xd8d4c8 });
+  for (let i = 0; i <= stalls; i++){
+    const ln = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.42, 1.4), lineMat);
+    ln.rotation.x = -Math.PI / 2;
+    ln.position.set(W(px + w * 0.26), 0.3, W(py + 8 + i * ((d - 16) / stalls)));
+    world.add(ln);
+  }
+}
+lot(900, 310, 84, 300, 6);
+lot(16, 430, 70, 240, 5);
+
+/* ── the stone mason feeds PBR materials ─────────────────────────── */
+const texLoader = new THREE.TextureLoader();
+const skinSwaps = [];   /* {mat, day, night} — retargeted on mode change */
+function stoneMaterial(natW, natH, o){
+  const load = (mode) => {
+    const uri = wallURI("plain", natW, natH, o, mode).slice(5, -2); /* strip url("...") */
+    const t = texLoader.load(uri);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 4;
+    return t;
+  };
+  const day = load("day"), night = load("night");
+  const mat = new THREE.MeshStandardMaterial({
+    map: day, roughness: 0.96, metalness: 0,
+    alphaTest: o.parapet ? 0.4 : 0, side: THREE.FrontSide,
+  });
+  mat.userData.baseEmissive = 0;      /* raised at night so lancets glow */
+  skinSwaps.push({ mat, day, night });
+  return mat;
 }
 
-/* the four gothic halls: crenellated base court + bell tower + slate spire */
+/* ── building constructors ───────────────────────────────────────── */
+const hallMats = {};     /* sector -> materials for highlight */
+function noteMat(sector, ...mats){
+  if (!sector) return;
+  (hallMats[sector] = hallMats[sector] || []).push(...mats);
+}
+function stoneBox(parent, o){
+  /* o: {x,y,w,d,h,parapet,windows,ivy,arch,clock,accent,seed,sector,noRoof,noCollide} */
+  const g = new THREE.Group();
+  const wallH = o.h + (o.parapet || 0);
+  const base = { accent: o.accent, parapet: o.parapet, seed: o.seed || 1,
+                 windows: o.windows, ivy: o.ivy, arch: o.arch, clock: o.clock };
+  const mkWall = (w2, rotY, px, pz, opts) => {
+    const mat = stoneMaterial(w2, wallH, opts);
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w2, wallH), mat);
+    m.rotation.y = rotY;
+    m.position.set(px, wallH / 2, pz);
+    m.castShadow = m.receiveShadow = true;
+    g.add(m);
+    noteMat(o.sector, mat);
+    return m;
+  };
+  const cx = W(o.x + o.w / 2), cz = W(o.y + o.d / 2);
+  mkWall(o.w, 0,            cx, W(o.y + o.d), base);                       /* south */
+  mkWall(o.w, Math.PI,      cx, W(o.y), { ...base, arch: o.arch });        /* north */
+  mkWall(o.d, -Math.PI / 2, W(o.x), cz, { ...base, clock: undefined });    /* west  */
+  mkWall(o.d,  Math.PI / 2, W(o.x + o.w), cz, { ...base, clock: undefined }); /* east */
+  if (!o.noRoof){
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(o.w - 3, 2.5, o.d - 3),
+      new THREE.MeshStandardMaterial({ map: leadTex, roughness: 0.9 }));
+    roof.position.set(cx, o.h - 1, cz);
+    roof.castShadow = roof.receiveShadow = true;
+    g.add(roof);
+  }
+  parent.add(g);
+  if (!o.noCollide) COLLIDERS.push({ x: o.x, y: o.y, w: o.w, d: o.d, sector: o.sector || null });
+  return g;
+}
+function gableRoof(parent, o){
+  /* o: {x,y,w,d,z,h,axis,terra,sector} — prism with slope quads + gable tris */
+  const along = o.axis === "y";
+  const L = along ? o.d : o.w;      /* ridge length  */
+  const S2 = along ? o.w : o.d;     /* span across   */
+  const hs = S2 / 2 + 2, hl = L / 2 + 2;
+  const pos = [], nrm = [], uv = [], idx = [];
+  const quad = (a, b, c, d2, n) => {
+    const i0 = pos.length / 3;
+    const slant = Math.hypot(o.h, hs);
+    [[...a, 0, 0], [...b, L / 36, 0], [...c, L / 36, slant / 30], [...d2, 0, slant / 30]].forEach(v => {
+      pos.push(v[0], v[1], v[2]); nrm.push(...n); uv.push(v[3], v[4]);
+    });
+    idx.push(i0, i0 + 1, i0 + 2, i0, i0 + 2, i0 + 3);
+  };
+  const nS = new THREE.Vector3(0, hs, o.h).normalize().toArray();
+  const nN = new THREE.Vector3(0, hs, -o.h).normalize().toArray();
+  quad([-hl, 0, hs], [hl, 0, hs], [hl, o.h, 0], [-hl, o.h, 0], nS);
+  quad([hl, 0, -hs], [-hl, 0, -hs], [-hl, o.h, 0], [hl, o.h, 0], nN);
+  /* gable end triangles */
+  const tri = (sx) => {
+    const i0 = pos.length / 3;
+    pos.push(sx, 0, hs,  sx, 0, -hs,  sx, o.h, 0);
+    const n = [sx > 0 ? 1 : -1, 0, 0];
+    nrm.push(...n, ...n, ...n);
+    uv.push(0, 0, 1, 0, 0.5, 1);
+    if (sx > 0) idx.push(i0, i0 + 1, i0 + 2); else idx.push(i0, i0 + 2, i0 + 1);
+  };
+  tri(hl); tri(-hl);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute("normal", new THREE.Float32BufferAttribute(nrm, 3));
+  geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  const mat = new THREE.MeshStandardMaterial({ map: o.terra ? terraTex : shingleTex, roughness: 0.92 });
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(W(o.x + o.w / 2), o.z, W(o.y + o.d / 2));
+  if (along) m.rotation.y = Math.PI / 2;
+  m.castShadow = m.receiveShadow = true;
+  parent.add(m);
+  noteMat(o.sector, mat);
+  return m;
+}
+const slateMat = new THREE.MeshStandardMaterial({ color: 0x3f434c, roughness: 0.85 });
+function spire(parent, cx, cy, cz, w2, h){
+  const m = new THREE.Mesh(new THREE.ConeGeometry(w2 * 0.74, h, 4), slateMat);
+  m.rotation.y = Math.PI / 4;
+  m.position.set(W(cx), cy + h / 2, W(cz));
+  m.castShadow = true;
+  parent.add(m);
+  return m;
+}
+const brickMat = new THREE.MeshStandardMaterial({ color: 0x6b4a3c, roughness: 1 });
+const stoneTrimMat = new THREE.MeshStandardMaterial({ color: 0x8a7c64, roughness: 1 });
+function boxMesh(parent, mat, px, py, w, d, h, yBase = 0){
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  m.position.set(W(px + w / 2), yBase + h / 2, W(py + d / 2));
+  m.castShadow = m.receiveShadow = true;
+  parent.add(m);
+  return m;
+}
+
+/* ── the four interactive halls ──────────────────────────────────── */
 const BUILDINGS = [
-  { sector:"lib", label:{x:260, y:230, z:240},   /* chapel-spired library, NW */
+  { sector:"lib", label:{x:260, y:230, z:238},
     hall:{x:150, y:150, w:220, d:160, h:74, roof:44, seed:1},
     tower:{x:238, y:182, w:92, d:92, h:150, spire:76} },
-  { sector:"eng", label:{x:740, y:220, z:176},   /* crenellated quad, NE */
+  { sector:"eng", label:{x:740, y:220, z:172},
     hall:{x:645, y:150, w:190, d:140, h:66, roof:36, seed:2},
     tower:{x:668, y:168, w:66, d:66, h:120, pinnacles:true} },
-  { sector:"sci", label:{x:240, y:735, z:214},   /* spired laboratory, SW */
+  { sector:"sci", label:{x:240, y:735, z:214},
     hall:{x:140, y:660, w:200, d:150, h:64, roof:36, seed:3},
     tower:{x:212, y:680, w:72, d:72, h:130, spire:70} },
-  { sector:"adm", label:{x:735, y:735, z:226},   /* the great clock tower, SE */
+  { sector:"adm", label:{x:735, y:735, z:224},
     hall:{x:640, y:650, w:190, d:170, h:78, roof:42, seed:4},
     tower:{x:700, y:702, w:78, d:78, h:172, pinnacles:true, clock:true} },
 ];
-
-const buildingEls = {};   // sector -> [group element]
-const labelEls = {};      // sector -> progress span
-
+const hallGroups = {};
 BUILDINGS.forEach(spec => {
   const S = SECTORS[spec.sector];
-  const group = document.createElement("div");
-  group.className = "bgroup";
-  group.dataset.sector = spec.sector;
-  scene.appendChild(group);
+  const grp = new THREE.Group();
+  grp.userData.sector = spec.sector;
+  world.add(grp);
+  hallGroups[spec.sector] = grp;
+  buildingEls[spec.sector] = [grp];
 
-  /* the great hall — lancet bays, ivy plinth, steep slate gable roof
-     with brick chimneys at the ridge (Duke/Princeton range style) */
-  buildBox({ ...spec.hall, stone:true, windows:"lancet", ivy:true, noRoof:true,
-             accent:S.color, glow:S.soft + ".55)", parent:group, cls:"hall-" + spec.sector });
-  buildGable(group, { x:spec.hall.x, y:spec.hall.y, w:spec.hall.w, d:spec.hall.d,
-                      z:spec.hall.h, h:spec.hall.roof });
-  [0.2, 0.74].forEach(fx => buildBox({
-    x:Math.round(spec.hall.x + spec.hall.w * fx), y:spec.hall.y + spec.hall.d/2 - 7,
-    w:13, d:13, h:spec.hall.h + spec.hall.roof + 12,
-    parent:group, cls:"chimney",
-    roofBg:"#6b4a3c", wallBg:"linear-gradient(180deg,#6b4a3c,#48332a 75%)" }));
-
-  /* the bell tower — crenellated crown with traceried lights; either a
-     steep slate spire with a lamp, or corner pinnacles + clock */
+  stoneBox(grp, { ...spec.hall, windows: "lancet", ivy: true, noRoof: true,
+                  accent: S.color, sector: spec.sector });
+  gableRoof(grp, { x: spec.hall.x, y: spec.hall.y, w: spec.hall.w, d: spec.hall.d,
+                   z: spec.hall.h, h: spec.hall.roof, sector: spec.sector });
+  [0.2, 0.74].forEach(fx => boxMesh(grp, brickMat,
+    spec.hall.x + spec.hall.w * fx, spec.hall.y + spec.hall.d / 2 - 7, 13, 13,
+    spec.hall.h + spec.hall.roof + 12));
   const t = spec.tower;
-  buildBox({ x:t.x, y:t.y, w:t.w, d:t.d, h:t.h, stone:true, parapet:7, windows:"grand",
-             clock:t.clock, seed:spec.hall.seed + 3, accent:S.color, glow:S.soft + ".6)",
-             parent:group, cls:"hall-" + spec.sector });
-  if (t.spire){
-    const inset = Math.round(t.w * 0.15);
-    buildSpire(group, { x:t.x + inset, y:t.y + inset,
-                        w:t.w - inset*2, d:t.d - inset*2, z:t.h, h:t.spire });
-    const fin = document.createElement("div");
-    fin.className = "billboard finial";
-    fin.style.transform = `translate3d(${t.x + t.w/2}px, ${t.y + t.d/2}px, ${t.h + t.spire + 2}px)`;
-    fin.innerHTML = `<div class="bb-inner"><div class="fdot" style="--fc:${S.color}"></div></div>`;
-    group.appendChild(fin);
-  }
-  if (t.pinnacles){
-    [[t.x-2, t.y-2],[t.x+t.w-6, t.y-2],[t.x-2, t.y+t.d-6],[t.x+t.w-6, t.y+t.d-6]]
-      .forEach(([px,py]) => buildBox({ x:px, y:py, w:8, d:8, h:t.h + 18,
-        parent:group, cls:"pinn",
-        roofBg:"#9a8c70", wallBg:"linear-gradient(180deg,#8a7c64,#5f5546)" }));
-  }
+  stoneBox(grp, { x: t.x, y: t.y, w: t.w, d: t.d, h: t.h, parapet: 7, windows: "grand",
+                  clock: t.clock, seed: spec.hall.seed + 3, accent: S.color, sector: spec.sector });
+  if (t.spire) spire(grp, t.x + t.w / 2, t.h, t.y + t.d / 2, t.w, t.spire);
+  if (t.pinnacles)
+    [[t.x + 2, t.y + 2], [t.x + t.w - 10, t.y + 2], [t.x + 2, t.y + t.d - 10], [t.x + t.w - 10, t.y + t.d - 10]]
+      .forEach(([px, py]) => boxMesh(grp, stoneTrimMat, px, py, 8, 8, t.h + 18));
 
-  buildingEls[spec.sector] = [group];
-  group.addEventListener("click", () => selectSector(spec.sector, true));
-  group.setAttribute("role", "button");
-  group.setAttribute("aria-label", "Enter " + S.hall);
-  group.querySelectorAll(".b3d").forEach(el => el.title = S.hall + " — " + S.track);
-
-  /* floating billboarded nameplate above the hall */
-  const lab = document.createElement("div");
-  lab.className = "b-label billboard";
-  lab.style.setProperty("--glow", S.color);
-  lab.style.transform = `translate3d(${spec.label.x}px, ${spec.label.y}px, ${spec.label.z}px)`;
-  lab.innerHTML =
-    `<div class="bb-inner">
-       <div class="card">
-         <div class="flex items-center justify-center gap-1.5">
-           <span class="flag"></span>
-           <span class="font-serif-d text-[11.5px] font-semibold" style="color:${S.color}">${S.hall}</span>
-         </div>
-         <div class="text-[7.5px] uppercase tracking-[.2em] text-slate-400 mt-0.5">${S.track}</div>
-         <div class="text-[8px] mt-0.5 text-slate-300"><span data-labprog="${spec.sector}">0/0</span> courses sealed</div>
-       </div>
-     </div>`;
-  scene.appendChild(lab);
-  labelEls[spec.sector] = lab.querySelector(`[data-labprog="${spec.sector}"]`);
+  /* CSS2D nameplate */
+  const el = document.createElement("div");
+  el.className = "hall-tag";
+  el.style.setProperty("--glow", S.color);
+  el.innerHTML = `<div class="t1"><span class="flag"></span>${S.hall}</div>
+    <div class="t2">${S.track}</div>
+    <div class="t3"><span data-labprog="${spec.sector}">0/0</span> courses sealed</div>`;
+  const tag = new CSS2DObject(el);
+  tag.position.set(W(spec.label.x), spec.label.z, W(spec.label.y));
+  world.add(tag);
+  labelEls[spec.sector] = el.querySelector(`[data-labprog="${spec.sector}"]`);
 });
 
-/* hedgerows flanking the inner spokes — formal parterre geometry */
-[
-  { x:466, y:338, w:12, d:86 },  { x:522, y:338, w:12, d:86 },
-  { x:466, y:576, w:12, d:86 },  { x:522, y:576, w:12, d:86 },
-  { x:338, y:466, w:86, d:12 },  { x:338, y:522, w:86, d:12 },
-  { x:576, y:466, w:86, d:12 },  { x:576, y:522, w:86, d:12 },
-].forEach(hd => buildBox({
-  ...hd, h:16, deco:true,
-  roofBg:"linear-gradient(135deg,#14532d,#0c3d20)",
-  wallBg:"linear-gradient(180deg,#0f4526,#092e18)",
-}));
-
-/* ── the gatehouse: twin-turreted arch over the SOUTH entry walk ── */
-(function gatehouse(){
-  const gh = document.createElement("div");
-  gh.className = "bgroup static";
-  scene.appendChild(gh);
-  buildBox({ x:456, y:880, w:88, d:46, h:62, parapet:7, stone:true, arch:true, clock:true,
-             seed:7, accent:"#d4af6a", parent:gh, deco:true, cls:"gatehouse", noCollide:true });
-  buildBox({ x:437, y:874, w:27, d:36, h:96, parapet:6, stone:true, windows:"slits",
-             seed:8, accent:"#d4af6a", parent:gh, deco:true, cls:"gatehouse" });
-  buildBox({ x:536, y:874, w:27, d:36, h:96, parapet:6, stone:true, windows:"slits",
-             seed:9, accent:"#d4af6a", parent:gh, deco:true, cls:"gatehouse" });
-  /* solid jambs either side of the tunnel so you can walk through it */
-  COLLIDERS.push({ x:456, y:880, w:26, d:46 }, { x:518, y:880, w:26, d:46 });
-})();
-
-/* ── ambient campus, ringed around the oval like the aerial ─────── */
-(function ambient(){
-  const amb = document.createElement("div");
-  amb.className = "bgroup static";
-  scene.appendChild(amb);
-  const A = (o) => buildBox({ ...o, parent:amb, deco:true });
-
-  /* the chapel at the head of the north walk — twin spires, arched door */
-  A({ x:425, y:58, w:150, d:120, h:56, stone:true, windows:"lancet", ivy:true,
-      noRoof:true, arch:true, seed:12, accent:"#e8d9a0", cls:"chapel" });
-  buildGable(amb, { x:425, y:58, w:150, d:120, z:56, h:46 });
-  [[428,150],[565,150]].forEach(([tx,ty], i) => {
-    A({ x:tx, y:ty, w:32, d:32, h:140, stone:true, windows:"slits", seed:13+i, accent:"#e8d9a0", cls:"chapel" });
-    buildSpire(amb, { x:tx+3, y:ty+3, w:26, d:26, z:140, h:64 });
-    const fin = document.createElement("div");
-    fin.className = "billboard finial";
-    fin.style.transform = `translate3d(${tx+16}px, ${ty+16}px, 206px)`;
-    fin.innerHTML = `<div class="bb-inner"><div class="fdot" style="--fc:#e8d9a0"></div></div>`;
-    amb.appendChild(fin);
+/* ── ambient campus (chapel, ranges, refectory, moderns, gatehouse) ── */
+{
+  const amb = new THREE.Group();
+  world.add(amb);
+  /* chapel with twin spires at the head of the north walk */
+  stoneBox(amb, { x: 425, y: 58, w: 150, d: 120, h: 56, windows: "lancet", ivy: true,
+                  arch: true, seed: 12, accent: "#e8d9a0", noRoof: true });
+  gableRoof(amb, { x: 425, y: 58, w: 150, d: 120, z: 56, h: 46 });
+  [[428, 150], [565, 150]].forEach(([tx, ty], i) => {
+    stoneBox(amb, { x: tx, y: ty, w: 32, d: 32, h: 140, windows: "slits", seed: 13 + i, accent: "#e8d9a0" });
+    spire(amb, tx + 16, 140, ty + 16, 32, 64);
   });
+  /* dormitory ranges */
+  stoneBox(amb, { x: 856, y: 240, w: 64, d: 310, h: 70, windows: "lancet", seed: 16, accent: "#d9c48a", noRoof: true });
+  gableRoof(amb, { x: 856, y: 240, w: 64, d: 310, z: 70, h: 28, axis: "y" });
+  stoneBox(amb, { x: 86, y: 330, w: 64, d: 300, h: 70, windows: "lancet", seed: 17, accent: "#d9c48a", noRoof: true });
+  gableRoof(amb, { x: 86, y: 330, w: 64, d: 300, z: 70, h: 28, axis: "y" });
+  /* terracotta refectory */
+  stoneBox(amb, { x: 700, y: 330, w: 110, d: 72, h: 46, windows: "lancet", seed: 18, accent: "#f0b47a", noRoof: true });
+  gableRoof(amb, { x: 700, y: 330, w: 110, d: 72, z: 46, h: 30, terra: true });
+  /* south hall + moderns */
+  stoneBox(amb, { x: 340, y: 795, w: 140, d: 100, h: 58, windows: "lancet", ivy: true, seed: 19, accent: "#d9c48a", noRoof: true });
+  gableRoof(amb, { x: 340, y: 795, w: 140, d: 100, z: 58, h: 34 });
+  stoneBox(amb, { x: 120, y: 852, w: 190, d: 86, h: 64, parapet: 5, windows: "modern", seed: 20, accent: "#bcd2de" });
+  stoneBox(amb, { x: 740, y: 872, w: 160, d: 74, h: 52, parapet: 5, windows: "modern", seed: 21, accent: "#bcd2de" });
+  /* gatehouse over the south walk (tunnel jambs collide, center passes) */
+  stoneBox(amb, { x: 456, y: 880, w: 88, d: 46, h: 62, parapet: 7, arch: true, clock: true,
+                  seed: 7, accent: "#d4af6a", noCollide: true });
+  COLLIDERS.push({ x: 456, y: 880, w: 26, d: 46 }, { x: 518, y: 880, w: 26, d: 46 });
+  stoneBox(amb, { x: 257, y: 874, w: 27, d: 36, h: 96, parapet: 6, windows: "slits", seed: 8, accent: "#d4af6a" });
+  stoneBox(amb, { x: 536, y: 874, w: 27, d: 36, h: 96, parapet: 6, windows: "slits", seed: 9, accent: "#d4af6a" });
+  /* hedges flanking the inner spokes */
+  const hedgeMat = new THREE.MeshStandardMaterial({ color: 0x1e4a28, roughness: 1 });
+  [[466,338,12,86],[522,338,12,86],[466,576,12,86],[522,576,12,86],
+   [338,466,86,12],[338,522,86,12],[576,466,86,12],[576,522,86,12]]
+    .forEach(([px, py, w2, d2]) => boxMesh(amb, hedgeMat, px, py, w2, d2, 16));
+}
 
-  /* long dormitory ranges, east and west (ridge along y) */
-  A({ x:856, y:240, w:64, d:310, h:70, stone:true, windows:"lancet", seed:16, accent:"#d9c48a", noRoof:true });
-  buildGable(amb, { x:856, y:240, w:64, d:310, z:70, h:28, axis:"y" });
-  A({ x:86, y:330, w:64, d:300, h:70, stone:true, windows:"lancet", seed:17, accent:"#d9c48a", noRoof:true });
-  buildGable(amb, { x:86, y:330, w:64, d:300, z:70, h:28, axis:"y" });
-
-  /* the red-roofed refectory (terracotta, like the aerial's centerpiece) */
-  A({ x:700, y:330, w:110, d:72, h:46, stone:true, windows:"lancet", seed:18, accent:"#f0b47a", noRoof:true });
-  buildGable(amb, { x:700, y:330, w:110, d:72, z:46, h:30, terra:true });
-
-  /* south gabled hall + mid-century modern blocks (SW of the aerial) */
-  A({ x:340, y:795, w:140, d:100, h:58, stone:true, windows:"lancet", ivy:true, seed:19, accent:"#d9c48a", noRoof:true });
-  buildGable(amb, { x:340, y:795, w:140, d:100, z:58, h:34 });
-  A({ x:120, y:852, w:190, d:86, h:64, parapet:5, stone:true, windows:"modern", seed:20, accent:"#bcd2de", cls:"modernb" });
-  A({ x:740, y:872, w:160, d:74, h:52, parapet:5, stone:true, windows:"modern", seed:21, accent:"#bcd2de", cls:"modernb" });
-
-  /* parked cars in the lots — a little GTA on the way to lecture */
-  const CARS = [
-    [906,326,"#a13c34"],[906,372,"#3c4a63"],[906,418,"#c9c4ba"],[906,510,"#22262c"],
-    [906,556,"#7b4a2e"],[952,440,"#4a5a48"],
-    [24,446,"#c9c4ba"],[24,494,"#5a3050"],[24,588,"#33424e"],[44,540,"#a13c34"],
-  ];
-  CARS.forEach(([cx, cy, col]) => {
-    buildBox({ x:cx, y:cy, w:30, d:16, h:8, parent:amb, deco:true, cls:"car", noCollide:true,
-      roofBg:`linear-gradient(135deg, ${col}, #14161a 92%)`,
-      wallBg:`linear-gradient(180deg, ${col}, #101216 82%)` });
-    buildBox({ x:cx+7, y:cy+2.5, w:15, d:11, h:13, parent:amb, deco:true, cls:"car", noCollide:true,
-      roofBg:`linear-gradient(135deg, ${col}, #101216 94%)`,
-      wallBg:"linear-gradient(180deg,#3d4c5e,#141a22 85%)" });
+/* ── glTF 2.0 prop library (assets/*.glb) ────────────────────────── */
+const gltf = new GLTFLoader();
+const TREES = [];
+[[10,235],[80,235],[100,235],[170,235],[190,235],[260,235],[280,235],[350,235],
+ [35,258],[145,258],[215,258],[325,258]].forEach(([a, r]) => {
+  const rad = a * Math.PI / 180;
+  TREES.push([500 + r * Math.cos(rad), 500 + r * Math.sin(rad), 0.95 + (a % 7) / 16]);
+});
+TREES.push(
+  [60,60,1.25],[100,42,.9],[42,105,.95],[940,64,1.1],[955,120,.9],[610,52,.95],[390,95,.85],
+  [60,940,1.15],[300,880,.95],[400,952,.9],[660,940,1],[950,945,1.1],[462,240,.9],[538,240,.9],
+  [95,610,.95],[930,215,.95],[240,95,1],[760,95,.95],[60,760,1],[940,760,1.05],[560,952,.95],[875,205,.9]);
+/* an outlying grove ring so walk mode never sees an empty horizon */
+for (let i = 0; i < 46; i++){
+  const a = (i / 46) * Math.PI * 2 + (i % 5) * 0.11;
+  const r = 760 + ((i * 137) % 420);
+  TREES.push([500 + r * Math.cos(a), 500 + r * Math.sin(a), 1.05 + ((i * 29) % 50) / 60]);
+}
+gltf.load("assets/tree.glb", (g) => {
+  const prims = [];
+  g.scene.traverse(o => { if (o.isMesh) prims.push(o); });
+  prims.forEach(src => {
+    const inst = new THREE.InstancedMesh(src.geometry, src.material, TREES.length);
+    inst.castShadow = true;
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
+    TREES.forEach(([px, py, s2], i) => {
+      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (i * 2.39996) % (Math.PI * 2));
+      sc.setScalar(s2 * 1.5);
+      m4.compose(new THREE.Vector3(W(px), 0, W(py)), q, sc);
+      inst.setMatrixAt(i, m4);
+    });
+    world.add(inst);
   });
-})();
-
-/* wrought-iron lamps — corner obelisks and path lanterns, each pooling
-   warm light on the paving after dark */
-function makeLamp(x, y, size, h){
-  buildBox({ x, y, w:size, d:size, h, deco:true,
-    roofBg:"radial-gradient(circle,#ffe9a8,#8a744a)",
-    wallBg:"linear-gradient(180deg,#334155,#111827)" });
-  const cx = x + size/2, cy = y + size/2;
-  const halo = document.createElement("div");
-  halo.className = "fly";
-  halo.style.cssText = `left:${cx - 13}px;top:${cy - 13}px;width:26px;height:26px;--dx:0px;--dy:0px;--t:4s;transform:translateZ(${h + 6}px);animation-name:twinkle;`;
-  scene.appendChild(halo);
-  const pool = document.createElement("div");
-  pool.className = "lamppool";
-  pool.style.cssText = `left:${cx - 40}px;top:${cy - 40}px;width:80px;height:80px;transform:translateZ(0.6px);`;
-  scene.appendChild(pool);
-}
-[[34,34,14,64],[952,34,14,64],[34,952,14,64],[952,952,14,64]].forEach(a => makeLamp(...a));
-for (let k = 0; k < 8; k++){ /* lantern ring around the great lawn */
-  const a = (22.5 + 45*k) * Math.PI/180;
-  makeLamp(Math.round(500 + 210*Math.cos(a)) - 5, Math.round(500 + 210*Math.sin(a)) - 5, 10, 48);
-}
-
-/* ── procedural texture tiles: turf noise + slate shingles ───────
-   Translucent overlays, so one tile serves both day and night. */
-(function textures(){
-  const noise = `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240">`
-    + `<filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" seed="11" stitchTiles="stitch"/>`
-    + `<feColorMatrix type="matrix" values="0 0 0 0 0.02  0 0 0 0 0.05  0 0 0 0 0.01  0.35 0.45 0.2 0 0"/></filter>`
-    + `<rect width="240" height="240" filter="url(#n)" opacity="0.55"/></svg>`;
-  const shingle = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="16">`
-    + `<rect width="36" height="8" fill="rgba(255,255,255,0.035)"/>`
-    + `<path d="M0 7.5 H36 M0 15.5 H36" stroke="rgba(0,0,0,0.3)" stroke-width="1"/>`
-    + `<path d="M9 0 V8 M27 8 V16" stroke="rgba(0,0,0,0.18)" stroke-width="1"/></svg>`;
-  document.documentElement.style.setProperty("--tex-noise", `url("data:image/svg+xml,${encodeURIComponent(noise)}")`);
-  document.documentElement.style.setProperty("--tex-shingle", `url("data:image/svg+xml,${encodeURIComponent(shingle)}")`);
-})();
-
-/* organic tree sprites: displacement-mapped canopies, tapering trunks */
-function treeURI(seed){
-  const g1 = ["#4a7a41","#42703b","#517f45"][seed % 3];
-  const g2 = ["#375f2f","#31572b","#3c6533"][seed % 3];
-  const hi = ["#699a52","#5f8f4d","#6f9e58"][seed % 3];
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="192" height="244" viewBox="0 0 96 122">`
-    + `<defs><filter id="d" x="-25%" y="-25%" width="150%" height="150%">`
-    + `<feTurbulence type="fractalNoise" baseFrequency="0.13" numOctaves="2" seed="${seed*7 + 3}"/>`
-    + `<feDisplacementMap in="SourceGraphic" scale="13"/></filter>`
-    + `<linearGradient id="t" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6d573c"/><stop offset="1" stop-color="#3a2c1b"/></linearGradient></defs>`
-    + `<path d="M44 120 Q45 92 46 72 H50 Q51 92 52 120 Z" fill="url(#t)"/>`
-    + `<path d="M46 84 Q38 76 32 72 M50 82 Q58 74 64 70" stroke="#4a3a26" stroke-width="2.4" fill="none"/>`
-    + `<g filter="url(#d)">`
-    + `<ellipse cx="48" cy="46" rx="35" ry="31" fill="${g2}"/>`
-    + `<ellipse cx="31" cy="56" rx="21" ry="17" fill="${g2}"/>`
-    + `<ellipse cx="65" cy="54" rx="22" ry="18" fill="${g1}"/>`
-    + `<ellipse cx="49" cy="39" rx="26" ry="21" fill="${g1}"/>`
-    + `<ellipse cx="39" cy="32" rx="15" ry="11" fill="${hi}"/>`
-    + `</g></svg>`;
-  /* single-quoted url() — this lands inside a double-quoted style attribute */
-  return `url('data:image/svg+xml,${encodeURIComponent(svg)}')`;
-}
-
-/* campus trees — great elms ringing the lawn, groves at the bounds */
-(function plantTrees(){
-  const TREES = [];
-  [[10,235],[80,235],[100,235],[170,235],[190,235],[260,235],[280,235],[350,235],
-   [35,258],[145,258],[215,258],[325,258]].forEach(([a, r]) => {
-    const rad = a * Math.PI/180;
-    TREES.push([Math.round(500 + r*Math.cos(rad)), Math.round(500 + r*Math.sin(rad)), 0.95 + (a % 7)/18]);
+});
+const CARS = [
+  [906,326,0.62,0.16,0.13],[906,372,0.24,0.30,0.42],[906,418,0.79,0.77,0.72],[906,510,0.13,0.14,0.16],
+  [906,556,0.48,0.29,0.18],[952,440,0.29,0.35,0.28],
+  [24,446,0.79,0.77,0.72],[24,494,0.35,0.19,0.31],[24,588,0.20,0.26,0.31],[44,540,0.62,0.16,0.13],
+];
+gltf.load("assets/car.glb", (g) => {
+  CARS.forEach(([px, py, r, g2, b]) => {
+    const car = g.scene.clone(true);
+    car.traverse(o => {
+      if (o.isMesh){
+        o.castShadow = true;
+        if (o.material.name === "paint"){
+          o.material = o.material.clone();
+          o.material.color.setRGB(r, g2, b);
+        }
+      }
+    });
+    car.position.set(W(px + 15), 0, W(py + 8));
+    car.rotation.y = px < 500 ? Math.PI : 0;
+    world.add(car);
   });
-  TREES.push(
-    [60,60,1.15],[100,42,.85],[42,105,.9],[940,64,1.05],[955,120,.85],[610,52,.9],[390,95,.8],
-    [60,940,1.1],[300,880,.9],[400,952,.85],[660,940,.95],[950,945,1.05],[462,240,.85],[538,240,.85],
-    [95,610,.9],[930,215,.9],[240,95,.95],[760,95,.9],[60,760,.95],[940,760,1],[560,952,.9],[875,205,.85]
-  );
-  TREES.forEach(([tx, ty, ts], i) => {
-    const el = document.createElement("div");
-    el.className = "tree billboard";
-    el.style.transform = `translate3d(${tx}px, ${ty}px, 0.5px)`;
-    el.innerHTML = `<div class="bb-inner"><div class="sprite" style="--s:${ts};background-image:${treeURI(i)}"><div class="tshadow"></div></div></div>`;
-    scene.appendChild(el);
+});
+const LAMPS = [[34,34],[952,34],[34,952],[952,952]];
+for (let k = 0; k < 8; k++){
+  const a = (22.5 + 45 * k) * Math.PI / 180;
+  LAMPS.push([500 + 210 * Math.cos(a), 500 + 210 * Math.sin(a)]);
+}
+const lampGlowMats = [];
+gltf.load("assets/lamp.glb", (g) => {
+  LAMPS.forEach(([px, py]) => {
+    const lamp = g.scene.clone(true);
+    lamp.traverse(o => {
+      if (o.isMesh){
+        o.castShadow = true;
+        if (o.material.name === "glow"){
+          o.material = o.material.clone();
+          lampGlowMats.push(o.material);
+        }
+      }
+    });
+    lamp.position.set(W(px), 0, W(py));
+    world.add(lamp);
+    const pl = new THREE.PointLight(0xffb45e, 0, 130, 1.8);
+    pl.position.set(W(px), 44, W(py));
+    world.add(pl);
+    lampLights.push(pl);
   });
-})();
+  engineSetMode(typeof mode === "string" ? mode : "day");
+});
+gltf.load("assets/bench.glb", (g) => {
+  for (let k = 0; k < 6; k++){
+    const a = (15 + 60 * k) * Math.PI / 180;
+    const bench = g.scene.clone(true);
+    bench.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    bench.position.set(Math.cos(a) * 118, 0, Math.sin(a) * 118);
+    bench.rotation.y = -a + Math.PI / 2;
+    world.add(bench);
+  }
+});
 
-/* fireflies drifting over the lawn */
-for (let i = 0; i < 22; i++){
-  const f = document.createElement("div");
-  f.className = "fly";
-  const x = 80 + Math.random() * 840, y = 80 + Math.random() * 840;
-  f.style.cssText = `left:${x}px;top:${y}px;--dx:${(Math.random()*120-60).toFixed(0)}px;--dy:${(Math.random()*120-60).toFixed(0)}px;--t:${(6+Math.random()*8).toFixed(1)}s;animation-delay:-${(Math.random()*9).toFixed(1)}s;`;
-  scene.appendChild(f);
+/* ── stars + fireflies (night) ───────────────────────────────────── */
+function pointsCloud(n, spread, y0, y1, size, color){
+  const pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++){
+    pos[i*3] = (Math.random() - 0.5) * spread;
+    pos[i*3+1] = y0 + Math.random() * (y1 - y0);
+    pos[i*3+2] = (Math.random() - 0.5) * spread;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  return new THREE.Points(geo, new THREE.PointsMaterial({
+    color, size, sizeAttenuation: true, transparent: true, opacity: 0.9,
+    blending: THREE.AdditiveBlending, depthWrite: false }));
 }
+const stars = pointsCloud(700, 4400, 700, 2600, 7, 0xdbe6ff);
+stars.visible = false;
+world.add(stars);
+const fireflies = pointsCloud(60, 900, 6, 60, 4, 0xffe9a8);
+fireflies.visible = false;
+world.add(fireflies);
 
-/* ── ambient cohort: students strolling the quad ─────────────────── */
-const WAYPOINTS = { C:[500,500] };
-const EDGES = { C:[] };
-for (let k = 0; k < 8; k++){ /* ring nodes R0..R7 every 45 degrees */
-  const a = 45*k * Math.PI/180;
-  WAYPOINTS["R"+k] = [Math.round(500 + 186*Math.cos(a)), Math.round(500 + 186*Math.sin(a))];
+/* ── students of the quad ────────────────────────────────────────── */
+const WAYPOINTS = { C: [500, 500] };
+const EDGES = { C: [] };
+for (let k = 0; k < 8; k++){
+  const a = 45 * k * Math.PI / 180;
+  WAYPOINTS["R" + k] = [Math.round(500 + 186 * Math.cos(a)), Math.round(500 + 186 * Math.sin(a))];
 }
-for (let k = 0; k < 8; k++) EDGES["R"+k] = ["R"+((k+1)%8), "R"+((k+7)%8)];
-/* inner spokes to the fountain */
-[["R0"],["R2"],["R4"],["R6"]].forEach(([r]) => { EDGES[r].push("C"); EDGES.C.push(r); });
-/* outer walks: chapel (N), gatehouse (S), east & west drives */
+for (let k = 0; k < 8; k++) EDGES["R" + k] = ["R" + ((k + 1) % 8), "R" + ((k + 7) % 8)];
 Object.assign(WAYPOINTS, {
-  chapel:[500,196], gate:[500,905], south:[500,946], east:[928,500], west:[72,500],
-  libDoor:[260,326], engDoor:[740,306], sciDoor:[240,822], admDoor:[735,832],
+  chapel: [500, 196], gate: [500, 905], south: [500, 946], east: [928, 500], west: [72, 500],
+  libDoor: [260, 326], engDoor: [740, 306], sciDoor: [240, 822], admDoor: [735, 832],
 });
 Object.assign(EDGES, {
-  chapel:["R6"], gate:["R2","south"], south:["gate"], east:["R0"], west:["R4"],
-  libDoor:["R5"], engDoor:["R7"], sciDoor:["R3"], admDoor:["R1"],
+  chapel: ["R6"], gate: ["R2", "south"], south: ["gate"], east: ["R0"], west: ["R4"],
+  libDoor: ["R5"], engDoor: ["R7"], sciDoor: ["R3"], admDoor: ["R1"],
 });
 EDGES.R6.push("chapel"); EDGES.R2.push("gate"); EDGES.R0.push("east"); EDGES.R4.push("west");
 EDGES.R5.push("libDoor"); EDGES.R7.push("engDoor"); EDGES.R3.push("sciDoor"); EDGES.R1.push("admDoor");
+
 const STUDENT_ROSTER = [
-  { name:"Elowen", c:"#34d399", says:["Off to Calc III — gradients await!","The Library dome at dusk… unbeatable.","Stokes' theorem finally clicked!"] },
-  { name:"Marcus", c:"#fbbf24", says:["My first Python script ran — no errors!","Binary search in 17 steps. SEVENTEEN.","Whitmore Quad study group, 8pm."] },
-  { name:"Priya",  c:"#38bdf8", says:["My full adder passed every row!","RAX holds the whole sum. Registers are elegant.","Lab practical on flip-flops today."] },
-  { name:"Jun",    c:"#a78bfa", says:["Tuned my PID — no more overshoot!","A* found a corridor through the no-fly grid.","Capstone flight over the quad Friday!"] },
-  { name:"Sofia",  c:"#f472b6", says:["Simpson's rule tamed the Gaussian bell.","Unit circle from memory. All of it.","Meet at the fountain after lecture?"] },
-  { name:"Theo",   c:"#5eead4", says:["Pointers finally make sense!","Committed my problem sets — git push, done.","K-maps are just crossword puzzles."] },
-  { name:"Amara",  c:"#fb923c", says:["Ten laps of the oval before class.","The chapel bells at dusk — worth the walk.","Green's theorem is just bookkeeping for flow."] },
-  { name:"Kenji",  c:"#a3e635", says:["Parked by the east lot, sprinting to lab!","My A* found a shorter path to lecture.","The refectory's roof matches my notebook."] },
+  { name:"Elowen", c:0x34d399, says:["Off to Calc III — gradients await!","The Library dome at dusk… unbeatable.","Stokes' theorem finally clicked!"] },
+  { name:"Marcus", c:0xfbbf24, says:["My first Python script ran — no errors!","Binary search in 17 steps. SEVENTEEN.","Whitmore Quad study group, 8pm."] },
+  { name:"Priya",  c:0x38bdf8, says:["My full adder passed every row!","RAX holds the whole sum. Registers are elegant.","Lab practical on flip-flops today."] },
+  { name:"Jun",    c:0xa78bfa, says:["Tuned my PID — no more overshoot!","A* found a corridor through the no-fly grid.","Capstone flight over the quad Friday!"] },
+  { name:"Sofia",  c:0xf472b6, says:["Simpson's rule tamed the Gaussian bell.","Unit circle from memory. All of it.","Meet at the fountain after lecture?"] },
+  { name:"Theo",   c:0x5eead4, says:["Pointers finally make sense!","Committed my problem sets — git push, done.","K-maps are just crossword puzzles."] },
+  { name:"Amara",  c:0xfb923c, says:["Ten laps of the oval before class.","The chapel bells at dusk — worth the walk.","Green's theorem is just bookkeeping for flow."] },
+  { name:"Kenji",  c:0xa3e635, says:["Parked by the east lot, sprinting to lab!","My A* found a shorter path to lecture.","The refectory's roof matches my notebook."] },
 ];
 const students = [];
+const skinMat = new THREE.MeshStandardMaterial({ color: 0xe2cfae, roughness: 0.8 });
+const legMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9 });
 STUDENT_ROSTER.forEach((st, i) => {
-  const el = document.createElement("div");
-  el.className = "student billboard";
-  el.style.setProperty("--c", st.c);
-  el.innerHTML =
-    `<div class="bb-inner rig">
-       <div class="figure">
-         <div class="say"></div>
-         <div class="tag">${st.name}</div>
-         <div class="head"></div><div class="torso"></div><div class="legs"></div>
-         <div class="sshadow"></div>
-       </div>
-     </div>`;
-  scene.appendChild(el);
-  const startKey = ["C","R0","R1","R2","R3","R4","R5","R6","R7"][i % 9];
-  const s = {
-    el, data:st,
-    node:startKey,
-    pos:[...WAYPOINTS[startKey]],
-    target:null, speed:26 + Math.random()*18,
-    pauseUntil:0, sayUntil:0,
-  };
-  el.querySelector(".rig").addEventListener("click", (ev) => {
-    ev.stopPropagation();
-    speak(s, true);
-  });
-  students.push(s);
+  const g = new THREE.Group();
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(5.2, 10, 3, 8),
+    new THREE.MeshStandardMaterial({ color: st.c, roughness: 0.8 }));
+  torso.position.y = 21; torso.castShadow = true;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(4.6, 10, 8), skinMat);
+  head.position.y = 34; head.castShadow = true;
+  const legs = new THREE.Mesh(new THREE.CylinderGeometry(3.6, 3.2, 13, 8), legMat);
+  legs.position.y = 7; legs.castShadow = true;
+  g.add(torso, head, legs);
+  const tagEl = document.createElement("div");
+  tagEl.className = "stu-tag";
+  tagEl.textContent = st.name;
+  const tag = new CSS2DObject(tagEl);
+  tag.position.y = 44;
+  g.add(tag);
+  world.add(g);
+  const startKey = ["R0","R1","R2","R3","R4","R5","R6","R7"][i % 8];
+  students.push({ g, data: st, node: startKey, pos: [...WAYPOINTS[startKey]],
+                  target: null, speed: 26 + Math.random() * 18, pauseUntil: 0, phase: Math.random() * 9 });
 });
-
-function speak(s, fromClick){
-  const q = s.data.says[Math.floor(Math.random() * s.data.says.length)];
-  s.el.querySelector(".say").textContent = q;
-  s.el.classList.add("talking");
-  s.sayUntil = performance.now() + 3200;
-  if (fromClick) toast(`${s.data.name} says`, "“" + q + "”", "#d4af6a");
-}
-
-let lastT = performance.now();
-function stepStudents(now){
-  const dt = Math.min(0.05, (now - lastT) / 1000);
-  lastT = now;
+function stepStudents(dt, now){
   for (const s of students){
-    if (s.sayUntil && now > s.sayUntil){ s.el.classList.remove("talking"); s.sayUntil = 0; }
-    if (now < s.pauseUntil){ s.el.classList.add("idle"); }
+    if (now < s.pauseUntil){ /* idle sway */ }
     else {
-      s.el.classList.remove("idle");
       if (!s.target){
         const opts = EDGES[s.node];
-        const nextKey = opts[Math.floor(Math.random() * opts.length)];
-        s.target = nextKey;
+        s.target = opts[Math.floor(Math.random() * opts.length)];
       }
       const [tx, ty] = WAYPOINTS[s.target];
       const dx = tx - s.pos[0], dy = ty - s.pos[1];
       const dist = Math.hypot(dx, dy);
       if (dist < 2){
         s.node = s.target; s.target = null;
-        if (Math.random() < 0.55){
-          s.pauseUntil = now + 900 + Math.random() * 2600;
-          if (Math.random() < 0.3) speak(s, false);
-        }
+        if (Math.random() < 0.5) s.pauseUntil = now + 900 + Math.random() * 2600;
       } else {
-        s.pos[0] += (dx / dist) * s.speed * dt;
-        s.pos[1] += (dy / dist) * s.speed * dt;
+        s.pos[0] += dx / dist * s.speed * dt;
+        s.pos[1] += dy / dist * s.speed * dt;
+        s.g.rotation.y = Math.atan2(dx, dy) + Math.PI;
       }
     }
-    s.el.style.transform = `translate3d(${s.pos[0]}px, ${s.pos[1]}px, 1px)`;
+    s.g.position.set(W(s.pos[0]), Math.sin(now / 150 + s.phase) * 0.8 + 0.4, W(s.pos[1]));
   }
-  if (window.__walkTick) window.__walkTick(dt);
-  requestAnimationFrame(stepStudents);
 }
-requestAnimationFrame(stepStudents);
 
-/* ── parallax survey of the grounds ──────────────────────────────── */
-const rootStyle = document.documentElement.style;
-let tiltTX = 0, tiltTZ = 0, curTX = 0, curTZ = 0;
-document.getElementById("campus-wing").addEventListener("mousemove", (e) => {
-  const r = e.currentTarget.getBoundingClientRect();
-  tiltTZ = ((e.clientX - r.left) / r.width  - 0.5) *  7;   // degrees
-  tiltTX = ((e.clientY - r.top)  / r.height - 0.5) * -6;
-});
-document.getElementById("campus-wing").addEventListener("mouseleave", () => { tiltTX = 0; tiltTZ = 0; });
-(function tiltLoop(){
-  curTX += (tiltTX - curTX) * 0.06;
-  curTZ += (tiltTZ - curTZ) * 0.06;
-  rootStyle.setProperty("--tiltX", curTX.toFixed(2) + "deg");
-  rootStyle.setProperty("--tiltZ", curTZ.toFixed(2) + "deg");
-  requestAnimationFrame(tiltLoop);
-})();
+/* ── highlight hooks used by the workspace ───────────────────────── */
+let activeSector = null;
+function applyHallGlow(){
+  /* base pass: every skinned wall glows through its night texture */
+  skinSwaps.forEach(({ mat }) => {
+    mat.emissive.set(0xffffff);
+    mat.emissiveIntensity = mat.userData.baseEmissive || 0;
+  });
+  SECTOR_ORDER.forEach(k => {
+    const S = SECTORS[k];
+    const on = activeSector === k, lit = litSectors.has(k);
+    if (!on && !lit) return;
+    (hallMats[k] || []).forEach(m => {
+      m.emissive.set(lit ? 0xd4af6a : S.color);
+      m.emissiveIntensity = (m.userData.baseEmissive || 0) + (on ? 0.22 : 0.16);
+    });
+  });
+}
+const litSectors = new Set();
+function engineSetActive(key){ activeSector = key; applyHallGlow(); }
+function engineSetLit(key, isLit){ isLit ? litSectors.add(key) : litSectors.delete(key); applyHallGlow(); }
 
-/* starfield */
-(function stars(){
-  const host = document.getElementById("stars");
-  for (let i = 0; i < 70; i++){
-    const s = document.createElement("i");
-    s.style.cssText = `left:${(Math.random()*100).toFixed(2)}%;top:${(Math.random()*62).toFixed(2)}%;animation-delay:-${(Math.random()*5).toFixed(1)}s;opacity:${(0.2+Math.random()*0.6).toFixed(2)}`;
-    host.appendChild(s);
+/* ── day / night ─────────────────────────────────────────────────── */
+function engineSetMode(m){
+  const day = m === "day";
+  skyDome.material.map = day ? SKY.day : SKY.night;
+  skyDome.material.needsUpdate = true;
+  world.fog = day ? new THREE.Fog(0xc3d9ee, 900, 3000) : new THREE.Fog(0x070b16, 500, 2400);
+  hemi.color.set(day ? 0xbdd8f2 : 0x25304d);
+  hemi.groundColor.set(day ? 0x4a5b3a : 0x0b140d);
+  hemi.intensity = day ? 0.85 : 0.5;
+  sun.color.set(day ? 0xfff0d2 : 0x9fb4dd);
+  sun.intensity = day ? 2.6 : 1.1;
+  sun.position.set(day ? -520 : 420, day ? 760 : 620, day ? 430 : -300);
+  renderer.toneMappingExposure = day ? 1.02 : 1.0;
+  stars.visible = !day;
+  fireflies.visible = !day;
+  lampLights.forEach(l => l.intensity = day ? 0 : 1400);
+  lampGlowMats.forEach(mm => mm.emissiveIntensity = day ? 0.05 : 1.9);
+  skinSwaps.forEach(({ mat, day: dTex, night: nTex }) => {
+    mat.map = day ? dTex : nTex;
+    /* after dark, the skin lights itself — every lancet glows */
+    mat.emissiveMap = day ? null : nTex;
+    mat.userData.baseEmissive = day ? 0 : 0.85;
+    mat.needsUpdate = true;
+  });
+  applyHallGlow();
+}
+
+/* ── aerial orbit controls + hall picking ────────────────────────── */
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 30, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 260;
+controls.maxDistance = 1700;
+controls.maxPolarAngle = 1.32;
+controls.enablePan = false;
+const ray = new THREE.Raycaster();
+let downAt = null;
+renderer.domElement.addEventListener("pointerdown", e => { downAt = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener("pointerup", e => {
+  if (!downAt || walker.on) return;
+  const moved = Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]);
+  downAt = null;
+  if (moved > 6) return;
+  const r = renderer.domElement.getBoundingClientRect();
+  const ndc = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  for (const k of SECTOR_ORDER){
+    if (ray.intersectObject(hallGroups[k], true).length){
+      selectSector(k, true);
+      return;
+    }
   }
-})();
+});
+
+/* ══════════════════════════════════════════════════════════════════
+   FIRST-PERSON WALK MODE — WebGL edition
+   ══════════════════════════════════════════════════════════════════ */
+const wing = wingEl;
+const DOORS = [
+  { sector:"lib", x:260, y:326 }, { sector:"eng", x:740, y:306 },
+  { sector:"sci", x:240, y:822 }, { sector:"adm", x:735, y:832 },
+];
+const walker = { on:false, x:500, y:802, h:0, eye:34, bobT:0, door:null, keys:{} };
+window.__walker = walker;
+
+function enterWalk(){
+  if (walker.on) return;
+  walker.on = true;
+  walker.x = 500; walker.y = 802; walker.h = 0;
+  controls.enabled = false;
+  wing.classList.add("walkmode");
+  document.getElementById("walkbtn").textContent = "🚁";
+  toast("Boots on the quad", "WASD to walk · ◀ ▶ to look · E to enter the hall in front of you · F to fly back up.", "#38bdf8", 6500);
+}
+function exitWalk(){
+  if (!walker.on) return;
+  walker.on = false;
+  controls.enabled = true;
+  camera.position.set(-640, 690, 640);
+  controls.target.set(0, 30, 0);
+  camera.rotation.set(0, 0, 0);
+  wing.classList.remove("walkmode");
+  document.getElementById("walkbtn").textContent = "🎮";
+  document.getElementById("doorprompt").classList.remove("show");
+}
+document.getElementById("walkbtn").addEventListener("click", () => walker.on ? exitWalk() : enterWalk());
+
+function collide(nx, ny){
+  const r = 9;
+  if (nx < 30 || nx > 970 || ny < 30 || ny > 970) return true;
+  for (const c of COLLIDERS){
+    if (nx > c.x - r && nx < c.x + c.w + r && ny > c.y - r && ny < c.y + c.d + r) return true;
+  }
+  return false;
+}
+function walkUpdate(dt){
+  const k = walker.keys;
+  const turn = 115 * dt;
+  if (k.ArrowLeft || k.tleft)  walker.h -= turn;
+  if (k.ArrowRight || k.tright) walker.h += turn;
+  let mv = 0, str = 0;
+  if (k.KeyW || k.ArrowUp || k.tfwd) mv += 1;
+  if (k.KeyS || k.ArrowDown) mv -= 1;
+  if (k.KeyA) str -= 1;
+  if (k.KeyD) str += 1;
+  const sp = 155 * dt, hr = walker.h * Math.PI / 180;
+  const lx = Math.sin(hr), ly = -Math.cos(hr);
+  const rx = Math.cos(hr), ry = Math.sin(hr);
+  const nx = walker.x + (lx * mv + rx * str) * sp;
+  const ny = walker.y + (ly * mv + ry * str) * sp;
+  if (!collide(nx, walker.y)) walker.x = nx;
+  if (!collide(walker.x, ny)) walker.y = ny;
+  walker.bobT = (mv || str) ? walker.bobT + dt * 9 : 0;
+  const bob = (mv || str) ? Math.sin(walker.bobT) * 1.4 : 0;
+  camera.position.set(W(walker.x), walker.eye + bob, W(walker.y));
+  camera.rotation.order = "YXZ";
+  camera.rotation.y = -hr;
+  camera.rotation.x = -0.045;
+  camera.rotation.z = 0;
+  walker.door = null;
+  for (const d of DOORS){
+    if (Math.hypot(d.x - walker.x, d.y - walker.y) < 54){ walker.door = d.sector; break; }
+  }
+  const dp = document.getElementById("doorprompt");
+  dp.classList.toggle("show", !!walker.door);
+  if (walker.door) document.getElementById("doorprompt-name").textContent = "Enter " + SECTORS[walker.door].hall;
+}
+window.addEventListener("keydown", e => {
+  if (e.target.matches("input,textarea")) return;
+  if (e.key === "f" || e.key === "F"){ walker.on ? exitWalk() : enterWalk(); return; }
+  if (!walker.on) return;
+  walker.keys[e.code] = true;
+  if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
+  if (e.code === "KeyE" && walker.door){
+    const key = walker.door;
+    selectSector(key, false);
+    openInterior(key);
+    const q = questInfo();
+    if (q.sector === key) toast("📚 Class attended", "You made it to lecture. Seal the course in the ledger once you've mastered it.", SECTORS[key].color, 5500);
+  }
+});
+window.addEventListener("keyup", e => { walker.keys[e.code] = false; });
+document.querySelectorAll("#touchpad button").forEach(b => {
+  const on  = ev => { ev.preventDefault(); walker.keys["t" + b.dataset.t] = true; };
+  const off = ev => { ev.preventDefault(); walker.keys["t" + b.dataset.t] = false; };
+  b.addEventListener("pointerdown", on); b.addEventListener("pointerup", off);
+  b.addEventListener("pointerleave", off); b.addEventListener("pointercancel", off);
+});
+
+/* ── quest log + minimap ─────────────────────────────────────────── */
+function questInfo(){
+  const next = COURSES.find(c => !done.includes(c.id));
+  if (!next) return { text:"Degree complete — Summa Cum Laude. The campus is yours, laureate. 🎓" };
+  const S = SECTORS[next.sector];
+  return { sector: next.sector, text:`Attend ${next.code} · ${next.title} — walk to ${S.hall}` };
+}
+function refreshQuest(){
+  document.getElementById("quest-text").textContent = questInfo().text;
+}
+const mm = document.getElementById("minimap");
+function drawMinimap(){
+  const ctx = mm.getContext("2d");
+  const k = mm.width / 1000;
+  ctx.clearRect(0, 0, mm.width, mm.height);
+  ctx.fillStyle = "rgba(30,72,42,.55)";
+  ctx.fillRect(2, 2, mm.width - 4, mm.height - 4);
+  ctx.strokeStyle = "rgba(226,216,188,.55)";
+  ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.arc(500 * k, 500 * k, 183 * k, 0, 6.3); ctx.stroke();
+  ctx.lineWidth = 1.5;
+  [[500,196,500,314],[500,686,500,946],[686,500,928,500],[72,500,314,500]].forEach(([a, b, c, d]) => {
+    ctx.beginPath(); ctx.moveTo(a * k, b * k); ctx.lineTo(c * k, d * k); ctx.stroke();
+  });
+  for (const c of COLLIDERS){
+    ctx.fillStyle = c.sector ? SECTORS[c.sector].color : "rgba(196,186,164,.7)";
+    ctx.fillRect(c.x * k, c.y * k, Math.max(2, c.w * k), Math.max(2, c.d * k));
+  }
+  if (walker.on){
+    ctx.save();
+    ctx.translate(walker.x * k, walker.y * k);
+    ctx.rotate(walker.h * Math.PI / 180);
+    ctx.fillStyle = "#ffffff";
+    ctx.shadowColor = "#38bdf8"; ctx.shadowBlur = 6;
+    ctx.beginPath(); ctx.moveTo(0, -5.5); ctx.lineTo(4, 4.5); ctx.lineTo(-4, 4.5); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+}
+
+/* ── main loop ───────────────────────────────────────────────────── */
+let lastT = performance.now();
+renderer.setAnimationLoop(() => {
+  const now = performance.now();
+  const dt = Math.min(0.05, (now - lastT) / 1000);
+  lastT = now;
+  stepStudents(dt, now);
+  if (walker.on) walkUpdate(dt);
+  else controls.update();
+  if (fireflies.visible){
+    fireflies.rotation.y += dt * 0.02;
+    fireflies.position.y = Math.sin(now / 1700) * 4;
+  }
+  drawMinimap();
+  labelRenderer.render(world, camera);
+  renderer.render(world, camera);
+});
+resize();
 
 /* ══════════════════════════════════════════════════════════════════
    ② CONTEXT-DRIVEN WORKSPACE — the morphing instructional terminal
@@ -2362,7 +2665,7 @@ function refreshProgress(){
   SECTOR_ORDER.forEach(k => {
     if (labelEls[k]) labelEls[k].textContent = courseCountText(k);
     const doneAll = COURSES.filter(c => c.sector === k).every(c => done.includes(c.id));
-    buildingEls[k].forEach(el => el.classList.toggle("lit", doneAll));
+    engineSetLit(k, doneAll);
   });
 }
 
@@ -2404,12 +2707,7 @@ function selectSector(key, fromCampus){
   currentSector = key;
   localStorage.setItem(LS_SECTOR, key);
 
-  /* campus visuals */
-  document.querySelectorAll(".bgroup[data-sector]").forEach(el =>
-    el.classList.toggle("active", el.dataset.sector === key));
-  scene.classList.remove("warp-pulse");
-  void scene.offsetWidth;            /* restart the pulse animation */
-  scene.classList.add("warp-pulse");
+  engineSetActive(key === "all" ? null : key);
 
   /* workspace morph */
   bannerEl.classList.add("fading");
@@ -2463,151 +2761,6 @@ function toast(title, body, color, ms){
   host.appendChild(t);
   setTimeout(() => { t.classList.add("bye"); setTimeout(() => t.remove(), 450); }, ms || 4200);
 }
-
-/* ══════════════════════════════════════════════════════════════════
-   FIRST-PERSON WALK MODE — the campus as an open world.
-   Same CSS 3D scene, different camera: perspective eye at ground level,
-   WASD + arrows, AABB collision, E to enter the hall in front of you.
-   ══════════════════════════════════════════════════════════════════ */
-const wing  = document.getElementById("campus-wing");
-const stage = document.getElementById("stage");
-const DOORS = [
-  { sector:"lib", x:260, y:326 }, { sector:"eng", x:740, y:306 },
-  { sector:"sci", x:240, y:822 }, { sector:"adm", x:735, y:832 },
-];
-const walker = { on:false, x:500, y:800, h:0, eye:36, bobT:0, door:null, keys:{} };
-window.__walker = walker;   /* handy for debugging + tests */
-
-function enterWalk(){
-  if (walker.on) return;
-  walker.on = true;
-  walker.x = 500; walker.y = 802; walker.h = 0;  /* south walk, facing the fountain */
-  wing.classList.add("walkmode");
-  stage.classList.add("walking");
-  scene.classList.add("walking");
-  document.getElementById("walkbtn").textContent = "🚁";
-  toast("Boots on the quad", "WASD to walk · ◀ ▶ to look · E to enter the hall in front of you · F to fly back up.", "#38bdf8", 6500);
-}
-function exitWalk(){
-  if (!walker.on) return;
-  walker.on = false;
-  wing.classList.remove("walkmode");
-  stage.classList.remove("walking");
-  scene.classList.remove("walking");
-  scene.style.transform = "";
-  rootStyle.setProperty("--bb", "rotateZ(45deg) rotateX(-55deg)");
-  document.getElementById("walkbtn").textContent = "🎮";
-  document.getElementById("doorprompt").classList.remove("show");
-}
-document.getElementById("walkbtn").addEventListener("click", () => walker.on ? exitWalk() : enterWalk());
-
-function collide(nx, ny){
-  const r = 9;
-  if (nx < 30 || nx > 970 || ny < 30 || ny > 970) return true;
-  for (const c of COLLIDERS){
-    if (nx > c.x - r && nx < c.x + c.w + r && ny > c.y - r && ny < c.y + c.d + r) return true;
-  }
-  return false;
-}
-
-function walkUpdate(dt){
-  const k = walker.keys;
-  const turn = 115 * dt;
-  if (k.ArrowLeft  || k.tleft)  walker.h -= turn;
-  if (k.ArrowRight || k.tright) walker.h += turn;
-  let mv = 0, str = 0;
-  if (k.KeyW || k.ArrowUp   || k.tfwd) mv += 1;
-  if (k.KeyS || k.ArrowDown) mv -= 1;
-  if (k.KeyA) str -= 1;
-  if (k.KeyD) str += 1;
-  const sp = 155 * dt, hr = walker.h * Math.PI/180;
-  const lx = Math.sin(hr), ly = -Math.cos(hr);   /* look direction  */
-  const rx = Math.cos(hr), ry = Math.sin(hr);    /* strafe direction */
-  const nx = walker.x + (lx*mv + rx*str) * sp;
-  const ny = walker.y + (ly*mv + ry*str) * sp;
-  if (!collide(nx, walker.y)) walker.x = nx;     /* slide along walls */
-  if (!collide(walker.x, ny)) walker.y = ny;
-  walker.bobT = (mv || str) ? walker.bobT + dt*9 : 0;
-  const bob = (mv || str) ? Math.sin(walker.bobT) * 1.7 : 0;
-  /* the camera: V = translateZ(P) · Rx(~90°) · Rz(−h) · T(−p) */
-  scene.style.transform =
-    `translate(500px, 500px) translateZ(640px) rotateX(88deg) rotateZ(${-walker.h}deg) translate3d(${-walker.x}px, ${-walker.y}px, ${-(walker.eye + bob)}px)`;
-  /* re-face every billboard (labels, students, trees) toward this camera */
-  rootStyle.setProperty("--bb", `rotateZ(${walker.h}deg) rotateX(-88deg)`);
-  /* hall door proximity → E prompt */
-  walker.door = null;
-  for (const d of DOORS){
-    if (Math.hypot(d.x - walker.x, d.y - walker.y) < 54){ walker.door = d.sector; break; }
-  }
-  const dp = document.getElementById("doorprompt");
-  dp.classList.toggle("show", !!walker.door);
-  if (walker.door) document.getElementById("doorprompt-name").textContent = "Enter " + SECTORS[walker.door].hall;
-}
-
-window.addEventListener("keydown", e => {
-  if (e.target.matches("input,textarea")) return;
-  if (e.key === "f" || e.key === "F"){ walker.on ? exitWalk() : enterWalk(); return; }
-  if (!walker.on) return;
-  walker.keys[e.code] = true;
-  if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
-  if (e.code === "KeyE" && walker.door){
-    const key = walker.door;
-    selectSector(key, false);
-    openInterior(key);
-    const q = questInfo();
-    if (q.sector === key) toast("📚 Class attended", "You made it to lecture. Seal the course in the ledger once you've mastered it.", SECTORS[key].color, 5500);
-  }
-});
-window.addEventListener("keyup", e => { walker.keys[e.code] = false; });
-document.querySelectorAll("#touchpad button").forEach(b => {
-  const code = "t" + b.dataset.t;
-  const on  = ev => { ev.preventDefault(); walker.keys[code.replace("t","t").replace("tfwd","tfwd")] = true; walker.keys["t"+b.dataset.t] = true; };
-  const off = ev => { ev.preventDefault(); walker.keys["t"+b.dataset.t] = false; };
-  b.addEventListener("pointerdown", on); b.addEventListener("pointerup", off);
-  b.addEventListener("pointerleave", off); b.addEventListener("pointercancel", off);
-});
-
-/* ── the quest log: your next course is your next destination ────── */
-function questInfo(){
-  const next = COURSES.find(c => !done.includes(c.id));
-  if (!next) return { text:"Degree complete — Summa Cum Laude. The campus is yours, laureate. 🎓" };
-  const S = SECTORS[next.sector];
-  return { sector:next.sector, text:`Attend ${next.code} · ${next.title} — walk to ${S.hall}` };
-}
-function refreshQuest(){
-  document.getElementById("quest-text").textContent = questInfo().text;
-}
-
-/* ── minimap ─────────────────────────────────────────────────────── */
-const mm = document.getElementById("minimap");
-function drawMinimap(){
-  const ctx = mm.getContext("2d");
-  const k = mm.width / 1000;
-  ctx.clearRect(0, 0, mm.width, mm.height);
-  ctx.fillStyle = "rgba(30,72,42,.55)";
-  ctx.fillRect(2, 2, mm.width-4, mm.height-4);
-  ctx.strokeStyle = "rgba(226,216,188,.55)";
-  ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.arc(500*k, 500*k, 183*k, 0, 6.3); ctx.stroke();
-  ctx.lineWidth = 1.5;
-  [[500,196,500,314],[500,686,500,946],[686,500,928,500],[72,500,314,500]].forEach(([a,b,c,d]) => {
-    ctx.beginPath(); ctx.moveTo(a*k, b*k); ctx.lineTo(c*k, d*k); ctx.stroke();
-  });
-  for (const c of COLLIDERS){
-    ctx.fillStyle = c.sector ? SECTORS[c.sector].color : "rgba(196,186,164,.7)";
-    ctx.fillRect(c.x*k, c.y*k, Math.max(2, c.w*k), Math.max(2, c.d*k));
-  }
-  if (walker.on){
-    ctx.save();
-    ctx.translate(walker.x*k, walker.y*k);
-    ctx.rotate(walker.h * Math.PI/180);
-    ctx.fillStyle = "#ffffff";
-    ctx.shadowColor = "#38bdf8"; ctx.shadowBlur = 6;
-    ctx.beginPath(); ctx.moveTo(0,-5.5); ctx.lineTo(4,4.5); ctx.lineTo(-4,4.5); ctx.closePath(); ctx.fill();
-    ctx.restore();
-  }
-}
-window.__walkTick = (dt) => { if (walker.on) walkUpdate(dt); drawMinimap(); };
 
 /* ── interior classroom scenes ───────────────────────────────────── */
 const interiorEl = document.getElementById("interior");
@@ -2663,6 +2816,7 @@ function applyMode(){
   document.querySelectorAll("[data-skin]").forEach(el => {
     el.style.backgroundImage = el.dataset[mode];
   });
+  engineSetMode(mode);
   document.getElementById("daynight").textContent = mode === "day" ? "🌙" : "☀️";
 }
 document.getElementById("daynight").addEventListener("click", () => {
@@ -2676,17 +2830,15 @@ document.getElementById("daynight").addEventListener("click", () => {
         "#d4af6a");
 });
 
+
 /* ── ignition ────────────────────────────────────────────────────── */
+window.__app = { selectSector, openInterior };   /* test/debug hooks */
 applyMode();
 renderChips();
 renderBanner();
 renderCourses();
 refreshProgress();
-if (currentSector !== "all"){
-  document.querySelectorAll(".bgroup[data-sector]").forEach(el =>
-    el.classList.toggle("active", el.dataset.sector === currentSector));
-}
-setTimeout(() => toast("Welcome to Pembroke Academy", "Click any hall to step inside — or press F (🎮) to drop onto the quad and walk to class yourself. Progress saves automatically.", "#d4af6a", 7000), 900);
+setTimeout(() => toast("Welcome to Pembroke Academy", "Drag to orbit the campus, click any hall to step inside — or press F (🎮) to drop onto the quad and walk to class. Progress saves automatically.", "#d4af6a", 7000), 900);
 </script>
 </body>
 </html>
