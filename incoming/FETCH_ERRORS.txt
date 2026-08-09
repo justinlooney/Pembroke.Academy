@@ -1,6 +1,2 @@
-person05.glb (1HWMjuO9njv1nA2ztTTn9eORAneyToguB): download invalid (size=230580)
 person06.glb (1tINv5sP6PUrRg3bXUUGJoCMYS9BrHw7_): download invalid (size=589)
-person08.glb (1fPZbnqwBhKre4iOocJW4K6qO8e-gEaEK): download invalid (size=344773)
-person11.glb (14Udu9NV09GbWDrotocwqfEoeORxJ6FQ0): download invalid (size=9801)
-person13.glb (1wzPsDDEGPqrmshkOkwd_nKwZgFkRmuaA): download invalid (size=903384)
-person14.glb (1OPVehSzpr94wDudgI7wjrBUiojIque1U): download invalid (size=277026)
+person13.glb (1wzPsDDEGPqrmshkOkwd_nKwZgFkRmuaA): download invalid (size=902894)
