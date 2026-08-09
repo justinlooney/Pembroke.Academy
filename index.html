@@ -33,6 +33,7 @@
   --lawnEdge:rgba(168,180,140,.30);
   --walk1:rgba(216,206,178,.17); --walk2:rgba(216,206,178,.09);
   --isky1:#0d1428; --isky2:#2a4677;
+  --terra1:#6b3527; --terra2:#4a231a; --terra3:#381a13;
 }
 body.day{
   --roofA:#9aa1ab; --roofB:#737a85;
@@ -41,6 +42,7 @@ body.day{
   --lawnEdge:rgba(235,230,210,.5);
   --walk1:rgba(233,226,206,.88); --walk2:rgba(206,196,170,.85);
   --isky1:#8fc3ee; --isky2:#d6e9f8;
+  --terra1:#c26243; --terra2:#9c4a32; --terra3:#7e3a27;
 }
 /* canvas color lives on html only — body must stay transparent or its
    background paints OVER the fixed negative-z-index sky layer */
@@ -131,9 +133,10 @@ body.day #campus-wing .text-slate-600{color:#55657e;}
   perspective-origin:50% 32%;
 }
 #scene{
-  --zoom:.86;
+  --zoom:.5;
+  margin-top:-64px;
   position:relative;
-  width:640px;height:640px;
+  width:1000px;height:1000px;
   transform-style:preserve-3d;
   transform:scale(var(--zoom)) rotateX(calc(55deg + var(--tiltX))) rotateZ(calc(-45deg + var(--tiltZ)));
   transition:transform .35s cubic-bezier(.22,1,.36,1);
@@ -149,10 +152,11 @@ body.day #campus-wing .text-slate-600{color:#55657e;}
   transform-style:preserve-3d;
   border-radius:26px;
   background:
-    radial-gradient(340px 340px at 160px 160px, rgba(16,185,129,.10), transparent 70%),
-    radial-gradient(300px 300px at 475px 155px, rgba(245,158,11,.08), transparent 70%),
-    radial-gradient(300px 300px at 160px 460px, rgba(56,189,248,.08), transparent 70%),
-    radial-gradient(320px 320px at 470px 460px, rgba(167,139,250,.09), transparent 70%),
+    radial-gradient(380px 380px at 260px 230px, rgba(16,185,129,.09), transparent 70%),
+    radial-gradient(340px 340px at 740px 215px, rgba(245,158,11,.07), transparent 70%),
+    radial-gradient(340px 340px at 240px 735px, rgba(56,189,248,.07), transparent 70%),
+    radial-gradient(360px 360px at 735px 735px, rgba(167,139,250,.08), transparent 70%),
+    radial-gradient(circle 175px at 500px 500px, rgba(255,255,240,.05), transparent 98%),
     repeating-linear-gradient(45deg, rgba(220,240,190,.035) 0 26px, transparent 26px 52px),
     radial-gradient(95% 95% at 50% 45%, var(--lawn1) 0%, var(--lawn2) 52%, var(--lawn3) 100%);
   border:1px solid var(--lawnEdge);
@@ -178,6 +182,27 @@ body.day #campus-wing .text-slate-600{color:#55657e;}
   border:1px solid rgba(140,125,95,.3);
   box-shadow:inset 0 0 12px rgba(0,0,0,.25);
 }
+.walkring{ /* annulus path around the great lawn */
+  position:absolute;border-radius:50%;
+  background:radial-gradient(circle, transparent 0 168px, var(--walk1) 170px 196px, transparent 198px);
+}
+.walkring::after{content:"";position:absolute;inset:0;border-radius:50%;
+  background:radial-gradient(circle, transparent 0 169px, rgba(120,105,80,.14) 170px 172px, transparent 173px 193px, rgba(120,105,80,.14) 194px 196px, transparent 197px);}
+.lot{ /* asphalt parking with painted stalls */
+  position:absolute;
+  background:
+    repeating-linear-gradient(0deg, rgba(240,235,220,.22) 0 2px, transparent 2px 46px),
+    linear-gradient(180deg, rgba(70,72,78,.85), rgba(52,54,60,.85));
+  border:1px solid rgba(140,140,145,.35);
+}
+body.day .lot{filter:brightness(1.9);}
+/* terracotta roofs (the red-roofed refectory in the aerial) */
+.slope-s.terra{background:
+  repeating-linear-gradient(0deg, rgba(0,0,0,.15) 0 1.5px, transparent 1.5px 7px),
+  linear-gradient(180deg,var(--terra1),var(--terra2));}
+.slope-n.terra{background:
+  repeating-linear-gradient(0deg, rgba(0,0,0,.15) 0 1.5px, transparent 1.5px 7px),
+  linear-gradient(180deg,var(--terra2),var(--terra3));}
 /* warm pools of lamplight on the paving (night) */
 .lamppool{
   position:absolute;border-radius:50%;pointer-events:none;
@@ -317,7 +342,7 @@ body.day .chimney .face,body.day .pinn .face{filter:brightness(1.6);}
    NOTE: preserve-3d on .bb-inner is load-bearing — without it Chromium
    flattens the counter-rotated card into the ground plane at paint time. */
 .billboard{transform-style:preserve-3d;pointer-events:none;}
-.bb-inner{transform:rotateZ(45deg) rotateX(-55deg);transform-origin:center bottom;transform-style:preserve-3d;}
+.bb-inner{transform:var(--bb, rotateZ(45deg) rotateX(-55deg));transform-origin:center bottom;transform-style:preserve-3d;}
 
 .b-label{
   position:absolute;left:0;top:0;pointer-events:none;
@@ -497,6 +522,68 @@ body.day .chimney .face,body.day .pinn .face{filter:brightness(1.6);}
 #daynight:hover{transform:scale(1.12) rotate(12deg);box-shadow:0 8px 26px -8px rgba(0,0,0,.8), 0 0 26px -4px rgba(212,175,106,.75);}
 body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgba(240,230,205,.92));}
 
+#walkbtn{
+  position:absolute;top:4.6rem;right:1.4rem;z-index:25;
+  width:46px;height:46px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:19px;
+  background:linear-gradient(160deg, rgba(20,28,46,.9), rgba(10,16,30,.9));
+  border:1.5px solid rgba(56,189,248,.55);
+  box-shadow:0 8px 24px -8px rgba(0,0,0,.8), 0 0 18px -6px rgba(56,189,248,.5);
+  cursor:pointer;transition:transform .3s ease;
+}
+#walkbtn:hover{transform:scale(1.12);}
+.walkmode #walkbtn{border-color:#38bdf8;background:linear-gradient(160deg, rgba(24,60,90,.95), rgba(10,30,50,.95));}
+#minimap{
+  position:absolute;top:7.9rem;right:1.4rem;z-index:25;
+  border-radius:12px;border:1.5px solid rgba(212,175,106,.4);
+  background:rgba(8,12,22,.82);
+  box-shadow:0 10px 28px -10px rgba(0,0,0,.8);
+}
+#quest{
+  position:absolute;left:1.5rem;top:9.2rem;z-index:20;max-width:330px;
+  display:flex;gap:.65rem;align-items:flex-start;
+  padding:.6rem .9rem;border-radius:12px;
+  background:linear-gradient(160deg, rgba(20,28,46,.92), rgba(10,16,30,.88));
+  border:1px solid rgba(212,175,106,.4);
+  box-shadow:0 10px 30px -12px rgba(0,0,0,.8), 0 0 20px -10px rgba(212,175,106,.4);
+}
+#quest .q-icon{font-size:17px;margin-top:1px;}
+#quest .q-label{font-size:8.5px;letter-spacing:.26em;text-transform:uppercase;color:var(--brass-dim);}
+#quest .q-text{font-size:12px;color:#e2e8f0;line-height:1.45;margin-top:2px;}
+#walkhud{
+  position:absolute;left:50%;bottom:1.1rem;transform:translateX(-50%);z-index:26;
+  display:none;white-space:nowrap;
+  padding:.5rem 1.2rem;border-radius:999px;
+  font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#cbd5e1;
+  background:rgba(8,12,22,.85);border:1px solid rgba(56,189,248,.4);
+  box-shadow:0 10px 28px -10px rgba(0,0,0,.8);
+}
+.walkmode #walkhud{display:block;}
+#doorprompt{
+  position:absolute;left:50%;bottom:4.4rem;transform:translateX(-50%);z-index:26;
+  display:none;white-space:nowrap;
+  padding:.55rem 1.3rem;border-radius:12px;
+  font-size:13px;color:var(--parchment);
+  background:rgba(10,16,30,.92);border:1.5px solid var(--brass);
+  box-shadow:0 0 26px -6px rgba(212,175,106,.7);
+  animation:toast-in .3s ease;
+}
+#doorprompt b{display:inline-block;padding:0 .45rem;margin-right:.2rem;border:1.5px solid var(--brass);border-radius:6px;color:var(--brass);}
+#doorprompt.show{display:block;}
+#touchpad{position:absolute;left:50%;bottom:7.4rem;transform:translateX(-50%);z-index:26;display:none;gap:1rem;}
+#touchpad button{
+  width:56px;height:56px;border-radius:50%;font-size:20px;color:#e2e8f0;
+  background:rgba(8,12,22,.7);border:1.5px solid rgba(148,163,184,.5);
+}
+@media (hover:none){ .walkmode #touchpad{display:flex;} }
+/* walk-mode scene overrides: JS owns the camera transform completely */
+#scene.walking{animation:none;transition:none;transform-origin:0 0;}
+#stage.walking{perspective:640px;perspective-origin:50% 50%;padding-top:0;}
+#scene.walking{margin-top:0;}
+.walkmode .b-label .stem{display:none;}
+.walkmode #campus-wing-intro, .walkmode #campus-legend, .walkmode #campus-hints{opacity:0;pointer-events:none;transition:opacity .4s ease;}
+#campus-wing-intro, #campus-legend, #campus-hints{transition:opacity .4s ease;}
+
 /* ── interior classroom scene ──────────────────────────────────── */
 #interior{
   position:absolute;inset:0;z-index:30;
@@ -568,15 +655,18 @@ body.day #interior .int-room{background:linear-gradient(180deg,#3a3124 0%,#453a2
 body.day .int-lamp::after{opacity:.45;}
 
 @media (max-width:1023px){
-  #scene{--zoom:.66;}
+  #scene{--zoom:.42;}
   #stage{padding-top:7.5rem;}
   .moon{width:54px;height:54px;top:5%;right:5%;}
   #daynight{top:1rem;right:1rem;width:40px;height:40px;font-size:17px;}
+  #walkbtn{top:3.9rem;right:1rem;width:40px;height:40px;font-size:16px;}
+  #minimap{top:6.8rem;right:1rem;width:96px;height:96px;}
+  #quest{left:1rem;top:auto;bottom:5.2rem;max-width:250px;}
   .int-board{width:60%;}
   .int-window{width:60px;height:44%;clip-path:path("M0 300 L0 46 Q0 9 30 0 Q60 9 60 46 L60 300 Z");}
 }
 @media (max-width:639px){
-  #scene{--zoom:.5;}
+  #scene{--zoom:.32;}
   #stage{padding-top:8.5rem;}
 }
 </style>
@@ -643,8 +733,26 @@ body.day .int-lamp::after{opacity:.45;}
       <i style="left:0;top:8px;width:44px;height:16px"></i><i style="left:15px;top:0;width:36px;height:22px"></i><i style="left:36px;top:7px;width:38px;height:15px"></i>
     </div>
     <button id="daynight" title="Toggle day / night" aria-label="Toggle day or night">🌙</button>
+    <button id="walkbtn" title="Walk the campus (F)" aria-label="Enter first-person walk mode">🎮</button>
+    <canvas id="minimap" width="132" height="132" aria-label="Campus minimap"></canvas>
 
-    <div class="absolute inset-x-0 top-0 pt-6 sm:pt-8 px-6 sm:px-10 z-10 pointer-events-none">
+    <!-- quest banner: the current academic objective -->
+    <div id="quest">
+      <span class="q-icon">🎯</span>
+      <div>
+        <div class="q-label">Current objective</div>
+        <div class="q-text" id="quest-text"></div>
+      </div>
+    </div>
+
+    <!-- walk-mode HUD -->
+    <div id="walkhud">W A S D move &nbsp;·&nbsp; ◀ ▶ turn &nbsp;·&nbsp; E enter hall &nbsp;·&nbsp; F leave walk</div>
+    <div id="doorprompt"><b>E</b> — <span id="doorprompt-name"></span></div>
+    <div id="touchpad">
+      <button data-t="left">◀</button><button data-t="fwd">▲</button><button data-t="right">▶</button>
+    </div>
+
+    <div id="campus-wing-intro" class="absolute inset-x-0 top-0 pt-6 sm:pt-8 px-6 sm:px-10 z-10 pointer-events-none">
       <h1 class="font-serif-d text-3xl sm:text-4xl font-semibold text-[color:var(--parchment)] leading-tight drop-shadow-lg">The Gothic <span class="italic text-[color:var(--brass)]">Quadrangle</span></h1>
       <p class="text-[13px] text-slate-400 mt-1.5 max-w-md">Four halls of hewn granite, glowing tracery, and slate spires. <span class="text-slate-300">Click a building</span> to step inside its lecture wing — or wander the lawn with the cohort.</p>
     </div>
@@ -654,26 +762,43 @@ body.day .int-lamp::after{opacity:.45;}
       <div id="scene">
         <div class="plinth"></div>
         <div class="ground"></div>
-        <!-- walkways: campus cross axis -->
-        <div class="walk" style="left:298px;top:16px;width:44px;height:608px"></div>
-        <div class="walk" style="left:16px;top:298px;width:608px;height:44px"></div>
-        <!-- central ceremonial plaza + fountain rings -->
-        <div class="plaza" style="left:255px;top:255px;width:130px;height:130px">
+        <!-- the great oval: ring walk around the central lawn -->
+        <div class="walkring" style="left:280px;top:280px;width:440px;height:440px"></div>
+        <!-- outer spokes: chapel walk, gatehouse walk, east & west drives -->
+        <div class="walk" style="left:485px;top:178px;width:30px;height:140px"></div>
+        <div class="walk" style="left:485px;top:668px;width:30px;height:282px"></div>
+        <div class="walk" style="left:668px;top:485px;width:272px;height:30px"></div>
+        <div class="walk" style="left:60px;top:485px;width:272px;height:30px"></div>
+        <!-- inner spokes: ring to fountain plaza -->
+        <div class="walk" style="left:485px;top:332px;width:30px;height:106px"></div>
+        <div class="walk" style="left:485px;top:562px;width:30px;height:106px"></div>
+        <div class="walk" style="left:332px;top:485px;width:106px;height:30px"></div>
+        <div class="walk" style="left:562px;top:485px;width:106px;height:30px"></div>
+        <!-- diagonal door walks to the four halls -->
+        <div class="walk" style="left:368px;top:368px;width:150px;height:26px;transform-origin:0 50%;transform:rotate(-135deg)"></div>
+        <div class="walk" style="left:631px;top:369px;width:150px;height:26px;transform-origin:0 50%;transform:rotate(-45deg)"></div>
+        <div class="walk" style="left:369px;top:631px;width:150px;height:26px;transform-origin:0 50%;transform:rotate(135deg)"></div>
+        <div class="walk" style="left:631px;top:631px;width:150px;height:26px;transform-origin:0 50%;transform:rotate(45deg)"></div>
+        <!-- parking lots, east and west (with stalls) -->
+        <div class="lot" style="left:900px;top:310px;width:84px;height:300px"></div>
+        <div class="lot" style="left:16px;top:430px;width:70px;height:240px"></div>
+        <!-- central fountain plaza -->
+        <div class="plaza" style="left:435px;top:435px;width:130px;height:130px">
           <div class="pulse"></div><div class="pulse p2"></div>
         </div>
-        <!-- buildings, hedges, students & labels are constructed by JS -->
+        <!-- buildings, trees, students & labels are constructed by JS -->
       </div>
     </div>
 
     <!-- HUD: sector legend -->
-    <div class="absolute left-5 sm:left-8 bottom-5 z-10 space-y-1.5 text-[11px] pointer-events-none">
+    <div id="campus-legend" class="absolute left-5 sm:left-8 bottom-5 z-10 space-y-1.5 text-[11px] pointer-events-none">
       <div class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-sm inline-block" style="background:var(--quad-eng);box-shadow:0 0 8px var(--quad-eng)"></i><span class="text-slate-300">Engineering Quad · Software</span></div>
       <div class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-sm inline-block" style="background:var(--quad-sci);box-shadow:0 0 8px var(--quad-sci)"></i><span class="text-slate-300">Science Lab · Hardware &amp; µProcessors</span></div>
       <div class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-sm inline-block" style="background:var(--quad-lib);box-shadow:0 0 8px var(--quad-lib)"></i><span class="text-slate-300">Great Library · Pure Mathematics</span></div>
       <div class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-sm inline-block" style="background:var(--quad-adm);box-shadow:0 0 8px var(--quad-adm)"></i><span class="text-slate-300">Administration · AI Robotics &amp; Flight</span></div>
     </div>
-    <div class="absolute right-5 sm:right-8 bottom-5 z-10 text-right pointer-events-none">
-      <div class="text-[10px] uppercase tracking-[.24em] text-slate-500">Keys 1–4 · quads &nbsp;·&nbsp; 0 · full syllabus &nbsp;·&nbsp; N · day/night</div>
+    <div id="campus-hints" class="absolute right-5 sm:right-8 bottom-5 z-10 text-right pointer-events-none">
+      <div class="text-[10px] uppercase tracking-[.24em] text-slate-500">Keys 1–4 · quads · 0 · syllabus · N · day/night · F · walk mode</div>
       <div class="text-[10px] uppercase tracking-[.24em] text-slate-600 mt-1">move the mouse to survey the grounds</div>
     </div>
 
@@ -1290,6 +1415,7 @@ const byId = Object.fromEntries(COURSES.map(c => [c.id, c]));
    ① CAMPUS BUILDER — raw CSS 3D faces (roof + west wall + south wall)
    ══════════════════════════════════════════════════════════════════ */
 const scene = document.getElementById("scene");
+const COLLIDERS = [];   /* building footprints, for walk-mode collision + minimap */
 
 /* ── the stone mason: collegiate-gothic SVG wall textures ────────
    Each wall face is painted with an inline SVG — coursed ashlar stone,
@@ -1385,6 +1511,15 @@ function wallURI(orient, natW, natH, o, mode){
     }
     g += `<rect x="2" y="${p}" width="4.5" height="${natH-p-9}" fill="${P.butt}"/>`;
     g += `<rect x="${natW-6.5}" y="${p}" width="4.5" height="${natH-p-9}" fill="${P.butt}"/>`;
+  } else if (o.windows === "modern"){ /* mid-century ribbon glazing */
+    const rows = Math.max(2, Math.floor((natH - p - 26) / 26));
+    for (let r = 0; r < rows; r++){
+      const wy = p + 10 + r*26;
+      g += `<rect x="8" y="${wy}" width="${natW-16}" height="13" fill="url(#wg)" stroke="${P.frame}" stroke-width="1"/>`;
+      for (let mx = 26; mx < natW - 8; mx += 18){
+        g += `<line x1="${mx}" y1="${wy}" x2="${mx}" y2="${wy+13}" stroke="${P.frame}" stroke-width="1"/>`;
+      }
+    }
   } else if (o.windows === "slits"){ /* turret arrow slits */
     for (let sy = p + 14; sy < natH - 26; sy += 30){
       g += `<rect x="${natW/2 - 2}" y="${sy}" width="4" height="15" rx="2" fill="${P.winDark}" stroke="${P.frame}" stroke-width=".8"/>`;
@@ -1422,13 +1557,14 @@ function wallURI(orient, natW, natH, o, mode){
     + `<pattern id="course" width="30" height="20" patternUnits="userSpaceOnUse"><path d="M0 0.5 H30 M0 10.5 H30 M7.5 0.5 V10.5 M22.5 10.5 V20" stroke="${P.line}" stroke-width="1" fill="none"/></pattern>`
     + `</defs>`;
 
-  let svg;
+  let svg; /* 2x raster size (via width/height vs viewBox) keeps walls crisp
+              when the walk-mode camera stands right next to them */
   if (orient === "side" || orient === "plain-side"){ /* west/east: div-x axis is world-up */
-    svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${natH}" height="${natW}">${defs}<g transform="translate(${natH} 0) rotate(90)">${g}</g></svg>`;
+    svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${natH*2}" height="${natW*2}" viewBox="0 0 ${natH} ${natW}">${defs}<g transform="translate(${natH} 0) rotate(90)">${g}</g></svg>`;
   } else if (orient === "south"){ /* rendered as a backface: pre-mirror it */
-    svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${natW}" height="${natH}">${defs}<g transform="translate(${natW} 0) scale(-1 1)">${g}</g></svg>`;
+    svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${natW*2}" height="${natH*2}" viewBox="0 0 ${natW} ${natH}">${defs}<g transform="translate(${natW} 0) scale(-1 1)">${g}</g></svg>`;
   } else {
-    svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${natW}" height="${natH}">${defs}${g}</svg>`;
+    svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${natW*2}" height="${natH*2}" viewBox="0 0 ${natW} ${natH}">${defs}${g}</svg>`;
   }
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 }
@@ -1470,13 +1606,14 @@ function buildBox(o){
     skin("face wall wall-r",
       `width:${o.w}px;height:${wallH}px;top:${o.d}px;transform-origin:center top;transform:rotateX(90deg);`,
       "south", o.w, wallH, {...base, windows:o.windows, arch:o.arch, clock:o.clock});
-    /* north & east walls — occluded, but their parapets crown the silhouette */
+    /* north & east walls — windowed too, so walk mode looks right from
+       every side, and their parapets crown the silhouette */
     skin("face wall",
       `width:${o.w}px;height:${wallH}px;top:0;transform-origin:center top;transform:rotateX(90deg);`,
-      "plain", o.w, wallH, {...base, arch:o.arch});
+      "plain", o.w, wallH, {...base, windows:o.windows, arch:o.arch});
     skin("face wall",
       `width:${wallH}px;height:${o.d}px;left:${o.w}px;top:0;transform-origin:left center;transform:rotateY(-90deg);`,
-      "plain-side", o.d, wallH, base);
+      "plain-side", o.d, wallH, {...base, windows:o.windows});
     if (!o.noRoof) face("face roof lead", `transform:translateZ(${o.h}px);`);
   } else {
     face("face wall wall-l", `width:${o.h}px;height:${o.d}px;transform-origin:left center;transform:rotateY(-90deg);background:${o.wallBg}`);
@@ -1484,32 +1621,49 @@ function buildBox(o){
     face("face roof", `transform:translateZ(${o.h}px);background:${o.roofBg}`);
   }
 
+  if (!o.noCollide && o.w >= 20 && o.d >= 20 && o.h >= 40){
+    COLLIDERS.push({ x:o.x, y:o.y, w:o.w, d:o.d, sector:(o.cls || "").startsWith("hall-") ? (o.cls || "").slice(5) : null });
+  }
   (o.parent || scene).appendChild(b);
   return b;
 }
 
-/* ── pitched slate gable roofs: two slopes + stone gable-end triangles ── */
+/* ── pitched slate gable roofs: two slopes + stone gable-end triangles.
+   axis:"x" (default) puts the ridge along x; axis:"y" along y. ── */
 function buildGable(parent, o){
-  /* o = {x, y, w, d, z, h} — ridge runs along the x axis at altitude z+h */
   const b = document.createElement("div");
   b.className = "b3d gable";
   b.style.cssText = `left:${o.x}px;top:${o.y}px;width:${o.w}px;height:${o.d}px`;
-  const s = Math.hypot(o.h, o.d/2);
-  const aS = 180 - Math.atan2(o.h, o.d/2) * 180/Math.PI;
-  const aN = Math.atan2(o.h, o.d/2) * 180/Math.PI;
+  const terra = o.terra ? " terra" : "";
   const mk = (cls, css) => {
     const f = document.createElement("div");
     f.className = cls; f.style.cssText = css;
     b.appendChild(f); return f;
   };
-  mk("face slope-s", `left:0;top:${o.d}px;width:${o.w}px;height:${s}px;transform-origin:center top;transform:translateZ(${o.z}px) rotateX(${aS}deg);`);
-  mk("face slope-n", `left:0;top:0;width:${o.w}px;height:${s}px;transform-origin:center top;transform:translateZ(${o.z}px) rotateX(${aN}deg);`);
-  [0, o.w].forEach(lx => { /* stone gable ends, clipped to triangles */
-    const f = mk("face wall", `left:${lx}px;top:0;width:${o.h}px;height:${o.d}px;transform-origin:left center;transform:translateZ(${o.z}px) rotateY(-90deg);clip-path:polygon(0 0,100% 50%,0 100%);background-size:100% 100%;`);
+  const gableEnd = (css) => { /* stone triangle, day/night skinned */
+    const f = mk("face wall", css + "background-size:100% 100%;");
     f.dataset.skin = "1";
-    f.dataset.day = wallURI("side", o.d, o.h, {seed:5}, "day");
-    f.dataset.night = wallURI("side", o.d, o.h, {seed:5}, "night");
-  });
+    f.dataset.day = wallURI("side", o.axis === "y" ? o.w : o.d, o.h, {seed:5}, "day");
+    f.dataset.night = wallURI("side", o.axis === "y" ? o.w : o.d, o.h, {seed:5}, "night");
+    return f;
+  };
+  if (o.axis === "y"){
+    const sw = Math.hypot(o.h, o.w/2);
+    const aW = -Math.atan2(o.h, o.w/2) * 180/Math.PI;
+    const aE = -(180 - Math.atan2(o.h, o.w/2) * 180/Math.PI);
+    mk("face slope-s" + terra, `left:0;top:0;width:${sw}px;height:${o.d}px;transform-origin:left center;transform:translateZ(${o.z}px) rotateY(${aW}deg);`);
+    mk("face slope-n" + terra, `left:${o.w}px;top:0;width:${sw}px;height:${o.d}px;transform-origin:left center;transform:translateZ(${o.z}px) rotateY(${aE}deg);`);
+    gableEnd(`left:0;top:${o.d}px;width:${o.w}px;height:${o.h}px;transform-origin:center top;transform:translateZ(${o.z}px) rotateX(90deg);clip-path:polygon(0 0,100% 0,50% 100%);`);
+    gableEnd(`left:0;top:0;width:${o.w}px;height:${o.h}px;transform-origin:center top;transform:translateZ(${o.z}px) rotateX(90deg);clip-path:polygon(0 0,100% 0,50% 100%);`);
+  } else {
+    const sd = Math.hypot(o.h, o.d/2);
+    const aS = 180 - Math.atan2(o.h, o.d/2) * 180/Math.PI;
+    const aN = Math.atan2(o.h, o.d/2) * 180/Math.PI;
+    mk("face slope-s" + terra, `left:0;top:${o.d}px;width:${o.w}px;height:${sd}px;transform-origin:center top;transform:translateZ(${o.z}px) rotateX(${aS}deg);`);
+    mk("face slope-n" + terra, `left:0;top:0;width:${o.w}px;height:${sd}px;transform-origin:center top;transform:translateZ(${o.z}px) rotateX(${aN}deg);`);
+    gableEnd(`left:0;top:0;width:${o.h}px;height:${o.d}px;transform-origin:left center;transform:translateZ(${o.z}px) rotateY(-90deg);clip-path:polygon(0 0,100% 50%,0 100%);`);
+    gableEnd(`left:${o.w}px;top:0;width:${o.h}px;height:${o.d}px;transform-origin:left center;transform:translateZ(${o.z}px) rotateY(-90deg);clip-path:polygon(0 0,100% 50%,0 100%);`);
+  }
   parent.appendChild(b);
   return b;
 }
@@ -1542,18 +1696,18 @@ function buildSpire(parent, o){
 
 /* the four gothic halls: crenellated base court + bell tower + slate spire */
 const BUILDINGS = [
-  { sector:"lib", label:{x:160, y:160, z:238},   /* chapel: spired */
-    hall:{x:60,  y:60,  w:200, d:200, h:74, roof:44, seed:1},
-    tower:{x:114, y:114, w:92, d:92, h:146, spire:78} },
-  { sector:"eng", label:{x:475, y:155, z:172},   /* gatehouse-style crenellated tower */
-    hall:{x:380, y:80,  w:190, d:150, h:66, roof:36, seed:2},
-    tower:{x:386, y:86,  w:66, d:66, h:118, pinnacles:true} },
-  { sector:"sci", label:{x:160, y:460, z:210},   /* spired laboratory tower */
-    hall:{x:70,  y:380, w:180, d:160, h:64, roof:36, seed:3},
-    tower:{x:152, y:396, w:72, d:72, h:126, spire:68} },
-  { sector:"adm", label:{x:470, y:460, z:224},   /* the great clock tower */
-    hall:{x:380, y:370, w:180, d:180, h:78, roof:42, seed:4},
-    tower:{x:432, y:422, w:76, d:76, h:170, pinnacles:true, clock:true} },
+  { sector:"lib", label:{x:260, y:230, z:240},   /* chapel-spired library, NW */
+    hall:{x:150, y:150, w:220, d:160, h:74, roof:44, seed:1},
+    tower:{x:238, y:182, w:92, d:92, h:150, spire:76} },
+  { sector:"eng", label:{x:740, y:220, z:176},   /* crenellated quad, NE */
+    hall:{x:645, y:150, w:190, d:140, h:66, roof:36, seed:2},
+    tower:{x:668, y:168, w:66, d:66, h:120, pinnacles:true} },
+  { sector:"sci", label:{x:240, y:735, z:214},   /* spired laboratory, SW */
+    hall:{x:140, y:660, w:200, d:150, h:64, roof:36, seed:3},
+    tower:{x:212, y:680, w:72, d:72, h:130, spire:70} },
+  { sector:"adm", label:{x:735, y:735, z:226},   /* the great clock tower, SE */
+    hall:{x:640, y:650, w:190, d:170, h:78, roof:42, seed:4},
+    tower:{x:700, y:702, w:78, d:78, h:172, pinnacles:true, clock:true} },
 ];
 
 const buildingEls = {};   // sector -> [group element]
@@ -1627,31 +1781,79 @@ BUILDINGS.forEach(spec => {
   labelEls[spec.sector] = lab.querySelector(`[data-labprog="${spec.sector}"]`);
 });
 
-/* hedgerows & lantern posts — decorative geometry for depth */
+/* hedgerows flanking the inner spokes — formal parterre geometry */
 [
-  { x:280, y:60,  w:14, d:90 },  { x:346, y:60,  w:14, d:90 },
-  { x:280, y:490, w:14, d:90 },  { x:346, y:490, w:14, d:90 },
-  { x:60,  y:280, w:90, d:14 },  { x:60,  y:346, w:90, d:14 },
-  { x:490, y:280, w:90, d:14 },  { x:490, y:346, w:90, d:14 },
+  { x:466, y:338, w:12, d:86 },  { x:522, y:338, w:12, d:86 },
+  { x:466, y:576, w:12, d:86 },  { x:522, y:576, w:12, d:86 },
+  { x:338, y:466, w:86, d:12 },  { x:338, y:522, w:86, d:12 },
+  { x:576, y:466, w:86, d:12 },  { x:576, y:522, w:86, d:12 },
 ].forEach(hd => buildBox({
   ...hd, h:16, deco:true,
   roofBg:"linear-gradient(135deg,#14532d,#0c3d20)",
   wallBg:"linear-gradient(180deg,#0f4526,#092e18)",
 }));
 
-/* ── the gatehouse: twin-turreted arch over the north entry walk ── */
+/* ── the gatehouse: twin-turreted arch over the SOUTH entry walk ── */
 (function gatehouse(){
   const gh = document.createElement("div");
   gh.className = "bgroup static";
   scene.appendChild(gh);
-  /* central block — pointed tunnel + clock, crenellated */
-  buildBox({ x:276, y:16, w:88, d:46, h:62, parapet:7, stone:true, arch:true, clock:true,
-             seed:7, accent:"#d4af6a", parent:gh, deco:true, cls:"gatehouse" });
-  /* twin flanking turrets with arrow slits, Blair Arch style */
-  buildBox({ x:257, y:10, w:27, d:36, h:96, parapet:6, stone:true, windows:"slits",
+  buildBox({ x:456, y:880, w:88, d:46, h:62, parapet:7, stone:true, arch:true, clock:true,
+             seed:7, accent:"#d4af6a", parent:gh, deco:true, cls:"gatehouse", noCollide:true });
+  buildBox({ x:437, y:874, w:27, d:36, h:96, parapet:6, stone:true, windows:"slits",
              seed:8, accent:"#d4af6a", parent:gh, deco:true, cls:"gatehouse" });
-  buildBox({ x:356, y:10, w:27, d:36, h:96, parapet:6, stone:true, windows:"slits",
+  buildBox({ x:536, y:874, w:27, d:36, h:96, parapet:6, stone:true, windows:"slits",
              seed:9, accent:"#d4af6a", parent:gh, deco:true, cls:"gatehouse" });
+  /* solid jambs either side of the tunnel so you can walk through it */
+  COLLIDERS.push({ x:456, y:880, w:26, d:46 }, { x:518, y:880, w:26, d:46 });
+})();
+
+/* ── ambient campus, ringed around the oval like the aerial ─────── */
+(function ambient(){
+  const amb = document.createElement("div");
+  amb.className = "bgroup static";
+  scene.appendChild(amb);
+  const A = (o) => buildBox({ ...o, parent:amb, deco:true });
+
+  /* the chapel at the head of the north walk — twin spires, arched door */
+  A({ x:425, y:58, w:150, d:120, h:56, stone:true, windows:"lancet", ivy:true,
+      noRoof:true, arch:true, seed:12, accent:"#e8d9a0", cls:"chapel" });
+  buildGable(amb, { x:425, y:58, w:150, d:120, z:56, h:46 });
+  [[428,150],[565,150]].forEach(([tx,ty], i) => {
+    A({ x:tx, y:ty, w:32, d:32, h:140, stone:true, windows:"slits", seed:13+i, accent:"#e8d9a0", cls:"chapel" });
+    buildSpire(amb, { x:tx+3, y:ty+3, w:26, d:26, z:140, h:64 });
+    const fin = document.createElement("div");
+    fin.className = "billboard finial";
+    fin.style.transform = `translate3d(${tx+16}px, ${ty+16}px, 206px)`;
+    fin.innerHTML = `<div class="bb-inner"><div class="fdot" style="--fc:#e8d9a0"></div></div>`;
+    amb.appendChild(fin);
+  });
+
+  /* long dormitory ranges, east and west (ridge along y) */
+  A({ x:856, y:240, w:64, d:310, h:70, stone:true, windows:"lancet", seed:16, accent:"#d9c48a", noRoof:true });
+  buildGable(amb, { x:856, y:240, w:64, d:310, z:70, h:28, axis:"y" });
+  A({ x:86, y:330, w:64, d:300, h:70, stone:true, windows:"lancet", seed:17, accent:"#d9c48a", noRoof:true });
+  buildGable(amb, { x:86, y:330, w:64, d:300, z:70, h:28, axis:"y" });
+
+  /* the red-roofed refectory (terracotta, like the aerial's centerpiece) */
+  A({ x:700, y:330, w:110, d:72, h:46, stone:true, windows:"lancet", seed:18, accent:"#f0b47a", noRoof:true });
+  buildGable(amb, { x:700, y:330, w:110, d:72, z:46, h:30, terra:true });
+
+  /* south gabled hall + mid-century modern blocks (SW of the aerial) */
+  A({ x:340, y:795, w:140, d:100, h:58, stone:true, windows:"lancet", ivy:true, seed:19, accent:"#d9c48a", noRoof:true });
+  buildGable(amb, { x:340, y:795, w:140, d:100, z:58, h:34 });
+  A({ x:120, y:852, w:190, d:86, h:64, parapet:5, stone:true, windows:"modern", seed:20, accent:"#bcd2de", cls:"modernb" });
+  A({ x:740, y:872, w:160, d:74, h:52, parapet:5, stone:true, windows:"modern", seed:21, accent:"#bcd2de", cls:"modernb" });
+
+  /* parked cars in the lots — a little GTA on the way to lecture */
+  const CARS = [
+    [906,326,"#a13c34"],[906,372,"#3c4a63"],[906,418,"#c9c4ba"],[906,510,"#22262c"],
+    [906,556,"#7b4a2e"],[952,440,"#4a5a48"],
+    [24,446,"#c9c4ba"],[24,494,"#5a3050"],[24,588,"#33424e"],[44,540,"#a13c34"],
+  ];
+  CARS.forEach(([cx, cy, col]) => buildBox({ x:cx, y:cy, w:30, d:16, h:9, parent:amb, deco:true, cls:"car",
+    roofBg:`linear-gradient(135deg, ${col}, #14161a 88%)`,
+    wallBg:`linear-gradient(180deg, ${col}, #101216 82%)` }));
 })();
 
 /* wrought-iron lamps — corner obelisks and path lanterns, each pooling
@@ -1670,44 +1872,64 @@ function makeLamp(x, y, size, h){
   pool.style.cssText = `left:${cx - 40}px;top:${cy - 40}px;width:80px;height:80px;transform:translateZ(0.6px);`;
   scene.appendChild(pool);
 }
-[[34,34,14,64],[588,34,14,64],[34,588,14,64],[588,588,14,64],
- [270,244,10,46],[360,244,10,46],[270,388,10,46],[360,388,10,46]]
-  .forEach(a => makeLamp(...a));
+[[34,34,14,64],[952,34,14,64],[34,952,14,64],[952,952,14,64]].forEach(a => makeLamp(...a));
+for (let k = 0; k < 8; k++){ /* lantern ring around the great lawn */
+  const a = (22.5 + 45*k) * Math.PI/180;
+  makeLamp(Math.round(500 + 210*Math.cos(a)) - 5, Math.round(500 + 210*Math.sin(a)) - 5, 10, 48);
+}
 
-/* campus elms — formal allées flanking the walks, groves at the bounds */
-[
-  [36,168,1.0],[168,36,.85],[472,36,.9],[604,96,1.0],[36,244,.8],
-  [36,472,1.05],[90,606,1.0],[240,606,.9],[470,606,1.05],[604,472,.95],
-  [285,90,.8],[355,92,.85],[285,556,.85],[355,554,.8],
-].forEach(([tx,ty,ts]) => {
-  const el = document.createElement("div");
-  el.className = "tree billboard";
-  el.style.transform = `translate3d(${tx}px, ${ty}px, 0.5px)`;
-  el.innerHTML = `<div class="bb-inner"><div class="sprite" style="--s:${ts}"><div class="tshadow"></div><div class="trunk"></div><div class="c2"></div><div class="c3"></div><div class="c1"></div></div></div>`;
-  scene.appendChild(el);
-});
+/* campus trees — great elms ringing the lawn, groves at the bounds */
+(function plantTrees(){
+  const TREES = [];
+  [[10,235],[80,235],[100,235],[170,235],[190,235],[260,235],[280,235],[350,235],
+   [35,258],[145,258],[215,258],[325,258]].forEach(([a, r]) => {
+    const rad = a * Math.PI/180;
+    TREES.push([Math.round(500 + r*Math.cos(rad)), Math.round(500 + r*Math.sin(rad)), 0.95 + (a % 7)/18]);
+  });
+  TREES.push(
+    [60,60,1.15],[100,42,.85],[42,105,.9],[940,64,1.05],[955,120,.85],[610,52,.9],[390,95,.8],
+    [60,940,1.1],[300,880,.9],[400,952,.85],[660,940,.95],[950,945,1.05],[462,240,.85],[538,240,.85],
+    [95,610,.9],[930,215,.9],[240,95,.95],[760,95,.9],[60,760,.95],[940,760,1],[560,952,.9],[875,205,.85]
+  );
+  TREES.forEach(([tx, ty, ts]) => {
+    const el = document.createElement("div");
+    el.className = "tree billboard";
+    el.style.transform = `translate3d(${tx}px, ${ty}px, 0.5px)`;
+    el.innerHTML = `<div class="bb-inner"><div class="sprite" style="--s:${ts}"><div class="tshadow"></div><div class="trunk"></div><div class="c2"></div><div class="c3"></div><div class="c1"></div></div></div>`;
+    scene.appendChild(el);
+  });
+})();
 
 /* fireflies drifting over the lawn */
-for (let i = 0; i < 14; i++){
+for (let i = 0; i < 22; i++){
   const f = document.createElement("div");
   f.className = "fly";
-  const x = 60 + Math.random() * 520, y = 60 + Math.random() * 520;
+  const x = 80 + Math.random() * 840, y = 80 + Math.random() * 840;
   f.style.cssText = `left:${x}px;top:${y}px;--dx:${(Math.random()*120-60).toFixed(0)}px;--dy:${(Math.random()*120-60).toFixed(0)}px;--t:${(6+Math.random()*8).toFixed(1)}s;animation-delay:-${(Math.random()*9).toFixed(1)}s;`;
   scene.appendChild(f);
 }
 
 /* ── ambient cohort: students strolling the quad ─────────────────── */
-const WAYPOINTS = {
-  C:[320,320],  N:[320,120],  S:[320,540],  W:[120,320],  E:[540,320],
-  NN:[320,50],  SS:[320,592], WW:[50,320],  EE:[592,320],
-  libDoor:[270,270], engDoor:[372,250], sciDoor:[262,372], admDoor:[372,368],
-};
-const EDGES = {
-  C:["N","S","W","E","libDoor","engDoor","sciDoor","admDoor"],
-  N:["C","NN"], S:["C","SS"], W:["C","WW"], E:["C","EE"],
-  NN:["N"], SS:["S"], WW:["W"], EE:["E"],
-  libDoor:["C"], engDoor:["C"], sciDoor:["C"], admDoor:["C"],
-};
+const WAYPOINTS = { C:[500,500] };
+const EDGES = { C:[] };
+for (let k = 0; k < 8; k++){ /* ring nodes R0..R7 every 45 degrees */
+  const a = 45*k * Math.PI/180;
+  WAYPOINTS["R"+k] = [Math.round(500 + 186*Math.cos(a)), Math.round(500 + 186*Math.sin(a))];
+}
+for (let k = 0; k < 8; k++) EDGES["R"+k] = ["R"+((k+1)%8), "R"+((k+7)%8)];
+/* inner spokes to the fountain */
+[["R0"],["R2"],["R4"],["R6"]].forEach(([r]) => { EDGES[r].push("C"); EDGES.C.push(r); });
+/* outer walks: chapel (N), gatehouse (S), east & west drives */
+Object.assign(WAYPOINTS, {
+  chapel:[500,196], gate:[500,905], south:[500,946], east:[928,500], west:[72,500],
+  libDoor:[260,326], engDoor:[740,306], sciDoor:[240,822], admDoor:[735,832],
+});
+Object.assign(EDGES, {
+  chapel:["R6"], gate:["R2","south"], south:["gate"], east:["R0"], west:["R4"],
+  libDoor:["R5"], engDoor:["R7"], sciDoor:["R3"], admDoor:["R1"],
+});
+EDGES.R6.push("chapel"); EDGES.R2.push("gate"); EDGES.R0.push("east"); EDGES.R4.push("west");
+EDGES.R5.push("libDoor"); EDGES.R7.push("engDoor"); EDGES.R3.push("sciDoor"); EDGES.R1.push("admDoor");
 const STUDENT_ROSTER = [
   { name:"Elowen", c:"#34d399", says:["Off to Calc III — gradients await!","The Library dome at dusk… unbeatable.","Stokes' theorem finally clicked!"] },
   { name:"Marcus", c:"#fbbf24", says:["My first Python script ran — no errors!","Binary search in 17 steps. SEVENTEEN.","Whitmore Quad study group, 8pm."] },
@@ -1715,6 +1937,8 @@ const STUDENT_ROSTER = [
   { name:"Jun",    c:"#a78bfa", says:["Tuned my PID — no more overshoot!","A* found a corridor through the no-fly grid.","Capstone flight over the quad Friday!"] },
   { name:"Sofia",  c:"#f472b6", says:["Simpson's rule tamed the Gaussian bell.","Unit circle from memory. All of it.","Meet at the fountain after lecture?"] },
   { name:"Theo",   c:"#5eead4", says:["Pointers finally make sense!","Committed my problem sets — git push, done.","K-maps are just crossword puzzles."] },
+  { name:"Amara",  c:"#fb923c", says:["Ten laps of the oval before class.","The chapel bells at dusk — worth the walk.","Green's theorem is just bookkeeping for flow."] },
+  { name:"Kenji",  c:"#a3e635", says:["Parked by the east lot, sprinting to lab!","My A* found a shorter path to lecture.","The refectory's roof matches my notebook."] },
 ];
 const students = [];
 STUDENT_ROSTER.forEach((st, i) => {
@@ -1731,8 +1955,7 @@ STUDENT_ROSTER.forEach((st, i) => {
        </div>
      </div>`;
   scene.appendChild(el);
-  const keys = Object.keys(WAYPOINTS);
-  const startKey = ["C","N","S","W","E"][i % 5];
+  const startKey = ["C","R0","R1","R2","R3","R4","R5","R6","R7"][i % 9];
   const s = {
     el, data:st,
     node:startKey,
@@ -1785,6 +2008,7 @@ function stepStudents(now){
     }
     s.el.style.transform = `translate3d(${s.pos[0]}px, ${s.pos[1]}px, 1px)`;
   }
+  if (window.__walkTick) window.__walkTick(dt);
   requestAnimationFrame(stepStudents);
 }
 requestAnimationFrame(stepStudents);
@@ -2085,6 +2309,7 @@ function refreshProgress(){
   document.getElementById("gp-count").textContent = `${done.length} of ${COURSES.length}`;
   document.getElementById("gpbar-fill").style.width = pct + "%";
   document.getElementById("gp-standing").textContent = standingFor(pct);
+  refreshQuest();
   SECTOR_ORDER.forEach(k => {
     if (labelEls[k]) labelEls[k].textContent = courseCountText(k);
     const doneAll = COURSES.filter(c => c.sector === k).every(c => done.includes(c.id));
@@ -2190,6 +2415,151 @@ function toast(title, body, color, ms){
   setTimeout(() => { t.classList.add("bye"); setTimeout(() => t.remove(), 450); }, ms || 4200);
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   FIRST-PERSON WALK MODE — the campus as an open world.
+   Same CSS 3D scene, different camera: perspective eye at ground level,
+   WASD + arrows, AABB collision, E to enter the hall in front of you.
+   ══════════════════════════════════════════════════════════════════ */
+const wing  = document.getElementById("campus-wing");
+const stage = document.getElementById("stage");
+const DOORS = [
+  { sector:"lib", x:260, y:326 }, { sector:"eng", x:740, y:306 },
+  { sector:"sci", x:240, y:822 }, { sector:"adm", x:735, y:832 },
+];
+const walker = { on:false, x:500, y:800, h:0, eye:36, bobT:0, door:null, keys:{} };
+window.__walker = walker;   /* handy for debugging + tests */
+
+function enterWalk(){
+  if (walker.on) return;
+  walker.on = true;
+  walker.x = 500; walker.y = 802; walker.h = 0;  /* south walk, facing the fountain */
+  wing.classList.add("walkmode");
+  stage.classList.add("walking");
+  scene.classList.add("walking");
+  document.getElementById("walkbtn").textContent = "🚁";
+  toast("Boots on the quad", "WASD to walk · ◀ ▶ to look · E to enter the hall in front of you · F to fly back up.", "#38bdf8", 6500);
+}
+function exitWalk(){
+  if (!walker.on) return;
+  walker.on = false;
+  wing.classList.remove("walkmode");
+  stage.classList.remove("walking");
+  scene.classList.remove("walking");
+  scene.style.transform = "";
+  rootStyle.setProperty("--bb", "rotateZ(45deg) rotateX(-55deg)");
+  document.getElementById("walkbtn").textContent = "🎮";
+  document.getElementById("doorprompt").classList.remove("show");
+}
+document.getElementById("walkbtn").addEventListener("click", () => walker.on ? exitWalk() : enterWalk());
+
+function collide(nx, ny){
+  const r = 9;
+  if (nx < 30 || nx > 970 || ny < 30 || ny > 970) return true;
+  for (const c of COLLIDERS){
+    if (nx > c.x - r && nx < c.x + c.w + r && ny > c.y - r && ny < c.y + c.d + r) return true;
+  }
+  return false;
+}
+
+function walkUpdate(dt){
+  const k = walker.keys;
+  const turn = 115 * dt;
+  if (k.ArrowLeft  || k.tleft)  walker.h -= turn;
+  if (k.ArrowRight || k.tright) walker.h += turn;
+  let mv = 0, str = 0;
+  if (k.KeyW || k.ArrowUp   || k.tfwd) mv += 1;
+  if (k.KeyS || k.ArrowDown) mv -= 1;
+  if (k.KeyA) str -= 1;
+  if (k.KeyD) str += 1;
+  const sp = 155 * dt, hr = walker.h * Math.PI/180;
+  const lx = Math.sin(hr), ly = -Math.cos(hr);   /* look direction  */
+  const rx = Math.cos(hr), ry = Math.sin(hr);    /* strafe direction */
+  const nx = walker.x + (lx*mv + rx*str) * sp;
+  const ny = walker.y + (ly*mv + ry*str) * sp;
+  if (!collide(nx, walker.y)) walker.x = nx;     /* slide along walls */
+  if (!collide(walker.x, ny)) walker.y = ny;
+  walker.bobT = (mv || str) ? walker.bobT + dt*9 : 0;
+  const bob = (mv || str) ? Math.sin(walker.bobT) * 1.7 : 0;
+  /* the camera: V = translateZ(P) · Rx(~90°) · Rz(−h) · T(−p) */
+  scene.style.transform =
+    `translate(500px, 500px) translateZ(640px) rotateX(88deg) rotateZ(${-walker.h}deg) translate3d(${-walker.x}px, ${-walker.y}px, ${-(walker.eye + bob)}px)`;
+  /* re-face every billboard (labels, students, trees) toward this camera */
+  rootStyle.setProperty("--bb", `rotateZ(${walker.h}deg) rotateX(-88deg)`);
+  /* hall door proximity → E prompt */
+  walker.door = null;
+  for (const d of DOORS){
+    if (Math.hypot(d.x - walker.x, d.y - walker.y) < 54){ walker.door = d.sector; break; }
+  }
+  const dp = document.getElementById("doorprompt");
+  dp.classList.toggle("show", !!walker.door);
+  if (walker.door) document.getElementById("doorprompt-name").textContent = "Enter " + SECTORS[walker.door].hall;
+}
+
+window.addEventListener("keydown", e => {
+  if (e.target.matches("input,textarea")) return;
+  if (e.key === "f" || e.key === "F"){ walker.on ? exitWalk() : enterWalk(); return; }
+  if (!walker.on) return;
+  walker.keys[e.code] = true;
+  if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
+  if (e.code === "KeyE" && walker.door){
+    const key = walker.door;
+    selectSector(key, false);
+    openInterior(key);
+    const q = questInfo();
+    if (q.sector === key) toast("📚 Class attended", "You made it to lecture. Seal the course in the ledger once you've mastered it.", SECTORS[key].color, 5500);
+  }
+});
+window.addEventListener("keyup", e => { walker.keys[e.code] = false; });
+document.querySelectorAll("#touchpad button").forEach(b => {
+  const code = "t" + b.dataset.t;
+  const on  = ev => { ev.preventDefault(); walker.keys[code.replace("t","t").replace("tfwd","tfwd")] = true; walker.keys["t"+b.dataset.t] = true; };
+  const off = ev => { ev.preventDefault(); walker.keys["t"+b.dataset.t] = false; };
+  b.addEventListener("pointerdown", on); b.addEventListener("pointerup", off);
+  b.addEventListener("pointerleave", off); b.addEventListener("pointercancel", off);
+});
+
+/* ── the quest log: your next course is your next destination ────── */
+function questInfo(){
+  const next = COURSES.find(c => !done.includes(c.id));
+  if (!next) return { text:"Degree complete — Summa Cum Laude. The campus is yours, laureate. 🎓" };
+  const S = SECTORS[next.sector];
+  return { sector:next.sector, text:`Attend ${next.code} · ${next.title} — walk to ${S.hall}` };
+}
+function refreshQuest(){
+  document.getElementById("quest-text").textContent = questInfo().text;
+}
+
+/* ── minimap ─────────────────────────────────────────────────────── */
+const mm = document.getElementById("minimap");
+function drawMinimap(){
+  const ctx = mm.getContext("2d");
+  const k = mm.width / 1000;
+  ctx.clearRect(0, 0, mm.width, mm.height);
+  ctx.fillStyle = "rgba(30,72,42,.55)";
+  ctx.fillRect(2, 2, mm.width-4, mm.height-4);
+  ctx.strokeStyle = "rgba(226,216,188,.55)";
+  ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.arc(500*k, 500*k, 183*k, 0, 6.3); ctx.stroke();
+  ctx.lineWidth = 1.5;
+  [[500,196,500,314],[500,686,500,946],[686,500,928,500],[72,500,314,500]].forEach(([a,b,c,d]) => {
+    ctx.beginPath(); ctx.moveTo(a*k, b*k); ctx.lineTo(c*k, d*k); ctx.stroke();
+  });
+  for (const c of COLLIDERS){
+    ctx.fillStyle = c.sector ? SECTORS[c.sector].color : "rgba(196,186,164,.7)";
+    ctx.fillRect(c.x*k, c.y*k, Math.max(2, c.w*k), Math.max(2, c.d*k));
+  }
+  if (walker.on){
+    ctx.save();
+    ctx.translate(walker.x*k, walker.y*k);
+    ctx.rotate(walker.h * Math.PI/180);
+    ctx.fillStyle = "#ffffff";
+    ctx.shadowColor = "#38bdf8"; ctx.shadowBlur = 6;
+    ctx.beginPath(); ctx.moveTo(0,-5.5); ctx.lineTo(4,4.5); ctx.lineTo(-4,4.5); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+}
+window.__walkTick = (dt) => { if (walker.on) walkUpdate(dt); drawMinimap(); };
+
 /* ── interior classroom scenes ───────────────────────────────────── */
 const interiorEl = document.getElementById("interior");
 function openInterior(key){
@@ -2267,7 +2637,7 @@ if (currentSector !== "all"){
   document.querySelectorAll(".bgroup[data-sector]").forEach(el =>
     el.classList.toggle("active", el.dataset.sector === currentSector));
 }
-setTimeout(() => toast("Welcome to Pembroke Academy", "Click any hall on the quad to step inside — or press 0 for the full master syllabus. Your progress is saved automatically.", "#d4af6a", 6500), 900);
+setTimeout(() => toast("Welcome to Pembroke Academy", "Click any hall to step inside — or press F (🎮) to drop onto the quad and walk to class yourself. Progress saves automatically.", "#d4af6a", 7000), 900);
 </script>
 </body>
 </html>
