@@ -26,8 +26,25 @@
   --quad-adm:#a78bfa;   /* Administration — imperial purple */
   --tiltX:0deg;
   --tiltZ:0deg;
+  /* night palette (default) — body.day overrides every token */
+  --roofA:#39352c; --roofB:#242119;
+  --slate1:#3d382e; --slate2:#1d1b16; --slate3:#191712; --slate4:#14120e;
+  --lawn1:#17331e; --lawn2:#112618; --lawn3:#0c1d10;
+  --lawnEdge:rgba(168,180,140,.30);
+  --walk1:rgba(216,206,178,.17); --walk2:rgba(216,206,178,.09);
+  --isky1:#0d1428; --isky2:#2a4677;
 }
-html,body{background:var(--ink);}
+body.day{
+  --roofA:#9aa1ab; --roofB:#737a85;
+  --slate1:#9aa2ad; --slate2:#6e757f; --slate3:#7d848f; --slate4:#697079;
+  --lawn1:#4e8c49; --lawn2:#3f7a3d; --lawn3:#346b34;
+  --lawnEdge:rgba(235,230,210,.5);
+  --walk1:rgba(233,226,206,.88); --walk2:rgba(206,196,170,.85);
+  --isky1:#8fc3ee; --isky2:#d6e9f8;
+}
+/* canvas color lives on html only — body must stay transparent or its
+   background paints OVER the fixed negative-z-index sky layer */
+html{background:var(--ink);}
 body{
   font-family:'Inter',system-ui,sans-serif;
   color:#cbd5e1;
@@ -45,9 +62,46 @@ body{
     radial-gradient(1200px 800px at 50% 118%, rgba(16,58,54,.30), transparent 62%),
     linear-gradient(180deg,#05070f 0%,#0a1020 44%,#0b1526 100%);
 }
+body.day .sky{
+  background:
+    radial-gradient(900px 500px at 78% 6%, rgba(255,250,225,.55), transparent 55%),
+    linear-gradient(180deg,#6aa9e3 0%,#8fc3ee 40%,#c8e2f6 78%,#e8f2fb 100%);
+}
 .stars{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.8;}
 .stars i{position:absolute;width:2px;height:2px;border-radius:50%;background:#dbe6ff;animation:twinkle 5s ease-in-out infinite;}
 @keyframes twinkle{0%,100%{opacity:.12;transform:scale(.7)}50%{opacity:.85;transform:scale(1.2)}}
+body.day .stars, body.day .fly, body.day .gsplat{display:none;}
+body.day .lamppool{opacity:0;}
+body.day .fdot{opacity:.3;animation:none;}
+body.day .deco .face{filter:brightness(1.65) saturate(.95);}
+body.day .plinth{filter:brightness(2.2);}
+body.day .plaza{filter:brightness(1.7);}
+body.day .tree .sprite{filter:brightness(1.75) saturate(1.05);}
+body.day .student .figure{filter:brightness(1.35);}
+body.day .b3d .shadow{opacity:.55;}
+body.day .b-label .card{background:linear-gradient(180deg, rgba(24,30,44,.88), rgba(24,30,44,.74));}
+
+/* drifting fair-weather clouds (day only) */
+.cloud{position:absolute;pointer-events:none;display:none;opacity:.9;filter:blur(1px);animation:cloud-drift var(--ct,80s) linear infinite;}
+body.day .cloud{display:block;}
+.cloud i{position:absolute;background:#fff;border-radius:50%;box-shadow:0 6px 18px rgba(120,150,180,.25);}
+@keyframes cloud-drift{from{transform:translateX(-15vw)}to{transform:translateX(60vw)}}
+
+/* sun / moon — one orb, two lives */
+body.day .moon{
+  background:radial-gradient(circle at 42% 40%, #fffdf4, #ffedb0 55%, #ffd76e);
+  box-shadow:0 0 90px 34px rgba(255,236,170,.45), 0 0 200px 80px rgba(255,244,210,.18);
+}
+body.day .moon::after{display:none;}
+
+/* daylight legibility for text laid over the sky */
+body.day #campus-wing h1{color:#22304a;text-shadow:0 1px 0 rgba(255,255,255,.4);}
+body.day #campus-wing h1 span{color:#8a6a28;}
+body.day #campus-wing p{color:#3a4a63;}
+body.day #campus-wing p .text-slate-300{color:#22304a;font-weight:600;}
+body.day #campus-wing .text-slate-300{color:#2c3c55;}
+body.day #campus-wing .text-slate-500{color:#4a5a72;}
+body.day #campus-wing .text-slate-600{color:#55657e;}
 
 /* Gaussian ambience — soft volumetric light splats drifting over the quad */
 .gsplat{position:absolute;border-radius:50%;filter:blur(46px);mix-blend-mode:screen;pointer-events:none;animation:drift 22s ease-in-out infinite alternate;}
@@ -99,9 +153,9 @@ body{
     radial-gradient(300px 300px at 475px 155px, rgba(245,158,11,.08), transparent 70%),
     radial-gradient(300px 300px at 160px 460px, rgba(56,189,248,.08), transparent 70%),
     radial-gradient(320px 320px at 470px 460px, rgba(167,139,250,.09), transparent 70%),
-    repeating-linear-gradient(45deg, rgba(220,240,190,.030) 0 26px, transparent 26px 52px),
-    radial-gradient(95% 95% at 50% 45%, #17331e 0%, #112618 52%, #0c1d10 100%);
-  border:1px solid rgba(168,180,140,.30);
+    repeating-linear-gradient(45deg, rgba(220,240,190,.035) 0 26px, transparent 26px 52px),
+    radial-gradient(95% 95% at 50% 45%, var(--lawn1) 0%, var(--lawn2) 52%, var(--lawn3) 100%);
+  border:1px solid var(--lawnEdge);
   box-shadow:
     0 0 0 1px rgba(7,11,20,.9),
     0 0 90px rgba(46,90,60,.28),
@@ -118,11 +172,17 @@ body{
   box-shadow:0 0 80px 30px rgba(0,0,0,.65);
 }
 .walk{position:absolute;background:
-    repeating-linear-gradient(90deg, rgba(228,216,188,.055) 0 13px, rgba(228,216,188,.12) 13px 15px),
-    repeating-linear-gradient(0deg, rgba(228,216,188,.05) 0 21px, rgba(228,216,188,.10) 21px 23px),
-    linear-gradient(180deg,rgba(216,206,178,.17),rgba(216,206,178,.09));
-  border:1px solid rgba(216,206,178,.17);
-  box-shadow:inset 0 0 12px rgba(0,0,0,.35);
+    repeating-linear-gradient(90deg, rgba(120,105,80,.10) 0 13px, rgba(90,78,58,.16) 13px 15px),
+    repeating-linear-gradient(0deg, rgba(120,105,80,.08) 0 21px, rgba(90,78,58,.13) 21px 23px),
+    linear-gradient(180deg,var(--walk1),var(--walk2));
+  border:1px solid rgba(140,125,95,.3);
+  box-shadow:inset 0 0 12px rgba(0,0,0,.25);
+}
+/* warm pools of lamplight on the paving (night) */
+.lamppool{
+  position:absolute;border-radius:50%;pointer-events:none;
+  background:radial-gradient(closest-side, rgba(255,214,130,.34), rgba(255,196,100,.14) 55%, transparent 72%);
+  transition:opacity .8s ease;
 }
 .plaza{
   position:absolute;border-radius:50%;
@@ -151,6 +211,22 @@ body{
   border:1px solid rgba(255,255,255,.16);
   box-shadow:inset 0 0 30px rgba(0,0,0,.35), inset 0 0 0 1px rgba(0,0,0,.25);
 }
+.b3d .roof.lead{ /* flat lead roof inside a parapet walk */
+  background:
+    radial-gradient(62% 62% at 50% 50%, rgba(0,0,0,.3), transparent 78%),
+    linear-gradient(135deg,var(--roofA),var(--roofB) 72%);
+}
+/* pitched slate — course lines run parallel to the ridge */
+.slope-s{background:
+    repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 1.5px, transparent 1.5px 8px),
+    linear-gradient(180deg,var(--slate1),var(--slate2));}
+.slope-n{background:
+    repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 1.5px, transparent 1.5px 8px),
+    linear-gradient(180deg,var(--slate3),var(--slate4));}
+.spire-s{background:linear-gradient(180deg,var(--slate1),var(--slate2) 85%);}
+.spire-n{background:var(--slate4);}
+.spire-w{background:linear-gradient(90deg,var(--slate3),var(--slate4) 88%);}
+.spire-e{background:var(--slate4);}
 .b3d .wall{border:1px solid rgba(0,0,0,.45);}
 .b3d .wall-r::after{content:"";position:absolute;inset:0;background:rgba(2,6,14,.3);pointer-events:none;}
 .b3d.lit .face{filter:brightness(1.25) saturate(1.3);}
@@ -177,6 +253,10 @@ body{
 .bgroup.active .face{filter:brightness(1.3) saturate(1.2);}
 .bgroup.active .roof{box-shadow:inset 0 0 30px rgba(0,0,0,.3), 0 0 34px var(--glow);}
 .bgroup.lit .face{filter:brightness(1.32) saturate(1.25);}
+.bgroup.static{cursor:default;}
+.bgroup.static:hover{transform:none;}
+.bgroup.static:hover .face{filter:none;}
+body.day .chimney .face,body.day .pinn .face{filter:brightness(1.6);}
 .b3d .face{transition:filter .3s ease;}
 .b3d .wall,.b3d .spire-face{image-rendering:auto;}
 
@@ -404,10 +484,96 @@ body{
 @keyframes toast-in{from{opacity:0;transform:translateY(18px) scale(.95)}to{opacity:1;transform:none}}
 .toast.bye{opacity:0;transform:translateY(10px);transition:all .4s ease;}
 
+/* ── day/night toggle ──────────────────────────────────────────── */
+#daynight{
+  position:absolute;top:1.4rem;right:1.4rem;z-index:25;
+  width:46px;height:46px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:20px;
+  background:linear-gradient(160deg, rgba(20,28,46,.9), rgba(10,16,30,.9));
+  border:1.5px solid rgba(212,175,106,.55);
+  box-shadow:0 8px 24px -8px rgba(0,0,0,.8), 0 0 18px -6px rgba(212,175,106,.5);
+  cursor:pointer;transition:transform .3s ease, box-shadow .3s ease;
+}
+#daynight:hover{transform:scale(1.12) rotate(12deg);box-shadow:0 8px 26px -8px rgba(0,0,0,.8), 0 0 26px -4px rgba(212,175,106,.75);}
+body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgba(240,230,205,.92));}
+
+/* ── interior classroom scene ──────────────────────────────────── */
+#interior{
+  position:absolute;inset:0;z-index:30;
+  opacity:0;pointer-events:none;
+  transition:opacity .45s ease;
+}
+#interior.open{opacity:1;pointer-events:auto;}
+#interior .int-room{
+  position:absolute;inset:0;overflow:hidden;
+  transform:scale(1.05);transition:transform .6s cubic-bezier(.22,1,.36,1);
+  background:linear-gradient(180deg,#221d15 0%,#2b241a 58%,#171310 100%);
+}
+#interior.open .int-room{transform:scale(1);}
+.int-wall{position:absolute;left:0;right:0;top:0;height:64%;background-size:100% 100%;}
+.int-wall::after{content:"";position:absolute;inset:0;
+  background:radial-gradient(120% 90% at 50% 108%, transparent 40%, rgba(0,0,0,.5) 100%);}
+.int-floor{position:absolute;left:0;right:0;bottom:0;height:36.5%;
+  background:
+    repeating-linear-gradient(90deg, rgba(0,0,0,.22) 0 2px, transparent 2px 64px),
+    repeating-linear-gradient(0deg, rgba(0,0,0,.12) 0 1.5px, transparent 1.5px 26px),
+    linear-gradient(180deg,#57452f,#3a2d1e 70%,#241b11);}
+.int-floor::before{content:"";position:absolute;inset:0;
+  background:radial-gradient(70% 100% at 50% 0%, rgba(255,224,150,.10), transparent 60%);}
+.int-window{
+  position:absolute;top:7%;width:88px;height:52%;
+  clip-path:path("M0 300 L0 62 Q0 12 44 0 Q88 12 88 62 L88 300 Z");
+  background:
+    repeating-linear-gradient(0deg, rgba(20,18,14,.5) 0 2px, transparent 2px 34px),
+    repeating-linear-gradient(90deg, rgba(20,18,14,.5) 0 2px, transparent 2px 21px),
+    linear-gradient(180deg,var(--isky1),var(--isky2));
+  box-shadow:inset 0 0 0 5px #241f17, inset 0 0 40px rgba(0,0,0,.35);
+}
+.int-board{
+  position:absolute;left:50%;top:12%;transform:translateX(-50%);
+  width:min(46%, 430px);padding:1.1rem 1.4rem 1.3rem;
+  background:linear-gradient(160deg,#1e3227,#16261d 70%);
+  border:9px solid #4a3822;border-radius:4px;
+  box-shadow:0 14px 40px -10px rgba(0,0,0,.75), inset 0 0 34px rgba(0,0,0,.5);
+}
+.int-board .chalk-title{font-family:'Cormorant Garamond',serif;font-style:italic;font-weight:600;font-size:15px;color:#f0ead6;opacity:.92;border-bottom:1px dashed rgba(240,234,214,.4);padding-bottom:.35rem;margin-bottom:.55rem;}
+.int-board .chalk-line{font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.9;color:#e6dfc8;opacity:.85;text-shadow:0 0 4px rgba(240,234,214,.25);white-space:pre-wrap;}
+.int-lamp{position:absolute;top:0;width:5px;height:9%;background:linear-gradient(#0d0b08,#241d12);}
+.int-lamp::before{content:"";position:absolute;left:50%;top:100%;transform:translateX(-50%);
+  width:34px;height:20px;border-radius:0 0 17px 17px;background:linear-gradient(180deg,#3a2f1c,#191510);
+  box-shadow:inset 0 -6px 10px rgba(255,214,130,.55);}
+.int-lamp::after{content:"";position:absolute;left:50%;top:calc(100% + 14px);transform:translateX(-50%);
+  width:150px;height:230px;pointer-events:none;
+  background:radial-gradient(50% 45% at 50% 12%, rgba(255,220,140,.28), transparent 70%);}
+.int-desk-row{position:absolute;left:0;right:0;display:flex;justify-content:center;gap:5%;}
+.int-desk{position:relative;width:23%;max-width:170px;height:30px;border-radius:5px 5px 3px 3px;
+  background:linear-gradient(180deg,#6b543a,#4a3a26 45%,#33281a);
+  box-shadow:0 10px 16px -6px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,230,180,.18);}
+.int-desk .pupil{position:absolute;bottom:82%;width:26px;height:26px;}
+.int-desk .pupil i{position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:22px;height:15px;border-radius:9px 9px 0 0;background:linear-gradient(180deg,var(--pc),color-mix(in srgb,var(--pc) 55%, #000));}
+.int-desk .pupil b{position:absolute;left:50%;bottom:13px;transform:translateX(-50%);width:11px;height:11px;border-radius:50%;background:#e2cfae;box-shadow:inset -2px -2px 3px rgba(0,0,0,.3);}
+.int-prof{position:absolute;width:64px;}
+.int-prof .gown{position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:26px;height:40px;border-radius:11px 11px 5px 5px;background:linear-gradient(180deg,#2c2c34,#101014);}
+.int-prof .cap{position:absolute;left:50%;bottom:38px;transform:translateX(-50%);width:13px;height:13px;border-radius:50%;background:#e2cfae;}
+.int-prof .cap::after{content:"";position:absolute;left:50%;top:-3px;transform:translateX(-50%);width:19px;height:5px;background:#15151a;border-radius:2px;}
+.int-lectern{position:absolute;width:34px;height:44px;background:linear-gradient(180deg,#5d4930,#3a2d1c);border-radius:4px 4px 2px 2px;box-shadow:0 8px 14px -5px rgba(0,0,0,.6);}
+.int-hud{position:absolute;left:0;right:0;bottom:0;padding:1rem 1.5rem 1.2rem;
+  display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap;
+  background:linear-gradient(0deg, rgba(8,10,16,.88), transparent);}
+.int-btn{border:1px solid rgba(212,175,106,.5);border-radius:999px;padding:.45rem 1.1rem;
+  font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--parchment);
+  background:rgba(10,16,30,.7);transition:all .25s ease;cursor:pointer;}
+.int-btn:hover{background:rgba(212,175,106,.18);box-shadow:0 0 18px -6px var(--brass);}
+body.day #interior .int-room{background:linear-gradient(180deg,#3a3124 0%,#453a29 58%,#241d14 100%);}
+body.day .int-lamp::after{opacity:.45;}
+
 @media (max-width:1023px){
   #scene{--zoom:.66;}
   #stage{padding-top:7.5rem;}
   .moon{width:54px;height:54px;top:5%;right:5%;}
+  #daynight{top:1rem;right:1rem;width:40px;height:40px;font-size:17px;}
+  .int-board{width:60%;}
+  .int-window{width:60px;height:44%;clip-path:path("M0 300 L0 46 Q0 9 30 0 Q60 9 60 46 L60 300 Z");}
 }
 @media (max-width:639px){
   #scene{--zoom:.5;}
@@ -467,6 +633,16 @@ body{
     <div class="gsplat" style="left:26%;bottom:2%;width:360px;height:260px;background:rgba(16,185,129,.11);animation-delay:-14s"></div>
     <div class="gsplat" style="right:24%;top:6%;width:240px;height:220px;background:rgba(245,158,11,.10);animation-delay:-4s"></div>
     <div class="moon"></div>
+    <div class="cloud" style="left:4%;top:9%;--ct:95s">
+      <i style="left:0;top:12px;width:70px;height:26px"></i><i style="left:22px;top:0;width:56px;height:32px"></i><i style="left:56px;top:10px;width:64px;height:24px"></i>
+    </div>
+    <div class="cloud" style="left:38%;top:22%;--ct:120s;animation-delay:-40s;opacity:.75">
+      <i style="left:0;top:10px;width:54px;height:20px"></i><i style="left:18px;top:0;width:44px;height:26px"></i><i style="left:44px;top:9px;width:48px;height:18px"></i>
+    </div>
+    <div class="cloud" style="left:12%;top:38%;--ct:140s;animation-delay:-90s;opacity:.55">
+      <i style="left:0;top:8px;width:44px;height:16px"></i><i style="left:15px;top:0;width:36px;height:22px"></i><i style="left:36px;top:7px;width:38px;height:15px"></i>
+    </div>
+    <button id="daynight" title="Toggle day / night" aria-label="Toggle day or night">🌙</button>
 
     <div class="absolute inset-x-0 top-0 pt-6 sm:pt-8 px-6 sm:px-10 z-10 pointer-events-none">
       <h1 class="font-serif-d text-3xl sm:text-4xl font-semibold text-[color:var(--parchment)] leading-tight drop-shadow-lg">The Gothic <span class="italic text-[color:var(--brass)]">Quadrangle</span></h1>
@@ -497,8 +673,40 @@ body{
       <div class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-sm inline-block" style="background:var(--quad-adm);box-shadow:0 0 8px var(--quad-adm)"></i><span class="text-slate-300">Administration · AI Robotics &amp; Flight</span></div>
     </div>
     <div class="absolute right-5 sm:right-8 bottom-5 z-10 text-right pointer-events-none">
-      <div class="text-[10px] uppercase tracking-[.24em] text-slate-500">Keys 1–4 · quads &nbsp;·&nbsp; 0 · full syllabus</div>
+      <div class="text-[10px] uppercase tracking-[.24em] text-slate-500">Keys 1–4 · quads &nbsp;·&nbsp; 0 · full syllabus &nbsp;·&nbsp; N · day/night</div>
       <div class="text-[10px] uppercase tracking-[.24em] text-slate-600 mt-1">move the mouse to survey the grounds</div>
+    </div>
+
+    <!-- ═══════ INTERIOR CLASSROOM SCENE (revealed on entering a hall) ═══════ -->
+    <div id="interior" aria-hidden="true">
+      <div class="int-room">
+        <div class="int-wall" id="int-wall"></div>
+        <div class="int-window" style="left:7%"></div>
+        <div class="int-window" style="right:7%"></div>
+        <div class="int-lamp" style="left:27%"></div>
+        <div class="int-lamp" style="right:27%"></div>
+        <div class="int-board">
+          <div class="chalk-title" id="int-title"></div>
+          <div id="int-lines"></div>
+        </div>
+        <div class="int-floor"></div>
+        <div class="int-prof" style="left:16%;bottom:31%"><div class="gown"></div><div class="cap"></div></div>
+        <div class="int-lectern" style="left:21%;bottom:29.5%"></div>
+        <div class="int-desk-row" style="bottom:23%;transform:scale(.82)" id="int-row3"></div>
+        <div class="int-desk-row" style="bottom:13%;transform:scale(.94)" id="int-row2"></div>
+        <div class="int-desk-row" style="bottom:2%;transform:scale(1.08)" id="int-row1"></div>
+        <div class="int-hud">
+          <div>
+            <div class="text-[9.5px] uppercase tracking-[.3em]" id="int-track" style="color:var(--brass)"></div>
+            <div class="font-serif-d text-2xl font-semibold text-[color:var(--parchment)] leading-tight" id="int-hall"></div>
+            <div class="text-[11.5px] text-slate-400 mt-0.5" id="int-teaching"></div>
+          </div>
+          <div class="flex gap-2.5 flex-wrap">
+            <button class="int-btn" id="int-courses">Open course ledger</button>
+            <button class="int-btn" id="int-leave">← Return to the quad</button>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -596,18 +804,38 @@ const SECTORS = {
   lib: { key:"lib", hall:"The Pembroke Great Library", track:"Pure Mathematics Sequence",
          color:"#10b981", soft:"rgba(16,185,129,", icon:"◈",
          motto:"Every theorem here was once a stranger.",
+         room:"The Chalk Vault — Lecture Theatre I",
+         board:["∮_C F · dr  =  ∬_R ( ∂Q/∂x − ∂P/∂y ) dA",
+                "· today: Green's Theorem — circulation as curl",
+                "· the campus you walked through? rotation matrices.",
+                "· hw — Stewart §16.4, odd problems 1–17"],
          blurb:"Vaulted reading rooms and chalk-dusted lecture halls. The five-course mathematics spine — from College Algebra to the vector fields of Calculus III — is taught beneath the great emerald dome." },
   eng: { key:"eng", hall:"Whitmore Engineering Quad", track:"Software Foundations Track",
          color:"#f59e0b", soft:"rgba(245,158,11,", icon:"⌬",
          motto:"First make it work. Then make it beautiful.",
+         room:"The Amber Atelier — Code Studio",
+         board:["def study(hours):",
+                "    return mastery(hours ** 2)",
+                "· big-O is a promise about the future",
+                "· quiz friday: recursion vs iteration"],
          blurb:"Amber-lit ateliers where code is a craft. Three studio courses carry a complete beginner from a first Python print statement to disciplined systems engineering in C." },
   sci: { key:"sci", hall:"Alden Science Laboratory", track:"Electrical Hardware & Microprocessors Track",
          color:"#38bdf8", soft:"rgba(56,189,248,", icon:"⚡",
+         room:"The Induction Chamber — Bench Lab 3",
+         board:["Sum  = A ⊕ B ⊕ Cin",
+                "Cout = AB + Cin(A ⊕ B)",
+                "· eight truth-table rows ARE the silicon",
+                "· lab: breadboard the 4-bit ripple adder"],
          blurb:"Oscilloscopes hum under electric-blue skylights. Here software meets silicon: boolean logic becomes gates, gates become registers, and registers become machines you command in assembly.",
          motto:"The machine keeps no secrets from those who read registers." },
   adm: { key:"adm", hall:"Aldergate Administration Hall", track:"AI Robotics & Flight Planners Track",
          color:"#a78bfa", soft:"rgba(167,139,250,", icon:"✈",
          motto:"Autonomy is mathematics given wings.",
+         room:"The Autonomy Wing — Flight Operations Room",
+         board:["x̂ₖ = x̂ₖ₋₁ + Kₖ( zₖ − H·x̂ₖ₋₁ )",
+                "u(t) = Kp·e + Ki·∫e dt + Kd·de/dt",
+                "· trust the filter, verify the sensor",
+                "· flight test — quad lawn, friday 0900"],
          blurb:"Behind the imperial-purple spire sits the Autonomy Wing — capstone territory. State estimation, control loops, and flight planners that let machines navigate the world alone." },
 };
 const SECTOR_ORDER = ["lib","eng","sci","adm"];
@@ -1067,22 +1295,43 @@ const scene = document.getElementById("scene");
    Each wall face is painted with an inline SVG — coursed ashlar stone,
    buttress piers, crenellated merlons (transparent notches!), battered
    plinth, hood-moulded lancet windows glowing in the quad's color, ivy. */
-function lancet(cx, y, w, h, acc, dark){
-  const x1 = cx - w/2, x2 = cx + w/2, ys = y + h*0.34, yb = y + h;
-  const arch = `M ${x1} ${yb} L ${x1} ${ys} Q ${x1} ${y+2} ${cx} ${y} Q ${x2} ${y+2} ${x2} ${ys} L ${x2} ${yb} Z`;
-  let s = `<path d="${arch}" fill="${dark ? "#16130f" : "url(#wg)"}" stroke="#221d16" stroke-width="1.2"/>`;
-  /* hood moulding tracing the arch */
-  s += `<path d="M ${x1-2} ${yb} L ${x1-2} ${ys} Q ${x1-2} ${y-0.5} ${cx} ${y-2.5} Q ${x2+2} ${y-0.5} ${x2+2} ${ys} L ${x2+2} ${yb}" fill="none" stroke="#7a7160" stroke-width="1.1" opacity=".8"/>`;
-  if (w >= 13 && !dark){ /* mullion + transom tracery */
-    s += `<line x1="${cx}" y1="${y + h*0.22}" x2="${cx}" y2="${yb}" stroke="#241f18" stroke-width="1.4"/>`;
-    s += `<line x1="${x1}" y1="${ys+4}" x2="${x2}" y2="${ys+4}" stroke="#241f18" stroke-width="1.2"/>`;
-  }
-  return s;
-}
-
-function wallURI(orient, natW, natH, o){
+function wallURI(orient, natW, natH, o, mode){
   o = o || {};
+  const day = mode === "day";
   const p = o.parapet || 0, acc = o.accent || "#d4af6a", seed = o.seed || 0;
+  const P = day ? {
+    st1:"#b7a88c", st2:"#94856c", line:"rgba(74,60,40,.22)",
+    butt:"#a89877", buttEdge:"rgba(60,48,30,.35)", cap:"#cfc3a6",
+    plinth:"#6e6352", plinthLn:"#494136",
+    frame:"#3a3227", hood:"#d9cdb0", winDark:"#1e262e",
+    ivy:"#2f6b3a", ivyOp:".75",
+    speck:["#c9ba98","#877a62","#a3906f","#7b7060"],
+    wg:'<stop offset="0" stop-color="#a9c3d9" stop-opacity=".92"/><stop offset=".32" stop-color="#54667a"/><stop offset="1" stop-color="#222b35"/>',
+    clockFace:"#f6efdc",
+  } : {
+    st1:"#665f50", st2:"#403b31", line:"rgba(12,11,8,.17)",
+    butt:"#6f6858", buttEdge:"rgba(10,9,7,.4)", cap:"#847b68",
+    plinth:"#332e26", plinthLn:"#151210",
+    frame:"#221d16", hood:"#7a7160", winDark:"#16130f",
+    ivy:"#1d3d26", ivyOp:".62",
+    speck:["#57503f","#3a352b","#4c463a","#332f27"],
+    wg:'<stop offset="0" stop-color="' + acc + '" stop-opacity=".22"/><stop offset=".6" stop-color="' + acc + '" stop-opacity=".8"/><stop offset="1" stop-color="#ffedbe" stop-opacity=".95"/>',
+    clockFace:"#f0e5c4",
+  };
+
+  /* one lancet window, palette-aware (day: leaded glass; night: lamplight) */
+  const win = (cx, y, w, h, dark) => {
+    const x1 = cx - w/2, x2 = cx + w/2, ys = y + h*0.34, yb = y + h;
+    const arch = `M ${x1} ${yb} L ${x1} ${ys} Q ${x1} ${y+2} ${cx} ${y} Q ${x2} ${y+2} ${x2} ${ys} L ${x2} ${yb} Z`;
+    let t = `<path d="${arch}" fill="${dark ? P.winDark : "url(#wg)"}" stroke="${P.frame}" stroke-width="1.2"/>`;
+    t += `<path d="M ${x1-2} ${yb} L ${x1-2} ${ys} Q ${x1-2} ${y-0.5} ${cx} ${y-2.5} Q ${x2+2} ${y-0.5} ${x2+2} ${ys} L ${x2+2} ${yb}" fill="none" stroke="${P.hood}" stroke-width="1.1" opacity=".85"/>`;
+    if (w >= 13 && !dark){
+      t += `<line x1="${cx}" y1="${y + h*0.22}" x2="${cx}" y2="${yb}" stroke="${P.frame}" stroke-width="1.4"/>`;
+      t += `<line x1="${x1}" y1="${ys+4}" x2="${x2}" y2="${ys+4}" stroke="${P.frame}" stroke-width="1.2"/>`;
+    }
+    return t;
+  };
+
   let g = "";
   if (p){ /* crenellated merlons — gaps stay transparent above the roof */
     for (let mx = 2; mx < natW - 2; mx += 19){
@@ -1090,10 +1339,17 @@ function wallURI(orient, natW, natH, o){
     }
   }
   g += `<rect x="0" y="${p}" width="${natW}" height="${natH-p}" fill="url(#st)"/>`;
+  /* variegated fieldstone — seeded tone flecks, like Princeton masonry */
+  const flecks = Math.floor(natW * natH / 2100);
+  for (let i = 0; i < flecks; i++){
+    const fx = (i*53 + seed*29) % Math.max(1, natW - 18);
+    const fy = p + ((i*97 + seed*13) % Math.max(1, natH - p - 26));
+    g += `<rect x="${fx}" y="${fy}" width="${9 + (i % 3)*5}" height="${6 + (i % 2)*4}" rx="1.5" fill="${P.speck[i % 4]}" opacity=".5"/>`;
+  }
   g += `<rect x="0" y="${p}" width="${natW}" height="${natH-p}" fill="url(#course)"/>`;
-  g += `<rect x="0" y="${p}" width="${natW}" height="2.2" fill="#847b68" opacity=".85"/>`;
-  g += `<rect x="0" y="${natH-11}" width="${natW}" height="11" fill="#332e26"/>`;
-  g += `<rect x="0" y="${natH-12.6}" width="${natW}" height="1.6" fill="#151210"/>`;
+  g += `<rect x="0" y="${p}" width="${natW}" height="2.2" fill="${P.cap}" opacity=".9"/>`;
+  g += `<rect x="0" y="${natH-11}" width="${natW}" height="11" fill="${P.plinth}"/>`;
+  g += `<rect x="0" y="${natH-12.6}" width="${natW}" height="1.6" fill="${P.plinthLn}"/>`;
 
   if (o.windows === "lancet"){
     const cell = 34, m = 8;
@@ -1101,8 +1357,8 @@ function wallURI(orient, natW, natH, o){
     const x0 = (natW - n*cell) / 2;
     for (let i = 0; i <= n; i++){ /* buttress piers between the bays */
       const bx = x0 + i*cell - 3;
-      g += `<rect x="${bx}" y="${p}" width="6" height="${natH-p-9}" fill="#6f6858"/>`;
-      g += `<rect x="${bx+4.5}" y="${p}" width="1.5" height="${natH-p-9}" fill="rgba(10,9,7,.4)"/>`;
+      g += `<rect x="${bx}" y="${p}" width="6" height="${natH-p-9}" fill="${P.butt}"/>`;
+      g += `<rect x="${bx+4.5}" y="${p}" width="1.5" height="${natH-p-9}" fill="${P.buttEdge}"/>`;
     }
     const top = p + 9, bot = natH - 15, sh = 35;
     const stories = Math.max(1, Math.floor((bot - top) / sh));
@@ -1110,29 +1366,49 @@ function wallURI(orient, natW, natH, o){
       const wy = top + r*sh + 5;
       for (let i = 0; i < n; i++){
         const cx = x0 + i*cell + cell/2;
-        g += lancet(cx, wy, 12, 25, acc, (i*3 + r*2 + seed) % 4 === 0);
+        g += win(cx, wy, 12, 25, (i*3 + r*2 + seed) % 4 === 0);
       }
-      if (r < stories - 1) g += `<rect x="0" y="${top + (r+1)*sh - 1}" width="${natW}" height="1.6" fill="#786f5e" opacity=".55"/>`;
+      if (r < stories - 1) g += `<rect x="0" y="${top + (r+1)*sh - 1}" width="${natW}" height="1.6" fill="${P.hood}" opacity=".45"/>`;
     }
   } else if (o.windows === "grand"){ /* tall traceried bell-tower lights */
     const sh = 58;
-    const stories = Math.max(1, Math.floor((natH - p - 24) / sh));
+    const wy0 = p + (o.clock ? 46 : 12);
+    const stories = Math.max(1, Math.floor((natH - wy0 - 12) / sh));
     for (let r = 0; r < stories; r++){
-      const wy = p + 12 + r*sh;
+      const wy = wy0 + r*sh;
       if (natW >= 78){
-        g += lancet(natW/2 - 13, wy, 17, 44, acc, false);
-        g += lancet(natW/2 + 13, wy, 17, 44, acc, false);
+        g += win(natW/2 - 13, wy, 17, 44, false);
+        g += win(natW/2 + 13, wy, 17, 44, false);
       } else {
-        g += lancet(natW/2, wy, 19, 44, acc, false);
+        g += win(natW/2, wy, 19, 44, false);
       }
     }
-    g += `<rect x="2" y="${p}" width="4.5" height="${natH-p-9}" fill="#6f6858"/>`;
-    g += `<rect x="${natW-6.5}" y="${p}" width="4.5" height="${natH-p-9}" fill="#6f6858"/>`;
+    g += `<rect x="2" y="${p}" width="4.5" height="${natH-p-9}" fill="${P.butt}"/>`;
+    g += `<rect x="${natW-6.5}" y="${p}" width="4.5" height="${natH-p-9}" fill="${P.butt}"/>`;
+  } else if (o.windows === "slits"){ /* turret arrow slits */
+    for (let sy = p + 14; sy < natH - 26; sy += 30){
+      g += `<rect x="${natW/2 - 2}" y="${sy}" width="4" height="15" rx="2" fill="${P.winDark}" stroke="${P.frame}" stroke-width=".8"/>`;
+    }
+  }
+
+  if (o.clock){ /* the gatehouse clock, white-faced with stone surround */
+    const ccx = natW/2, ccy = p + 26, r = Math.min(11, natW * 0.16);
+    g += `<circle cx="${ccx}" cy="${ccy}" r="${r+2.5}" fill="${P.butt}" stroke="${P.frame}" stroke-width="1"/>`;
+    g += `<circle cx="${ccx}" cy="${ccy}" r="${r}" fill="${P.clockFace}" stroke="${P.frame}" stroke-width="1.2"/>`;
+    g += `<line x1="${ccx}" y1="${ccy}" x2="${ccx}" y2="${ccy - r*0.62}" stroke="#2a241c" stroke-width="1.6"/>`;
+    g += `<line x1="${ccx}" y1="${ccy}" x2="${ccx + r*0.45}" y2="${ccy + r*0.18}" stroke="#2a241c" stroke-width="1.4"/>`;
+  }
+
+  if (o.arch){ /* pointed tunnel through the gatehouse, lamplit within */
+    const aw = Math.min(34, natW * 0.42), ah = Math.min(natH - p - 16, 46);
+    const ax1 = natW/2 - aw/2, ax2 = natW/2 + aw/2, ay = natH - ah, ays = ay + ah*0.3;
+    g += `<path d="M ${ax1} ${natH} L ${ax1} ${ays} Q ${ax1} ${ay} ${natW/2} ${ay - 4} Q ${ax2} ${ay} ${ax2} ${ays} L ${ax2} ${natH} Z" fill="url(#tun)" stroke="${P.hood}" stroke-width="2.4"/>`;
+    g += `<ellipse cx="${natW/2}" cy="${natH - 6}" rx="${aw*0.32}" ry="7" fill="rgba(255,198,120,.3)"/>`;
   }
 
   if (o.ivy){
     const iy = natH - 12;
-    g += `<g fill="#1d3d26" opacity=".62">`
+    g += `<g fill="${P.ivy}" opacity="${P.ivyOp}">`
        + `<ellipse cx="8" cy="${iy-8}" rx="12" ry="16"/><ellipse cx="16" cy="${iy-24}" rx="8" ry="12"/>`
        + `<ellipse cx="24" cy="${iy-6}" rx="10" ry="9"/><ellipse cx="10" cy="${iy-40}" rx="6" ry="9"/>`
        + `<ellipse cx="${natW-10}" cy="${iy-6}" rx="11" ry="10"/><ellipse cx="${natW-16}" cy="${iy-20}" rx="7" ry="10"/>`
@@ -1140,13 +1416,14 @@ function wallURI(orient, natW, natH, o){
   }
 
   const defs = `<defs>`
-    + `<linearGradient id="st" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#665f50"/><stop offset="1" stop-color="#403b31"/></linearGradient>`
-    + `<linearGradient id="wg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${acc}" stop-opacity=".22"/><stop offset=".6" stop-color="${acc}" stop-opacity=".8"/><stop offset="1" stop-color="#ffedbe" stop-opacity=".95"/></linearGradient>`
-    + `<pattern id="course" width="30" height="20" patternUnits="userSpaceOnUse"><path d="M0 0.5 H30 M0 10.5 H30 M7.5 0.5 V10.5 M22.5 10.5 V20" stroke="rgba(12,11,8,.17)" stroke-width="1" fill="none"/></pattern>`
+    + `<linearGradient id="st" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${P.st1}"/><stop offset="1" stop-color="${P.st2}"/></linearGradient>`
+    + `<linearGradient id="wg" x1="0" y1="0" x2="0" y2="1">${P.wg}</linearGradient>`
+    + `<linearGradient id="tun" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b0906"/><stop offset="1" stop-color="#1a130c"/></linearGradient>`
+    + `<pattern id="course" width="30" height="20" patternUnits="userSpaceOnUse"><path d="M0 0.5 H30 M0 10.5 H30 M7.5 0.5 V10.5 M22.5 10.5 V20" stroke="${P.line}" stroke-width="1" fill="none"/></pattern>`
     + `</defs>`;
 
   let svg;
-  if (orient === "side" || orient === "plain-side"){ /* west/east walls: div-x axis is world-up */
+  if (orient === "side" || orient === "plain-side"){ /* west/east: div-x axis is world-up */
     svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${natH}" height="${natW}">${defs}<g transform="translate(${natH} 0) rotate(90)">${g}</g></svg>`;
   } else if (orient === "south"){ /* rendered as a backface: pre-mirror it */
     svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${natW}" height="${natH}">${defs}<g transform="translate(${natW} 0) scale(-1 1)">${g}</g></svg>`;
@@ -1158,8 +1435,8 @@ function wallURI(orient, natW, natH, o){
 
 function buildBox(o){
   /* o = {x, y, w, d, h, cls, parent, deco, glow,
-          stone:true + {parapet, windows, ivy, accent, seed}  — gothic mode
-          roofBg/wallBg/wallBg2                               — plain mode } */
+          stone:true + {parapet, windows, ivy, arch, clock, accent, seed, noRoof}
+          roofBg/wallBg/wallBg2 — plain mode (hedges, lamps, chimneys) } */
   const b = document.createElement("div");
   b.className = "b3d " + (o.cls || "") + (o.deco ? " deco" : "");
   b.style.cssText = `left:${o.x}px;top:${o.y}px;width:${o.w}px;height:${o.d}px;--glow:${o.glow || "transparent"}`;
@@ -1175,29 +1452,32 @@ function buildBox(o){
   };
 
   if (o.stone){
-    /* four stone walls — parapets rise above the roofline on every side */
+    /* four stone walls; each carries a DAY and a NIGHT skin to swap */
     const wallH = o.h + (o.parapet || 0);
-    const t = { accent:o.accent, parapet:o.parapet, seed:o.seed };
+    const base = { accent:o.accent, parapet:o.parapet, seed:o.seed };
+    const skin = (cls, css, orient, nw, nh, opts) => {
+      const f = face(cls, css + "background-size:100% 100%;");
+      f.dataset.skin = "1";
+      f.dataset.day = wallURI(orient, nw, nh, opts, "day");
+      f.dataset.night = wallURI(orient, nw, nh, opts, "night");
+      return f;
+    };
     /* west wall — faces the lower-left of the screen */
-    face("face wall wall-l",
-      `width:${wallH}px;height:${o.d}px;transform-origin:left center;transform:rotateY(-90deg);` +
-      `background-image:${wallURI("side", o.d, wallH, {...t, windows:o.windows, ivy:o.ivy})};background-size:100% 100%;`);
+    skin("face wall wall-l",
+      `width:${wallH}px;height:${o.d}px;transform-origin:left center;transform:rotateY(-90deg);`,
+      "side", o.d, wallH, {...base, windows:o.windows, ivy:o.ivy, clock:o.clock});
     /* south wall — faces the lower-right */
-    face("face wall wall-r",
-      `width:${o.w}px;height:${wallH}px;top:${o.d}px;transform-origin:center top;transform:rotateX(90deg);` +
-      `background-image:${wallURI("south", o.w, wallH, {...t, windows:o.windows})};background-size:100% 100%;`);
-    /* north & east walls — occluded, but their parapet crowns the silhouette */
-    face("face wall",
-      `width:${o.w}px;height:${wallH}px;top:0;transform-origin:center top;transform:rotateX(90deg);` +
-      `background-image:${wallURI("plain", o.w, wallH, t)};background-size:100% 100%;`);
-    face("face wall",
-      `width:${wallH}px;height:${o.d}px;left:${o.w}px;top:0;transform-origin:left center;transform:rotateY(-90deg);` +
-      `background-image:${wallURI("plain-side", o.d, wallH, t)};background-size:100% 100%;`);
-    /* flat lead roof, recessed inside the parapet walk */
-    face("face roof",
-      `transform:translateZ(${o.h}px);background:` +
-      `radial-gradient(62% 62% at 50% 50%, rgba(0,0,0,.3), transparent 78%),` +
-      `linear-gradient(135deg,#39352c,#242119 72%);`);
+    skin("face wall wall-r",
+      `width:${o.w}px;height:${wallH}px;top:${o.d}px;transform-origin:center top;transform:rotateX(90deg);`,
+      "south", o.w, wallH, {...base, windows:o.windows, arch:o.arch, clock:o.clock});
+    /* north & east walls — occluded, but their parapets crown the silhouette */
+    skin("face wall",
+      `width:${o.w}px;height:${wallH}px;top:0;transform-origin:center top;transform:rotateX(90deg);`,
+      "plain", o.w, wallH, {...base, arch:o.arch});
+    skin("face wall",
+      `width:${wallH}px;height:${o.d}px;left:${o.w}px;top:0;transform-origin:left center;transform:rotateY(-90deg);`,
+      "plain-side", o.d, wallH, base);
+    if (!o.noRoof) face("face roof lead", `transform:translateZ(${o.h}px);`);
   } else {
     face("face wall wall-l", `width:${o.h}px;height:${o.d}px;transform-origin:left center;transform:rotateY(-90deg);background:${o.wallBg}`);
     face("face wall wall-r", `width:${o.w}px;height:${o.h}px;top:${o.d}px;transform-origin:center top;transform:rotateX(90deg);background:${o.wallBg2 || o.wallBg}`);
@@ -1205,6 +1485,32 @@ function buildBox(o){
   }
 
   (o.parent || scene).appendChild(b);
+  return b;
+}
+
+/* ── pitched slate gable roofs: two slopes + stone gable-end triangles ── */
+function buildGable(parent, o){
+  /* o = {x, y, w, d, z, h} — ridge runs along the x axis at altitude z+h */
+  const b = document.createElement("div");
+  b.className = "b3d gable";
+  b.style.cssText = `left:${o.x}px;top:${o.y}px;width:${o.w}px;height:${o.d}px`;
+  const s = Math.hypot(o.h, o.d/2);
+  const aS = 180 - Math.atan2(o.h, o.d/2) * 180/Math.PI;
+  const aN = Math.atan2(o.h, o.d/2) * 180/Math.PI;
+  const mk = (cls, css) => {
+    const f = document.createElement("div");
+    f.className = cls; f.style.cssText = css;
+    b.appendChild(f); return f;
+  };
+  mk("face slope-s", `left:0;top:${o.d}px;width:${o.w}px;height:${s}px;transform-origin:center top;transform:translateZ(${o.z}px) rotateX(${aS}deg);`);
+  mk("face slope-n", `left:0;top:0;width:${o.w}px;height:${s}px;transform-origin:center top;transform:translateZ(${o.z}px) rotateX(${aN}deg);`);
+  [0, o.w].forEach(lx => { /* stone gable ends, clipped to triangles */
+    const f = mk("face wall", `left:${lx}px;top:0;width:${o.h}px;height:${o.d}px;transform-origin:left center;transform:translateZ(${o.z}px) rotateY(-90deg);clip-path:polygon(0 0,100% 50%,0 100%);background-size:100% 100%;`);
+    f.dataset.skin = "1";
+    f.dataset.day = wallURI("side", o.d, o.h, {seed:5}, "day");
+    f.dataset.night = wallURI("side", o.d, o.h, {seed:5}, "night");
+  });
+  parent.appendChild(b);
   return b;
 }
 
@@ -1219,17 +1525,14 @@ function buildSpire(parent, o){
   const aN = Math.atan2(o.h, o.d/2) * 180/Math.PI;
   const aW = -Math.atan2(o.h, o.w/2) * 180/Math.PI;
   const aE = -(180 - Math.atan2(o.h, o.w/2) * 180/Math.PI);
-  [ /* south face — catches the low light */
-    `left:0;top:${o.d}px;width:${o.w}px;height:${sNS}px;transform-origin:center top;transform:translateZ(${o.z}px) rotateX(${aS}deg);clip-path:polygon(0 0,100% 0,50% 100%);background:linear-gradient(180deg,#3d382e,#1d1b16 85%);`,
-    /* north face */
-    `left:0;top:0;width:${o.w}px;height:${sNS}px;transform-origin:center top;transform:translateZ(${o.z}px) rotateX(${aN}deg);clip-path:polygon(0 0,100% 0,50% 100%);background:#191712;`,
-    /* west face */
-    `left:0;top:0;width:${sEW}px;height:${o.d}px;transform-origin:left center;transform:translateZ(${o.z}px) rotateY(${aW}deg);clip-path:polygon(0 0,100% 50%,0 100%);background:linear-gradient(90deg,#343027,#191712 88%);`,
-    /* east face */
-    `left:${o.w}px;top:0;width:${sEW}px;height:${o.d}px;transform-origin:left center;transform:translateZ(${o.z}px) rotateY(${aE}deg);clip-path:polygon(0 0,100% 50%,0 100%);background:#14120e;`,
-  ].forEach(css => {
+  [ /* palette-token faces so day/night retints the slate */
+    ["spire-s", `left:0;top:${o.d}px;width:${o.w}px;height:${sNS}px;transform-origin:center top;transform:translateZ(${o.z}px) rotateX(${aS}deg);clip-path:polygon(0 0,100% 0,50% 100%);`],
+    ["spire-n", `left:0;top:0;width:${o.w}px;height:${sNS}px;transform-origin:center top;transform:translateZ(${o.z}px) rotateX(${aN}deg);clip-path:polygon(0 0,100% 0,50% 100%);`],
+    ["spire-w", `left:0;top:0;width:${sEW}px;height:${o.d}px;transform-origin:left center;transform:translateZ(${o.z}px) rotateY(${aW}deg);clip-path:polygon(0 0,100% 50%,0 100%);`],
+    ["spire-e", `left:${o.w}px;top:0;width:${sEW}px;height:${o.d}px;transform-origin:left center;transform:translateZ(${o.z}px) rotateY(${aE}deg);clip-path:polygon(0 0,100% 50%,0 100%);`],
+  ].forEach(([cls, css]) => {
     const f = document.createElement("div");
-    f.className = "face spire-face";
+    f.className = "face spire-face " + cls;
     f.style.cssText = css;
     b.appendChild(f);
   });
@@ -1239,18 +1542,18 @@ function buildSpire(parent, o){
 
 /* the four gothic halls: crenellated base court + bell tower + slate spire */
 const BUILDINGS = [
-  { sector:"lib", label:{x:160, y:160, z:238},
-    hall:{x:60,  y:60,  w:200, d:200, h:84,  seed:1},
+  { sector:"lib", label:{x:160, y:160, z:238},   /* chapel: spired */
+    hall:{x:60,  y:60,  w:200, d:200, h:74, roof:44, seed:1},
     tower:{x:114, y:114, w:92, d:92, h:146, spire:78} },
-  { sector:"eng", label:{x:475, y:155, z:196},
-    hall:{x:380, y:80,  w:190, d:150, h:76,  seed:2},
-    tower:{x:386, y:86,  w:66, d:66, h:118, spire:62} },
-  { sector:"sci", label:{x:160, y:460, z:210},
-    hall:{x:70,  y:380, w:180, d:160, h:74,  seed:3},
+  { sector:"eng", label:{x:475, y:155, z:172},   /* gatehouse-style crenellated tower */
+    hall:{x:380, y:80,  w:190, d:150, h:66, roof:36, seed:2},
+    tower:{x:386, y:86,  w:66, d:66, h:118, pinnacles:true} },
+  { sector:"sci", label:{x:160, y:460, z:210},   /* spired laboratory tower */
+    hall:{x:70,  y:380, w:180, d:160, h:64, roof:36, seed:3},
     tower:{x:152, y:396, w:72, d:72, h:126, spire:68} },
-  { sector:"adm", label:{x:470, y:460, z:270},
-    hall:{x:380, y:370, w:180, d:180, h:92,  seed:4},
-    tower:{x:432, y:422, w:76, d:76, h:158, spire:96} },
+  { sector:"adm", label:{x:470, y:460, z:224},   /* the great clock tower */
+    hall:{x:380, y:370, w:180, d:180, h:78, roof:42, seed:4},
+    tower:{x:432, y:422, w:76, d:76, h:170, pinnacles:true, clock:true} },
 ];
 
 const buildingEls = {};   // sector -> [group element]
@@ -1263,25 +1566,40 @@ BUILDINGS.forEach(spec => {
   group.dataset.sector = spec.sector;
   scene.appendChild(group);
 
-  /* the great hall — crenellated parapet, lancet bays, ivy at the plinth */
-  buildBox({ ...spec.hall, stone:true, parapet:9, windows:"lancet", ivy:true,
+  /* the great hall — lancet bays, ivy plinth, steep slate gable roof
+     with brick chimneys at the ridge (Duke/Princeton range style) */
+  buildBox({ ...spec.hall, stone:true, windows:"lancet", ivy:true, noRoof:true,
              accent:S.color, glow:S.soft + ".55)", parent:group, cls:"hall-" + spec.sector });
-  /* the bell tower — crenellated crown, traceried lights, steep slate
-     spire rising from inside the parapet walk */
+  buildGable(group, { x:spec.hall.x, y:spec.hall.y, w:spec.hall.w, d:spec.hall.d,
+                      z:spec.hall.h, h:spec.hall.roof });
+  [0.2, 0.74].forEach(fx => buildBox({
+    x:Math.round(spec.hall.x + spec.hall.w * fx), y:spec.hall.y + spec.hall.d/2 - 7,
+    w:13, d:13, h:spec.hall.h + spec.hall.roof + 12,
+    parent:group, cls:"chimney",
+    roofBg:"#6b4a3c", wallBg:"linear-gradient(180deg,#6b4a3c,#48332a 75%)" }));
+
+  /* the bell tower — crenellated crown with traceried lights; either a
+     steep slate spire with a lamp, or corner pinnacles + clock */
   const t = spec.tower;
   buildBox({ x:t.x, y:t.y, w:t.w, d:t.d, h:t.h, stone:true, parapet:7, windows:"grand",
-             seed:spec.hall.seed + 3, accent:S.color, glow:S.soft + ".6)",
+             clock:t.clock, seed:spec.hall.seed + 3, accent:S.color, glow:S.soft + ".6)",
              parent:group, cls:"hall-" + spec.sector });
-  const inset = Math.round(t.w * 0.15);
-  buildSpire(group, { x:t.x + inset, y:t.y + inset,
-                      w:t.w - inset*2, d:t.d - inset*2, z:t.h, h:t.spire });
-
-  /* lamp burning at the spire's peak, in the quad's color */
-  const fin = document.createElement("div");
-  fin.className = "billboard finial";
-  fin.style.transform = `translate3d(${t.x + t.w/2}px, ${t.y + t.d/2}px, ${t.h + t.spire + 2}px)`;
-  fin.innerHTML = `<div class="bb-inner"><div class="fdot" style="--fc:${S.color}"></div></div>`;
-  group.appendChild(fin);
+  if (t.spire){
+    const inset = Math.round(t.w * 0.15);
+    buildSpire(group, { x:t.x + inset, y:t.y + inset,
+                        w:t.w - inset*2, d:t.d - inset*2, z:t.h, h:t.spire });
+    const fin = document.createElement("div");
+    fin.className = "billboard finial";
+    fin.style.transform = `translate3d(${t.x + t.w/2}px, ${t.y + t.d/2}px, ${t.h + t.spire + 2}px)`;
+    fin.innerHTML = `<div class="bb-inner"><div class="fdot" style="--fc:${S.color}"></div></div>`;
+    group.appendChild(fin);
+  }
+  if (t.pinnacles){
+    [[t.x-2, t.y-2],[t.x+t.w-6, t.y-2],[t.x-2, t.y+t.d-6],[t.x+t.w-6, t.y+t.d-6]]
+      .forEach(([px,py]) => buildBox({ x:px, y:py, w:8, d:8, h:t.h + 18,
+        parent:group, cls:"pinn",
+        roofBg:"#9a8c70", wallBg:"linear-gradient(180deg,#8a7c64,#5f5546)" }));
+  }
 
   buildingEls[spec.sector] = [group];
   group.addEventListener("click", () => selectSector(spec.sector, true));
@@ -1321,16 +1639,40 @@ BUILDINGS.forEach(spec => {
   wallBg:"linear-gradient(180deg,#0f4526,#092e18)",
 }));
 
-/* corner obelisk lanterns */
-[[34,34],[588,34],[34,588],[588,588]].forEach(([lx,ly]) => {
-  buildBox({ x:lx, y:ly, w:14, d:14, h:64, deco:true,
+/* ── the gatehouse: twin-turreted arch over the north entry walk ── */
+(function gatehouse(){
+  const gh = document.createElement("div");
+  gh.className = "bgroup static";
+  scene.appendChild(gh);
+  /* central block — pointed tunnel + clock, crenellated */
+  buildBox({ x:276, y:16, w:88, d:46, h:62, parapet:7, stone:true, arch:true, clock:true,
+             seed:7, accent:"#d4af6a", parent:gh, deco:true, cls:"gatehouse" });
+  /* twin flanking turrets with arrow slits, Blair Arch style */
+  buildBox({ x:257, y:10, w:27, d:36, h:96, parapet:6, stone:true, windows:"slits",
+             seed:8, accent:"#d4af6a", parent:gh, deco:true, cls:"gatehouse" });
+  buildBox({ x:356, y:10, w:27, d:36, h:96, parapet:6, stone:true, windows:"slits",
+             seed:9, accent:"#d4af6a", parent:gh, deco:true, cls:"gatehouse" });
+})();
+
+/* wrought-iron lamps — corner obelisks and path lanterns, each pooling
+   warm light on the paving after dark */
+function makeLamp(x, y, size, h){
+  buildBox({ x, y, w:size, d:size, h, deco:true,
     roofBg:"radial-gradient(circle,#ffe9a8,#8a744a)",
     wallBg:"linear-gradient(180deg,#334155,#111827)" });
+  const cx = x + size/2, cy = y + size/2;
   const halo = document.createElement("div");
   halo.className = "fly";
-  halo.style.cssText = `left:${lx - 6}px;top:${ly - 6}px;width:26px;height:26px;--dx:0px;--dy:0px;--t:4s;transform:translateZ(70px);animation-name:twinkle;`;
+  halo.style.cssText = `left:${cx - 13}px;top:${cy - 13}px;width:26px;height:26px;--dx:0px;--dy:0px;--t:4s;transform:translateZ(${h + 6}px);animation-name:twinkle;`;
   scene.appendChild(halo);
-});
+  const pool = document.createElement("div");
+  pool.className = "lamppool";
+  pool.style.cssText = `left:${cx - 40}px;top:${cy - 40}px;width:80px;height:80px;transform:translateZ(0.6px);`;
+  scene.appendChild(pool);
+}
+[[34,34,14,64],[588,34,14,64],[34,588,14,64],[588,588,14,64],
+ [270,244,10,46],[360,244,10,46],[270,388,10,46],[360,388,10,46]]
+  .forEach(a => makeLamp(...a));
 
 /* campus elms — formal allées flanking the walks, groves at the bounds */
 [
@@ -1576,10 +1918,15 @@ function renderBanner(){
         <p class="text-[13.5px] text-slate-400 mt-2.5 leading-relaxed max-w-xl">${S.blurb}</p>
         <div class="flex items-center justify-between flex-wrap gap-3 mt-4">
           <span class="font-serif-d italic text-[14px]" style="color:${S.color}">“${S.motto}”</span>
-          <span class="text-[11px] text-slate-400">${dcount} of ${list.length} courses sealed in this hall</span>
+          <div class="flex items-center gap-3 flex-wrap">
+            <span class="text-[11px] text-slate-400">${dcount} of ${list.length} courses sealed in this hall</span>
+            <button id="enter-hall" class="int-btn" style="border-color:${S.soft}.55)">🚪 Step inside</button>
+          </div>
         </div>
       </div>`;
   }
+  const eh = document.getElementById("enter-hall");
+  if (eh) eh.addEventListener("click", () => openInterior(currentSector));
 }
 
 function prereqPill(pid){
@@ -1779,7 +2126,7 @@ function toggleDone(id){
 
 /* ── ① ⇄ ② the transport: building click → workspace morph ───────── */
 function selectSector(key, fromCampus){
-  if (currentSector === key && !fromCampus) key = key; /* re-selection allowed */
+  closeInterior();
   currentSector = key;
   localStorage.setItem(LS_SECTOR, key);
 
@@ -1801,7 +2148,10 @@ function selectSector(key, fromCampus){
       document.getElementById("workspace").scrollTo({ top: 0, behavior: "smooth" });
       window.scrollTo({ top: 0, behavior: "smooth" });
       const S = SECTORS[key];
-      if (S) toast("Now entering", `${S.hall} — ${S.track}`, S.color);
+      if (S){
+        toast("Now entering", `${S.hall} — ${S.track}`, S.color);
+        setTimeout(() => openInterior(key), 520);
+      }
     }
   }, 240);
 }
@@ -1811,6 +2161,8 @@ window.addEventListener("keydown", (e) => {
   if (e.target.matches("input,textarea")) return;
   const map = { "1":"lib", "2":"eng", "3":"sci", "4":"adm", "0":"all" };
   if (map[e.key]) selectSector(map[e.key], true);
+  if (e.key === "n" || e.key === "N") document.getElementById("daynight").click();
+  if (e.key === "Escape") closeInterior();
 });
 
 /* reset ledger */
@@ -1838,7 +2190,75 @@ function toast(title, body, color, ms){
   setTimeout(() => { t.classList.add("bye"); setTimeout(() => t.remove(), 450); }, ms || 4200);
 }
 
+/* ── interior classroom scenes ───────────────────────────────────── */
+const interiorEl = document.getElementById("interior");
+function openInterior(key){
+  const S = SECTORS[key];
+  if (!S) return;
+  const wall = document.getElementById("int-wall");
+  wall.dataset.skin = "1";
+  wall.dataset.day = wallURI("plain", 980, 560, {accent:S.color, seed:11}, "day");
+  wall.dataset.night = wallURI("plain", 980, 560, {accent:S.color, seed:11}, "night");
+  wall.style.backgroundImage = wall.dataset[mode];
+  document.getElementById("int-track").textContent = S.track;
+  document.getElementById("int-hall").textContent = S.room;
+  const next = COURSES.find(c => c.sector === key && !done.includes(c.id));
+  document.getElementById("int-teaching").textContent = next
+    ? `Now in session: ${next.code} — ${next.title}`
+    : "Every course sealed — the hall stands in your honor.";
+  document.querySelector("#interior .chalk-title").textContent = S.hall;
+  document.getElementById("int-lines").innerHTML =
+    S.board.map(l => `<div class="chalk-line">${esc(l)}</div>`).join("");
+  /* seat a scattered cohort at the desks */
+  ["int-row1","int-row2","int-row3"].forEach((id, ri) => {
+    let html = "";
+    for (let i = 0; i < 3; i++){
+      const a = STUDENT_ROSTER[(i + ri*2) % STUDENT_ROSTER.length].c;
+      const b2 = STUDENT_ROSTER[(i + ri*2 + 3) % STUDENT_ROSTER.length].c;
+      const p1 = Math.random() < 0.8 ? `<div class="pupil" style="--pc:${a};left:${14 + Math.round(Math.random()*22)}%"><i></i><b></b></div>` : "";
+      const p2 = Math.random() < 0.55 ? `<div class="pupil" style="--pc:${b2};left:${56 + Math.round(Math.random()*22)}%"><i></i><b></b></div>` : "";
+      html += `<div class="int-desk">${p1}${p2}</div>`;
+    }
+    document.getElementById(id).innerHTML = html;
+  });
+  interiorEl.classList.add("open");
+  interiorEl.setAttribute("aria-hidden", "false");
+}
+function closeInterior(){
+  interiorEl.classList.remove("open");
+  interiorEl.setAttribute("aria-hidden", "true");
+}
+document.getElementById("int-leave").addEventListener("click", closeInterior);
+document.getElementById("int-courses").addEventListener("click", () => {
+  closeInterior();
+  const ws = document.getElementById("workspace");
+  ws.scrollTo({ top: 0, behavior: "smooth" });
+  ws.scrollIntoView({ behavior: "smooth" });
+});
+
+/* ── day / night engine ──────────────────────────────────────────── */
+const LS_MODE = "pembroke.registrar.mode";
+let mode = localStorage.getItem(LS_MODE) === "night" ? "night" : "day";
+function applyMode(){
+  document.body.classList.toggle("day", mode === "day");
+  document.querySelectorAll("[data-skin]").forEach(el => {
+    el.style.backgroundImage = el.dataset[mode];
+  });
+  document.getElementById("daynight").textContent = mode === "day" ? "🌙" : "☀️";
+}
+document.getElementById("daynight").addEventListener("click", () => {
+  mode = mode === "day" ? "night" : "day";
+  localStorage.setItem(LS_MODE, mode);
+  applyMode();
+  toast(mode === "day" ? "Dawn over the quadrangle" : "Night falls on Pembroke",
+        mode === "day"
+          ? "Morning light on buff stone — fair-weather clouds over the spires."
+          : "The lancets glow, lamplight pools on the walks, and the fireflies rise.",
+        "#d4af6a");
+});
+
 /* ── ignition ────────────────────────────────────────────────────── */
+applyMode();
 renderChips();
 renderBanner();
 renderCourses();
