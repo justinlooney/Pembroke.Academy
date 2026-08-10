@@ -31,7 +31,7 @@ if len(argv) < 3:
 
 src, dst = argv[0], argv[1]
 target = int(float(argv[2]))
-weld_frac = float(argv[3]) if len(argv) > 3 else 0.0002   # of the bbox diagonal
+weld_frac = float(argv[3]) if len(argv) > 3 else 0.0     # of the bbox diagonal; off by default
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=src)
@@ -82,6 +82,15 @@ if weld_dist > 0:
     welded = tris()
     if welded != before:
         print(f"[decimate]   weld: {before:,} -> {welded:,} tris")
+    if welded < target:
+        # A weld distance too large for the model's detail scale melts it
+        # away, and the ratio below then clamps to 1.0 and hides the
+        # damage. Start over without welding rather than ship a lump.
+        print(f"[decimate]   weld overshot the {target:,} budget — reimporting without it")
+        bpy.ops.wm.read_factory_settings(use_empty=True)
+        bpy.ops.import_scene.gltf(filepath=src)
+        ms = meshes()
+        welded = tris()
 else:
     welded = before
 
@@ -104,6 +113,7 @@ except TypeError:
     export.pop("export_apply", None)
     bpy.ops.export_scene.gltf(**export)
 
+flag = "" if after >= target * 0.8 or target >= before else "   ** UNDER BUDGET **"
 print(f"[decimate] {os.path.basename(src)}: {before:,} -> {after:,} tris "
-      f"({100.0 * after / max(before, 1):.1f}% kept), "
+      f"({100.0 * after / max(before, 1):.1f}% kept){flag}, "
       f"{os.path.getsize(src)/1e6:.1f}MB -> {os.path.getsize(dst)/1e6:.1f}MB (pre-compression)")

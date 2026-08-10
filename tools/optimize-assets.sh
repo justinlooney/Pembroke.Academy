@@ -25,17 +25,21 @@ command -v "$GLTF"    >/dev/null || { echo "gltf-transform not found — npm i -
 # absolute targets, not ratios, so the result does not depend on how
 # messy a given scan is.
 #
+# Welding is off: on wide-area drone scans a distance large enough
+# to help is also large enough to melt the model, and the ratio then
+# clamps and hides it. Decimate alone hits the budgets.
+#
 # model            target-tris  weld     texture-px   why
 TIERS="
-msu                60000        0.0002   1024   far horizon, fog-hazed
-cologne            60000        0.0002   1024   far horizon
-gothic_cathedral   70000        0.0002   1024   west horizon
-university         90000        0.0002   1024   east district, across the drive
-gridiron           140000       0.0002   2048   stadium, seen down the boulevard
-tennis             80000        0.0002   1024   southeast, never approached
-ballpark           80000        0.0002   1024   southwest, never approached
-reshall            140000       0.0001   2048   west lawn, walked past
-portal             260000       0.0001   2048   the cathedral door, seen up close
+msu                60000        0        1024   far horizon, fog-hazed
+cologne            60000        0        1024   far horizon
+gothic_cathedral   70000        0        1024   west horizon
+university         90000        0        1024   east district, across the drive
+gridiron           140000       0        2048   stadium, seen down the boulevard
+tennis             80000        0        1024   southeast, never approached
+ballpark           80000        0        1024   southwest, never approached
+reshall            140000       0        2048   west lawn, walked past
+portal             260000       0        2048   the cathedral door, seen up close
 cathedral2         500000       0        2048   ENTERABLE — light touch only
 "
 
