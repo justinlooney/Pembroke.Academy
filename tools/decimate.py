@@ -56,6 +56,7 @@ def apply(o, mod):
         o.modifiers.remove(mod)
         return False
 
+failures = 0
 ms = meshes()
 before = tris()
 
@@ -102,7 +103,8 @@ if ratio < 1.0:
         m.decimate_type = "COLLAPSE"
         m.ratio = ratio
         m.use_collapse_triangulate = True
-        apply(o, m)
+        if not apply(o, m):
+            failures += 1
 
 after = tris()
 
@@ -114,6 +116,11 @@ except TypeError:
     bpy.ops.export_scene.gltf(**export)
 
 flag = "" if after >= target * 0.8 or target >= before else "   ** UNDER BUDGET **"
+if failures:
+    # Exporting here would hand back a model that quietly missed its
+    # budget; the caller must not mistake that for a saving.
+    print(f"[decimate] ABORT: decimation failed on {failures} mesh(es) of {os.path.basename(src)}")
+    sys.exit(2)
 print(f"[decimate] {os.path.basename(src)}: {before:,} -> {after:,} tris "
       f"({100.0 * after / max(before, 1):.1f}% kept){flag}, "
       f"{os.path.getsize(src)/1e6:.1f}MB -> {os.path.getsize(dst)/1e6:.1f}MB (pre-compression)")

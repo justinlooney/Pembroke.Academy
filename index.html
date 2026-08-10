@@ -596,7 +596,7 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
 }
 @media (max-width:640px){
   .walkmode #quest{
-    top:6.6rem; bottom:auto; left:.75rem; right:.75rem; max-width:none;
+    top:6.6rem; bottom:auto; left:.75rem; right:6.25rem; max-width:none;
     padding:.4rem .6rem; font-size:11px; line-height:1.35; opacity:.92;
   }
   .walkmode #quest .q-label{ display:none; } /* drop the heading, keep the task */
@@ -2523,6 +2523,15 @@ BUILDINGS.forEach(spec => {
         then the horizon landmarks and districts stream in (~40MB)
         without contending for first-load bandwidth ─────────────────── */
   const OUTER = [
+    /* The athletics district leads: south beyond the drive, Pembroke
+       Stadium dead ahead down the boulevard, Pembroke Field to the
+       southwest, the Pembroke Tennis Club southeast. A visitor can walk
+       to all three, so they arrive before anything merely scenic. */
+    ["assets/gridiron.glb", { plane: [500, 1530], height: 110, maxFoot: [720, 700], sink: 3,
+      rotY: Math.PI,                     /* grand entrance faces the boulevard */
+      onLoaded: brandStadium }],
+    ["assets/ballpark.glb", { plane: [-380, 1290], height: 62, maxFoot: [430, 440], sink: 2.5 }],
+    ["assets/tennis.glb",   { plane: [1270, 1280], height: 60, maxFoot: [500, 390], sink: 2.5 }],
     /* the white cathedral (Gnemegorl) joins the horizon, west */
     ["assets/gothic_cathedral.glb", {
       plane: [-560, 380], height: 420, rotY: 1.9, maxFoot: [520, 420],
@@ -2531,15 +2540,6 @@ BUILDINGS.forEach(spec => {
        Shahrabi, CC-BY-4.0) NW and Moscow State University (Neo_minigan,
        CC-BY-4.0) NE, hazed by distance and fog */
     ["assets/cologne.glb", { plane: [-520, -420], height: 540, rotY: 2.6, maxFoot: [760, 760] }],
-    /* the athletics district, south beyond the drive: Pembroke Stadium
-       dead ahead down the boulevard, Pembroke Field to the southwest,
-       the Pembroke Tennis Club and its neighborhood to the southeast.
-       These come before the far horizon — a visitor can walk to them. */
-    ["assets/gridiron.glb", { plane: [500, 1530], height: 110, maxFoot: [720, 700], sink: 3,
-      rotY: Math.PI,                     /* grand entrance faces the boulevard */
-      onLoaded: brandStadium }],
-    ["assets/ballpark.glb", { plane: [-380, 1290], height: 62, maxFoot: [430, 440], sink: 2.5 }],
-    ["assets/tennis.glb",   { plane: [1270, 1280], height: 60, maxFoot: [500, 390], sink: 2.5 }],
     /* the neighboring campus: an aerial-scan district rolling along the
        east side, its own streets and trees carrying the town beyond the
        drive toward the horizon */
@@ -3942,7 +3942,10 @@ function dbgUpdate(now, dt){
   const inf = renderer.info;
   const done = assetLog.filter(a => a.ms != null);
   const pending = assetLog.length - done.length;
-  const slow = done.slice().sort((a, b) => b.ms - a.ms).slice(0, 6)
+  const bad = done.filter(a => a.err);
+  /* failures first: a 404 fails fast, and sorting by duration alone
+     would bury it under six slow successes — exactly when it matters */
+  const slow = bad.concat(done.filter(a => !a.err).sort((a, b) => b.ms - a.ms)).slice(0, 6)
     .map(a => "  " + (a.name + "                    ").slice(0, 19) + " " +
               (a.ms / 1000).toFixed(1) + "s" + (a.err ? "  " + a.why : "")).join("\n");
   const last = done.length ? Math.max(...done.map(a => a.t0 + a.ms)) : 0;
@@ -3955,7 +3958,7 @@ function dbgUpdate(now, dt){
     "tex    " + inf.memory.textures + "   geo " + inf.memory.geometries + "\n" +
     "view   " + (interiorView ? "interior" : walker.on ? "walk" : "aerial") +
       " · " + (window.__visual || "?") + "\n" +
-    "assets " + done.length + "/" + assetLog.length +
+    "assets " + done.length + "/" + assetLog.length + (bad.length ? "  " + bad.length + " FAILED" : "") +
       (pending ? "  (" + pending + " loading)" : "  all in " + (last / 1000).toFixed(1) + "s") + "\n" +
     (slow ? "slowest\n" + slow : "");
 }
