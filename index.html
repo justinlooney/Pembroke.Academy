@@ -2070,6 +2070,7 @@ lot(16, 430, 70, 240, 5);
   road(-18, 516, 34, 30);          /* west lot connector */
   road(984, 430, 28, 30);          /* east lot connector */
   road(478, 948, 44, 52);          /* gatehouse spur */
+  road(470, 1030, 60, 120);        /* stadium boulevard, south to the gates */
   for (let k = 0; k < 6; k++){     /* zebra crossing on the south leg */
     const stripe = new THREE.Mesh(new THREE.PlaneGeometry(30, 3.2), dashMat);
     stripe.rotation.x = -Math.PI / 2;
@@ -2495,6 +2496,47 @@ BUILDINGS.forEach(spec => {
   loadLandmark("assets/university.glb", {
     plane: [1620, 760], height: 300, rotY: Math.PI / 2, maxFoot: [900, 1400], sink: 4.5,
   });
+  /* the athletics district, south beyond the drive: Pembroke Stadium
+     dead ahead down the boulevard, Pembroke Field to the southwest,
+     the Pembroke Tennis Club and its neighborhood to the southeast */
+  loadLandmark("assets/gridiron.glb", { plane: [500, 1530], height: 110, maxFoot: [720, 700], sink: 3 });
+  loadLandmark("assets/ballpark.glb", { plane: [-380, 1290], height: 62, maxFoot: [430, 440], sink: 2.5 });
+  loadLandmark("assets/tennis.glb",   { plane: [1270, 1280], height: 60, maxFoot: [500, 390], sink: 2.5 });
+  /* monument gateway signs — every venue reads Pembroke */
+  const stadiumSign = (px, py, text, w2) => {
+    const c = document.createElement("canvas"); c.width = 1024; c.height = 192;
+    const x = c.getContext("2d");
+    x.fillStyle = "#0f1b2d"; x.fillRect(0, 0, 1024, 192);
+    x.strokeStyle = "#d4af6a"; x.lineWidth = 10; x.strokeRect(10, 10, 1004, 172);
+    x.fillStyle = "#d4af6a"; x.font = "bold 92px Georgia";
+    x.textAlign = "center"; x.textBaseline = "middle";
+    x.fillText(text, 512, 100);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+    const h2 = w2 * 192 / 1024;
+    const faceMat = new THREE.MeshStandardMaterial({ map: t, roughness: 0.6 });
+    [0, Math.PI].forEach(ry => {
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(w2, h2), faceMat);
+      face.position.set(W(px), 24 + h2 / 2, W(py) + (ry === 0 ? 0.8 : -0.8));
+      face.rotation.y = ry;
+      world.add(face);
+    });
+    const core = new THREE.Mesh(new THREE.BoxGeometry(w2, h2, 1.2),
+      new THREE.MeshStandardMaterial({ color: 0x10141c, roughness: 0.8 }));
+    core.position.set(W(px), 24 + h2 / 2, W(py));
+    core.castShadow = true;
+    world.add(core);
+    const pylMat = new THREE.MeshStandardMaterial({ color: 0x2c2f34, roughness: 0.6, metalness: 0.5 });
+    [-1, 1].forEach(sx => {
+      const p = new THREE.Mesh(new THREE.BoxGeometry(3.2, 24 + h2, 3.2), pylMat);
+      p.position.set(W(px) + sx * (w2 / 2 - 4), (24 + h2) / 2, W(py));
+      p.castShadow = true;
+      world.add(p);
+    });
+  };
+  stadiumSign(500, 1150, "PEMBROKE STADIUM", 150);
+  stadiumSign(-360, 1062, "PEMBROKE FIELD", 112);
+  stadiumSign(1255, 1072, "PEMBROKE TENNIS CLUB", 136);
   /* dormitory ranges */
   stoneBox(amb, { x: 856, y: 240, w: 64, d: 310, h: 70, windows: "lancet", seed: 16, accent: "#d9c48a", noRoof: true });
   gableRoof(amb, { x: 856, y: 240, w: 64, d: 310, z: 70, h: 28, axis: "y" });
@@ -2678,6 +2720,7 @@ const TREE_SETS = { oak: [], elm: [], pine: [], maple: [] };
     if (px > 290 && px < 710 && py > -400 && py < 100) continue;   /* cathedral close */
     if (px > 1400 || (px < -300 && py < -200)) continue;            /* MSU, Cologne */
     if (px < -350 && py > 200 && py < 560) continue;                /* white cathedral */
+    if (py > 1040 && px > -650 && px < 1550) continue;              /* athletics district */
     const sp = i % 3 ? "pine" : (i % 2 ? "oak" : "elm");
     T[sp].push([px, py, 1.1 + ((i * 31) % 60) / 50]);
   }
@@ -2779,6 +2822,7 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat){
     if (px > 290 && px < 710 && py > -400 && py < 100) continue;
     if (px > 1400 || (px < -300 && py < -200)) continue;
     if (px < -350 && py > 200 && py < 560) continue;
+    if (py > 1040 && px > -650 && px < 1550) continue;   /* athletics district */
     (i % 2 ? PINES1 : PINES2).push([px, py, 0.9 + ((i * 31) % 40) / 60]);
   }
   [[150, 60, 1], [252, 44, 0.85], [744, 52, 0.9], [862, 60, 1.05]].forEach(p => PINES2.push(p));
