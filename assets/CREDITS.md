@@ -10,6 +10,14 @@ end of this file: one **CC-BY-NC** model (non-commercial use only) and one
 under the **Sketchfab Standard licence** (usable within this interactive
 experience, but not redistributable as a standalone file).
 
+**All models here are modified from their originals.** Beyond the per-model
+notes below, every landmark has been decimated to a triangle budget set by how
+close a visitor gets to it — from 60,000 triangles for horizon scenery up to
+500,000 for the cathedral you can walk inside — using `tools/decimate.py`
+(Blender, headless), then recompressed with meshopt and WebP. Several were also
+cropped to a region, re-materialed, or re-lit. None is the artist's file as
+published; anyone wanting the original should go to the source links here.
+
 - **"Campus Conversation"** — https://sketchfab.com/3d-models/campus-conversation-228d51c9b87b40fdb655ad10213bff8e
   by **restore50** (https://sketchfab.com/restore50), licensed **CC-BY-4.0**
   (http://creativecommons.org/licenses/by/4.0/). Optimized (meshopt + WebP 1K) as `students.glb`.
