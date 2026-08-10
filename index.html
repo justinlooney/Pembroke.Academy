@@ -3562,7 +3562,27 @@ function prepFigure(k, height, live){
 function buildCast(){
   STUDENT_ROSTER.forEach((st, i) => {
     const plan = CAST_PLAN[i];
-    const g = prepFigure(plan.k, 0, plan.live);
+    /* One character mesh has to stand in for the whole cohort, so vary
+       what can be varied without a second model. Height does most of the
+       work — people differ more in stature than in anything else you can
+       read across a lawn — and hair colour does the rest.
+
+       Only the hair is tinted. This character carries clothing and skin
+       in a single texture, so colouring the body to vary the outfit
+       recolours the face with it. */
+    const build = 0.9 + ((i * 0.137) % 1) * 0.2;      /* ±10% of height */
+    const g = prepFigure(plan.k, CAST_HEIGHT[plan.k] * build, plan.live);
+    if (plan.k === "walker"){
+      const hair = ["#2b1b12", "#4a2c1a", "#12100f", "#6b4a2a", "#8a6a3a"][i % 5];
+      g.traverse(o => {
+        if (o.isMesh && /hair/i.test(o.material?.name || "")){
+          /* clone first: SkeletonUtils shares materials between figures,
+             so tinting in place would dye the whole cohort at once */
+          o.material = o.material.clone();
+          o.material.color = new THREE.Color(hair);
+        }
+      });
+    }
     const tagEl = document.createElement("div");
     tagEl.className = "stu-tag";
     tagEl.textContent = st.name;
