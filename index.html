@@ -9,6 +9,29 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0f1b2d">
 <link rel="apple-touch-icon" href="assets/icon-192.png">
+<script>
+/* The campus is ~39MB of models. Cache them so a returning student walks
+   onto the quad immediately and the site survives a dead server.
+
+   This registers here, in the head, rather than on load: a worker does
+   not control the page that registered it until it claims, and every
+   model fetched before that moment goes straight to the network and is
+   never cached. Registering early lets install and claim finish while
+   Three.js is still downloading, so the very first visit's models land
+   in the cache — otherwise caching would not start paying off until the
+   third visit.
+
+   ?nosw unregisters and clears. Worth having: a wedged service worker is
+   otherwise miserable to get rid of. */
+if ("serviceWorker" in navigator){
+  if (new URLSearchParams(location.search).has("nosw")){
+    navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()));
+    if (window.caches) caches.keys().then(ks => ks.forEach(k => caches.delete(k)));
+  } else {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+}
+</script>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -4443,22 +4466,6 @@ renderBanner();
 renderCourses();
 refreshProgress();
 setTimeout(() => toast("Welcome to Pembroke Academy", "Drag to orbit the campus, click any hall to step inside — or press F (🎮) to drop onto the quad and walk to class. Progress saves automatically.", "#d4af6a", 7000), 900);
-</script>
-<script>
-/* The campus is ~39MB of models. Cache them so a returning student
-   walks onto the quad immediately and the site works offline.
-   ?nosw unregisters and clears — an escape hatch worth having, because
-   a wedged service worker is otherwise miserable to get rid of. */
-if ("serviceWorker" in navigator){
-  const bail = new URLSearchParams(location.search).has("nosw");
-  if (bail){
-    navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()));
-    if (window.caches) caches.keys().then(ks => ks.forEach(k => caches.delete(k)));
-  } else {
-    addEventListener("load", () =>
-      navigator.serviceWorker.register("sw.js").catch(() => {}));
-  }
-}
 </script>
 </body>
 </html>
