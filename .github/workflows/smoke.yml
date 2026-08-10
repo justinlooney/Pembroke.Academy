@@ -46,8 +46,14 @@ jobs:
       - name: Drive the campus
         run: node tools/smoke.mjs
 
+      # Screenshots are evidence, never a verdict — the same rule the test
+      # itself follows when a software rasterizer is too slow to paint one.
+      # A green run once went red here purely because the artifact service
+      # returned 403 finalizing the upload, which says nothing about the
+      # campus.
       - name: Keep the evidence
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: smoke-screenshots
