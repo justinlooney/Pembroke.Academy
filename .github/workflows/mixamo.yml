@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: write
+  actions: write        # to ask smoke to run on the commit this makes
 
 concurrency: mixamo
 
