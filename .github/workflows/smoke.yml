@@ -1,0 +1,42 @@
+name: campus smoke test
+
+# Every push and PR drives the real page in a real browser. The runner has
+# no GPU, so this exercises the software-render path — the slowest machine
+# the site will ever meet.
+on:
+  push:
+    branches-ignore: [assets-inbox]   # the asset courier branch is not the site
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.56.1
+          npx playwright install --with-deps chromium
+
+      - name: Drive the campus
+        run: node tools/smoke.mjs
+
+      - name: Keep the evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-screenshots
+          path: smoke-*.png
+          if-no-files-found: ignore
+          retention-days: 14
