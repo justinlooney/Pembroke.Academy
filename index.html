@@ -2173,12 +2173,24 @@ let fountainWater = null;
   walkway([[268, 340], [300, 430], [304, 540], [318, 610], [370, 660]], 20);
   walkway([[740, 306], [828, 336], [842, 440], [816, 528], [740, 588], [676, 626]], 20);
 
-  /* the residence hall and the refectory, joined to the halls they serve */
+  /* The residence hall, properly served: a walk the length of its east
+     front, joined south to the library and north to the drive, so people
+     leave it towards the campus instead of appearing beside it. */
   walkway([[212, 362], [240, 352], [268, 340]], 18);
+  walkway([[214, 226], [210, 300], [212, 362], [210, 420], [214, 466]], 18);
+  walkway([[214, 466], [244, 500], [286, 512], RING_W], 18);
   walkway([[746, 326], [744, 316], [740, 306]], 18);
   /* the south lodge, and the walk down to the west car park */
   walkway([[240, 822], [292, 830], [334, 834]], 18);
   walkway([[304, 540], [200, 556], [110, 568]], 18);
+
+  /* Out to the athletics district. The gates are the hinge: the south
+     walk arrives there, and from it a promenade runs down the boulevard
+     to the stadium with branches west to the ballpark and east to the
+     tennis club — the same three destinations the roads serve, on foot. */
+  walkway([[500, 985], [500, 1046], [500, 1104], [500, 1156]], 24);
+  walkway([[476, 1112], [330, 1148], [152, 1192], [-40, 1236], [-150, 1280]], 18);
+  walkway([[524, 1112], [678, 1148], [854, 1190], [982, 1236], [1012, 1274]], 18);
   /* mowing stripes on the great oval, faint and angled like the photo */
   const stripeTex = canvasTex(256, (x) => {
     for (let ry = 0; ry < 8; ry++){
@@ -2285,12 +2297,18 @@ lot(16, 430, 70, 240, 5);
          [70, 400], [140, 250], [300, 150], [500, 110], [700, 140],
          [880, 240], [960, 400], [980, 600], [966, 800], [930, 950],
          [880, 1060]]);
-  /* the spur off the drive to the gatehouse, and the boulevard beyond it
-     running south to the stadium gates */
-  drive([[500, 985], [500, 1040], [498, 1120], [500, 1220]], 46);
+  /* the boulevard south from the gatehouse to the stadium forecourt */
+  drive([[500, 985], [500, 1050], [498, 1105], [500, 1160]], 46);
+  /* and the athletics roads: west along the front of the district to the
+     ballpark, east to the tennis club, so the fields are reached the way
+     a campus reaches them rather than sitting unserved on the horizon */
+  drive([[478, 1088], [330, 1124], [150, 1168], [-40, 1212], [-152, 1256]], 32);
+  drive([[522, 1088], [676, 1124], [852, 1166], [980, 1212], [1014, 1250]], 32);
   /* service loops to the lots either side */
   drive([[64, 700], [10, 690], [-40, 700]], 24);
   drive([[966, 800], [1020, 790], [1070, 800]], 24);
+  /* the residence hall forecourt, off the drive on the west side */
+  drive([[122, 262], [176, 232], [214, 226]], 22);
   for (let k = 0; k < 6; k++){     /* zebra crossing where the south walk meets the drive */
     const stripe = new THREE.Mesh(new THREE.PlaneGeometry(34, 3.2), dashMat);
     stripe.rotation.x = -Math.PI / 2;
@@ -2743,17 +2761,18 @@ BUILDINGS.forEach(spec => {
        southwest, the Pembroke Tennis Club southeast. A visitor can walk
        to all three, so they arrive before anything merely scenic. */
     ["assets/gridiron.glb", { plane: [500, 1530], height: 110, maxFoot: [720, 700], sink: 3,
-      vista: "Pembroke Stadium",
+      vista: "Pembroke Stadium", collider: "auto",
       rotY: Math.PI,                     /* grand entrance faces the boulevard */
       onLoaded: brandStadium }],
     ["assets/ballpark.glb", { plane: [-380, 1290], height: 62, maxFoot: [430, 440], sink: 2.5,
-      vista: "Pembroke Field" }],
+      vista: "Pembroke Field", collider: "auto" }],
     ["assets/tennis.glb",   { plane: [1270, 1280], height: 60, maxFoot: [500, 390], sink: 2.5,
-      vista: "Pembroke Tennis Club" }],
+      vista: "Pembroke Tennis Club", collider: "auto" }],
     /* the white cathedral (Gnemegorl) joins the horizon, west */
     ["assets/gothic_cathedral.glb", {
       plane: [-560, 380], height: 420, rotY: 1.9, maxFoot: [520, 420],
-      dropMatNames: ["metal"], tint: 0xe8dcc6, vista: "The White Cathedral" }],
+      dropMatNames: ["metal"], tint: 0xe8dcc6, vista: "The White Cathedral",
+      collider: "auto" }],
     /* the city of learning on the horizon: Cologne Cathedral (Shahriar
        Shahrabi, CC-BY-4.0) NW and Moscow State University (Neo_minigan,
        CC-BY-4.0) NE, hazed by distance and fog */
@@ -2764,7 +2783,7 @@ BUILDINGS.forEach(spec => {
        drive toward the horizon */
     ["assets/university.glb", {
       plane: [1620, 760], height: 300, rotY: Math.PI / 2, maxFoot: [900, 1400], sink: 4.5,
-      vista: "The Town Beyond the Drive" }],
+      vista: "The Town Beyond the Drive", collider: "auto" }],
     ["assets/msu.glb", { plane: [1680, -420], height: 780, rotY: -2.4, maxFoot: [1150, 950],
       vista: "The Distant Institute" }],
   ];
@@ -4163,7 +4182,12 @@ function collide(nx, ny){
      and at r=9 that left barely a body's clearance either side — enough
      to catch on constantly while moving. */
   const r = 6;
-  if (nx < 30 || nx > 970 || ny < 30 || ny > 970) return true;
+  /* The old fence stopped at the campus edge, which was fine while the
+     ways did too. Now that roads and walks run out to the stadium, the
+     ballpark and the tennis club, the walker has to be allowed to follow
+     them — a path to an invisible wall is worse than no path. Still
+     bounded, and every landmark out there is solid. */
+  if (nx < -640 || nx > 1560 || ny < 20 || ny > 1520) return true;
   for (const c of COLLIDERS){
     if (nx > c.x - r && nx < c.x + c.w + r && ny > c.y - r && ny < c.y + c.d + r) return true;
   }
@@ -4297,7 +4321,14 @@ function drawMinimap(){
   }
   if (walker.on){
     ctx.save();
-    ctx.translate(walker.x * k, walker.y * k);
+    /* the minimap frames the campus, but you can now walk past its edge
+       on the way to the fields — pin the marker to the rim rather than
+       letting it slide off and leave you with no arrow at all */
+    const edge = 6 / k;
+    const mx = Math.min(1000 - edge, Math.max(edge, walker.x));
+    const my = Math.min(1000 - edge, Math.max(edge, walker.y));
+    ctx.globalAlpha = (mx !== walker.x || my !== walker.y) ? 0.55 : 1;
+    ctx.translate(mx * k, my * k);
     ctx.rotate(walker.h * Math.PI / 180);
     ctx.fillStyle = "#ffffff";
     ctx.shadowColor = "#38bdf8"; ctx.shadowBlur = 6;
