@@ -2498,8 +2498,12 @@ BUILDINGS.forEach(spec => {
   /* dormitory ranges */
   stoneBox(amb, { x: 856, y: 240, w: 64, d: 310, h: 70, windows: "lancet", seed: 16, accent: "#d9c48a", noRoof: true });
   gableRoof(amb, { x: 856, y: 240, w: 64, d: 310, z: 70, h: 28, axis: "y" });
-  stoneBox(amb, { x: 86, y: 330, w: 64, d: 300, h: 70, windows: "lancet", seed: 17, accent: "#d9c48a", noRoof: true });
-  gableRoof(amb, { x: 86, y: 330, w: 64, d: 300, z: 70, h: 28, axis: "y" });
+  /* the west residence hall: akhazaee's scanned Colgate dorm (CC-BY-4.0),
+     clean facade toward the quad, replacing the procedural west range */
+  loadLandmark("assets/reshall.glb", {
+    plane: [140, 330], height: 96, rotY: 0, maxFoot: [150, 200], sink: 2.4,
+    collider: "auto",
+  });
   /* terracotta refectory */
   stoneBox(amb, { x: 700, y: 330, w: 110, d: 72, h: 46, windows: "lancet", seed: 18, accent: "#f0b47a", noRoof: true });
   gableRoof(amb, { x: 700, y: 330, w: 110, d: 72, z: 46, h: 30, terra: true });
@@ -2519,7 +2523,6 @@ BUILDINGS.forEach(spec => {
       k.position.set(W(px), baseY + h3 + 1.2, W(py)); k.castShadow = true; amb.add(k);
     };
     [[888, 290], [888, 395], [888, 500]].forEach(([px, py]) => chimney(px, py, 88, 18));
-    [[118, 385], [118, 480], [118, 575]].forEach(([px, py]) => chimney(px, py, 88, 18));
     [[372, 845], [448, 845]].forEach(([px, py]) => chimney(px, py, 78, 16));
     const acMat = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.7, metalness: 0.3 });
     [[168, 880], [242, 902], [788, 894], [852, 906]].forEach(([px, py], i) => {
@@ -2786,7 +2789,8 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat){
   const TSMALL = [[840,300,1],[840,420,0.9],[840,540,1.1],[130,420,1],[130,540,0.95],
                   [430,772,0.9],[390,838,1],[586,806,0.95]];
   const BUSHA = [[218,318,1],[302,322,0.9],[698,300,1.05],[782,304,0.95],
-                 [196,812,1],[300,820,0.9],[692,826,1.05],[794,830,0.95]];
+                 [196,812,1],[300,820,0.9],[692,826,1.05],[794,830,0.95],
+                 [100,246,0.9],[178,248,1],[222,300,0.9],[222,372,1],[100,416,0.95],[178,414,0.9]];
   const BUSHB = [[440,398,1],[560,398,0.9],[440,602,0.95],[560,602,1.05],[420,905,1],[580,905,1]];
   const BUSHC = [[457,330,1],[541,330,0.9],[457,668,1],[541,668,0.9],
                  [330,457,0.95],[330,541,1.05],[668,457,0.95],[668,541,1.05]];
