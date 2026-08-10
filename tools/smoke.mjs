@@ -115,15 +115,22 @@ await page.route("https://unpkg.com/**", route => {
 });
 
 page.on("pageerror", e => errors.push("pageerror: " + e.message));
+/* A texture whose URL is a blob: is one GLTFLoader minted from a response
+   it had already received, and that object URL dies with its document —
+   so a reload part-way through the outer world makes the loader complain
+   about textures for a page that no longer exists. Expected there, and
+   nowhere else: outside a navigation a failing blob texture means the
+   loader really is broken, so the window is opened only around reloads
+   rather than for the whole run. */
+let navigating = false;
+const acrossReload = async (fn) => {
+  navigating = true;
+  try { return await fn(); }
+  finally { await page.waitForTimeout(2500); navigating = false; }
+};
 page.on("console", m => {
   if (m.type() !== "error") return;
-  /* A texture whose URL is a blob: is one GLTFLoader minted from a
-     response it had already received. That object URL dies with its
-     document, so a reload part-way through the outer world makes the
-     loader complain about textures for a page that no longer exists.
-     It cannot report a cache or network fault: a model served wrongly
-     fails on its http:// URL, and those are still fatal below. */
-  if (/Couldn't load texture blob:/.test(m.text())) return;
+  if (navigating && /Couldn't load texture blob:/.test(m.text())) return;
   errors.push("console: " + m.text());
 });
 page.on("requestfailed", r => {
@@ -231,9 +238,11 @@ try {
      a real visitor does. */
   servedModels.length = 0;
   const before = errors.length;
-  await page.reload({ waitUntil: "load", timeout: 90_000 });
-  const rebooted = await page.waitForFunction(() => window.__app && window.__walker,
-    null, { timeout: 180_000 }).then(() => true, () => false);
+  const rebooted = await acrossReload(async () => {
+    await page.reload({ waitUntil: "load", timeout: 90_000 });
+    return page.waitForFunction(() => window.__app && window.__walker,
+      null, { timeout: 180_000 }).then(() => true, () => false);
+  });
   step("returning visit boots", rebooted);
 
   const refetched = servedModels.filter(p => firstVisit.has(p));
@@ -262,9 +271,11 @@ try {
   await page.route(u => new URL(u).origin !== `http://localhost:${PORT}`,
                    route => { offsite.push(route.request().url()); route.abort(); });
   serverDown = true;
-  await page.reload({ waitUntil: "domcontentloaded", timeout: 90_000 }).catch(() => {});
-  const offlineUp = await page.waitForFunction(() => window.__app, null, { timeout: 180_000 })
-    .then(() => true, () => false);
+  const offlineUp = await acrossReload(async () => {
+    await page.reload({ waitUntil: "domcontentloaded", timeout: 90_000 }).catch(() => {});
+    return page.waitForFunction(() => window.__app, null, { timeout: 180_000 })
+      .then(() => true, () => false);
+  });
   step("campus runs with no network at all", offlineUp);
 
   const built = await page.evaluate(() => {

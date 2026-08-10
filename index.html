@@ -4281,6 +4281,12 @@ function refreshQuest(){
     el.classList.toggle("folded", folded);
     el.setAttribute("aria-expanded", String(!folded));
     el.title = folded ? questInfo().text : "Tap to fold this away";
+    /* Folded, the text is display:none and the accessible name collapses
+       to a target emoji. A title is a tooltip, not a name — screen
+       readers may never announce it — so the objective is carried here
+       where it is always read, folded or not. */
+    el.setAttribute("aria-label", "Current objective: " + questInfo().text +
+      (folded ? ". Activate to expand." : ". Activate to fold away."));
     if (remember) localStorage.setItem(LS_QUEST, folded ? "folded" : "open");
   };
   setFold(localStorage.getItem(LS_QUEST) === "folded", false);
@@ -4297,8 +4303,10 @@ function refreshQuest(){
     const before = document.getElementById("quest-text").textContent;
     raw();
     const after = document.getElementById("quest-text").textContent;
+    /* either way the name has to follow the objective, or a folded card
+       keeps announcing the course you already finished */
     if (before && before !== after) setFold(false, false);
-    else if (el.classList.contains("folded")) el.title = questInfo().text;
+    else setFold(el.classList.contains("folded"), false);
   };
 }
 const mm = document.getElementById("minimap");
