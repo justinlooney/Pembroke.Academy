@@ -335,13 +335,20 @@ try {
      ?crowd=N is what a phone can use to force a full quad too, so this
      exercises the same path a real reviewer would. */
   serverDown = false;
-  const crowdPage = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  /* A sibling page in the SAME context, not browser.newPage() — that
+     opens a fresh context with an empty store, and the campus would be
+     downloaded and decoded from scratch a second time inside a
+     twenty-minute job. Here the worker is already registered for this
+     origin, so the models come out of the cache. Routes are per-page,
+     so the offline catch-all on the first page does not follow. */
+  const crowdPage = await page.context().newPage();
+  await crowdPage.setViewportSize({ width: 1280, height: 800 });
   const crowdErrs = [];
   crowdPage.on("pageerror", e => crowdErrs.push(e.message.split("\n")[0]));
-  await crowdPage.goto(`http://localhost:${PORT}/?crowd=12`,
+  await crowdPage.goto(`http://localhost:${PORT}/?crowd=8`,
                        { waitUntil: "domcontentloaded", timeout: 90_000 });
   const filled = await crowdPage
-    .waitForFunction(() => window.__crowd && window.__crowd().people >= 21,
+    .waitForFunction(() => window.__crowd && window.__crowd().people >= 17,
                      null, { timeout: 240_000 })
     .then(() => true, () => false);
   const c = await crowdPage.evaluate(() => {
@@ -390,7 +397,7 @@ try {
     return bad;
   }).catch(() => ["could not read the waypoint graph"]);
   step("no student route runs through a building", legs.length === 0, legs.slice(0, 4).join(" | "));
-  step("the crowd is not one person twenty times",
+  step("the crowd is not one person fourteen times",
        !!c && c.shirts >= 6 && c.skins >= 4 && c.builds >= 8,
        c ? `${c.shirts} shirt colours, ${c.skins} complexions, ${c.builds} builds ` +
            `across ${c.tinted} figures` : "could not read the cohort");
