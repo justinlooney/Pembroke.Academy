@@ -6,6 +6,51 @@
 <title>Pembroke Academy — The Autonomous Systems Campus</title>
 <meta name="description" content="An immersive 3D collegiate campus for the Pembroke Academy curriculum — Algebra to Calculus III, first program to autonomous flight.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 4 L58 14 V34 C58 48 46 58 32 62 C18 58 6 48 6 34 V14 Z' fill='%230f1b2d' stroke='%23d4af6a' stroke-width='3'/%3E%3Ctext x='32' y='42' font-family='Georgia' font-size='28' fill='%23d4af6a' text-anchor='middle'%3EP%3C/text%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f1b2d">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
+<script>
+/* The campus is ~39MB of models. Cache them so a returning student walks
+   onto the quad immediately and the site survives a dead server.
+
+   This registers here, in the head, rather than on load: a worker does
+   not control the page that registered it until it claims, and every
+   model fetched before that moment goes straight to the network and is
+   never cached. Registering early lets install and claim finish while
+   Three.js is still downloading, so the very first visit's models land
+   in the cache — otherwise caching would not start paying off until the
+   third visit.
+
+   ?nosw unregisters and clears. Worth having: a wedged service worker is
+   otherwise miserable to get rid of. */
+if ("serviceWorker" in navigator){
+  if (new URLSearchParams(location.search).has("nosw")){
+    /* Unregistering does not release the page that is already running:
+       it keeps its controller for this whole load, so clearing without
+       reloading leaves you looking at the very worker you asked to be
+       rid of. Clear, then reload once, keeping ?nosw in the URL so the
+       fresh load stays unregistered. The sessionStorage flag is what
+       stops that reload repeating forever. */
+    (async () => {
+      try {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r => r.unregister()));
+        if (window.caches){
+          const keys = await caches.keys();
+          await Promise.all(keys.map(k => caches.delete(k)));
+        }
+      } catch (e) { /* best effort — a reload is still worth trying */ }
+      if (!sessionStorage.getItem("nosw")){
+        sessionStorage.setItem("nosw", "1");
+        location.reload();
+      }
+    })();
+  } else {
+    sessionStorage.removeItem("nosw");
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+}
+</script>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

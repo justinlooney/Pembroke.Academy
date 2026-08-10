@@ -14,6 +14,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Changing a model without bumping the worker's VERSION strands every
+  # returning visitor on the old one, and it is invisible to whoever made
+  # the change. Cheap to check, so check it.
+  cache-version:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0            # the guard diffs against the base branch
+
+      - name: Assets changed without a cache bump?
+        run: bash tools/check-sw-version.sh "origin/${{ github.base_ref }}"
+
   smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 20

@@ -26,6 +26,10 @@ const MIME = {
   ".svg": "image/svg+xml", ".md": "text/markdown",
 };
 
+/* every model the server actually hands over, so the returning-visit
+   check can prove the service worker served them instead */
+const servedModels = [];
+
 const server = createServer(async (req, res) => {
   try {
     let rel;
@@ -40,6 +44,7 @@ const server = createServer(async (req, res) => {
     if (!existsSync(path) || statSync(path).isDirectory()){
       res.writeHead(404); res.end("not found"); return;
     }
+    if (extname(path) === ".glb") servedModels.push(rel);
     res.writeHead(200, { "content-type": MIME[extname(path)] || "application/octet-stream" });
     res.end(await readFile(path));
   } catch (e) {
@@ -104,6 +109,11 @@ page.on("pageerror", e => errors.push("pageerror: " + e.message));
 page.on("console", m => { if (m.type() === "error") errors.push("console: " + m.text()); });
 page.on("requestfailed", r => {
   const u = r.url();
+  /* The outer world streams for a long time, so a reload cancels
+     whatever is still in flight. A request the browser abandoned on
+     navigation is not a broken asset — only a request that tried and
+     could not finish is. */
+  if ((r.failure()?.errorText || "").includes("ERR_ABORTED")) return;
   if (u.includes("/assets/")) errors.push("asset request failed: " + u.split("/").pop());
 });
 page.on("response", r => {
@@ -162,6 +172,36 @@ try {
 
   await page.keyboard.press("f");
   await shoot("smoke-campus.png");
+
+  /* ── the returning visit ─────────────────────────────────────────
+     The service worker exists so a second visit does not re-download
+     39MB of campus. This is checked here because the failure mode is
+     invisible from a single load: a worker can be registered, look
+     healthy, and still cache nothing — or intercept badly enough that
+     the second visit never boots at all. Both have happened.
+
+     The assertion is "no model is fetched twice", not "no models are
+     fetched". The outer world streams lazily, so a second visit
+     legitimately reaches scenery the first one never got to. */
+  const firstVisit = new Set(servedModels);
+  const controlling = await page.evaluate(() => !!navigator.serviceWorker?.controller);
+  step("service worker controls the first visit", controlling,
+       controlling ? "" : "models fetched before it claimed are never cached");
+
+  servedModels.length = 0;
+  const before = errors.length;
+  await page.reload({ waitUntil: "load", timeout: 90_000 });
+  const rebooted = await page.waitForFunction(() => window.__app && window.__walker,
+    null, { timeout: 180_000 }).then(() => true, () => false);
+  step("returning visit boots", rebooted);
+
+  const refetched = servedModels.filter(p => firstVisit.has(p));
+  step("returning visit re-downloads nothing", refetched.length === 0,
+       refetched.length ? refetched.length + " model(s) refetched: " +
+         refetched.slice(0, 3).map(p => p.split("/").pop()).join(", ")
+       : firstVisit.size + " model(s) served from cache");
+  step("returning visit is clean", errors.length === before,
+       errors.slice(before, before + 3).join(" | "));
 } catch (e) {
   step("smoke run completed", false, e.message.split("\n")[0]);
   await shoot("smoke-failure.png");
