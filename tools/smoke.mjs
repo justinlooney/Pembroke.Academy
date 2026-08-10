@@ -361,6 +361,35 @@ try {
              builds: out.builds.size };
   }).catch(() => null);
   step("?crowd fills the quad", filled, c ? c.people + " people" : "no crowd hook");
+
+  /* Where the students walk, sampled against what they would walk into.
+     Two of the four door routes ran straight through the hall they were
+     heading for — 72% and 85% of the way inside — and nothing said so,
+     because a student inside a building is simply not visible. The one
+     symptom was people appearing to melt into a wall and out the other
+     side, which is easy to watch and not notice. Every leg of the graph
+     is sampled here so it cannot come back. */
+  const legs = await crowdPage.evaluate(() => {
+    const { WAYPOINTS, EDGES } = window.__ways;
+    /* the halls and their towers, in plane coordinates */
+    const BOX = [[150,150,220,160], [645,150,190,140], [140,660,200,150], [640,650,190,170],
+                 [238,182,92,92], [668,168,66,66], [212,680,72,72], [700,702,78,78]];
+    const bad = [];
+    for (const [from, tos] of Object.entries(EDGES)){
+      for (const to of tos){
+        const a = WAYPOINTS[from], b = WAYPOINTS[to];
+        if (!a || !b) { bad.push(`${from}->${to} (missing waypoint)`); continue; }
+        let hits = 0;
+        for (let t = 0; t <= 1; t += 0.004){
+          const x = a[0] + (b[0] - a[0]) * t, y = a[1] + (b[1] - a[1]) * t;
+          if (BOX.some(([bx, by, w, d]) => x > bx && x < bx + w && y > by && y < by + d)) hits++;
+        }
+        if (hits > 6) bad.push(`${from}->${to} ${Math.round(hits / 251 * 100)}% inside`);
+      }
+    }
+    return bad;
+  }).catch(() => ["could not read the waypoint graph"]);
+  step("no student route runs through a building", legs.length === 0, legs.slice(0, 4).join(" | "));
   step("the crowd is not one person twenty times",
        !!c && c.shirts >= 6 && c.skins >= 4 && c.builds >= 8,
        c ? `${c.shirts} shirt colours, ${c.skins} complexions, ${c.builds} builds ` +

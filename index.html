@@ -3373,13 +3373,23 @@ for (let k = 0; k < 8; k++) EDGES["R" + k] = ["R" + ((k + 1) % 8), "R" + ((k + 7
 Object.assign(WAYPOINTS, {
   chapel: [500, 218], gate: [500, 905], south: [500, 946], east: [928, 500], west: [72, 500],
   libDoor: [260, 326], engDoor: [740, 306], sciDoor: [240, 822], admDoor: [735, 832],
+  /* The two southern halls stand between their door and the ring, so a
+     straight run at the door goes through the building — sampled at 72%
+     and 85% of the way inside. The library and the engineering quad do
+     not have this problem: their doors face the ring across open lawn.
+     These corners take the walk out and around the front, the way you
+     would actually reach a door you can see but cannot walk through. */
+  sciApp: [402, 838], admApp: [598, 848],
 });
 Object.assign(EDGES, {
   chapel: ["R6"], gate: ["R2", "south"], south: ["gate"], east: ["R0"], west: ["R4"],
-  libDoor: ["R5"], engDoor: ["R7"], sciDoor: ["R3"], admDoor: ["R1"],
+  libDoor: ["R5"], engDoor: ["R7"],
+  sciApp: ["R3", "sciDoor"], sciDoor: ["sciApp"],
+  admApp: ["R1", "admDoor"], admDoor: ["admApp"],
 });
 EDGES.R6.push("chapel"); EDGES.R2.push("gate"); EDGES.R0.push("east"); EDGES.R4.push("west");
-EDGES.R5.push("libDoor"); EDGES.R7.push("engDoor"); EDGES.R3.push("sciDoor"); EDGES.R1.push("admDoor");
+EDGES.R5.push("libDoor"); EDGES.R7.push("engDoor"); EDGES.R3.push("sciApp"); EDGES.R1.push("admApp");
+window.__ways = { WAYPOINTS, EDGES };   /* test/debug hook */
 
 const STUDENT_ROSTER = [
   { name:"Elowen", c:0x34d399, says:["Off to Calc III — gradients await!","The Library dome at dusk… unbeatable.","Stokes' theorem finally clicked!"] },
@@ -3456,7 +3466,9 @@ const CAST_PLAN = [
   { k: "walker", at: [543, 449], face: -2.4, kind: "laptop",/* Sofia  — lawn         */
     clip: "Sitting Talking" },
   { k: "walker" },                                          /* Theo   — roams        */
-  { k: "stand", at: [270, 700], face:  0.7, live: true, pose: 1 }, /* Jun — Alden walk */
+  /* Jun stood at 270,700 — which is inside the science hall, invisible
+     behind its south wall. Out on the front now, facing the quad. */
+  { k: "stand", at: [286, 838], face:  0.2, live: true, pose: 1 }, /* Jun — Alden front */
   { k: "walker", orbit: 1, clip: "Jogging" },               /* Amara  — laps the oval */
   { k: "walker" },                                          /* Kenji  — roams        */
 ];
@@ -3692,8 +3704,10 @@ function makeRoamer(g, startKey, extra){
      single file and then overlaps outright — which is precisely what a
      crowd must not do. */
   const lane = [(Math.random() - 0.5) * 24, (Math.random() - 0.5) * 24];
+  const open = startKey[0] === "R";       /* the ring; doors are too tight — see below */
   const s = { g, node: startKey, lane, speed, target: null, pauseUntil: 0,
-              pos: [WAYPOINTS[startKey][0] + lane[0], WAYPOINTS[startKey][1] + lane[1]],
+              pos: [WAYPOINTS[startKey][0] + (open ? lane[0] : 0),
+                    WAYPOINTS[startKey][1] + (open ? lane[1] : 0)],
               anim0: "Idle", idleRate: 0.85 + Math.random() * 0.3,
               phase: Math.random() * 9, walkT: 0, gait: 0, gait2: gait };
   if (extra) Object.assign(s, extra);
@@ -3876,10 +3890,16 @@ function stepStudents(dt, now){
         const opts = EDGES[s.node];
         s.target = opts[Math.floor(Math.random() * opts.length)];
       }
-      /* aim for this student's own lane through the waypoint, not its
-         exact centre — see makeRoamer */
+      /* Aim for this student's own lane through the waypoint rather than
+         its exact centre — see makeRoamer — but only out on the ring.
+         The door and gate waypoints sit hard against the buildings they
+         serve, close enough that the walkways themselves graze the
+         footprints on the way in; offsetting an approach by a few feet
+         puts a shoulder through a wall. On the open ring there is
+         nothing to walk into and everything to spread out from. */
       const w = WAYPOINTS[s.target];
-      const tx = w[0] + (s.lane ? s.lane[0] : 0), ty = w[1] + (s.lane ? s.lane[1] : 0);
+      const lane = s.lane && s.target[0] === "R" ? s.lane : null;
+      const tx = w[0] + (lane ? lane[0] : 0), ty = w[1] + (lane ? lane[1] : 0);
       const dx = tx - s.pos[0], dy = ty - s.pos[1];
       const dist = Math.hypot(dx, dy);
       if (dist < 2){
