@@ -582,17 +582,26 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
   background:rgba(8,12,22,.82);
   box-shadow:0 10px 28px -10px rgba(0,0,0,.8);
 }
+/* The objective is worth stating once and keeping to hand, not worth a
+   permanent slab across the quad. Tap it and it folds down to its target
+   pip; tap that and it opens again. The choice is remembered. */
 #quest{
   position:absolute;left:1.5rem;top:9.2rem;z-index:20;max-width:330px;
-  display:flex;gap:.65rem;align-items:flex-start;
+  display:flex;gap:.65rem;align-items:flex-start;cursor:pointer;
   padding:.6rem .9rem;border-radius:12px;
   background:linear-gradient(160deg, rgba(20,28,46,.92), rgba(10,16,30,.88));
   border:1px solid rgba(212,175,106,.4);
   box-shadow:0 10px 30px -12px rgba(0,0,0,.8), 0 0 20px -10px rgba(212,175,106,.4);
+  transition:max-width .28s ease, padding .28s ease, border-radius .28s ease;
 }
+#quest:hover{border-color:rgba(212,175,106,.75);}
 #quest .q-icon{font-size:17px;margin-top:1px;}
 #quest .q-label{font-size:8.5px;letter-spacing:.26em;text-transform:uppercase;color:var(--brass-dim);}
 #quest .q-text{font-size:12px;color:#e2e8f0;line-height:1.45;margin-top:2px;}
+/* folded: a pip you can find again, and nothing else */
+#quest.folded{max-width:2.6rem;padding:.5rem .55rem;border-radius:999px;gap:0;}
+#quest.folded > div{display:none;}
+#quest.folded .q-icon{margin-top:0;}
 /* only on screen while you are away looking at the scenery */
 #vista-back{
   position:absolute;left:50%;top:1rem;transform:translateX(-50%);z-index:28;
@@ -644,6 +653,8 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
 #scene.walking{margin-top:0;}
 .walkmode .b-label .stem{display:none;}
 .walkmode #campus-wing-intro, .walkmode #campus-legend, .walkmode #campus-hints{opacity:0;pointer-events:none;transition:opacity .4s ease;}
+/* ?debug puts a panel of numbers where the intro sits; show one or the other */
+body.diagnosing #campus-wing-intro{opacity:0;pointer-events:none;}
 #campus-wing-intro, #campus-legend, #campus-hints{transition:opacity .4s ease;}
 /* these overlays sit on bright sky and sunlit grass, which washed the
    type out on a phone — ground them with a shadow rather than a slab */
@@ -657,6 +668,9 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
    Keep the minimap, the pad, and the door prompt; compact the rest. */
 @media (hover:none){
   .walkmode #walkhud{ display:none; }        /* WASD means nothing here */
+  /* nor does a keyboard legend — and on a narrow screen it ran straight
+     through the quad legend on the opposite corner */
+  #hint-keys{ display:none; }
 }
 @media (max-width:640px){
   .walkmode #quest{
@@ -839,7 +853,8 @@ body.day .int-lamp::after{opacity:.45;}
     <canvas id="minimap" width="132" height="132" aria-label="Campus minimap"></canvas>
 
     <!-- quest banner: the current academic objective -->
-    <div id="quest">
+    <div id="quest" role="button" tabindex="0" aria-expanded="true"
+         title="Tap to fold this away">
       <span class="q-icon">🎯</span>
       <div>
         <div class="q-label">Current objective</div>
@@ -872,7 +887,7 @@ body.day .int-lamp::after{opacity:.45;}
       <div class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-sm inline-block" style="background:var(--quad-adm);box-shadow:0 0 8px var(--quad-adm)"></i><span class="text-slate-300">Administration · AI Robotics &amp; Flight</span></div>
     </div>
     <div id="campus-hints" class="absolute right-5 sm:right-8 bottom-5 z-10 text-right pointer-events-none">
-      <div class="text-[10px] uppercase tracking-[.24em] text-slate-500">Keys 1–4 · quads · 0 · syllabus · N · day/night · F · walk mode</div>
+      <div id="hint-keys" class="text-[10px] uppercase tracking-[.24em] text-slate-500">Keys 1–4 · quads · 0 · syllabus · N · day/night · F · walk mode</div>
       <div class="text-[10px] uppercase tracking-[.24em] text-slate-600 mt-1">drag to orbit · scroll to zoom</div>
     </div>
 
@@ -1771,6 +1786,12 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
+/* Count draws across the whole frame, not just the last pass. Left on
+   auto, three resets these on every render call, so reading them after
+   composer.render() reported the final fullscreen output quad — one draw
+   and two triangles — which is why the diagnostics panel insisted the
+   campus was "draws 1 · tris 0.00M". Reset once per frame instead. */
+renderer.info.autoReset = false;
 stageEl.appendChild(renderer.domElement);
 
 const labelRenderer = new CSS2DRenderer();
@@ -4163,6 +4184,38 @@ function questInfo(){
 function refreshQuest(){
   document.getElementById("quest-text").textContent = questInfo().text;
 }
+
+/* Folding the objective away. It is one sentence that rarely changes, so
+   leaving it open across the whole campus costs more than it tells —
+   folded it keeps its pip, and the title carries the sentence for anyone
+   who wants a reminder without unfolding. */
+{
+  const LS_QUEST = "pembroke.registrar.quest";
+  const el = document.getElementById("quest");
+  const setFold = (folded, remember) => {
+    el.classList.toggle("folded", folded);
+    el.setAttribute("aria-expanded", String(!folded));
+    el.title = folded ? questInfo().text : "Tap to fold this away";
+    if (remember) localStorage.setItem(LS_QUEST, folded ? "folded" : "open");
+  };
+  setFold(localStorage.getItem(LS_QUEST) === "folded", false);
+  el.addEventListener("click", () => setFold(!el.classList.contains("folded"), true));
+  el.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " "){
+      e.preventDefault();
+      setFold(!el.classList.contains("folded"), true);
+    }
+  });
+  /* a new objective is worth surfacing even if the card was folded away */
+  const raw = refreshQuest;
+  refreshQuest = function(){
+    const before = document.getElementById("quest-text").textContent;
+    raw();
+    const after = document.getElementById("quest-text").textContent;
+    if (before && before !== after) setFold(false, false);
+    else if (el.classList.contains("folded")) el.title = questInfo().text;
+  };
+}
 const mm = document.getElementById("minimap");
 function drawMinimap(){
   const ctx = mm.getContext("2d");
@@ -4199,6 +4252,10 @@ let lastT = performance.now();
 const DEBUG = q.has("debug");
 let dbgEl = null, dbgFrames = 0, dbgAcc = 0, dbgMin = 1e9, dbgNext = 0, dbgFirst = 0;
 if (DEBUG){
+  /* The panel lands squarely on the wing intro, and two blocks of text
+     over one another are worth neither. Anyone who has typed ?debug
+     wants the numbers, not the prose. */
+  document.body.classList.add("diagnosing");
   dbgEl = document.createElement("div");
   dbgEl.style.cssText =
     "position:absolute;left:1rem;top:1rem;z-index:200;white-space:pre;pointer-events:none;" +
@@ -4242,6 +4299,7 @@ function dbgUpdate(now, dt){
 }
 
 renderer.setAnimationLoop(() => {
+  renderer.info.reset();                  /* totals accumulate across every pass below */
   const now = performance.now();
   const dt = Math.min(0.05, (now - lastT) / 1000);
   lastT = now;
