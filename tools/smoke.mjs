@@ -316,6 +316,62 @@ try {
   /* booting proves the page loaded; only the meshes prove the models
      came out of the cache rather than the page rendering an empty world */
   step("offline campus is actually built", built > 50, built + " meshes");
+
+  /* ── the crowd ───────────────────────────────────────────────────
+     One rigged character stands in for a whole cohort: cloned per
+     figure, then re-dressed and re-proportioned so the quad reads as a
+     population rather than a hall of mirrors. Every failure mode here
+     is silent. SkeletonUtils shares materials between clones, so a
+     missing clone() dresses everyone identically and nothing throws;
+     a regex that stops matching a mesh name leaves the whole cohort in
+     the default outfit, equally quietly. Nobody notices from a
+     screenshot the build never looks at.
+
+     Left until last, and given its own page, because it is the one
+     check that deliberately makes the campus heavier — twenty-odd
+     skinned figures on a software rasterizer would slow every step
+     above it and turn generous timeouts into flaky ones.
+
+     ?crowd=N is what a phone can use to force a full quad too, so this
+     exercises the same path a real reviewer would. */
+  serverDown = false;
+  const crowdPage = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  const crowdErrs = [];
+  crowdPage.on("pageerror", e => crowdErrs.push(e.message.split("\n")[0]));
+  await crowdPage.goto(`http://localhost:${PORT}/?crowd=12`,
+                       { waitUntil: "domcontentloaded", timeout: 90_000 });
+  const filled = await crowdPage
+    .waitForFunction(() => window.__crowd && window.__crowd().people >= 21,
+                     null, { timeout: 240_000 })
+    .then(() => true, () => false);
+  const c = await crowdPage.evaluate(() => {
+    const out = { ...window.__crowd(), shirts: new Set(), skins: new Set(),
+                  builds: new Set(), tinted: 0 };
+    window.__app.world.children.forEach(fig => {
+      if (!fig.userData?.anim) return;                /* not one of the walkers */
+      out.builds.add(fig.scale.x.toFixed(3));
+      fig.traverse(o => {
+        if (!o.isSkinnedMesh) return;
+        const hex = o.material.color.getHexString();
+        if (/shirt/i.test(o.name)){ out.shirts.add(hex); out.tinted++; }
+        if (/body/i.test(o.name)) out.skins.add(hex);
+      });
+    });
+    return { ...out, shirts: out.shirts.size, skins: out.skins.size,
+             builds: out.builds.size };
+  }).catch(() => null);
+  step("?crowd fills the quad", filled, c ? c.people + " people" : "no crowd hook");
+  step("the crowd is not one person twenty times",
+       !!c && c.shirts >= 6 && c.skins >= 4 && c.builds >= 8,
+       c ? `${c.shirts} shirt colours, ${c.skins} complexions, ${c.builds} builds ` +
+           `across ${c.tinted} figures` : "could not read the cohort");
+  step("a full quad still draws", !!c && c.draws > 0 && c.tris > 0,
+       c ? `draws ${c.draws} · tris ${(c.tris / 1e6).toFixed(2)}M` : "");
+  step("the crowd arrives without errors", crowdErrs.length === 0,
+       crowdErrs.slice(0, 3).join(" | "));
+  await crowdPage.screenshot({ path: "smoke-crowd.png", timeout: 90_000 })
+    .catch(() => console.log("  ..   screenshot skipped (smoke-crowd.png)"));
+  await crowdPage.close();
 } catch (e) {
   step("smoke run completed", false, e.message.split("\n")[0]);
   await shoot("smoke-failure.png");

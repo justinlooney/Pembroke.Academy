@@ -3444,19 +3444,21 @@ function mkPerson(jacketColor, seed){
 const CAST_FILES = { walker: "assets/stu_walker.glb", stand: "assets/stu_anim.glb",
                      skate: "assets/stu_skater.glb" };
 const CAST_HEIGHT = { walker: 42, stand: 41, skate: 42 };
-/* Three gaits across the roamers so two students crossing the same lawn
-   are not visibly the same animation. */
+/* Where the named eight are and what they are doing. A plan with
+   neither `at` nor `orbit` roams the ring; the gait it roams with is
+   drawn per figure in makeRoamer rather than fixed here, so the mix
+   changes between visits. */
 const CAST_PLAN = [
-  { k: "walker", gait: "Standard Walk" },                   /* Elowen — roams        */
-  { k: "stand", at: [700, 340], face: -0.9, live: true },   /* Marcus — Whitmore door */
+  { k: "walker" },                                          /* Elowen — roams        */
+  { k: "stand", at: [700, 340], face: -0.9, live: true, pose: 0 }, /* Marcus — Whitmore door */
   { k: "walker", at: [449, 449], face:  0.8, kind: "chat",  /* Priya  — plaza        */
     clip: "Idle" },
   { k: "walker", at: [543, 449], face: -2.4, kind: "laptop",/* Sofia  — lawn         */
     clip: "Sitting Talking" },
-  { k: "walker", gait: "Strut Walking" },                   /* Theo   — roams        */
-  { k: "stand", at: [270, 700], face:  0.7, live: true },   /* Jun    — Alden walk   */
+  { k: "walker" },                                          /* Theo   — roams        */
+  { k: "stand", at: [270, 700], face:  0.7, live: true, pose: 1 }, /* Jun — Alden walk */
   { k: "walker", orbit: 1, clip: "Jogging" },               /* Amara  — laps the oval */
-  { k: "walker", gait: "Walk Forward" },                    /* Kenji  — roams        */
+  { k: "walker" },                                          /* Kenji  — roams        */
 ];
 const castLib = {};
 const castMixers = [];
@@ -3514,13 +3516,18 @@ function prepareClips(anims){
     inPlaceClip(c);
   }
 }
-function prepFigure(k, height, live){
+function prepFigure(k, height, live, clipIx = 0){
   const src = castLib[k];
   const skinned = true;                  /* every remaining source is rigged */
   const root = skeletonClone(src.scene);
   if (k !== "walker" && src.animations.length){
     const mixer = new THREE.AnimationMixer(root);
-    mixer.clipAction(inPlaceClip(src.animations[0])).play();
+    /* This character came down with four clips, and playing the first
+       one every time wasted three of them — four figures standing about
+       in four different ways is most of what "a different person" means
+       at this distance. */
+    const clip = src.animations[clipIx % src.animations.length];
+    mixer.clipAction(inPlaceClip(clip)).play();
     if (live) castMixers.push(mixer);
     else mixer.update(0.7);              /* freeze in a natural stance */
   }
@@ -3530,8 +3537,32 @@ function prepFigure(k, height, live){
   const g2 = new THREE.Group();
   root.scale.setScalar(sc2);
   root.position.set(-(bb.min.x + bb.max.x) / 2 * sc2, -bb.min.y * sc2, -(bb.min.z + bb.max.z) / 2 * sc2);
-  root.traverse(o => { if (o.isMesh){ o.castShadow = true; o.frustumCulled = false; } });
+  root.traverse(o => {
+    if (!o.isMesh) return;
+    o.castShadow = true;
+    /* A skinned mesh's bounds are the bind pose, so a figure whose arms
+       swing wider than that pops out of view at the edge of the screen.
+       The cheap fix is to turn culling off — which is what this used to
+       do, and it meant every student on campus was drawn every frame
+       whether or not they were behind you. Give them a generous sphere
+       instead and the cull comes back: with a crowd on the quad, the
+       ones at your back cost nothing.
+
+       Taken from the geometry rather than SkinnedMesh.computeBoundingSphere,
+       which walks every vertex through the skeleton — 50k of them per
+       figure. The geometry is shared between clones, so this is measured
+       once for the whole cohort. */
+    const gm = o.geometry;
+    if (o.isSkinnedMesh && gm){
+      if (!gm.boundingSphere) gm.computeBoundingSphere();
+      if (gm.boundingSphere){
+        o.boundingSphere = gm.boundingSphere.clone();
+        o.boundingSphere.radius *= 2.2;
+      }
+    }
+  });
   g2.add(root);
+  g2.userData.figure = k;                /* test/debug: this is a person */
   if (k === "walker"){
     const mixer = new THREE.AnimationMixer(root);
     const actions = {}, nominal = {};
@@ -3559,30 +3590,127 @@ function prepFigure(k, height, live){
     if (++castReady === keys.length) buildCast();
   }));
 }
+/* ── dressing one model as a whole cohort ────────────────────────────
+   There is exactly one rigged character in this project, and a campus
+   full of one person is worse than a campus full of nobody: identical
+   twins read as a rendering fault, not as a crowd.
+
+   What makes it possible is how Mixamo exported it. The body, hair,
+   shirt, shorts and sneakers are five separate meshes, and although the
+   clothing shares a single texture with the skin, each mesh can carry
+   its own material — so every part can be tinted independently and the
+   face is never dragged along with the shirt.
+
+   Materials multiply their colour into the texture, so this tints what
+   is already there rather than painting over it: the fabric weave, the
+   creases and the shading in the map all survive. */
+const WARDROBE = {
+  /* Complexion is the first thing you read about a person at any
+     distance, so it varies most. These are multipliers against a fair
+     base texture — above 1 lightens, below 1 deepens — written in linear
+     light, which is where the shader does the multiplication. */
+  skin: [[1.06, 1.03, 1.00], [0.97, 0.90, 0.82], [0.86, 0.73, 0.60],
+         [0.71, 0.56, 0.43], [0.56, 0.41, 0.30], [0.43, 0.30, 0.21],
+         [0.33, 0.23, 0.16], [0.92, 0.79, 0.66]],
+  hair:     ["#2b1b12", "#4a2c1a", "#12100f", "#6b4a2a", "#8a6a3a", "#5a5a5a",
+             "#1a1410", "#7a5a30", "#3a2418", "#c9a15a"],
+  shirt:    ["#4a6fa5", "#8c4a4a", "#3f7a5a", "#d8d2c4", "#5a4a7a", "#c88a3a",
+             "#2f3b4a", "#a34f6d", "#6a8a4a", "#b8b0a0", "#3a5a6a", "#7a3a4a",
+             "#e0dcd2", "#334a3a", "#9a5a2a", "#4a4a5a"],
+  shorts:   ["#2f3542", "#4a4438", "#3a4a5a", "#5a4038", "#38424a", "#6a6252",
+             "#22262e", "#7a7264", "#3d3a44"],
+  sneakers: ["#e8e4dc", "#2b2b2b", "#b04a3a", "#4a5a8a", "#8a8a7a", "#c8c2b4"],
+};
+/* Blonde on a deep complexion is a real person, but it is rare enough
+   that a campus generating it one time in ten looks arbitrary rather
+   than diverse. Past this tone, hair comes from the dark end. */
+const DARK_HAIR = 6;
+function dressFigure(g, seed){
+  /* A proper hash, not seed modulo length: with an integer seed and a
+     handful of palettes, arithmetic that simple walks the lists in step
+     and every third student ends up in the same outfit. */
+  const R = (salt) => {
+    const s = Math.sin(seed * 127.1 + salt * 311.7 + 1.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+  const pick = (list, salt) => list[Math.floor(R(salt) * list.length)];
+  const tone = Math.floor(R(0) * WARDROBE.skin.length);
+  const hair = tone >= 4 ? WARDROBE.hair[Math.floor(R(1) * DARK_HAIR)]
+                         : pick(WARDROBE.hair, 1);
+  const dress = { hair, shirt: pick(WARDROBE.shirt, 2),
+                  shorts: pick(WARDROBE.shorts, 3), sneakers: pick(WARDROBE.sneakers, 4) };
+  g.traverse(o => {
+    if (!o.isMesh || !o.material) return;
+    const what = /hair/i.test(o.name) ? "hair"
+               : /shirt|top|jacket/i.test(o.name) ? "shirt"
+               : /short|pant|trouser|jean/i.test(o.name) ? "shorts"
+               : /shoe|sneaker|boot/i.test(o.name) ? "sneakers"
+               : /body|skin|head/i.test(o.name) ? "skin" : null;
+    if (!what) return;                     /* the eyelashes are left alone */
+    /* Clone first. SkeletonUtils shares materials between clones, so
+       tinting in place would dress the entire cohort identically — and
+       the mistake is invisible until the second figure is built. */
+    o.material = o.material.clone();
+    if (what === "skin") o.material.color.setRGB(...WARDROBE.skin[tone]);
+    else o.material.color = new THREE.Color(dress[what]);
+  });
+  /* Breadth as well as height. Stature and build carry a silhouette
+     further than any colour does — at the far side of the quad they are
+     most of what tells two people apart. */
+  g.scale.x = g.scale.z = 0.93 + R(5) * 0.16;
+}
+/* Every figure starts at a different point in its cycle. A crowd on one
+   clip in lockstep is a chorus line, and it is the first thing the eye
+   picks up — before the faces, before the clothes. */
+function stagger(g, nm){
+  const a = g.userData.anim;
+  if (!a || !a.actions[nm]) return;
+  a.actions[nm].time = Math.random() * a.actions[nm].getClip().duration;
+}
+/* Three gaits, drawn per figure rather than assigned, so the mix changes
+   between visits instead of being the same three people every time. */
+const GAITS = ["Standard Walk", "Strut Walking", "Walk Forward"];
+/* Put a figure on the ring and let them walk it. Shared by the named
+   cast and by the crowd behind them, so the two move under identical
+   rules — an extra who walks differently from a classmate reads as a
+   bug, however well dressed. */
+function makeRoamer(g, startKey, extra){
+  const gait = GAITS[Math.floor(Math.random() * GAITS.length)];
+  if (g.userData.anim){ setClipOn(g, "Idle"); stagger(g, "Idle"); stagger(g, gait); }
+  /* Let the clip set the pace rather than stretching it to fit a speed
+     picked out of the air. A gait has a natural rate, and a student
+     walking faster than their own animation is exactly the sliding-feet
+     problem this is all for — so each one travels at their clip's pace,
+     give or take. It spreads the speeds for free, too: the strut is a
+     brisk walk and Walk Forward an amble, so they read as different
+     people rather than one person at different framerates. */
+  const nom = g.userData.anim?.nominal?.[gait];
+  const speed = nom > 4 ? nom * (0.86 + Math.random() * 0.28)
+                        : 26 + Math.random() * 18;
+  /* Nobody walks the exact centre line of a path. Without a lane of
+     their own, everyone heading for the same waypoint converges into a
+     single file and then overlaps outright — which is precisely what a
+     crowd must not do. */
+  const lane = [(Math.random() - 0.5) * 24, (Math.random() - 0.5) * 24];
+  const s = { g, node: startKey, lane, speed, target: null, pauseUntil: 0,
+              pos: [WAYPOINTS[startKey][0] + lane[0], WAYPOINTS[startKey][1] + lane[1]],
+              anim0: "Idle", idleRate: 0.85 + Math.random() * 0.3,
+              phase: Math.random() * 9, walkT: 0, gait: 0, gait2: gait };
+  if (extra) Object.assign(s, extra);
+  students.push(s);
+  return s;
+}
+/* Stature varies more between people than anything else you can read
+   across a lawn, so it is the first thing the seed decides. */
+function buildOf(seed){
+  const s = Math.sin(seed * 74.3 + 9.1) * 43758.5453;
+  return 0.89 + (s - Math.floor(s)) * 0.22;           /* ±11% of height */
+}
 function buildCast(){
   STUDENT_ROSTER.forEach((st, i) => {
     const plan = CAST_PLAN[i];
-    /* One character mesh has to stand in for the whole cohort, so vary
-       what can be varied without a second model. Height does most of the
-       work — people differ more in stature than in anything else you can
-       read across a lawn — and hair colour does the rest.
-
-       Only the hair is tinted. This character carries clothing and skin
-       in a single texture, so colouring the body to vary the outfit
-       recolours the face with it. */
-    const build = 0.9 + ((i * 0.137) % 1) * 0.2;      /* ±10% of height */
-    const g = prepFigure(plan.k, CAST_HEIGHT[plan.k] * build, plan.live);
-    if (plan.k === "walker"){
-      const hair = ["#2b1b12", "#4a2c1a", "#12100f", "#6b4a2a", "#8a6a3a"][i % 5];
-      g.traverse(o => {
-        if (o.isMesh && /hair/i.test(o.material?.name || "")){
-          /* clone first: SkeletonUtils shares materials between figures,
-             so tinting in place would dye the whole cohort at once */
-          o.material = o.material.clone();
-          o.material.color = new THREE.Color(hair);
-        }
-      });
-    }
+    const g = prepFigure(plan.k, CAST_HEIGHT[plan.k] * buildOf(i), plan.live, plan.pose || 0);
+    if (plan.k === "walker") dressFigure(g, i);
     const tagEl = document.createElement("div");
     tagEl.className = "stu-tag";
     tagEl.textContent = st.name;
@@ -3590,17 +3718,9 @@ function buildCast(){
     tag.position.y = plan.k === "laptop" ? 32 : 48;
     g.add(tag);
     world.add(g);
-    /* Start every figure at a different point in its cycle. Eight people
-       on the same clip in lockstep look like a chorus line, and it is the
-       first thing the eye picks up in a crowd. */
-    const stagger = (nm) => {
-      const a = g.userData.anim;
-      if (!a || !a.actions[nm]) return;
-      a.actions[nm].time = Math.random() * a.actions[nm].getClip().duration;
-    };
     if (plan.orbit){
       const a0 = i * 0.9;
-      if (plan.clip){ setClipOn(g, plan.clip); stagger(plan.clip); }
+      if (plan.clip){ setClipOn(g, plan.clip); stagger(g, plan.clip); }
       students.push({ g, data: st, orbit: 182.5, orbitA: a0, orbitW: 0.16, clip: plan.clip,
                       pos: [500 + Math.cos(a0) * 182.5, 500 + Math.sin(a0) * 182.5] });
       return;
@@ -3608,34 +3728,100 @@ function buildCast(){
     if (plan.at){
       g.position.set(W(plan.at[0]), 0, W(plan.at[1]));
       g.rotation.y = plan.face || 0;
-      if (plan.clip){ setClipOn(g, plan.clip); stagger(plan.clip); }
+      if (plan.clip){ setClipOn(g, plan.clip); stagger(g, plan.clip); }
       students.push({ g, data: st, static: true, kind: plan.kind, baseYaw: plan.face || 0,
                       phase0: i * 1.7, pos: [...plan.at] });
       return;
     }
-    const startKey = ["R0","R1","R2","R3","R4","R5","R6","R7"][i % 8];
-    const gaitClip = plan.gait || "Standard Walk";
-    if (g.userData.anim){ setClipOn(g, "Idle"); stagger("Idle"); stagger(gaitClip); }
-    /* Let the clip set the pace rather than stretching it to fit a speed
-       picked out of the air. A gait has a natural rate, and a student
-       walking faster than their own animation is exactly the sliding-feet
-       problem this is all for — so each one travels at their clip's pace,
-       give or take. It also spreads the speeds for free: the strut is a
-       brisk walk, Walk Forward an amble, and they read as different
-       people rather than the same person at different framerates. */
-    const nom = g.userData.anim?.nominal?.[gaitClip];
-    const speed = nom > 4 ? nom * (0.86 + Math.random() * 0.28)
-                          : 26 + Math.random() * 18;
-    students.push({ g, data: st, node: startKey, pos: [...WAYPOINTS[startKey]],
-                    target: null, speed, pauseUntil: 0,
-                    phase: Math.random() * 9, walkT: 0, gait: 0, gait2: gaitClip });
+    makeRoamer(g, ["R0","R1","R2","R3","R4","R5","R6","R7"][i % 8], { data: st });
   });
   /* an uncommissioned regular: the skater, carving the ring the other way */
   const sk = prepFigure("skate", 0, true);
   world.add(sk);
   students.push({ g: sk, orbit: 175, orbitA: 3.6, orbitW: -0.34, skate: true,
                   pos: [500 + Math.cos(3.6) * 175, 500 + Math.sin(3.6) * 175] });
+  /* Three more of the second rigged character — a genuinely different
+     body rather than the walker re-dressed, which is worth more than any
+     amount of recolouring. Their download carries no gait, so they are
+     put where standing about is what people do: by a door, at the edge
+     of the plaza, under the trees. Each takes a different one of the
+     four clips that came with them. */
+  [[612, 806, -1.1, 1], [418, 372, 2.3, 2], [560, 300, -2.6, 3]].forEach(([x, y, face, pose]) => {
+    const g = prepFigure("stand", CAST_HEIGHT.stand * buildOf(pose * 17 + 5), true, pose);
+    g.position.set(W(x), 0, W(y));
+    g.rotation.y = face;
+    world.add(g);
+  });
+  crowdReady = true;
+  if (CROWD_FORCE !== null){ while (crowdN < CROWD_FORCE) addExtra(crowdN++); crowdDone = true; }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   THE CROWD — everyone who is not in the credits.
+
+   Nine people on a campus reads as a film set after the extras have
+   gone home. These carry no name, no tag and no dialogue; they exist so
+   that the quad looks lived in, and every one is dressed, built, paced
+   and staggered off its own seed.
+
+   How many the machine can carry is not knowable up front. A phone was
+   measured here at 29fps drawing the campus alone, and the same page on
+   a desktop has headroom for three times this crowd — so guessing from
+   the user agent either wastes the desktop or melts the phone. Instead:
+   add one every so often while the frame rate holds, and stop for good
+   the first time it does not. It only ever adds. A crowd that thins out
+   while you watch is worse than a small one that doesn't.
+
+   The first few are not up for negotiation. That same phone sits just
+   under any frame-rate bar worth setting, so a pure ramp would hand it
+   nobody at all — and "the crowd is disabled on the device you are
+   holding" is not a feature. A handful always arrive; the ramp only
+   decides how far past them to go.
+   ══════════════════════════════════════════════════════════════════ */
+const CROWD_MAX = 26;
+const CROWD_MIN = 5;                 /* arrive regardless of what it costs */
+/* Above any 30Hz display cap and well below 60, so a phone that is
+   merely capped is not mistaken for a phone that is struggling — and a
+   machine actually labouring in the low thirties stops at the five. */
+const CROWD_FLOOR = 33;
+/* ?crowd=N fills the quad immediately and ignores the frame rate. CI
+   renders on a software rasterizer at single-digit fps, so the ramp
+   correctly declines to add anybody there — which would leave the whole
+   crowd untested on the only machine that tests anything. */
+const CROWD_FORCE = q.has("crowd") ? Math.max(0, Math.min(CROWD_MAX, +q.get("crowd") || 0)) : null;
+let crowdReady = false, crowdN = 0, crowdNext = 0, crowdDone = false, crowdFps = 60;
+const CROWD_START = ["R0","R1","R2","R3","R4","R5","R6","R7",
+                     "libDoor","engDoor","sciDoor","admDoor","gate","chapel","east","west"];
+function addExtra(n){
+  const seed = 101 + n * 3;
+  const g = prepFigure("walker", CAST_HEIGHT.walker * buildOf(seed), false);
+  dressFigure(g, seed);
+  g.userData.crowd = true;               /* test/debug: not one of the named */
+  world.add(g);
+  makeRoamer(g, CROWD_START[n % CROWD_START.length]);
+}
+function stepCrowd(now, dt){
+  /* a slow average, so one stutter — a model finishing its decode, a
+     texture uploading — does not permanently cap the campus */
+  crowdFps += (1 / Math.max(dt, 1e-4) - crowdFps) * Math.min(1, dt * 1.5);
+  if (crowdDone || !crowdReady || crowdN >= CROWD_MAX) return;
+  /* Not while the campus is still arriving. 39MB of models decode on
+     the main thread, and on a phone that is half a minute of frames the
+     renderer never got to draw. Reading that as "this machine is slow"
+     would cap the crowd at nobody on exactly the hardware where the
+     measurement was supposed to help. */
+  if (!assetLog.length || assetLog.some(a => a.ms == null)) return;
+  if (!crowdNext){ crowdNext = now + 2000; crowdFps = 60; return; }   /* settle */
+  if (now < crowdNext) return;
+  if (crowdN >= CROWD_MIN && crowdFps < CROWD_FLOOR){ crowdDone = true; return; }
+  crowdNext = now + 500;
+  addExtra(crowdN++);
+}
+/* test/debug hook: how many people are on campus, whether more are
+   coming, and what they cost to draw */
+window.__crowd = () => ({ n: crowdN, done: crowdDone, fps: crowdFps,
+  people: students.length, draws: renderer.info.render.calls,
+  tris: renderer.info.render.triangles });
 /* Crossfade rather than cut. A student who reaches a door and snaps from
    mid-stride to standing reads as a glitch; a quarter-second blend reads
    as someone arriving. */
@@ -3690,7 +3876,10 @@ function stepStudents(dt, now){
         const opts = EDGES[s.node];
         s.target = opts[Math.floor(Math.random() * opts.length)];
       }
-      const [tx, ty] = WAYPOINTS[s.target];
+      /* aim for this student's own lane through the waypoint, not its
+         exact centre — see makeRoamer */
+      const w = WAYPOINTS[s.target];
+      const tx = w[0] + (s.lane ? s.lane[0] : 0), ty = w[1] + (s.lane ? s.lane[1] : 0);
       const dx = tx - s.pos[0], dy = ty - s.pos[1];
       const dist = Math.hypot(dx, dy);
       if (dist < 2){
@@ -3707,10 +3896,31 @@ function stepStudents(dt, now){
       /* walking or standing about, and the clip supplies every bit of the
          motion — no faked bob, no swaying, no procedural limbs */
       if (moving){
-        setClip(s, s.gait2);
-        matchSpeed(s, s.gait2, s.speed);
+        /* Nobody goes from standing to full stride in one frame. There is
+           a clip for exactly this — Start Walking — so use it for the
+           first stride and hand over to the gait once it has played. */
+        if (s.startedAt === undefined && s.anim0 === "Idle"){
+          s.startedAt = now;
+          setClip(s, "Start Walking", 0.18);
+        }
+        if (s.startedAt !== undefined && now - s.startedAt > 620){
+          s.startedAt = undefined;
+        }
+        if (s.startedAt === undefined){
+          setClip(s, s.gait2);
+          matchSpeed(s, s.gait2, s.speed);
+        } else {
+          matchSpeed(s, "Start Walking", s.speed);
+        }
+        s.anim0 = "moving";
       } else {
         setClip(s, "Idle");
+        /* standing still is where identical clips are most obvious, so
+           give every figure its own slightly different tempo */
+        const idle = s.g.userData.anim.actions["Idle"];
+        if (idle) idle.timeScale = s.idleRate;
+        s.anim0 = "Idle";
+        s.startedAt = undefined;
       }
       s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
     } else {
@@ -4536,6 +4746,10 @@ function dbgUpdate(now, dt){
     "tex    " + inf.memory.textures + "   geo " + inf.memory.geometries + "\n" +
     "view   " + (interiorView ? "interior" : walker.on ? "walk" : "aerial") +
       " · " + (window.__visual || "?") + "\n" +
+    "crowd  " + students.length + " people" +
+      (CROWD_FORCE !== null ? "  (forced by ?crowd)" :
+       crowdN >= CROWD_MAX ? "  (full)" :
+       crowdDone ? "  (capped at " + crowdFps.toFixed(0) + "fps)" : "  (arriving)") + "\n" +
     "assets " + done.length + "/" + assetLog.length + (bad.length ? "  " + bad.length + " FAILED" : "") +
       (pending ? "  (" + pending + " loading)" : "  all in " + (last / 1000).toFixed(1) + "s") + "\n" +
     (slow ? "slowest\n" + slow : "");
@@ -4546,6 +4760,7 @@ renderer.setAnimationLoop(() => {
   const now = performance.now();
   const dt = Math.min(0.05, (now - lastT) / 1000);
   lastT = now;
+  stepCrowd(now, dt);
   stepStudents(dt, now);
   if (walker.on) walkUpdate(dt);
   else { stepFlight(now); controls.update(); }
