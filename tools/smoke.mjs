@@ -115,7 +115,17 @@ await page.route("https://unpkg.com/**", route => {
 });
 
 page.on("pageerror", e => errors.push("pageerror: " + e.message));
-page.on("console", m => { if (m.type() === "error") errors.push("console: " + m.text()); });
+page.on("console", m => {
+  if (m.type() !== "error") return;
+  /* A texture whose URL is a blob: is one GLTFLoader minted from a
+     response it had already received. That object URL dies with its
+     document, so a reload part-way through the outer world makes the
+     loader complain about textures for a page that no longer exists.
+     It cannot report a cache or network fault: a model served wrongly
+     fails on its http:// URL, and those are still fatal below. */
+  if (/Couldn't load texture blob:/.test(m.text())) return;
+  errors.push("console: " + m.text());
+});
 page.on("requestfailed", r => {
   const u = r.url();
   /* The outer world streams for a long time, so a reload cancels
@@ -213,6 +223,12 @@ try {
        settled ? firstVisit.size + " model(s) in the cache"
                : "gave up waiting — the next check will show what is missing");
 
+  /* Deliberately NOT waiting for the outer world to finish first. Tried
+     it: the extra time lets the big horizon models into the cache, the
+     store goes over quota, and entries cached earlier are evicted — so
+     the returning visit refetched twenty models that had genuinely been
+     cached. Reloading while the horizon is still streaming is also what
+     a real visitor does. */
   servedModels.length = 0;
   const before = errors.length;
   await page.reload({ waitUntil: "load", timeout: 90_000 });
