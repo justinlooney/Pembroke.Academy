@@ -2104,6 +2104,19 @@ function stoneMaterial(natW, natH, o){
 
 const gltf = new GLTFLoader();
 gltf.setMeshoptDecoder(MeshoptDecoder);
+/* every glb load is timed, so ?debug can report what cost what */
+const assetLog = [];
+{
+  const rawLoad = gltf.load.bind(gltf);
+  gltf.load = (url, onLoad, onProgress, onError) => {
+    const rec = { name: url.split("/").pop(), t0: performance.now(), ms: null };
+    assetLog.push(rec);
+    rawLoad(url,
+      (g) => { rec.ms = performance.now() - rec.t0; if (onLoad) onLoad(g); },
+      onProgress,
+      (e) => { rec.ms = performance.now() - rec.t0; rec.err = true; if (onError) onError(e); });
+  };
+}
 
 /* imported-landmark loader: normalize any glb to a target height,
    plant it base-down at a plane coordinate, and register stained-glass
@@ -3864,6 +3877,50 @@ function drawMinimap(){
 
 /* ── main loop ───────────────────────────────────────────────────── */
 let lastT = performance.now();
+/* ── ?debug — an instrument panel for testing on real hardware.
+      Off by default; costs nothing when the flag is absent. ──────── */
+const DEBUG = q.has("debug");
+let dbgEl = null, dbgFrames = 0, dbgAcc = 0, dbgMin = 1e9, dbgNext = 0, dbgFirst = 0;
+if (DEBUG){
+  dbgEl = document.createElement("div");
+  dbgEl.style.cssText =
+    "position:absolute;left:1rem;top:1rem;z-index:200;white-space:pre;pointer-events:none;" +
+    "font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#d7e6ff;" +
+    "background:#070b14;border:1px solid rgba(212,175,106,.5);border-radius:10px;" +
+    "padding:9px 11px;max-width:19rem;max-height:72vh;overflow:hidden;";
+  document.getElementById("stage").appendChild(dbgEl);
+}
+function dbgUpdate(now, dt){
+  if (!DEBUG) return;
+  if (!dbgFirst) dbgFirst = now;
+  dbgFrames++; dbgAcc += dt;
+  const inst = 1 / Math.max(dt, 1e-4);
+  if (now - dbgFirst > 3000 && inst < dbgMin) dbgMin = inst;   /* skip warm-up */
+  if (now < dbgNext) return;
+  dbgNext = now + 500;
+  const fps = dbgAcc > 0 ? dbgFrames / dbgAcc : 0;
+  dbgFrames = 0; dbgAcc = 0;
+  const inf = renderer.info;
+  const done = assetLog.filter(a => a.ms != null);
+  const pending = assetLog.length - done.length;
+  const slow = done.slice().sort((a, b) => b.ms - a.ms).slice(0, 6)
+    .map(a => "  " + (a.name + "                    ").slice(0, 19) + " " +
+              (a.ms / 1000).toFixed(1) + "s" + (a.err ? " ERR" : "")).join("\n");
+  const last = done.length ? Math.max(...done.map(a => a.t0 + a.ms)) : 0;
+  dbgEl.textContent =
+    "PEMBROKE · DIAGNOSTICS\n" +
+    "fps    " + fps.toFixed(0) + "   worst " + (dbgMin < 1e8 ? dbgMin.toFixed(0) : "–") + "\n" +
+    "gpu    " + ((glInfo || "unknown").slice(0, 30)) + "\n" +
+    "post   " + (softGL ? "reduced (soft GL)" : "ssao+bloom+smaa") + "\n" +
+    "draws  " + inf.render.calls + "   tris " + (inf.render.triangles / 1e6).toFixed(2) + "M\n" +
+    "tex    " + inf.memory.textures + "   geo " + inf.memory.geometries + "\n" +
+    "view   " + (interiorView ? "interior" : walker.on ? "walk" : "aerial") +
+      " · " + (window.__visual || "?") + "\n" +
+    "assets " + done.length + "/" + assetLog.length +
+      (pending ? "  (" + pending + " loading)" : "  all in " + (last / 1000).toFixed(1) + "s") + "\n" +
+    (slow ? "slowest\n" + slow : "");
+}
+
 renderer.setAnimationLoop(() => {
   const now = performance.now();
   const dt = Math.min(0.05, (now - lastT) / 1000);
@@ -3904,6 +3961,7 @@ renderer.setAnimationLoop(() => {
     labelRenderer.render(world, camera);
     composer.render();
   }
+  dbgUpdate(now, dt);
 });
 resize();
 
