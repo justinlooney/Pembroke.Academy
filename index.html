@@ -3037,26 +3037,40 @@ function mkPerson(jacketColor, seed){
    walker, a rigged student frozen in a natural stance, a talker
    mid-gesture, and a coder folded up with her laptop */
 const CAST_FILES = { walk: "assets/stu_walk.glb", stand: "assets/stu_anim.glb",
-                     chat: "assets/stu_chat.glb", laptop: "assets/stu_laptop.glb" };
-const CAST_HEIGHT = { walk: 42, stand: 41, chat: 42, laptop: 25 };
+                     chat: "assets/stu_chat.glb", laptop: "assets/stu_laptop.glb",
+                     jog: "assets/stu_athlete.glb", skate: "assets/stu_skater.glb" };
+const CAST_HEIGHT = { walk: 42, stand: 41, chat: 42, laptop: 25, jog: 43, skate: 42 };
 const CAST_PLAN = [
-  { k: "walk" },                                      /* Elowen  — roams   */
-  { k: "stand" },                                     /* Marcus  — roams   */
-  { k: "chat",   at: [449, 449], face:  0.8 },        /* Priya   — plaza   */
-  { k: "laptop", at: [543, 449], face: -2.4 },        /* Sofia   — lawn    */
-  { k: "walk" },                                      /* Theo    — roams   */
-  { k: "stand" },                                     /* Jun     — roams   */
-  { k: "chat",   at: [536, 262], face:  2.9 },        /* Amara   — n. walk */
-  { k: "walk" },                                      /* Kenji   — roams   */
+  { k: "walk" },                                            /* Elowen — roams        */
+  { k: "stand", at: [700, 340], face: -0.9, live: true },   /* Marcus — Whitmore door */
+  { k: "chat",   at: [449, 449], face:  0.8, kind: "chat" },/* Priya  — plaza        */
+  { k: "laptop", at: [543, 449], face: -2.4, kind: "laptop" }, /* Sofia — lawn       */
+  { k: "walk" },                                            /* Theo   — roams        */
+  { k: "stand", at: [270, 700], face:  0.7, live: true },   /* Jun    — Alden walk   */
+  { k: "jog", orbit: 1 },                                   /* Amara  — laps the oval */
+  { k: "walk" },                                            /* Kenji  — roams        */
 ];
 const castLib = {};
-function prepFigure(k, height){
+const castMixers = [];
+/* mixamo clips carry root travel; pin the XZ so figures animate in place */
+function inPlaceClip(clip){
+  clip.tracks.forEach(t => {
+    if (t.name.endsWith(".position")){
+      const v = t.values;
+      for (let i = 3; i < v.length; i += 3){ v[i] = v[0]; v[i + 2] = v[2]; }
+    }
+  });
+  return clip;
+}
+function prepFigure(k, height, live){
   const src = castLib[k];
-  const root = k === "stand" ? skeletonClone(src.scene) : src.scene.clone(true);
-  if (k === "stand" && src.animations.length){
+  const skinned = k === "stand" || k === "skate";
+  const root = skinned ? skeletonClone(src.scene) : src.scene.clone(true);
+  if (skinned && src.animations.length){
     const mixer = new THREE.AnimationMixer(root);
-    mixer.clipAction(src.animations[0]).play();
-    mixer.update(0.7);                    /* freeze in a natural stance */
+    mixer.clipAction(inPlaceClip(src.animations[0])).play();
+    if (live) castMixers.push(mixer);
+    else mixer.update(0.7);              /* freeze in a natural stance */
   }
   root.updateMatrixWorld(true);
   const bb = new THREE.Box3().setFromObject(root);
@@ -3079,7 +3093,7 @@ function prepFigure(k, height){
 function buildCast(){
   STUDENT_ROSTER.forEach((st, i) => {
     const plan = CAST_PLAN[i];
-    const g = prepFigure(plan.k);
+    const g = prepFigure(plan.k, 0, plan.live);
     const tagEl = document.createElement("div");
     tagEl.className = "stu-tag";
     tagEl.textContent = st.name;
@@ -3087,10 +3101,17 @@ function buildCast(){
     tag.position.y = plan.k === "laptop" ? 32 : 48;
     g.add(tag);
     world.add(g);
+    if (plan.orbit){
+      const a0 = i * 0.9;
+      students.push({ g, data: st, orbit: 182.5, orbitA: a0, orbitW: 0.16,
+                      pos: [500 + Math.cos(a0) * 182.5, 500 + Math.sin(a0) * 182.5] });
+      return;
+    }
     if (plan.at){
       g.position.set(W(plan.at[0]), 0, W(plan.at[1]));
       g.rotation.y = plan.face || 0;
-      students.push({ g, data: st, static: true, pos: [...plan.at] });
+      students.push({ g, data: st, static: true, kind: plan.kind, baseYaw: plan.face || 0,
+                      phase0: i * 1.7, pos: [...plan.at] });
       return;
     }
     const startKey = ["R0","R1","R2","R3","R4","R5","R6","R7"][i % 8];
@@ -3098,10 +3119,31 @@ function buildCast(){
                     target: null, speed: 26 + Math.random() * 18, pauseUntil: 0,
                     phase: Math.random() * 9, walkT: 0, gait: 0 });
   });
+  /* an uncommissioned regular: the skater, carving the ring the other way */
+  const sk = prepFigure("skate", 0, true);
+  world.add(sk);
+  students.push({ g: sk, orbit: 175, orbitA: 3.6, orbitW: -0.34, skate: true,
+                  pos: [500 + Math.cos(3.6) * 175, 500 + Math.sin(3.6) * 175] });
 }
 function stepStudents(dt, now){
   for (const s of students){
-    if (s.static) continue;
+    if (s.static){
+      /* micro-life: talkers shift and turn, the coder rocks gently */
+      if (s.kind === "chat") s.g.rotation.y = s.baseYaw + Math.sin(now / 1400 + s.phase0) * 0.14;
+      else if (s.kind === "laptop") s.g.rotation.x = Math.sin(now / 1100 + s.phase0) * 0.016;
+      continue;
+    }
+    if (s.orbit){
+      /* the jogger and the skater carve steady laps of the oval */
+      s.orbitA += dt * s.orbitW;
+      const nx = 500 + Math.cos(s.orbitA) * s.orbit;
+      const ny = 500 + Math.sin(s.orbitA) * s.orbit;
+      s.g.rotation.y = Math.atan2(nx - s.pos[0], ny - s.pos[1]) + Math.PI;
+      s.pos[0] = nx; s.pos[1] = ny;
+      const bob = s.skate ? 0 : Math.abs(Math.sin(now / 95)) * 1.3;
+      s.g.position.set(W(nx), bob, W(ny));
+      continue;
+    }
     let moving = false;
     if (now < s.pauseUntil){ /* idle */ }
     else {
@@ -3729,6 +3771,7 @@ renderer.setAnimationLoop(() => {
     fireflies.position.y = Math.sin(now / 1700) * 4;
   }
   if (fountainWater) fountainWater.rotation.z += dt * 0.4;
+  castMixers.forEach(m => m.update(dt));
   {  /* leaves drift down and sideways, respawning at the canopy */
     const lp = leaves.geometry.attributes.position;
     for (let i = 0; i < lp.count; i++){
