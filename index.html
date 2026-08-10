@@ -3437,22 +3437,49 @@ function mkPerson(jacketColor, seed){
 /* the photoreal cast, ferried in by the registrar: a mid-stride
    walker, a rigged student frozen in a natural stance, a talker
    mid-gesture, and a coder folded up with her laptop */
-const CAST_FILES = { walk: "assets/stu_walk.glb", stand: "assets/stu_anim.glb",
-                     chat: "assets/stu_chat.glb", laptop: "assets/stu_laptop.glb",
-                     jog: "assets/stu_athlete.glb", skate: "assets/stu_skater.glb" };
-const CAST_HEIGHT = { walk: 42, stand: 41, chat: 42, laptop: 25, jog: 43, skate: 42 };
+/* stu_walker.glb is the only figure with a skeleton and real motion —
+   seven mocap clips on one Mixamo rig. The models it replaces (walk,
+   chat, laptop, athlete) carry no skin and no clips at all, which is why
+   those students used to glide across the lawn without moving a leg. */
+const CAST_FILES = { walker: "assets/stu_walker.glb", stand: "assets/stu_anim.glb",
+                     skate: "assets/stu_skater.glb" };
+const CAST_HEIGHT = { walker: 42, stand: 41, skate: 42 };
+/* Three gaits across the roamers so two students crossing the same lawn
+   are not visibly the same animation. */
 const CAST_PLAN = [
-  { k: "walk" },                                            /* Elowen — roams        */
+  { k: "walker", gait: "Standard Walk" },                   /* Elowen — roams        */
   { k: "stand", at: [700, 340], face: -0.9, live: true },   /* Marcus — Whitmore door */
-  { k: "chat",   at: [449, 449], face:  0.8, kind: "chat" },/* Priya  — plaza        */
-  { k: "laptop", at: [543, 449], face: -2.4, kind: "laptop" }, /* Sofia — lawn       */
-  { k: "walk" },                                            /* Theo   — roams        */
+  { k: "walker", at: [449, 449], face:  0.8, kind: "chat",  /* Priya  — plaza        */
+    clip: "Idle" },
+  { k: "walker", at: [543, 449], face: -2.4, kind: "laptop",/* Sofia  — lawn         */
+    clip: "Sitting Talking" },
+  { k: "walker", gait: "Strut Walking" },                   /* Theo   — roams        */
   { k: "stand", at: [270, 700], face:  0.7, live: true },   /* Jun    — Alden walk   */
-  { k: "jog", orbit: 1 },                                   /* Amara  — laps the oval */
-  { k: "walk" },                                            /* Kenji  — roams        */
+  { k: "walker", orbit: 1, clip: "Jogging" },               /* Amara  — laps the oval */
+  { k: "walker", gait: "Walk Forward" },                    /* Kenji  — roams        */
 ];
 const castLib = {};
 const castMixers = [];
+/* How far the root travels over one cycle, before the travel is pinned.
+   This is what lets playback be matched to how fast a student is really
+   walking: a clip played at a fixed rate while the body moves at some
+   other speed is the classic skating-feet giveaway, and it is the single
+   most noticeable thing about fake walking. Measured rather than guessed,
+   because a strut and a jog cover very different ground per step. */
+function measureStride(clip){
+  let best = 0;
+  for (const t of clip.tracks){
+    if (!t.name.endsWith(".position")) continue;
+    const v = t.values;
+    let mnx = Infinity, mxx = -Infinity, mnz = Infinity, mxz = -Infinity;
+    for (let i = 0; i < v.length; i += 3){
+      mnx = Math.min(mnx, v[i]);     mxx = Math.max(mxx, v[i]);
+      mnz = Math.min(mnz, v[i + 2]); mxz = Math.max(mxz, v[i + 2]);
+    }
+    best = Math.max(best, Math.hypot(mxx - mnx, mxz - mnz));
+  }
+  return best;
+}
 /* mixamo clips carry root travel; pin the XZ so figures animate in place */
 function inPlaceClip(clip){
   clip.tracks.forEach(t => {
@@ -3463,11 +3490,24 @@ function inPlaceClip(clip){
   });
   return clip;
 }
+/* Measure every clip once, then pin it. Order matters: pinning first
+   would leave nothing to measure. */
+function prepareClips(anims){
+  for (const c of anims){
+    /* AnimationClip has no userData of its own — reading through it
+       unguarded throws inside the loader's onLoad, and GLTFLoader reports
+       a callback exception as a load failure, so the model looks broken
+       when the mistake is here. */
+    if (!c.userData) c.userData = {};
+    if (c.userData.stride === undefined) c.userData.stride = measureStride(c);
+    inPlaceClip(c);
+  }
+}
 function prepFigure(k, height, live){
   const src = castLib[k];
-  const skinned = k === "stand" || k === "skate";
-  const root = skinned ? skeletonClone(src.scene) : src.scene.clone(true);
-  if (skinned && src.animations.length){
+  const skinned = true;                  /* every remaining source is rigged */
+  const root = skeletonClone(src.scene);
+  if (k !== "walker" && src.animations.length){
     const mixer = new THREE.AnimationMixer(root);
     mixer.clipAction(inPlaceClip(src.animations[0])).play();
     if (live) castMixers.push(mixer);
@@ -3481,6 +3521,18 @@ function prepFigure(k, height, live){
   root.position.set(-(bb.min.x + bb.max.x) / 2 * sc2, -bb.min.y * sc2, -(bb.min.z + bb.max.z) / 2 * sc2);
   root.traverse(o => { if (o.isMesh){ o.castShadow = true; o.frustumCulled = false; } });
   g2.add(root);
+  if (k === "walker"){
+    const mixer = new THREE.AnimationMixer(root);
+    const actions = {}, nominal = {};
+    for (const c of src.animations){
+      actions[c.name] = mixer.clipAction(c);
+      /* the clip's own pace, in campus units per second: stride is in
+         model units, so it scales with the figure */
+      nominal[c.name] = ((c.userData && c.userData.stride) || 0) * sc2 / Math.max(0.05, c.duration);
+    }
+    castMixers.push(mixer);
+    g2.userData.anim = { mixer, actions, nominal, current: null };
+  }
   return g2;
 }
 {
@@ -3488,6 +3540,7 @@ function prepFigure(k, height, live){
   const keys = Object.keys(CAST_FILES);
   keys.forEach(k => gltf.load(CAST_FILES[k], (g) => {
     castLib[k] = g;
+    if (k === "walker") prepareClips(g.animations);
     if (++castReady === keys.length) buildCast();
   }));
 }
@@ -3502,29 +3555,66 @@ function buildCast(){
     tag.position.y = plan.k === "laptop" ? 32 : 48;
     g.add(tag);
     world.add(g);
+    /* Start every figure at a different point in its cycle. Eight people
+       on the same clip in lockstep look like a chorus line, and it is the
+       first thing the eye picks up in a crowd. */
+    const stagger = (nm) => {
+      const a = g.userData.anim;
+      if (!a || !a.actions[nm]) return;
+      a.actions[nm].time = Math.random() * a.actions[nm].getClip().duration;
+    };
     if (plan.orbit){
       const a0 = i * 0.9;
-      students.push({ g, data: st, orbit: 182.5, orbitA: a0, orbitW: 0.16,
+      if (plan.clip){ setClipOn(g, plan.clip); stagger(plan.clip); }
+      students.push({ g, data: st, orbit: 182.5, orbitA: a0, orbitW: 0.16, clip: plan.clip,
                       pos: [500 + Math.cos(a0) * 182.5, 500 + Math.sin(a0) * 182.5] });
       return;
     }
     if (plan.at){
       g.position.set(W(plan.at[0]), 0, W(plan.at[1]));
       g.rotation.y = plan.face || 0;
+      if (plan.clip){ setClipOn(g, plan.clip); stagger(plan.clip); }
       students.push({ g, data: st, static: true, kind: plan.kind, baseYaw: plan.face || 0,
                       phase0: i * 1.7, pos: [...plan.at] });
       return;
     }
     const startKey = ["R0","R1","R2","R3","R4","R5","R6","R7"][i % 8];
+    const gaitClip = plan.gait || "Standard Walk";
+    if (g.userData.anim){ setClipOn(g, "Idle"); stagger("Idle"); stagger(gaitClip); }
     students.push({ g, data: st, node: startKey, pos: [...WAYPOINTS[startKey]],
                     target: null, speed: 26 + Math.random() * 18, pauseUntil: 0,
-                    phase: Math.random() * 9, walkT: 0, gait: 0 });
+                    phase: Math.random() * 9, walkT: 0, gait: 0, gait2: gaitClip });
   });
   /* an uncommissioned regular: the skater, carving the ring the other way */
   const sk = prepFigure("skate", 0, true);
   world.add(sk);
   students.push({ g: sk, orbit: 175, orbitA: 3.6, orbitW: -0.34, skate: true,
                   pos: [500 + Math.cos(3.6) * 175, 500 + Math.sin(3.6) * 175] });
+}
+/* Crossfade rather than cut. A student who reaches a door and snaps from
+   mid-stride to standing reads as a glitch; a quarter-second blend reads
+   as someone arriving. */
+function setClipOn(g, name, fade = 0.25){
+  return setClip({ g }, name, fade);
+}
+function setClip(s, name, fade = 0.25){
+  const a = s.g?.userData?.anim;
+  if (!a || !a.actions[name] || a.current === name) return;
+  const next = a.actions[name];
+  next.reset().setEffectiveWeight(1).fadeIn(fade).play();
+  if (a.current && a.actions[a.current]) a.actions[a.current].fadeOut(fade);
+  a.current = name;
+}
+/* Play the clip at the pace the body is actually travelling. Clamped
+   because a student hurrying at double speed should look hurried, not
+   like a film run fast. */
+function matchSpeed(s, name, speed){
+  const a = s.g?.userData?.anim;
+  if (!a) return;
+  const nom = a.nominal[name];
+  const act = a.actions[name];
+  if (!act) return;
+  act.timeScale = (nom > 0.5) ? Math.max(0.55, Math.min(1.9, speed / nom)) : 1;
 }
 function stepStudents(dt, now){
   for (const s of students){
@@ -3541,7 +3631,10 @@ function stepStudents(dt, now){
       const ny = 500 + Math.sin(s.orbitA) * s.orbit;
       s.g.rotation.y = Math.atan2(nx - s.pos[0], ny - s.pos[1]);
       s.pos[0] = nx; s.pos[1] = ny;
-      const bob = s.skate ? 0 : Math.abs(Math.sin(now / 95)) * 1.3;
+      /* the jogger's own bob comes from the clip now; only the skater,
+         who has no run cycle, still needs one faked */
+      const bob = s.g.userData.anim ? 0 : (s.skate ? 0 : Math.abs(Math.sin(now / 95)) * 1.3);
+      if (s.clip) matchSpeed(s, s.clip, Math.abs(s.orbit * s.orbitW));
       s.g.position.set(W(nx), bob, W(ny));
       continue;
     }
@@ -3565,20 +3658,25 @@ function stepStudents(dt, now){
         s.g.rotation.y = Math.atan2(dx, dy);
       }
     }
-    /* eased gait drives a soft step-bob; the scans carry their own pose */
-    s.gait += ((moving ? 1 : 0) - s.gait) * Math.min(1, dt * 6);
-    if (s.gait > 0.01) s.walkT += dt * (4.2 + s.speed * 0.09);
-    if (s.limbs){
-      const sw = Math.sin(s.walkT) * 0.52 * s.gait;
-      s.limbs.legL.rotation.x = sw;
-      s.limbs.legR.rotation.x = -sw;
-      s.limbs.armL.rotation.x = -sw * 0.75;
-      s.limbs.armR.rotation.x = sw * 0.75;
+    if (s.g.userData.anim){
+      /* walking or standing about, and the clip supplies every bit of the
+         motion — no faked bob, no swaying, no procedural limbs */
+      if (moving){
+        setClip(s, s.gait2);
+        matchSpeed(s, s.gait2, s.speed);
+      } else {
+        setClip(s, "Idle");
+      }
+      s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+    } else {
+      /* eased gait drives a soft step-bob; the scans carry their own pose */
+      s.gait += ((moving ? 1 : 0) - s.gait) * Math.min(1, dt * 6);
+      if (s.gait > 0.01) s.walkT += dt * (4.2 + s.speed * 0.09);
+      const bounce = Math.abs(Math.cos(s.walkT)) * 0.6 * s.gait;
+      const idleSway = (1 - s.gait) * Math.sin(now / 900 + s.phase) * 0.02;
+      s.g.rotation.z = idleSway;
+      s.g.position.set(W(s.pos[0]), bounce, W(s.pos[1]));
     }
-    const bounce = Math.abs(Math.cos(s.walkT)) * 0.6 * s.gait;
-    const idleSway = (1 - s.gait) * Math.sin(now / 900 + s.phase) * 0.02;
-    s.g.rotation.z = idleSway;
-    s.g.position.set(W(s.pos[0]), bounce, W(s.pos[1]));
   }
 }
 

@@ -15,10 +15,12 @@ the skeleton and its own clip. Every fbx after it is animation-only
 name becomes the clip name, so call the downloads what you want the
 clips to be called.
 
-Every clip must come from the same Mixamo rig, which is what you get by
-animating the same character. Bone names are matched exactly and left
-alone — mixamorig: prefix included — so anything exported here can also
-be retargeted onto the campus's existing figures later.
+Clips may come from different Mixamo characters. They share one skeleton
+but not one namespace — Mixamo hands out mixamorig:, mixamorig2:,
+mixamorig3: depending on the download — so every clip is retargeted onto
+the character's own namespace before export. Without that, Blender bakes
+the rest pose and the result is a full set of channels that never change:
+a build that succeeds and a student who stands perfectly still.
 
 Tick "In Place" on Mixamo where it is offered. The campus pins root
 travel itself and drives playback from how fast a student is actually
@@ -56,6 +58,37 @@ def armatures():
     return [o for o in bpy.context.scene.objects if o.type == "ARMATURE"]
 
 
+NS = re.compile(r"^(mixamorig\d*):")
+
+def namespace_of(rig):
+    """Whatever prefix this character's bones carry — usually mixamorig:
+    but Mixamo hands out mixamorig2:, mixamorig3: and so on."""
+    for b in rig.data.bones:
+        m = NS.match(b.name)
+        if m:
+            return m.group(1) + ":"
+    return ""
+
+
+def retarget_action(action, ns):
+    """Point every curve at the character's namespace instead of the one
+    the donor happened to be exported with."""
+    moved = 0
+    for fc in action.fcurves:
+        m = re.match(r'(pose\.bones\[")([^"]+)("\].*)', fc.data_path)
+        if not m:
+            continue
+        head, bone, tail = m.groups()
+        base = NS.sub("", bone)
+        want = ns + base
+        if want != bone:
+            fc.data_path = head + want + tail
+            moved += 1
+    if moved:
+        print(f"[mixamo]   {action.name}: retargeted {moved} curves onto {ns}")
+    return moved
+
+
 def import_fbx(path):
     before = set(bpy.context.scene.objects)
     bpy.ops.import_scene.fbx(
@@ -82,6 +115,8 @@ if not meshes:
     sys.exit(1)
 
 bones = len(rig.data.bones)
+char_ns = namespace_of(rig)
+print(f"[mixamo] character rig: {bones} bones, namespace {char_ns or '(none)'}")
 clips = []
 
 # the character's own download usually carries a clip too — keep it
@@ -110,10 +145,19 @@ for path in src_files[1:]:
     action.use_fake_user = True
     clips.append(action)
 
-    # A clip only lands on the character if the bones it addresses exist
-    # there. Same Mixamo rig means they do; a different one means silence
-    # rather than an error, which is worth catching here instead of
-    # wondering later why a student never moves.
+    # Mixamo numbers its bone namespace per download: one character comes
+    # back as "mixamorig:Hips" and the next as "mixamorig2:Hips". The
+    # skeletons are otherwise identical, so a clip from one will not bind
+    # to the other — Blender bakes the rest pose instead and exports a
+    # full set of channels that never change. That looks like a
+    # successful build and produces a student standing perfectly still
+    # while insisting they are walking. Put the clip on this character's
+    # namespace before anything else touches it.
+    retarget_action(action, char_ns)
+
+    # Then insist, because a clip that cannot bind is worse than a failed
+    # build: nothing downstream can tell a stiff animation from no
+    # animation, and it ships looking fine.
     targets = set()
     for fc in action.fcurves:
         m = re.match(r'pose\.bones\["([^"]+)"\]', fc.data_path)
@@ -121,8 +165,10 @@ for path in src_files[1:]:
             targets.add(m.group(1))
     unknown = targets - {b.name for b in rig.data.bones}
     if unknown:
-        print(f"[mixamo]   {action.name}: {len(unknown)} of {len(targets)} bones are not "
-              f"on the character — different rig? e.g. {sorted(unknown)[:3]}")
+        print(f"[mixamo] {action.name}: {len(unknown)} of {len(targets)} bones are still "
+              f"not on the character after retargeting — e.g. {sorted(unknown)[:4]}")
+        print("[mixamo] it would export as a full set of motionless channels, so stopping")
+        sys.exit(3)
 
     # drop the donor skeleton and mesh; the action survives on its own
     for o in added:
