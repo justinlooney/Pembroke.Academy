@@ -90,7 +90,13 @@ await new Promise(r => server.listen(PORT, r));
 const browser = await chromium.launch({
   args: ["--enable-unsafe-swiftshader", "--disable-dev-shm-usage", "--no-sandbox"],
 });
-const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+/* An explicit context rather than browser.newPage(), which builds a
+   throwaway one and then refuses to open a second page in it —
+   "Please use browser.newContext()". The crowd check at the end wants a
+   sibling page that shares this one's service worker, so that the
+   campus is served from the cache instead of downloaded twice. */
+const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+const page = await context.newPage();
 
 /* Three.js is served from our own origin now, so it is never stubbed —
    the vendored copy is exactly what this test must exercise. Only the
@@ -341,8 +347,7 @@ try {
      twenty-minute job. Here the worker is already registered for this
      origin, so the models come out of the cache. Routes are per-page,
      so the offline catch-all on the first page does not follow. */
-  const crowdPage = await page.context().newPage();
-  await crowdPage.setViewportSize({ width: 1280, height: 800 });
+  const crowdPage = await context.newPage();
   const crowdErrs = [];
   crowdPage.on("pageerror", e => crowdErrs.push(e.message.split("\n")[0]));
   await crowdPage.goto(`http://localhost:${PORT}/?crowd=8`,
