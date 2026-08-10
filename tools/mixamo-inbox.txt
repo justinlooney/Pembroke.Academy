@@ -27,9 +27,10 @@ Strut_Walking   https://drive.google.com/file/d/1x8owCwUUbV5V93FqTmOyHsZjzhGy4_2
 Jogging         https://drive.google.com/file/d/1rmy0p7tQJ6viFVL5QBkQ1KCkqYIrG8bF/view
 Start_Walking   https://drive.google.com/file/d/1qBwL5SqfvNm-F0IKx-vNpK_esieMpTgS/view
 Walk_Forward    https://drive.google.com/file/d/1bdGGSIPtRIBZsssxPMuLSHixs781OT1B/view
-
-# Still missing: a standing idle. Every student would otherwise be in
-# permanent motion, including the ones meant to be waiting outside
-# Whitmore or sitting with a laptop. Add a block entry for one here when
-# there is one — Mixamo "Standing Idle", and "Talking" for the pair on
-# the plaza.
+# and three more, downloaded WITHOUT skin — which is why these are
+# kilobytes where the four above are tens of megabytes. Idle is the one
+# that matters most: without it a student who reaches a door has to keep
+# striding, because the only alternative is freezing mid-step.
+Idle            https://drive.google.com/file/d/1aw-oEHfcGVtozFy2JLQXy8NecFK7zaXx/view
+Standard_Walk   https://drive.google.com/file/d/1rJdHfnkXFza8BcSSoweajDVVwYZs4FB-/view
+Sitting_Talking https://drive.google.com/file/d/1LPSnmgWqpgAT1SCbs7wCBH1k2hSgQVtx/view
