@@ -40,6 +40,7 @@ jobs:
           # where Drive stops serving bytes and starts serving a virus-scan
           # interstitial. curl would fetch that HTML page perfectly happily.
           pip install -q gdown
+          gdown --version || true
 
       - name: Fetch and build
         if: steps.plan.outputs.blocks != '0'
@@ -53,15 +54,23 @@ jobs:
             fail=0
             while IFS=$'\t' read -r name id; do
               [ -z "$name" ] && continue
-              gdown -q --fuzzy "https://drive.google.com/file/d/$id/view" \
-                    -O "/tmp/fbx/$name.fbx" || true
-              # Drive answers a login page with HTTP 200, so the only
-              # honest test is whether the bytes are an FBX.
+              # The /uc?id= form is the one every gdown understands. Newer
+              # versions dropped --fuzzy (it became the default) and older
+              # ones need it, so avoid the flag entirely.
+              if ! gdown -q "https://drive.google.com/uc?id=$id" -O "/tmp/fbx/$name.fbx"; then
+                echo "::error::$name — gdown could not download $id"
+                fail=1; continue
+              fi
+              # Drive answers a login page with HTTP 200, so a file arriving
+              # is not proof it is the right one. Only report a sharing
+              # problem once something has actually been downloaded —
+              # blaming sharing for a failed fetch sends people off to
+              # re-share files that were never the problem.
               if head -c 20 "/tmp/fbx/$name.fbx" | grep -q "Kaydara"; then
                 printf '  ok   %-18s %s\n' "$name" "$(du -h "/tmp/fbx/$name.fbx" | cut -f1)"
                 args="$args /tmp/fbx/$name.fbx"
               else
-                echo "::error::$name is not an FBX — share it as 'Anyone with the link'"
+                echo "::error::$name downloaded but is not an FBX — share it as 'Anyone with the link'"
                 fail=1
               fi
             done < <(tail -n +2 "$block")
