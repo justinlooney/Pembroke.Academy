@@ -3460,25 +3460,36 @@ const CAST_PLAN = [
 ];
 const castLib = {};
 const castMixers = [];
-/* How far the root travels over one cycle, before the travel is pinned.
-   This is what lets playback be matched to how fast a student is really
-   walking: a clip played at a fixed rate while the body moves at some
-   other speed is the classic skating-feet giveaway, and it is the single
-   most noticeable thing about fake walking. Measured rather than guessed,
-   because a strut and a jog cover very different ground per step. */
-function measureStride(clip){
-  let best = 0;
-  for (const t of clip.tracks){
-    if (!t.name.endsWith(".position")) continue;
-    const v = t.values;
-    let mnx = Infinity, mxx = -Infinity, mnz = Infinity, mxz = -Infinity;
-    for (let i = 0; i < v.length; i += 3){
-      mnx = Math.min(mnx, v[i]);     mxx = Math.max(mxx, v[i]);
-      mnz = Math.min(mnz, v[i + 2]); mxz = Math.max(mxz, v[i + 2]);
-    }
-    best = Math.max(best, Math.hypot(mxx - mnx, mxz - mnz));
+/* How many gait cycles a clip contains, counted from the thigh swinging
+   back and forth. This is what lets playback be matched to how fast a
+   student is really walking — a clip played at a fixed rate while the
+   body travels at some other speed is the skating-feet giveaway, and it
+   is the single most noticeable thing about fake walking.
+
+   Counted rather than taken from the root's travel, because these clips
+   are exported "In Place" and have no travel to read: the hips barely
+   move, and what little they do is sway in bone-local units that do not
+   convert to campus units by any scale we hold. Leg swing is in the data
+   whatever the export settings, and clip length alone will not do it —
+   some downloads carry two cycles and some one. */
+function gaitCycles(clip){
+  const t = clip.tracks.find(t => /UpLeg\.quaternion$/i.test(t.name));
+  if (!t) return 1;
+  const v = t.values, n = 4;
+  let mean = 0, count = 0;
+  for (let i = 0; i < v.length; i += n){ mean += v[i]; count++; }
+  if (!count) return 1;
+  mean /= count;
+  let crossings = 0, prev = 0;
+  for (let i = 0; i < v.length; i += n){
+    const d = v[i] - mean;
+    if (Math.abs(d) < 1e-4) continue;
+    const sign = d > 0 ? 1 : -1;
+    if (prev && sign !== prev) crossings++;
+    prev = sign;
   }
-  return best;
+  /* a full swing crosses the midpoint twice */
+  return Math.max(0.5, crossings / 2);
 }
 /* mixamo clips carry root travel; pin the XZ so figures animate in place */
 function inPlaceClip(clip){
@@ -3499,7 +3510,7 @@ function prepareClips(anims){
        a callback exception as a load failure, so the model looks broken
        when the mistake is here. */
     if (!c.userData) c.userData = {};
-    if (c.userData.stride === undefined) c.userData.stride = measureStride(c);
+    if (c.userData.cycles === undefined) c.userData.cycles = gaitCycles(c);
     inPlaceClip(c);
   }
 }
@@ -3526,9 +3537,13 @@ function prepFigure(k, height, live){
     const actions = {}, nominal = {};
     for (const c of src.animations){
       actions[c.name] = mixer.clipAction(c);
-      /* the clip's own pace, in campus units per second: stride is in
-         model units, so it scales with the figure */
-      nominal[c.name] = ((c.userData && c.userData.stride) || 0) * sc2 / Math.max(0.05, c.duration);
+      /* The clip's own pace in campus units per second. One gait cycle
+         carries the body two steps, and a step is about three quarters of
+         a leg — so the distance is set by the figure's own height rather
+         than by anything in the file, which is the only thing here whose
+         units are certain. */
+      const perCycle = 0.68 * (height || CAST_HEIGHT[k]);
+      nominal[c.name] = (c.userData.cycles || 1) * perCycle / Math.max(0.05, c.duration);
     }
     castMixers.push(mixer);
     g2.userData.anim = { mixer, actions, nominal, current: null };
@@ -3581,8 +3596,18 @@ function buildCast(){
     const startKey = ["R0","R1","R2","R3","R4","R5","R6","R7"][i % 8];
     const gaitClip = plan.gait || "Standard Walk";
     if (g.userData.anim){ setClipOn(g, "Idle"); stagger("Idle"); stagger(gaitClip); }
+    /* Let the clip set the pace rather than stretching it to fit a speed
+       picked out of the air. A gait has a natural rate, and a student
+       walking faster than their own animation is exactly the sliding-feet
+       problem this is all for — so each one travels at their clip's pace,
+       give or take. It also spreads the speeds for free: the strut is a
+       brisk walk, Walk Forward an amble, and they read as different
+       people rather than the same person at different framerates. */
+    const nom = g.userData.anim?.nominal?.[gaitClip];
+    const speed = nom > 4 ? nom * (0.86 + Math.random() * 0.28)
+                          : 26 + Math.random() * 18;
     students.push({ g, data: st, node: startKey, pos: [...WAYPOINTS[startKey]],
-                    target: null, speed: 26 + Math.random() * 18, pauseUntil: 0,
+                    target: null, speed, pauseUntil: 0,
                     phase: Math.random() * 9, walkT: 0, gait: 0, gait2: gaitClip });
   });
   /* an uncommissioned regular: the skater, carving the ring the other way */
