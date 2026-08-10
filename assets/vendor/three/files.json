@@ -1,0 +1,30 @@
+{
+  "version": "0.170.0",
+  "files": [
+    "build/three.module.js",
+    "examples/jsm/controls/OrbitControls.js",
+    "examples/jsm/environments/RoomEnvironment.js",
+    "examples/jsm/geometries/RoundedBoxGeometry.js",
+    "examples/jsm/libs/meshopt_decoder.module.js",
+    "examples/jsm/loaders/GLTFLoader.js",
+    "examples/jsm/math/SimplexNoise.js",
+    "examples/jsm/objects/Reflector.js",
+    "examples/jsm/postprocessing/EffectComposer.js",
+    "examples/jsm/postprocessing/MaskPass.js",
+    "examples/jsm/postprocessing/OutputPass.js",
+    "examples/jsm/postprocessing/Pass.js",
+    "examples/jsm/postprocessing/RenderPass.js",
+    "examples/jsm/postprocessing/SMAAPass.js",
+    "examples/jsm/postprocessing/SSAOPass.js",
+    "examples/jsm/postprocessing/ShaderPass.js",
+    "examples/jsm/postprocessing/UnrealBloomPass.js",
+    "examples/jsm/renderers/CSS2DRenderer.js",
+    "examples/jsm/shaders/CopyShader.js",
+    "examples/jsm/shaders/LuminosityHighPassShader.js",
+    "examples/jsm/shaders/OutputShader.js",
+    "examples/jsm/shaders/SMAAShader.js",
+    "examples/jsm/shaders/SSAOShader.js",
+    "examples/jsm/utils/BufferGeometryUtils.js",
+    "examples/jsm/utils/SkeletonUtils.js"
+  ]
+}

@@ -29,8 +29,10 @@ const MIME = {
 /* every model the server actually hands over, so the returning-visit
    check can prove the service worker served them instead */
 const servedModels = [];
+let serverDown = false;          /* flipped for the offline check */
 
 const server = createServer(async (req, res) => {
+  if (serverDown){ res.socket?.destroy(); return; }
   try {
     let rel;
     try { rel = decodeURIComponent(req.url.split("?")[0]); }
@@ -86,16 +88,12 @@ const browser = await chromium.launch({
 });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 
-/* CI reaches the real CDNs, which is part of what we want to verify.
-   Set SMOKE_OFFLINE=/path/to/node_modules to run behind a firewall. */
+/* Three.js is served from our own origin now, so it is never stubbed —
+   the vendored copy is exactly what this test must exercise. Only the
+   remaining cross-origin decoration is stood in for, and only when
+   SMOKE_OFFLINE says the network is unavailable. */
 const offline = process.env.SMOKE_OFFLINE;
 if (offline){
-  await page.route("https://unpkg.com/**", route => {
-    const rel = new URL(route.request().url()).pathname.replace(/^\/three@[^/]+\//, "");
-    const file = join(offline, "three", rel);
-    if (existsSync(file)) route.fulfill({ path: file, contentType: "text/javascript" });
-    else route.fulfill({ status: 404, body: "not vendored: " + rel });
-  });
   await page.route("https://cdn.tailwindcss.com", route =>
     route.fulfill({ path: join(offline, "@tailwindcss/browser/dist/index.global.js"),
                     contentType: "text/javascript" }));
@@ -104,7 +102,17 @@ if (offline){
   await page.route("https://fonts.gstatic.com/**", route => route.abort());
 }
 
+
 const errors = [];
+
+/* Nothing may reach unpkg any more — an import left pointing at the CDN
+   would still work in CI and silently reinstate the dependency this
+   change exists to remove, so failing loudly is the point. */
+await page.route("https://unpkg.com/**", route => {
+  errors.push("still loading from unpkg: " + route.request().url());
+  route.abort();
+});
+
 page.on("pageerror", e => errors.push("pageerror: " + e.message));
 page.on("console", m => { if (m.type() === "error") errors.push("console: " + m.text()); });
 page.on("requestfailed", r => {
@@ -202,6 +210,30 @@ try {
        : firstVisit.size + " model(s) served from cache");
   step("returning visit is clean", errors.length === before,
        errors.slice(before, before + 3).join(" | "));
+
+  /* ── no network at all ───────────────────────────────────────────
+     Three.js is vendored and precached, so the campus should run with
+     the server gone and every cross-origin request refused. Checked
+     here because the claim is easy to make and easy to break: one
+     import left pointing at a CDN, or one file missing from the
+     precache manifest, and offline quietly stops working while every
+     other check stays green. */
+  await page.route(u => new URL(u).origin !== `http://localhost:${PORT}`,
+                   route => route.abort());
+  serverDown = true;
+  await page.reload({ waitUntil: "domcontentloaded", timeout: 90_000 }).catch(() => {});
+  const offlineUp = await page.waitForFunction(() => window.__app, null, { timeout: 180_000 })
+    .then(() => true, () => false);
+  step("campus runs with no network at all", offlineUp);
+
+  const built = await page.evaluate(() => {
+    let n = 0;
+    window.__app?.world?.traverse?.(o => { if (o.isMesh || o.isInstancedMesh) n++; });
+    return n;
+  }).catch(() => 0);
+  /* booting proves the page loaded; only the meshes prove the models
+     came out of the cache rather than the page rendering an empty world */
+  step("offline campus is actually built", built > 50, built + " meshes");
 } catch (e) {
   step("smoke run completed", false, e.message.split("\n")[0]);
   await shoot("smoke-failure.png");
