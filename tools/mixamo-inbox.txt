@@ -1,0 +1,27 @@
+# Mixamo inbox — paste Drive links here, commit, and the workflow does the rest.
+#
+# Edit this file (GitHub's web editor on a phone is fine), commit it, and
+# .github/workflows/mixamo.yml fetches each link, converts the lot into one
+# GLB with every clip in it, shrinks it, and commits the result to assets/.
+#
+# Rules:
+#   · the FIRST entry is the character — the download WITH SKIN
+#   · every entry after it is an animation — downloaded WITHOUT SKIN
+#   · the name becomes the clip name; underscores become spaces
+#   · every file must be shared as "Anyone with the link"
+#   · tick "In Place" on Mixamo: the campus drives playback from how fast
+#     a student is actually walking, so a clip carrying its own travel
+#     fights it and the feet skate
+#
+# out: assets/stu_walker.glb
+#
+# name            drive share link
+# --------------- -------------------------------------------------------
+# character       https://drive.google.com/file/d/XXXXXXXX/view
+# Walking         https://drive.google.com/file/d/XXXXXXXX/view
+# Standing_Idle   https://drive.google.com/file/d/XXXXXXXX/view
+# Slow_Run        https://drive.google.com/file/d/XXXXXXXX/view
+# Typing          https://drive.google.com/file/d/XXXXXXXX/view
+#
+# Uncomment the lines above and swap in your links. Lines starting with #
+# are ignored, so nothing runs until you do.
