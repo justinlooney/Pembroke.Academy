@@ -33,8 +33,13 @@ jobs:
         if: steps.plan.outputs.blocks != '0'
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq blender >/dev/null
+          # python3-numpy explicitly: Ubuntu's blender runs on the system
+          # python and its FBX importer imports numpy at module load, but
+          # the runner image installs without recommended packages, so it
+          # is not pulled in and every import dies before reading a byte.
+          sudo apt-get install -y -qq blender python3-numpy >/dev/null
           blender --version | head -1
+          blender --background --python-expr "import numpy; print('numpy', numpy.__version__)" 2>&1 | grep numpy
           npm install -g --silent @gltf-transform/cli
           # gdown, not curl: every one of these files is well over the 25MB
           # where Drive stops serving bytes and starts serving a virus-scan
