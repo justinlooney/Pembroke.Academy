@@ -35,8 +35,9 @@ jobs:
               rm -f "incoming/$1"
             fi
           }
-          rm -f incoming/flora04.glb incoming/flora04.glb.bin
-          fetch flora04.glb 1l4ZtjurKGBkozlXBJo3iWwKZxvke6w9r
+          fetch anim01.glb 17AuyRjsddgWS0ZM-9omdnuX-4oKdr-zI
+          fetch anim02.glb 1hTEzQtDJ87WIFfyH5Upl0yO9qk6nqIQx
+          fetch anim03.glb 1B15-kUUH_bslJyP40ksYkEoOCb2R7Gqm
           ls -la incoming
           sha256sum incoming/* > incoming/MANIFEST.txt || true
       - name: Shrink oversized models
