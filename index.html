@@ -593,6 +593,25 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
 #quest .q-icon{font-size:17px;margin-top:1px;}
 #quest .q-label{font-size:8.5px;letter-spacing:.26em;text-transform:uppercase;color:var(--brass-dim);}
 #quest .q-text{font-size:12px;color:#e2e8f0;line-height:1.45;margin-top:2px;}
+/* only on screen while you are away looking at the scenery */
+#vista-back{
+  position:absolute;left:50%;top:1rem;transform:translateX(-50%);z-index:28;
+  display:none;padding:.45rem 1rem;border-radius:999px;cursor:pointer;
+  font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#e2e8f0;
+  background:rgba(8,12,22,.88);border:1px solid rgba(56,189,248,.5);
+}
+#vista-back.show{display:block;}
+#vista-back:hover{border-color:rgba(56,189,248,.9);color:#fff;}
+.walkmode #vista-back{display:none;}
+/* zoom readout — only present while actually magnified, so it does not
+   add another permanent box to a screen the user already called cluttered */
+#zoomlvl{
+  position:absolute;left:50%;top:1rem;transform:translateX(-50%);z-index:27;
+  display:none;padding:.28rem .7rem;border-radius:999px;
+  font:600 12px/1 ui-monospace,monospace;letter-spacing:.08em;color:#e2e8f0;
+  background:rgba(8,12,22,.8);border:1px solid rgba(56,189,248,.45);
+}
+.walkmode #zoomlvl:not(:empty){display:block;}
 #walkhud{
   position:absolute;left:50%;bottom:1.1rem;transform:translateX(-50%);z-index:26;
   display:none;white-space:nowrap;
@@ -829,7 +848,9 @@ body.day .int-lamp::after{opacity:.45;}
     </div>
 
     <!-- walk-mode HUD -->
-    <div id="walkhud">W A S D move &nbsp;·&nbsp; ◀ ▶ turn &nbsp;·&nbsp; E enter hall &nbsp;·&nbsp; F leave walk</div>
+    <div id="walkhud">W A S D move &nbsp;·&nbsp; Shift hurry &nbsp;·&nbsp; ◀ ▶ turn &nbsp;·&nbsp; scroll zoom &nbsp;·&nbsp; E enter hall &nbsp;·&nbsp; F leave walk</div>
+    <div id="zoomlvl" aria-hidden="true"></div>
+    <button id="vista-back" type="button">← back to the quad</button>
     <div id="doorprompt"><b>E</b> — <span id="doorprompt-name"></span></div>
     <div id="touchpad">
       <button data-t="left">◀</button><button data-t="fwd">▲</button><button data-t="right">▶</button>
@@ -956,8 +977,8 @@ git push -u origin main</pre>
 <script type="importmap">
 {
   "imports": {
-    "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
+    "three": "./assets/vendor/three/build/three.module.js",
+    "three/addons/": "./assets/vendor/three/examples/jsm/"
   }
 }
 </script>
@@ -1762,7 +1783,21 @@ const pmrem = new THREE.PMREMGenerator(renderer);
 world.environment = pmrem.fromScene(new RoomEnvironment(), 0.06).texture;
 world.environmentIntensity = 0.55;
 const camera = new THREE.PerspectiveCamera(46, 1, 2, 6000);
-camera.position.set(-640, 690, 640);
+/* Stand back further on a tall screen. Even at the widened fov, portrait
+   leaves only ~40° across, so the arrival view on a phone was a keyhole
+   onto the quad with the whole outer world outside it. This does not fit
+   the athletics district on arrival — the gridiron alone is 720 units
+   wide and would want ~3300 units of standoff, which would shrink the
+   campus to a smudge — but it shows the cathedral and the district
+   edges, and the zoom now reaches the rest. */
+const AERIAL = [-640, 690, 640];
+function aerialPos(){
+  const tall = (stageEl?.clientWidth || 1200) / (stageEl?.clientHeight || 800) < 0.85;
+  const k = tall ? 1.5 : 1;
+  return new THREE.Vector3(AERIAL[0] * k, AERIAL[1] * k, AERIAL[2] * k);
+}
+function aerialHome(){ camera.position.copy(aerialPos()); }
+camera.position.set(AERIAL[0], AERIAL[1], AERIAL[2]);
 
 /* archviz post chain: SSAO contact shadows + bloom + SMAA.
    Software rasterizers (SwiftShader) choke on the AO depth buffers,
@@ -1784,12 +1819,27 @@ if (!q.has("nobloom")) composer.addPass(bloom);
 if (!q.has("nosmaa")) composer.addPass(new SMAAPass(800, 600));
 composer.addPass(new OutputPass());
 
+/* fov is VERTICAL, so a tall phone screen collapses the horizontal view:
+   at 412x915 a 46° vertical fov leaves about 21° across, and the campus
+   is seen through a letterbox — the stadiums, the cathedrals and most of
+   the outer world sit off the sides of the screen and a phone visitor
+   never learns they exist. Widen the vertical fov on narrow screens
+   until the horizontal view is worth having. */
+const BASE_FOV = 46, MIN_H_FOV = 62 * Math.PI / 180;
+function fovFor(aspect){
+  const need = 2 * Math.atan(Math.tan(MIN_H_FOV / 2) / Math.max(aspect, 0.3));
+  return Math.min(78, Math.max(BASE_FOV, need * 180 / Math.PI));
+}
 function resize(){
   const w = stageEl.clientWidth || 800, h = stageEl.clientHeight || 600;
   renderer.setSize(w, h);
   composer.setSize(w, h);
   labelRenderer.setSize(w, h);
   camera.aspect = w / h;
+  /* walk mode owns the fov while zooming, so leave it alone there.
+     Read through the window hook: `walker` is declared far below and
+     would be in its dead zone on the first call. */
+  if (!window.__walker?.on) camera.fov = fovFor(camera.aspect);
   camera.updateProjectionMatrix();
 }
 window.addEventListener("resize", resize);
@@ -2172,6 +2222,7 @@ const gltf = new GLTFLoader();
 gltf.setMeshoptDecoder(MeshoptDecoder);
 /* every glb load is timed, so ?debug can report what cost what */
 const assetLog = [];
+window.__assets = assetLog;   /* test/debug hook */
 {
   const rawLoad = gltf.load.bind(gltf);
   gltf.load = (url, onLoad, onProgress, onError) => {
@@ -2191,6 +2242,14 @@ const assetLog = [];
    materials so the night cycle can light them from within */
 const glassGlowMats = [];
 let cathedralRoot = null;
+
+/* The outer world — stadiums, residence hall, horizon cathedrals — is
+   scenery rather than somewhere you take a class, so it sits a walk away
+   and cannot fit in a phone's arrival frame. That is fine for a backdrop,
+   but a backdrop you can never look at properly is just wallpaper. Each
+   landmark registers itself here so a tap can carry the camera over to
+   it and back. */
+const VISTAS = [];
 function loadLandmark(url, opts){
   return new Promise((settle) => {
   gltf.load(url, (g) => {
@@ -2235,6 +2294,13 @@ function loadLandmark(url, opts){
       COLLIDERS.push({ x: box.min.x + 500, y: box.min.z + 500,
                        w: box.max.x - box.min.x, d: box.max.z - box.min.z });
     } else if (opts.collider) COLLIDERS.push(opts.collider);
+    if (opts.vista){
+      const vb = new THREE.Box3().setFromObject(root);
+      const c = new THREE.Vector3(); vb.getCenter(c);
+      const s = new THREE.Vector3(); vb.getSize(s);
+      VISTAS.push({ root, label: opts.vista,
+                    center: c, radius: Math.max(s.x, s.y, s.z) * 0.5 });
+    }
     if (opts.onLoaded) opts.onLoaded(root);
     settle(root);
   }, undefined, () => settle(null));   /* a missing landmark must not stall the queue */
@@ -2573,24 +2639,30 @@ BUILDINGS.forEach(spec => {
        southwest, the Pembroke Tennis Club southeast. A visitor can walk
        to all three, so they arrive before anything merely scenic. */
     ["assets/gridiron.glb", { plane: [500, 1530], height: 110, maxFoot: [720, 700], sink: 3,
+      vista: "Pembroke Stadium",
       rotY: Math.PI,                     /* grand entrance faces the boulevard */
       onLoaded: brandStadium }],
-    ["assets/ballpark.glb", { plane: [-380, 1290], height: 62, maxFoot: [430, 440], sink: 2.5 }],
-    ["assets/tennis.glb",   { plane: [1270, 1280], height: 60, maxFoot: [500, 390], sink: 2.5 }],
+    ["assets/ballpark.glb", { plane: [-380, 1290], height: 62, maxFoot: [430, 440], sink: 2.5,
+      vista: "Pembroke Field" }],
+    ["assets/tennis.glb",   { plane: [1270, 1280], height: 60, maxFoot: [500, 390], sink: 2.5,
+      vista: "Pembroke Tennis Club" }],
     /* the white cathedral (Gnemegorl) joins the horizon, west */
     ["assets/gothic_cathedral.glb", {
       plane: [-560, 380], height: 420, rotY: 1.9, maxFoot: [520, 420],
-      dropMatNames: ["metal"], tint: 0xe8dcc6 }],
+      dropMatNames: ["metal"], tint: 0xe8dcc6, vista: "The White Cathedral" }],
     /* the city of learning on the horizon: Cologne Cathedral (Shahriar
        Shahrabi, CC-BY-4.0) NW and Moscow State University (Neo_minigan,
        CC-BY-4.0) NE, hazed by distance and fog */
-    ["assets/cologne.glb", { plane: [-520, -420], height: 540, rotY: 2.6, maxFoot: [760, 760] }],
+    ["assets/cologne.glb", { plane: [-520, -420], height: 540, rotY: 2.6, maxFoot: [760, 760],
+      vista: "The Cathedral on the Hill" }],
     /* the neighboring campus: an aerial-scan district rolling along the
        east side, its own streets and trees carrying the town beyond the
        drive toward the horizon */
     ["assets/university.glb", {
-      plane: [1620, 760], height: 300, rotY: Math.PI / 2, maxFoot: [900, 1400], sink: 4.5 }],
-    ["assets/msu.glb", { plane: [1680, -420], height: 780, rotY: -2.4, maxFoot: [1150, 950] }],
+      plane: [1620, 760], height: 300, rotY: Math.PI / 2, maxFoot: [900, 1400], sink: 4.5,
+      vista: "The Town Beyond the Drive" }],
+    ["assets/msu.glb", { plane: [1680, -420], height: 780, rotY: -2.4, maxFoot: [1150, 950],
+      vista: "The Distant Institute" }],
   ];
   /* One at a time, not all at once. Seven large models landing together
      put ~37MB of decode and texture upload on a phone simultaneously,
@@ -2694,7 +2766,7 @@ BUILDINGS.forEach(spec => {
      clean facade toward the quad, replacing the procedural west range */
   loadLandmark("assets/reshall.glb", {
     plane: [140, 330], height: 96, rotY: 0, maxFoot: [150, 200], sink: 2.4,
-    collider: "auto",
+    collider: "auto", vista: "Pembroke Residence Hall",
   });
   /* terracotta refectory */
   stoneBox(amb, { x: 700, y: 330, w: 110, d: 72, h: 46, windows: "lancet", seed: 18, accent: "#f0b47a", noRoof: true });
@@ -3778,12 +3850,22 @@ function setVisualBinary(v){
   });
   applyHallGlow();
 }
-let cycleT = 0.42, autoCycle = false;
+let cycleT = 0.42, autoCycle = false, liveClock = false, lastClock = 0;
+
+/* The visitor's own wall clock, as a 0..1 position in the day. Noon is
+   0.5, midnight 0, which is exactly how PHASES is keyed — so arriving at
+   dusk means arriving at dusk. */
+function clockT(){
+  const d = new Date();
+  return (d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()) / 86400;
+}
 function engineSetMode(m){
   autoCycle = m === "auto";
+  liveClock = m === "live";
   if (m === "day") setTimeOfDay(0.42);
   else if (m === "golden") setTimeOfDay(0.712);
   else if (m === "night") setTimeOfDay(0.02);
+  else if (m === "live") setTimeOfDay(clockT());
   else { cycleT = 0.28; setTimeOfDay(cycleT); }
 }
 
@@ -3793,7 +3875,9 @@ controls.target.set(0, 30, 0);
 controls.enableDamping = true;
 controls.dampingFactor = 0.06;
 controls.minDistance = 260;
-controls.maxDistance = 1700;
+/* far enough out to take in the athletics district and the horizon
+   cathedrals, which used to sit beyond the reach of the zoom */
+controls.maxDistance = 2600;
 controls.maxPolarAngle = 1.32;
 controls.enablePan = false;
 const ray = new THREE.Raycaster();
@@ -3816,7 +3900,68 @@ renderer.domElement.addEventListener("pointerup", e => {
   if (cathedralRoot && ray.intersectObject(cathedralRoot, true).length){
     openInterior("cathedral");
     toast("🕯️ A candle for the term", "The nave is quiet. Stained glass burns overhead, and somewhere a page turns.", "#d4af6a", 5000);
+    return;
   }
+  /* the scenery: stadiums, halls of residence, the horizon cathedrals.
+     Nothing to enrol in, so a tap takes the camera over for a look
+     instead of opening anything. */
+  for (const v of VISTAS){
+    if (ray.intersectObject(v.root, true).length){ focusVista(v); return; }
+  }
+  if (focused) returnToQuad();          /* tap the sky or the ground to come back */
+});
+
+/* ── looking at the backdrop ─────────────────────────────────────────
+   The orbit target is pinned to the middle of the quad and panning is
+   off, which keeps the campus from getting lost — but it also means the
+   athletics district and the residence hall could only ever be seen
+   from across the world, small and hazed. This walks the orbit target
+   over to whatever was tapped, frames it by its own size, and gives a
+   way back. The quad stays the centre of gravity; the scenery becomes
+   somewhere you can actually look. */
+let focused = null, flight = null;
+function flyTo(target, position, done){
+  flight = { from: { t: controls.target.clone(), p: camera.position.clone() },
+             to:   { t: target.clone(), p: position.clone() },
+             t0: performance.now(), ms: 1100, done };
+}
+/* where to stand to see something of the given size, keeping the
+   current heading — and some height, because dropping to eye level
+   turns a fly-over into a face-full of hedge */
+function standOff(target, dist){
+  const dir = camera.position.clone().sub(controls.target).normalize();
+  dir.y = Math.max(dir.y, 0.42);
+  return target.clone().add(dir.normalize().multiplyScalar(dist));
+}
+function stepFlight(now){
+  if (!flight) return;
+  const k = Math.min(1, (now - flight.t0) / flight.ms);
+  const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;   /* ease in-out */
+  controls.target.lerpVectors(flight.from.t, flight.to.t, e);
+  camera.position.lerpVectors(flight.from.p, flight.to.p, e);
+  if (k >= 1){ const d = flight.done; flight = null; if (d) d(); }
+}
+function focusVista(v){
+  focused = v;
+  /* room for the whole thing plus a margin, never closer than the
+     orbit minimum or the controls fight the camera */
+  const dist = Math.max(controls.minDistance, v.radius * 2.6);
+  controls.maxDistance = Math.max(2600, dist * 1.6);
+  flyTo(v.center, standOff(v.center, dist));
+  const back = document.getElementById("vista-back");
+  if (back){ back.textContent = "← leave " + v.label; back.classList.add("show"); }
+  toast("🔭 " + v.label, "Drag to walk around it, scroll to close in. Tap the sky, or the button, to come back to the quad.", "#38bdf8", 5200);
+}
+function returnToQuad(){
+  focused = null;
+  controls.maxDistance = 2600;
+  flyTo(new THREE.Vector3(0, 30, 0), aerialPos());
+  const back = document.getElementById("vista-back");
+  if (back) back.classList.remove("show");
+}
+document.getElementById("vista-back").addEventListener("click", returnToQuad);
+addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && focused && !walker.on) returnToQuad();
 });
 
 /* ══════════════════════════════════════════════════════════════════
@@ -3828,33 +3973,90 @@ const DOORS = [
   { sector:"sci", x:240, y:822 }, { sector:"adm", x:735, y:832 },
   { sector:"cathedral", x:500, y:118 },
 ];
-const walker = { on:false, x:500, y:802, h:0, eye:34, bobT:0, door:null, keys:{} };
+const walker = { on:false, x:500, y:802, h:0, eye:34, bobT:0, door:null, keys:{}, zoom:1 };
+const WALK_FOV = 62;                  /* wide enough to see your feet and the path */
+const WALK_ZOOM_MIN = 1, WALK_ZOOM_MAX = 4.5;
 window.__walker = walker;
+window.__colliders = COLLIDERS;   /* test/debug hook */
+window.__vistas = VISTAS; window.__focusVista = (v) => focusVista(v);   /* test/debug hooks */
 
 function enterWalk(){
   if (walker.on) return;
   walker.on = true;
   walker.x = 500; walker.y = 802; walker.h = 0;
+  walker.zoom = 1;
   controls.enabled = false;
+  /* drop any fly-over outright rather than starting a return trip that
+     would only play out behind the walker's back */
+  flight = null;
+  focused = null;
+  controls.maxDistance = 2600;
+  document.getElementById("vista-back")?.classList.remove("show");
+  applyWalkZoom();
   wing.classList.add("walkmode");
   document.getElementById("walkbtn").textContent = "🚁";
-  toast("Boots on the quad", "WASD to walk · ◀ ▶ to look · E to enter the hall in front of you · F to fly back up.", "#38bdf8", 6500);
+  toast("Boots on the quad", "WASD to walk · ◀ ▶ to look · scroll or pinch to zoom · E to enter the hall in front of you · F to fly back up.", "#38bdf8", 6500);
 }
 function exitWalk(){
   if (!walker.on) return;
   walker.on = false;
   controls.enabled = true;
-  camera.position.set(-640, 690, 640);
+  aerialHome();
   controls.target.set(0, 30, 0);
   camera.rotation.set(0, 0, 0);
+  camera.fov = fovFor(camera.aspect);       /* hand the fov back to the aerial view */
+  camera.updateProjectionMatrix();
   wing.classList.remove("walkmode");
   document.getElementById("walkbtn").textContent = "🎮";
   document.getElementById("doorprompt").classList.remove("show");
 }
 document.getElementById("walkbtn").addEventListener("click", () => walker.on ? exitWalk() : enterWalk());
 
+/* ── walk-mode zoom ──────────────────────────────────────────────────
+   Standing on the quad you are 34 units tall in a 1000-unit campus, so
+   anything across the lawn is tiny. Narrowing the fov is the honest way
+   to "look closer" on foot — it magnifies without moving you, the way
+   raising a hand to shade your eyes does. */
+function applyWalkZoom(){
+  if (!walker.on) return;
+  camera.fov = WALK_FOV / walker.zoom;
+  camera.updateProjectionMatrix();
+  const el = document.getElementById("zoomlvl");
+  if (el) el.textContent = walker.zoom > 1.05 ? walker.zoom.toFixed(1) + "×" : "";
+}
+function walkZoom(factor){
+  if (!walker.on) return;
+  walker.zoom = Math.min(WALK_ZOOM_MAX, Math.max(WALK_ZOOM_MIN, walker.zoom * factor));
+  applyWalkZoom();
+}
+renderer.domElement.addEventListener("wheel", (e) => {
+  if (!walker.on) return;
+  e.preventDefault();                      /* OrbitControls is off; this is ours */
+  walkZoom(e.deltaY < 0 ? 1.12 : 1 / 1.12);
+}, { passive: false });
+
+/* pinch: track the two-finger span and scale the zoom by how it changes */
+let pinchSpan = 0;
+const span = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+renderer.domElement.addEventListener("touchstart", (e) => {
+  if (walker.on && e.touches.length === 2) pinchSpan = span(e.touches);
+}, { passive: true });
+renderer.domElement.addEventListener("touchmove", (e) => {
+  if (!walker.on || e.touches.length !== 2 || !pinchSpan) return;
+  e.preventDefault();
+  const now = span(e.touches);
+  walkZoom(now / pinchSpan);
+  pinchSpan = now;
+}, { passive: false });
+renderer.domElement.addEventListener("touchend", (e) => {
+  if (e.touches.length < 2) pinchSpan = 0;
+}, { passive: true });
+
 function collide(nx, ny){
-  const r = 9;
+  /* Shoulder width. The tightest gap on the main walk measures 48 units,
+     and at r=9 that left barely a body's clearance either side — enough
+     to catch on constantly while moving. */
+  const r = 6;
   if (nx < 30 || nx > 970 || ny < 30 || ny > 970) return true;
   for (const c of COLLIDERS){
     if (nx > c.x - r && nx < c.x + c.w + r && ny > c.y - r && ny < c.y + c.d + r) return true;
@@ -3863,7 +4065,9 @@ function collide(nx, ny){
 }
 function walkUpdate(dt){
   const k = walker.keys;
-  const turn = 115 * dt;
+  /* zoomed in, the same angular rate sweeps far more scenery past the
+     eye, so ease it off in proportion or aiming becomes impossible */
+  const turn = 115 * dt / Math.sqrt(walker.zoom);
   if (k.ArrowLeft || k.tleft)  walker.h -= turn;
   if (k.ArrowRight || k.tright) walker.h += turn;
   let mv = 0, str = 0;
@@ -3871,7 +4075,12 @@ function walkUpdate(dt){
   if (k.KeyS || k.ArrowDown) mv -= 1;
   if (k.KeyA) str -= 1;
   if (k.KeyD) str += 1;
-  const sp = 155 * dt, hr = walker.h * Math.PI / 180;
+  /* 155 crossed the whole 1000-unit campus in six seconds, which is why
+     it felt like bumping into everything: the tightest gap on the walk
+     went past in a third of a second, far too fast to steer through on a
+     phone's turn-and-go controls. A stroll, with Shift to hurry. */
+  const hurry = k.ShiftLeft || k.ShiftRight;
+  const sp = (hurry ? 165 : 92) * dt, hr = walker.h * Math.PI / 180;
   const lx = Math.sin(hr), ly = -Math.cos(hr);
   const rx = Math.cos(hr), ry = Math.sin(hr);
   const nx = walker.x + (lx * mv + rx * str) * sp;
@@ -4014,10 +4223,15 @@ renderer.setAnimationLoop(() => {
   lastT = now;
   stepStudents(dt, now);
   if (walker.on) walkUpdate(dt);
-  else controls.update();
+  else { stepFlight(now); controls.update(); }
   if (autoCycle && !interiorView){
     cycleT += dt / 180;                /* a full day in three minutes */
     setTimeOfDay(cycleT);
+  } else if (liveClock && !interiorView && now - lastClock > 20000){
+    /* the real sky moves slowly; a check every 20s is plenty and keeps
+       this off the per-frame path */
+    lastClock = now;
+    setTimeOfDay(clockT());
   }
   if (fireflies.visible){
     fireflies.rotation.y += dt * 0.02;
@@ -4455,20 +4669,25 @@ document.getElementById("int-courses").addEventListener("click", () => {
 
 /* ── day / auto / night ──────────────────────────────────────────── */
 const LS_MODE = "pembroke.registrar.mode";
-let mode = ["day", "golden", "night", "auto"].includes(localStorage.getItem(LS_MODE))
-  ? localStorage.getItem(LS_MODE) : "day";
+/* New visitors get the sky they are actually standing under — arrive at
+   dusk and the lamps are already lit. Anyone who has picked a mode keeps
+   their choice. */
+const MODES = ["live", "day", "golden", "night", "auto"];
+let mode = MODES.includes(localStorage.getItem(LS_MODE))
+  ? localStorage.getItem(LS_MODE) : "live";
 function applyMode(){
-  const icons = { day: "☀️", golden: "🌇", auto: "🌗", night: "🌙" };
+  const icons = { live: "🕰️", day: "☀️", golden: "🌇", auto: "🌗", night: "🌙" };
   const btn = document.getElementById("daynight");
   btn.textContent = icons[mode];
   btn.title = "Time of day: " + mode + " (N to change)";
   engineSetMode(mode);
 }
 document.getElementById("daynight").addEventListener("click", () => {
-  mode = mode === "day" ? "golden" : mode === "golden" ? "night" : mode === "night" ? "auto" : "day";
+  mode = MODES[(MODES.indexOf(mode) + 1) % MODES.length];
   localStorage.setItem(LS_MODE, mode);
   applyMode();
   const blurb = {
+    live:   ["The campus keeps your hours", "The sky is set to your own clock — arrive at dusk and the lamps are already lit, arrive at three in the morning and the quad is dark."],
     day:    ["High noon over the quad", "Fixed daylight — clean shadows, blue sky."],
     golden: ["Golden hour", "The sun sits low and warm over the halls — the light the postcards are shot in."],
     auto:   ["The sun is loosed", "A full day sweeps past in three minutes — dawn, noon, golden hour, and lamplit night, shadows wheeling as it goes."],
@@ -4479,6 +4698,7 @@ document.getElementById("daynight").addEventListener("click", () => {
 
 /* ── ignition ────────────────────────────────────────────────────── */
 window.__app = { selectSector, openInterior, camera, controls, world };   /* test/debug hooks */
+aerialHome();          /* now that #stage has a real size, frame for it */
 applyMode();
 renderChips();
 renderBanner();

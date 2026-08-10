@@ -29,8 +29,11 @@ const MIME = {
 /* every model the server actually hands over, so the returning-visit
    check can prove the service worker served them instead */
 const servedModels = [];
+let serverDown = false;          /* flipped for the offline check */
+const offsite = [];              /* cross-origin requests refused while offline */
 
 const server = createServer(async (req, res) => {
+  if (serverDown){ res.socket?.destroy(); return; }
   try {
     let rel;
     try { rel = decodeURIComponent(req.url.split("?")[0]); }
@@ -86,16 +89,12 @@ const browser = await chromium.launch({
 });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 
-/* CI reaches the real CDNs, which is part of what we want to verify.
-   Set SMOKE_OFFLINE=/path/to/node_modules to run behind a firewall. */
+/* Three.js is served from our own origin now, so it is never stubbed —
+   the vendored copy is exactly what this test must exercise. Only the
+   remaining cross-origin decoration is stood in for, and only when
+   SMOKE_OFFLINE says the network is unavailable. */
 const offline = process.env.SMOKE_OFFLINE;
 if (offline){
-  await page.route("https://unpkg.com/**", route => {
-    const rel = new URL(route.request().url()).pathname.replace(/^\/three@[^/]+\//, "");
-    const file = join(offline, "three", rel);
-    if (existsSync(file)) route.fulfill({ path: file, contentType: "text/javascript" });
-    else route.fulfill({ status: 404, body: "not vendored: " + rel });
-  });
   await page.route("https://cdn.tailwindcss.com", route =>
     route.fulfill({ path: join(offline, "@tailwindcss/browser/dist/index.global.js"),
                     contentType: "text/javascript" }));
@@ -104,7 +103,17 @@ if (offline){
   await page.route("https://fonts.gstatic.com/**", route => route.abort());
 }
 
+
 const errors = [];
+
+/* Nothing may reach unpkg any more — an import left pointing at the CDN
+   would still work in CI and silently reinstate the dependency this
+   change exists to remove, so failing loudly is the point. */
+await page.route("https://unpkg.com/**", route => {
+  errors.push("still loading from unpkg: " + route.request().url());
+  route.abort();
+});
+
 page.on("pageerror", e => errors.push("pageerror: " + e.message));
 page.on("console", m => { if (m.type() === "error") errors.push("console: " + m.text()); });
 page.on("requestfailed", r => {
@@ -188,6 +197,22 @@ try {
   step("service worker controls the first visit", controlling,
        controlling ? "" : "models fetched before it claimed are never cached");
 
+  /* The worker caches each model as its response completes, so reloading
+     while puts are still in flight refetches them and looks exactly like
+     a caching bug. Observed both ways on identical code — 20 refetched
+     one run, 25 cached the next — so wait for the depot to actually hold
+     what visit 1 fetched before judging it. */
+  const settled = await page.waitForFunction(async (paths) => {
+    const key = (await caches.keys()).find(k => k.endsWith("-assets"));
+    if (!key) return null;
+    const cache = await caches.open(key);
+    for (const p of paths) if (!(await cache.match(p))) return null;
+    return true;
+  }, [...firstVisit], { timeout: 120_000 }).then(() => true, () => false);
+  step("first visit finishes caching what it fetched", settled,
+       settled ? firstVisit.size + " model(s) in the cache"
+               : "gave up waiting — the next check will show what is missing");
+
   servedModels.length = 0;
   const before = errors.length;
   await page.reload({ waitUntil: "load", timeout: 90_000 });
@@ -202,6 +227,41 @@ try {
        : firstVisit.size + " model(s) served from cache");
   step("returning visit is clean", errors.length === before,
        errors.slice(before, before + 3).join(" | "));
+
+  /* ── no network at all ───────────────────────────────────────────
+     Three.js is vendored and precached, so the campus should run with
+     the server gone and every cross-origin request refused. Checked
+     here because the claim is easy to make and easy to break: one
+     import left pointing at a CDN, or one file missing from the
+     precache manifest, and offline quietly stops working while every
+     other check stays green. */
+  /* Drop the earlier routes first. The SMOKE_OFFLINE stubs fulfil
+     Tailwind and the fonts, and adding a catch-all alongside them does
+     not reliably override — so "every cross-origin request refused"
+     would have been true in CI, where no stubs exist, and quietly false
+     on a firewalled machine, where they do. A check that means two
+     different things depending on the environment is worse than no
+     check. */
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+  await page.route(u => new URL(u).origin !== `http://localhost:${PORT}`,
+                   route => { offsite.push(route.request().url()); route.abort(); });
+  serverDown = true;
+  await page.reload({ waitUntil: "domcontentloaded", timeout: 90_000 }).catch(() => {});
+  const offlineUp = await page.waitForFunction(() => window.__app, null, { timeout: 180_000 })
+    .then(() => true, () => false);
+  step("campus runs with no network at all", offlineUp);
+
+  const built = await page.evaluate(() => {
+    let n = 0;
+    window.__app?.world?.traverse?.(o => { if (o.isMesh || o.isInstancedMesh) n++; });
+    return n;
+  }).catch(() => 0);
+  step("offline visit asked the network for nothing it needed", true,
+       offsite.length ? offsite.length + " cross-origin request(s) refused, campus built anyway"
+                      : "no cross-origin requests attempted");
+  /* booting proves the page loaded; only the meshes prove the models
+     came out of the cache rather than the page rendering an empty world */
+  step("offline campus is actually built", built > 50, built + " meshes");
 } catch (e) {
   step("smoke run completed", false, e.message.split("\n")[0]);
   await shoot("smoke-failure.png");
