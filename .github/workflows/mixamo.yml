@@ -116,3 +116,17 @@ jobs:
           git commit -m "Courier: build $(ls /tmp/plan | wc -l) character(s) from Mixamo" \
             || { echo "nothing changed"; exit 0; }
           git push origin HEAD:${{ github.ref_name }}
+
+          # A push made with GITHUB_TOKEN deliberately does not trigger
+          # workflows — GitHub's guard against a workflow re-triggering
+          # itself forever. That means the commit just made, which adds a
+          # model and bumps the cache version, would sit on the branch with
+          # no checks at all and look merely "not yet run" rather than
+          # untested. Ask for the smoke run explicitly; workflow_dispatch
+          # through the API is allowed where a push is not.
+          curl -sS -X POST \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/smoke.yml/dispatches" \
+            -d '{"ref":"${{ github.ref_name }}"}' \
+            && echo "asked smoke to run on ${{ github.ref_name }}"
