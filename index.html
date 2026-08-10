@@ -2480,28 +2480,36 @@ BUILDINGS.forEach(spec => {
     collider: "auto",
     onLoaded: (r) => { cathedralRoot = r; buildCathedralPortal(r); buildCathedralCrown(r); },
   });
-  /* the white cathedral (Gnemegorl) joins the horizon, west */
-  loadLandmark("assets/gothic_cathedral.glb", {
-    plane: [-560, 380], height: 420, rotY: 1.9, maxFoot: [520, 420],
-    dropMatNames: ["metal"], tint: 0xe8dcc6,
-  });
-  /* the city of learning on the horizon: Cologne Cathedral (Shahriar
-     Shahrabi, CC-BY-4.0) NW and Moscow State University (Neo_minigan,
-     CC-BY-4.0) NE, hazed by distance and fog */
-  loadLandmark("assets/cologne.glb", { plane: [-520, -420], height: 540, rotY: 2.6, maxFoot: [760, 760] });
-  loadLandmark("assets/msu.glb", { plane: [1680, -420], height: 780, rotY: -2.4, maxFoot: [1150, 950] });
-  /* the neighboring campus: an aerial-scan district rolling along the
-     east side, its own streets and trees carrying the town beyond the
-     drive toward the horizon */
-  loadLandmark("assets/university.glb", {
-    plane: [1620, 760], height: 300, rotY: Math.PI / 2, maxFoot: [900, 1400], sink: 4.5,
-  });
-  /* the athletics district, south beyond the drive: Pembroke Stadium
-     dead ahead down the boulevard, Pembroke Field to the southwest,
-     the Pembroke Tennis Club and its neighborhood to the southeast */
-  loadLandmark("assets/gridiron.glb", { plane: [500, 1530], height: 110, maxFoot: [720, 700], sink: 3 });
-  loadLandmark("assets/ballpark.glb", { plane: [-380, 1290], height: 62, maxFoot: [430, 440], sink: 2.5 });
-  loadLandmark("assets/tennis.glb",   { plane: [1270, 1280], height: 60, maxFoot: [500, 390], sink: 2.5 });
+  /* ── the outer world loads lazily: the core campus paints first,
+        then the horizon landmarks and districts stream in (~40MB)
+        without contending for first-load bandwidth ─────────────────── */
+  function loadOuterWorld(){
+    /* the white cathedral (Gnemegorl) joins the horizon, west */
+    loadLandmark("assets/gothic_cathedral.glb", {
+      plane: [-560, 380], height: 420, rotY: 1.9, maxFoot: [520, 420],
+      dropMatNames: ["metal"], tint: 0xe8dcc6,
+    });
+    /* the city of learning on the horizon: Cologne Cathedral (Shahriar
+       Shahrabi, CC-BY-4.0) NW and Moscow State University (Neo_minigan,
+       CC-BY-4.0) NE, hazed by distance and fog */
+    loadLandmark("assets/cologne.glb", { plane: [-520, -420], height: 540, rotY: 2.6, maxFoot: [760, 760] });
+    loadLandmark("assets/msu.glb", { plane: [1680, -420], height: 780, rotY: -2.4, maxFoot: [1150, 950] });
+    /* the neighboring campus: an aerial-scan district rolling along the
+       east side, its own streets and trees carrying the town beyond the
+       drive toward the horizon */
+    loadLandmark("assets/university.glb", {
+      plane: [1620, 760], height: 300, rotY: Math.PI / 2, maxFoot: [900, 1400], sink: 4.5,
+    });
+    /* the athletics district, south beyond the drive: Pembroke Stadium
+       dead ahead down the boulevard, Pembroke Field to the southwest,
+       the Pembroke Tennis Club and its neighborhood to the southeast */
+    loadLandmark("assets/gridiron.glb", { plane: [500, 1530], height: 110, maxFoot: [720, 700], sink: 3 });
+    loadLandmark("assets/ballpark.glb", { plane: [-380, 1290], height: 62, maxFoot: [430, 440], sink: 2.5 });
+    loadLandmark("assets/tennis.glb",   { plane: [1270, 1280], height: 60, maxFoot: [500, 390], sink: 2.5 });
+  }
+  const deferOuter = () => setTimeout(loadOuterWorld, 2200);
+  if (document.readyState === "complete") deferOuter();
+  else window.addEventListener("load", deferOuter, { once: true });
   /* monument gateway signs — every venue reads Pembroke */
   const stadiumSign = (px, py, text, w2) => {
     const c = document.createElement("canvas"); c.width = 1024; c.height = 192;
