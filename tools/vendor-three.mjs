@@ -22,10 +22,11 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const NM = process.argv[2] || "node_modules";
 const SRC = path.join(NM, "three");
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DST = path.join(ROOT, "assets/vendor/three");
 
 if (!fs.existsSync(SRC)){
@@ -72,7 +73,9 @@ function walk(rel){
     if (spec.startsWith("three/addons/"))
       walk("examples/jsm/" + spec.slice("three/addons/".length));
     else if (spec.startsWith("."))
-      walk(path.normalize(path.join(path.dirname(rel), spec)));
+      /* POSIX join: these become URLs in files.json and the importmap, so
+         a Windows-style backslash here would ship a path nothing can fetch */
+      walk(path.posix.normalize(path.posix.join(path.posix.dirname(rel), spec)));
     else missing.push(`${rel} -> ${spec}`);
   }
 }

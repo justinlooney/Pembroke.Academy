@@ -106,16 +106,6 @@ self.addEventListener("activate", (e) => {
    own origin now, so it caches on the same terms as the models. */
 const isArt = (url) => /\/assets\/.+\.(glb|png|jpe?g|webp|svg|js)$/i.test(url.pathname);
 
-/* A response that arrived through a redirect is rejected by the browser
-   when a worker hands it back. Rebuilding it drops the redirect flag and
-   keeps the bytes. */
-async function plain(res){
-  if (!res || !res.redirected) return res;
-  const body = await res.blob();
-  return new Response(body, {
-    status: res.status, statusText: res.statusText, headers: res.headers });
-}
-
 async function cacheFirst(req, cacheName){
   const cache = await caches.open(cacheName);
   const hit = await cache.match(req);
