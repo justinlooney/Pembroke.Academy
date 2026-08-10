@@ -15,7 +15,7 @@ import { chromium } from "playwright";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { existsSync, statSync } from "node:fs";
-import { join, extname, dirname, resolve } from "node:path";
+import { join, extname, dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -27,13 +27,24 @@ const MIME = {
 };
 
 const server = createServer(async (req, res) => {
-  const rel = decodeURIComponent(req.url.split("?")[0]);
-  const path = join(ROOT, rel === "/" ? "index.html" : rel);
-  if (!path.startsWith(ROOT) || !existsSync(path) || statSync(path).isDirectory()){
-    res.writeHead(404); res.end("not found"); return;
+  try {
+    let rel;
+    try { rel = decodeURIComponent(req.url.split("?")[0]); }
+    catch { res.writeHead(400); res.end("bad request"); return; }   /* malformed %-escape */
+    const path = resolve(ROOT, "." + (rel === "/" ? "/index.html" : rel));
+    /* boundary-aware containment: a plain prefix test would let
+       /repo-elsewhere pass for ROOT=/repo */
+    if (path !== ROOT && !path.startsWith(ROOT + sep)){
+      res.writeHead(403); res.end("forbidden"); return;
+    }
+    if (!existsSync(path) || statSync(path).isDirectory()){
+      res.writeHead(404); res.end("not found"); return;
+    }
+    res.writeHead(200, { "content-type": MIME[extname(path)] || "application/octet-stream" });
+    res.end(await readFile(path));
+  } catch (e) {
+    res.writeHead(500); res.end("server error");
   }
-  res.writeHead(200, { "content-type": MIME[extname(path)] || "application/octet-stream" });
-  res.end(await readFile(path));
 });
 
 /* screenshots are evidence, never a verdict — a software renderer can
@@ -41,6 +52,21 @@ const server = createServer(async (req, res) => {
 const shoot = async (path) => {
   try { await page.screenshot({ path, timeout: 90_000 }); }
   catch { console.log(`  ..   screenshot skipped (${path})`); }
+};
+
+/* CI has no GPU and 80MB of models decode on the main thread, so the
+   page can be wedged for seconds at a time. Re-check before re-pressing
+   so a toggle key is never fired twice, and give the world room. */
+const pressUntil = async (key, predicate, budgetMs = 150_000) => {
+  const deadline = Date.now() + budgetMs;
+  while (Date.now() < deadline){
+    if (await page.evaluate(predicate).catch(() => false)) return true;
+    await page.keyboard.press(key).catch(() => {});
+    const ok = await page.waitForFunction(predicate, null, { timeout: 15_000 })
+      .then(() => true, () => false);
+    if (ok) return true;
+  }
+  return page.evaluate(predicate).catch(() => false);
 };
 
 const failures = [];
@@ -101,40 +127,35 @@ try {
   step("registrar ledger reports", /\d/.test(shelf.total), JSON.stringify(shelf.total));
 
   /* walk mode: stand at the cathedral doors and expect the prompt */
-  await page.keyboard.press("f");
-  await page.waitForFunction(() => window.__walker.on === true, null, { timeout: 15_000 });
-  step("walk mode engages", true);
+  step("walk mode engages", await pressUntil("f", () => window.__walker.on === true));
 
   await page.evaluate(() => { const w = window.__walker; w.x = 500; w.y = 132; w.h = 0; });
   const doored = await page
-    .waitForFunction(() => window.__walker.door === "cathedral", null, { timeout: 150_000 })
+    .waitForFunction(() => window.__walker.door === "cathedral", null, { timeout: 180_000 })
     .then(() => true, () => false);
   step("cathedral door prompt appears", doored,
        doored ? "" : "walker.door never became 'cathedral' (model may not have loaded)");
   step("prompt is visible to the player",
-       await page.evaluate(() => document.getElementById("doorprompt").classList.contains("show")));
+       await page.evaluate(() =>
+         !!document.getElementById("doorprompt")?.classList.contains("show")));
 
   /* step inside the nave, then back out */
-  await page.keyboard.press("e");
-  const inside = await page
-    .waitForFunction(() => !!document.querySelector(".interior-open"), null, { timeout: 60_000 })
-    .then(() => true, () => false);
+  const inside = await pressUntil("e", () => !!document.querySelector(".interior-open"));
   step("cathedral interior opens", inside);
   await shoot("smoke-interior.png");
 
-  await page.keyboard.press("Escape");
   step("interior closes",
-       await page.waitForFunction(() => !document.querySelector(".interior-open"), null, { timeout: 20_000 })
-         .then(() => true, () => false));
+       await pressUntil("Escape", () => !document.querySelector(".interior-open"), 60_000));
 
-  /* the clock: day → golden → night, each a real visual state */
-  const seen = [];
-  for (const _ of [0, 1, 2]){
-    await page.keyboard.press("n");
-    await page.waitForTimeout(2500);
-    seen.push(await page.evaluate(() => window.__visual));
+  /* the clock cycles day → golden → night → auto; press until night lands */
+  let night = false;
+  for (let i = 0; i < 6 && !night; i++){
+    await page.keyboard.press("n").catch(() => {});
+    night = await page.waitForFunction(() => window.__visual === "night", null, { timeout: 25_000 })
+      .then(() => true, () => false);
   }
-  step("day/night cycle reaches night", seen.includes("night"), seen.join(" → "));
+  step("day/night cycle reaches night", night,
+       await page.evaluate(() => window.__visual).catch(() => "?"));
 
   step("no console errors or failed assets", errors.length === 0,
        errors.slice(0, 5).join(" | "));
