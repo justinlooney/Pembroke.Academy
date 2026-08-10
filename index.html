@@ -2503,13 +2503,58 @@ BUILDINGS.forEach(spec => {
     /* the athletics district, south beyond the drive: Pembroke Stadium
        dead ahead down the boulevard, Pembroke Field to the southwest,
        the Pembroke Tennis Club and its neighborhood to the southeast */
-    loadLandmark("assets/gridiron.glb", { plane: [500, 1530], height: 110, maxFoot: [720, 700], sink: 3 });
+    loadLandmark("assets/gridiron.glb", { plane: [500, 1530], height: 110, maxFoot: [720, 700], sink: 3,
+      rotY: Math.PI,                     /* grand entrance faces the boulevard */
+      onLoaded: brandStadium });
     loadLandmark("assets/ballpark.glb", { plane: [-380, 1290], height: 62, maxFoot: [430, 440], sink: 2.5 });
     loadLandmark("assets/tennis.glb",   { plane: [1270, 1280], height: 60, maxFoot: [500, 390], sink: 2.5 });
   }
   const deferOuter = () => setTimeout(loadOuterWorld, 2200);
   if (document.readyState === "complete") deferOuter();
   else window.addEventListener("load", deferOuter, { once: true });
+  /* re-brand the football stadium: navy-and-gold Pembroke boards
+     mounted over the scan's baked lettering (rotunda banners and the
+     fascia band), placed at ray-probed model-local coordinates */
+  function brandStadium(root){
+    root.updateMatrixWorld(true);
+    const mkBoard = (w2, h2, draw) => {
+      const c = document.createElement("canvas");
+      c.width = 512; c.height = Math.max(64, Math.round(512 * h2 / w2));
+      const x = c.getContext("2d");
+      x.fillStyle = "#0f1b2d"; x.fillRect(0, 0, c.width, c.height);
+      x.strokeStyle = "#d4af6a"; x.lineWidth = Math.max(6, c.height * 0.045);
+      x.strokeRect(x.lineWidth / 2 + 2, x.lineWidth / 2 + 2, c.width - x.lineWidth - 4, c.height - x.lineWidth - 4);
+      draw(x, c.width, c.height);
+      const t = new THREE.CanvasTexture(c);
+      t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+      return new THREE.Mesh(new THREE.PlaneGeometry(w2, h2),
+        new THREE.MeshStandardMaterial({ map: t, roughness: 0.55 }));
+    };
+    const mount = (board, px, py, pz, nx, ny, nz) => {
+      board.position.set(px + nx * 3.2, py + ny * 3.2, pz + nz * 3.2);
+      root.add(board);
+      root.updateMatrixWorld(true);
+      board.lookAt(root.localToWorld(new THREE.Vector3(px + nx * 40, py + ny * 40, pz + nz * 40)));
+    };
+    /* rotunda banners: gold P over PEMBROKE */
+    [[-45.3, -19.7, 169.6, 0.45, 0.03, 0.89], [89.7, -21.5, 107.5, 0.45, -0.02, 0.89]].forEach(p => {
+      const b = mkBoard(16, 21, (x, w2, h2) => {
+        x.fillStyle = "#d4af6a"; x.textAlign = "center";
+        x.font = "bold " + Math.round(h2 * 0.52) + "px Georgia"; x.textBaseline = "middle";
+        x.fillText("P", w2 / 2, h2 * 0.38);
+        x.font = "bold " + Math.round(h2 * 0.11) + "px Georgia";
+        x.fillText("PEMBROKE", w2 / 2, h2 * 0.78);
+      });
+      mount(b, ...p);
+    });
+    /* the fascia band: PEMBROKE STADIUM across the gate */
+    const band = mkBoard(68, 8.5, (x, w2, h2) => {
+      x.fillStyle = "#d4af6a"; x.textAlign = "center"; x.textBaseline = "middle";
+      x.font = "bold " + Math.round(h2 * 0.62) + "px Georgia";
+      x.fillText("PEMBROKE STADIUM", w2 / 2, h2 * 0.54);
+    });
+    mount(band, 18.9, -18, 130.7, 0.71, 0.09, 0.7);
+  }
   /* monument gateway signs — every venue reads Pembroke */
   const stadiumSign = (px, py, text, w2) => {
     const c = document.createElement("canvas"); c.width = 1024; c.height = 192;
