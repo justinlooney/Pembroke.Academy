@@ -2489,6 +2489,12 @@ BUILDINGS.forEach(spec => {
      CC-BY-4.0) NE, hazed by distance and fog */
   loadLandmark("assets/cologne.glb", { plane: [-520, -420], height: 540, rotY: 2.6, maxFoot: [760, 760] });
   loadLandmark("assets/msu.glb", { plane: [1680, -420], height: 780, rotY: -2.4, maxFoot: [1150, 950] });
+  /* the neighboring campus: an aerial-scan district rolling along the
+     east side, its own streets and trees carrying the town beyond the
+     drive toward the horizon */
+  loadLandmark("assets/university.glb", {
+    plane: [1620, 760], height: 300, rotY: Math.PI / 2, maxFoot: [900, 1400], sink: 4.5,
+  });
   /* dormitory ranges */
   stoneBox(amb, { x: 856, y: 240, w: 64, d: 310, h: 70, windows: "lancet", seed: 16, accent: "#d9c48a", noRoof: true });
   gableRoof(amb, { x: 856, y: 240, w: 64, d: 310, z: 70, h: 28, axis: "y" });
@@ -2773,6 +2779,8 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat){
     (i % 2 ? PINES1 : PINES2).push([px, py, 0.9 + ((i * 31) % 40) / 60]);
   }
   [[150, 60, 1], [252, 44, 0.85], [744, 52, 0.9], [862, 60, 1.05]].forEach(p => PINES2.push(p));
+  /* a conifer screen between the east drive and the neighboring district */
+  for (let y = 140; y <= 940; y += 88) (y % 176 < 88 ? PINES1 : PINES2).push([1085 + (y * 7) % 26, y, 1 + (y * 13) % 30 / 55]);
   const TREE2S = [[300,330,1.1],[360,268,0.9],[700,332,1],[268,640,1.05],[352,708,0.95],
                   [652,712,1.1],[726,640,0.9],[262,360,0.95],[738,368,1.05],[640,268,0.9]];
   const TSMALL = [[840,300,1],[840,420,0.9],[840,540,1.1],[130,420,1],[130,540,0.95],
