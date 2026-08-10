@@ -4,7 +4,15 @@
  * The campus is ~39MB of models. Downloading it once is reasonable;
  * downloading it on every visit is not. This keeps the models in the
  * Cache API so a returning student walks onto the quad immediately,
- * and the site keeps working with no connection at all.
+ * and the campus survives its host going down.
+ *
+ * It does NOT survive having no connection at all, and should not claim
+ * to: Three.js still comes from unpkg, and this worker deliberately
+ * leaves cross-origin requests alone (see below), so offline rests on
+ * the browser's own HTTP cache, which is evictable. Vendoring Three.js
+ * same-origin is what would make real offline true. Until then, the
+ * honest promise is "works when the server is down", not "works on a
+ * plane".
  *
  * Deliberately NOT a precache: pulling 39MB during install would make
  * a first visit worse to make later ones better, and most of that
@@ -30,13 +38,38 @@ const VERSION = "pembroke-v1";
 const SHELL = VERSION + "-shell";
 const DEPOT = VERSION + "-assets";
 
+/* A response that arrived through a redirect is rejected by the browser
+   when a worker hands it back. Rebuilding it drops the redirect flag and
+   keeps the bytes. */
+async function plain(res){
+  if (!res || !res.redirected) return res;
+  const body = await res.blob();
+  return new Response(body, {
+    status: res.status, statusText: res.statusText, headers: res.headers });
+}
+
+// Only the shell is worth precaching — it is small and always needed.
+const SHELL_FILES = ["./", "./index.html"];
+
 self.addEventListener("install", (e) => {
-  // Only the shell is worth precaching — it is small and always needed.
-  e.waitUntil(
-    caches.open(SHELL)
-      .then((c) => c.addAll(["./", "./index.html"]).catch(() => {}))
-      .then(() => self.skipWaiting())
-  );
+  /* Deliberately allowed to fail. Swallowing an error here and calling
+     skipWaiting anyway would activate a worker that knows it has no
+     shell, right after activate has deleted the previous version's
+     caches — trading a working offline fallback for a broken one and
+     saying nothing. Letting install reject instead leaves the existing
+     worker in place, still serving, and the browser retries later.
+
+     Not addAll: it stores whatever it gets, and a redirected response
+     cached here could never legally be served back. */
+  e.waitUntil((async () => {
+    const cache = await caches.open(SHELL);
+    for (const url of SHELL_FILES){
+      const res = await plain(await fetch(url, { cache: "reload" }));
+      if (!res || !res.ok) throw new Error("shell precache failed: " + url);
+      await cache.put(url, res);
+    }
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener("activate", (e) => {

@@ -113,7 +113,7 @@ page.on("requestfailed", r => {
      whatever is still in flight. A request the browser abandoned on
      navigation is not a broken asset — only a request that tried and
      could not finish is. */
-  if (r.failure()?.errorText === "net::ERR_ABORTED") return;
+  if ((r.failure()?.errorText || "").includes("ERR_ABORTED")) return;
   if (u.includes("/assets/")) errors.push("asset request failed: " + u.split("/").pop());
 });
 page.on("response", r => {

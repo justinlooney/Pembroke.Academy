@@ -25,9 +25,28 @@
    otherwise miserable to get rid of. */
 if ("serviceWorker" in navigator){
   if (new URLSearchParams(location.search).has("nosw")){
-    navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()));
-    if (window.caches) caches.keys().then(ks => ks.forEach(k => caches.delete(k)));
+    /* Unregistering does not release the page that is already running:
+       it keeps its controller for this whole load, so clearing without
+       reloading leaves you looking at the very worker you asked to be
+       rid of. Clear, then reload once, keeping ?nosw in the URL so the
+       fresh load stays unregistered. The sessionStorage flag is what
+       stops that reload repeating forever. */
+    (async () => {
+      try {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r => r.unregister()));
+        if (window.caches){
+          const keys = await caches.keys();
+          await Promise.all(keys.map(k => caches.delete(k)));
+        }
+      } catch (e) { /* best effort — a reload is still worth trying */ }
+      if (!sessionStorage.getItem("nosw")){
+        sessionStorage.setItem("nosw", "1");
+        location.reload();
+      }
+    })();
   } else {
+    sessionStorage.removeItem("nosw");
     navigator.serviceWorker.register("sw.js").catch(() => {});
   }
 }
