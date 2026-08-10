@@ -1791,9 +1791,16 @@ const camera = new THREE.PerspectiveCamera(46, 1, 2, 6000);
    campus to a smudge — but it shows the cathedral and the district
    edges, and the zoom now reaches the rest. */
 const AERIAL = [-640, 690, 640];
-function aerialPos(){
+const PORTRAIT_K = 1.5;
+/* How far back the aerial view stands. Portrait screens stand back
+   further to fit anything at all — and the fog has to travel with them,
+   or the extra distance just buys haze. */
+function standBack(){
   const tall = (stageEl?.clientWidth || 1200) / (stageEl?.clientHeight || 800) < 0.85;
-  const k = tall ? 1.5 : 1;
+  return tall ? PORTRAIT_K : 1;
+}
+function aerialPos(){
+  const k = standBack();
   return new THREE.Vector3(AERIAL[0] * k, AERIAL[1] * k, AERIAL[2] * k);
 }
 function aerialHome(){ camera.position.copy(aerialPos()); }
@@ -1830,6 +1837,20 @@ function fovFor(aspect){
   const need = 2 * Math.atan(Math.tan(MIN_H_FOV / 2) / Math.max(aspect, 0.3));
   return Math.min(78, Math.max(BASE_FOV, need * 180 / Math.PI));
 }
+/* Fog distances are tuned for how far away the campus actually is. The
+   portrait view stands back by PORTRAIT_K, so the haze moves out by the
+   same factor — otherwise the arrival view on a phone is a pale smear
+   with the quad dissolved into it, which is exactly what it was. */
+let fogDay = true;
+function applyFog(){
+  if (!world?.fog) return;                /* called from resize before the fog exists */
+  /* on foot you are standing in the middle of it, not looking at it from
+     a mile up, so the aerial standoff must not push your horizon out */
+  const k = window.__walker?.on ? 1 : standBack();
+  world.fog.near = (fogDay ? 900 : 500) * k;
+  world.fog.far  = (fogDay ? 3000 : 2400) * k;
+}
+
 function resize(){
   const w = stageEl.clientWidth || 800, h = stageEl.clientHeight || 600;
   renderer.setSize(w, h);
@@ -1841,6 +1862,7 @@ function resize(){
      would be in its dead zone on the first call. */
   if (!window.__walker?.on) camera.fov = fovFor(camera.aspect);
   camera.updateProjectionMatrix();
+  applyFog();                             /* rotating the phone changes the standoff */
 }
 window.addEventListener("resize", resize);
 
@@ -3834,8 +3856,8 @@ function setVisualBinary(v){
   window.__visual = v;
   const day = v === "day";
   document.body.classList.toggle("day", day);
-  world.fog.near = day ? 900 : 500;
-  world.fog.far = day ? 3000 : 2400;
+  fogDay = day;
+  applyFog();
   stars.visible = !day;
   fireflies.visible = !day;
   lampLights.forEach(l => l.intensity = day ? 0 : 1400);
@@ -3993,6 +4015,7 @@ function enterWalk(){
   controls.maxDistance = 2600;
   document.getElementById("vista-back")?.classList.remove("show");
   applyWalkZoom();
+  applyFog();                           /* ground-level horizon, not the aerial one */
   wing.classList.add("walkmode");
   document.getElementById("walkbtn").textContent = "🚁";
   toast("Boots on the quad", "WASD to walk · ◀ ▶ to look · scroll or pinch to zoom · E to enter the hall in front of you · F to fly back up.", "#38bdf8", 6500);
@@ -4006,6 +4029,7 @@ function exitWalk(){
   camera.rotation.set(0, 0, 0);
   camera.fov = fovFor(camera.aspect);       /* hand the fov back to the aerial view */
   camera.updateProjectionMatrix();
+  applyFog();
   wing.classList.remove("walkmode");
   document.getElementById("walkbtn").textContent = "🎮";
   document.getElementById("doorprompt").classList.remove("show");
