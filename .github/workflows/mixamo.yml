@@ -1,10 +1,10 @@
 name: mixamo
 
-# Turns a list of Drive links into an animated character, on GitHub's
-# servers. Mixamo needs a browser login, so the download cannot be
-# automated — but everything after it can, and doing it here means no
-# Blender, no venv and no laptop in the loop. Edit tools/mixamo-inbox.txt
-# (the web editor on a phone is enough), commit, and collect the GLB.
+# Turns Drive links into animated characters, on GitHub's servers. Mixamo
+# needs a browser login, so the download cannot be automated — but
+# everything after it can, and doing it here means no Blender, no venv and
+# no laptop in the loop. Edit tools/mixamo-inbox.txt (the web editor on a
+# phone is enough), commit, and collect the models.
 on:
   push:
     paths: ['tools/mixamo-inbox.txt']
@@ -18,83 +18,70 @@ concurrency: mixamo
 jobs:
   convert:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
       - name: Read the inbox
-        id: inbox
+        id: plan
         run: |
-          # strip comments and blanks; anything left is "name  url"
-          grep -vE '^\s*(#|$)' tools/mixamo-inbox.txt > /tmp/entries || true
-          count=$(wc -l < /tmp/entries)
-          echo "entries=$count" >> "$GITHUB_OUTPUT"
-          out=$(sed -n 's/^#\s*out:\s*//p' tools/mixamo-inbox.txt | head -1)
-          echo "out=${out:-assets/stu_walker.glb}" >> "$GITHUB_OUTPUT"
-          if [ "$count" -lt 2 ]; then
-            echo "Inbox has $count entry(s). Needs a character plus at least one"
-            echo "animation, so there is nothing to do yet — this is not a failure."
-          else
-            echo "Will fetch $count file(s) into ${out:-assets/stu_walker.glb}"
-            cat /tmp/entries
-          fi
-
-      - name: Fetch from Drive
-        if: steps.inbox.outputs.entries >= 2
-        run: |
-          mkdir -p /tmp/fbx
-          fail=0
-          while read -r name url; do
-            [ -z "$name" ] && continue
-            id=$(sed -n 's#.*/d/\([^/]*\).*#\1#p' <<<"$url")
-            if [ -z "$id" ]; then
-              echo "::error::$name — could not read a file id out of: $url"
-              fail=1; continue
-            fi
-            curl -sL "https://drive.google.com/uc?export=download&id=$id" -o "/tmp/fbx/$name.fbx"
-            # Drive answers a login page with HTTP 200, so the only honest
-            # test is whether the bytes are actually an FBX.
-            if head -c 20 "/tmp/fbx/$name.fbx" | grep -q "Kaydara"; then
-              printf '  ok   %-18s %s\n' "$name" "$(du -h "/tmp/fbx/$name.fbx" | cut -f1)"
-            else
-              echo "::error::$name is not an FBX — share it as 'Anyone with the link'"
-              rm -f "/tmp/fbx/$name.fbx"; fail=1
-            fi
-          done < /tmp/entries
-          exit $fail
+          python3 tools/mixamo-plan.py tools/mixamo-inbox.txt /tmp/plan
+          n=$(ls /tmp/plan 2>/dev/null | wc -l)
+          echo "blocks=$n" >> "$GITHUB_OUTPUT"
 
       - name: Install Blender
-        if: steps.inbox.outputs.entries >= 2
+        if: steps.plan.outputs.blocks != '0'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq blender >/dev/null
           blender --version | head -1
-
-      - name: Convert
-        if: steps.inbox.outputs.entries >= 2
-        run: |
-          # character first, animations after — the order in the inbox
-          args=$(while read -r name url; do printf '/tmp/fbx/%s.fbx ' "$name"; done < /tmp/entries)
-          blender --background --python-exit-code 1 \
-                  --python tools/mixamo-to-glb.py -- "${{ steps.inbox.outputs.out }}" $args
-
-      - name: Shrink it
-        if: steps.inbox.outputs.entries >= 2
-        run: |
           npm install -g --silent @gltf-transform/cli
-          before=$(stat -c%s "${{ steps.inbox.outputs.out }}")
-          # Textures and vertex data only. Simplification rewrites the mesh
-          # and takes the skin weights with it, and joining merges the nodes
-          # the skeleton is bound to — either one turns a walking student
-          # into a bag of knots.
-          gltf-transform optimize "${{ steps.inbox.outputs.out }}" "${{ steps.inbox.outputs.out }}" \
-            --compress meshopt --texture-compress webp --texture-size 1024 \
-            --simplify false --join false
-          after=$(stat -c%s "${{ steps.inbox.outputs.out }}")
-          echo "$before $after" | awk '{printf "%.1fMB -> %.1fMB\n", $1/1e6, $2/1e6}'
+
+      - name: Fetch and build
+        if: steps.plan.outputs.blocks != '0'
+        run: |
+          set -o pipefail
+          for block in /tmp/plan/block-*; do
+            out=$(head -1 "$block")
+            echo "::group::$out"
+            rm -rf /tmp/fbx && mkdir -p /tmp/fbx
+            args=""
+            fail=0
+            while IFS=$'\t' read -r name id; do
+              [ -z "$name" ] && continue
+              curl -sL "https://drive.google.com/uc?export=download&id=$id" \
+                   -o "/tmp/fbx/$name.fbx"
+              # Drive answers a login page with HTTP 200, so the only
+              # honest test is whether the bytes are an FBX.
+              if head -c 20 "/tmp/fbx/$name.fbx" | grep -q "Kaydara"; then
+                printf '  ok   %-18s %s\n' "$name" "$(du -h "/tmp/fbx/$name.fbx" | cut -f1)"
+                args="$args /tmp/fbx/$name.fbx"
+              else
+                echo "::error::$name is not an FBX — share it as 'Anyone with the link'"
+                fail=1
+              fi
+            done < <(tail -n +2 "$block")
+            [ "$fail" = 1 ] && exit 1
+
+            mkdir -p "$(dirname "$out")"
+            blender --background --python-exit-code 1 \
+                    --python tools/mixamo-to-glb.py -- "$out" $args
+
+            before=$(stat -c%s "$out")
+            # Textures and vertex data only. Simplification rewrites the
+            # mesh and takes the skin weights with it, and joining merges
+            # the nodes the skeleton is bound to — either one turns a
+            # walking student into a bag of knots.
+            gltf-transform optimize "$out" "$out" \
+              --compress meshopt --texture-compress webp --texture-size 1024 \
+              --simplify false --join false
+            stat -c%s "$out" | xargs -I{} echo "$before {}" \
+              | awk '{printf "  %.1fMB -> %.1fMB\n", $1/1e6, $2/1e6}'
+            echo "::endgroup::"
+          done
 
       - name: Bump the cache version
-        if: steps.inbox.outputs.entries >= 2
+        if: steps.plan.outputs.blocks != '0'
         run: |
           # assets/ changed, so returning visitors would otherwise keep the
           # old campus forever — and the PR guard would fail the build.
@@ -103,11 +90,11 @@ jobs:
           grep '^const VERSION' sw.js
 
       - name: Commit
-        if: steps.inbox.outputs.entries >= 2
+        if: steps.plan.outputs.blocks != '0'
         run: |
           git config user.name "pembroke-asset-courier"
           git config user.email "actions@users.noreply.github.com"
-          git add "${{ steps.inbox.outputs.out }}" sw.js
-          git commit -m "Courier: build $(basename "${{ steps.inbox.outputs.out }}") from Mixamo" \
+          git add assets sw.js
+          git commit -m "Courier: build $(ls /tmp/plan | wc -l) character(s) from Mixamo" \
             || { echo "nothing changed"; exit 0; }
           git push origin HEAD:${{ github.ref_name }}
