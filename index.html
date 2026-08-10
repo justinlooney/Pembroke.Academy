@@ -877,7 +877,7 @@ git push -u origin main</pre>
         <div>
           <span class="font-serif-d italic text-[13px] text-slate-400">"Lux, Mathesis, Machina"</span> — Light, Learning, and the Machine.
           <div class="mt-1">Progress is inscribed to your browser's <code class="font-mono-d text-[10.5px]">localStorage</code> ledger — it survives every visit.</div>
-          <div class="mt-1 text-slate-600">3D (all <a class="underline hover:text-slate-400" href="http://creativecommons.org/licenses/by/4.0/">CC-BY-4.0</a>, adapted): "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/campus-conversation-228d51c9b87b40fdb655ad10213bff8e">Campus Conversation</a>" by restore50 · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/gothic-cathedral-8b8f08c852e949ecba39ca0dd29448f0">Gothic cathedral</a>" by Gnemegorl · "Cologne Cathedral" by Shahriar Shahrabi · "МГУ Moscow State University" by Neo_minigan · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/tabitown">Cathedral</a>" by tabitown · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/zagreb-cathedral-facade-croatia-827a80ec7d90434c94f4fc99293d0938">Zagreb Cathedral facade</a>" by HoangHiepVu · "Casual Student with Laptop" by restore50 · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/vmmaniac">STUDENT_2</a>" by vmmaniac.</div>
+          <div class="mt-1 text-slate-600">3D (all <a class="underline hover:text-slate-400" href="http://creativecommons.org/licenses/by/4.0/">CC-BY-4.0</a>, adapted): "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/campus-conversation-228d51c9b87b40fdb655ad10213bff8e">Campus Conversation</a>" by restore50 · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/gothic-cathedral-8b8f08c852e949ecba39ca0dd29448f0">Gothic cathedral</a>" by Gnemegorl · "Cologne Cathedral" by Shahriar Shahrabi · "МГУ Moscow State University" by Neo_minigan · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/tabitown">Cathedral</a>" by tabitown · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/zagreb-cathedral-facade-croatia-827a80ec7d90434c94f4fc99293d0938">Zagreb Cathedral facade</a>" by HoangHiepVu · "Casual Student with Laptop" by restore50 · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/vmmaniac">STUDENT_2</a>" by vmmaniac · flora by Miguel-Angel, PropShop™, EFX, Joanne Viertel &amp; Batuhan13.</div>
         </div>
         <button id="reset-ledger" class="chip rounded-full px-4 py-1.5 text-[11px] uppercase tracking-[.15em] text-slate-400 hover:text-red-300 hover:border-red-400/50">Reset ledger</button>
       </footer>
@@ -2685,6 +2685,7 @@ const TREE_TARGET_H = { oak: 50, elm: 64, pine: 54, maple: 58 };
       if (!src.isMesh) return;
       src.updateWorldMatrix(true, false);
       const geo = src.geometry.clone();
+      toFloatAttrs(geo);
       geo.applyMatrix4(src.matrixWorld);      /* bake node transforms for instancing */
       if (src.material.alphaTest) src.material.alphaTest = 0.12;  /* keep leaf cards at distance */
       const inst = new THREE.InstancedMesh(geo, src.material, list.length);
@@ -2707,6 +2708,100 @@ const CAR_TONES = [
   [0.62,0.16,0.13],[0.24,0.30,0.42],[0.79,0.77,0.72],[0.13,0.14,0.16],[0.48,0.29,0.18],
   [0.29,0.35,0.28],[0.35,0.19,0.31],[0.20,0.26,0.31],[0.72,0.70,0.66],[0.55,0.08,0.09],
 ];
+/* ── the landscape library: community flora, split by node prefix
+     and instanced across the grounds ──────────────────────────────── */
+/* quantized (KHR) attributes store normalized ints; baking a matrix
+   into them corrupts the mesh — promote to float first */
+function toFloatAttrs(geo){
+  ["position", "normal"].forEach(name => {
+    const a = geo.attributes[name];
+    if (!a || (a.array instanceof Float32Array && !a.normalized)) return;
+    const f = new THREE.BufferAttribute(new Float32Array(a.count * a.itemSize), a.itemSize);
+    for (let i = 0; i < a.count; i++) f.setXYZ(i, a.getX(i), a.getY(i), a.getZ(i));
+    geo.setAttribute(name, f);
+  });
+}
+function plantSpecies(root, prefix, list, targetH, shadows, dropMat){
+  const meshes = [];
+  root.updateMatrixWorld(true);
+  root.traverse(o => {
+    if (!o.isMesh) return;
+    if (prefix !== "" && !o.name.toLowerCase().startsWith(prefix)) return;
+    if (dropMat && (o.material.name || "").toLowerCase() === dropMat) return;
+    meshes.push(o);
+  });
+  if (!meshes.length || !list.length) return;
+  const bb = new THREE.Box3();
+  const parts = meshes.map(o => {
+    const geo = o.geometry.clone();
+    toFloatAttrs(geo);
+    geo.applyMatrix4(o.matrixWorld);
+    geo.computeBoundingBox();
+    bb.union(geo.boundingBox);
+    if (o.material.alphaTest) o.material.alphaTest = 0.12;
+    return [geo, o.material];
+  });
+  const size = new THREE.Vector3(); bb.getSize(size);
+  const ctr = new THREE.Vector3(); bb.getCenter(ctr);
+  const k0 = targetH / Math.max(1e-6, size.y);
+  const up = new THREE.Vector3(0, 1, 0);
+  parts.forEach(([geo, mat]) => {
+    geo.translate(-ctr.x, -bb.min.y, -ctr.z);
+    const inst = new THREE.InstancedMesh(geo, mat, list.length);
+    inst.castShadow = !!shadows;
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
+    list.forEach(([px, py, s2, rot], i) => {
+      const k = k0 * (s2 || 1);
+      q.setFromAxisAngle(up, rot !== undefined ? rot : (i * 2.39996 + px * 0.013) % (Math.PI * 2));
+      sc.setScalar(k);
+      m4.compose(new THREE.Vector3(W(px), 0, W(py)), q, sc);
+      inst.setMatrixAt(i, m4);
+    });
+    world.add(inst);
+  });
+}
+{
+  /* photoreal firs and spruces thicken the horizon and the belts */
+  const PINES1 = [], PINES2 = [];
+  for (let i = 0; i < 30; i++){
+    const a = (i / 30) * Math.PI * 2 + 0.17 + (i % 5) * 0.07;
+    const r = 720 + ((i * 173) % 460);
+    const px = 500 + Math.cos(a) * r, py = 500 + Math.sin(a) * r;
+    if (px > 290 && px < 710 && py > -400 && py < 100) continue;
+    if (px > 1400 || (px < -300 && py < -200)) continue;
+    if (px < -350 && py > 200 && py < 560) continue;
+    (i % 2 ? PINES1 : PINES2).push([px, py, 0.9 + ((i * 31) % 40) / 60]);
+  }
+  [[150, 60, 1], [252, 44, 0.85], [744, 52, 0.9], [862, 60, 1.05]].forEach(p => PINES2.push(p));
+  const TREE2S = [[300,330,1.1],[360,268,0.9],[700,332,1],[268,640,1.05],[352,708,0.95],
+                  [652,712,1.1],[726,640,0.9],[262,360,0.95],[738,368,1.05],[640,268,0.9]];
+  const TSMALL = [[840,300,1],[840,420,0.9],[840,540,1.1],[130,420,1],[130,540,0.95],
+                  [430,772,0.9],[390,838,1],[586,806,0.95]];
+  const BUSHA = [[218,318,1],[302,322,0.9],[698,300,1.05],[782,304,0.95],
+                 [196,812,1],[300,820,0.9],[692,826,1.05],[794,830,0.95]];
+  const BUSHB = [[440,398,1],[560,398,0.9],[440,602,0.95],[560,602,1.05],[420,905,1],[580,905,1]];
+  const BUSHC = [[457,330,1],[541,330,0.9],[457,668,1],[541,668,0.9],
+                 [330,457,0.95],[330,541,1.05],[668,457,0.95],[668,541,1.05]];
+  const DAFF = [[457,381,0.8],[541,381,0.75],[457,619,0.8],[541,619,0.75],
+                [381,457,0.8],[381,541,0.75],[619,457,0.8],[619,541,0.75]];
+  const LAV = [[457,428,1],[541,332,1],[457,570,1],[541,666,1],
+               [334,457,1],[428,541,1],[570,457,1],[666,541,1],[471,80,1.2],[529,80,1.2]];
+  const CYP = [[238,314,1],[282,316,0.85],[718,296,1],[762,296,0.85],
+               [218,808,1],[262,814,0.85],[712,822,1],[758,826,0.85],[434,886,1.1],[566,886,1.1]];
+  const FERNS = [[600,548,1],[616,532,0.85],[455,616,1],[472,600,0.85],
+                 [384,470,1],[400,452,0.85],[529,384,1],[545,400,0.85],[350,80,1.2],[650,84,1.2]];
+  const FLORA = [
+    ["assets/plantpack.glb", [["pine1", PINES1, 78, true], ["pine2", PINES2, 66, true],
+                              ["tree2", TREE2S, 54, true], ["treesmall", TSMALL, 40, true],
+                              ["bushbig", BUSHA, 10], ["bushmed", BUSHB, 8], ["bushflower", BUSHC, 7]]],
+    ["assets/daffodils.glb", [["", DAFF, 3.4, false, "material"]]],
+    ["assets/lavender.glb",  [["", LAV, 6]]],
+    ["assets/cypress.glb",   [["", CYP, 12]]],
+    ["assets/fern.glb",      [["", FERNS, 5]]],
+  ];
+  FLORA.forEach(([url, specs]) =>
+    gltf.load(url, g => specs.forEach(([p, l, h, sh, dm]) => plantSpecies(g.scene, p, l, h, sh, dm))));
+}
 const CARS = [];
 for (let i = 0; i < 10; i++){          /* east lot, two columns nose-in */
   if (i !== 3 && i !== 7) CARS.push([921, 330 + i * 27, 0]);
