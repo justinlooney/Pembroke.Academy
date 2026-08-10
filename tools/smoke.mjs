@@ -38,6 +38,9 @@ const server = createServer(async (req, res) => {
     let rel;
     try { rel = decodeURIComponent(req.url.split("?")[0]); }
     catch { res.writeHead(400); res.end("bad request"); return; }   /* malformed %-escape */
+    /* Chromium asks for this regardless of the page declaring an inline
+       icon, and a 404 for it is noise rather than a broken campus. */
+    if (rel === "/favicon.ico"){ res.writeHead(204); res.end(); return; }
     const path = resolve(ROOT, "." + (rel === "/" ? "/index.html" : rel));
     /* boundary-aware containment: a plain prefix test would let
        /repo-elsewhere pass for ROOT=/repo */
@@ -143,8 +146,12 @@ page.on("requestfailed", r => {
   if (u.includes("/assets/")) errors.push("asset request failed: " + u.split("/").pop());
 });
 page.on("response", r => {
-  if (r.url().includes("/assets/") && r.status() >= 400)
-    errors.push(`asset ${r.status()}: ` + r.url().split("/").pop());
+  /* Any failing request, not just models. Chromium's console message for
+     a 404 carries no URL, so a check that only names /assets/ leaves the
+     rest anonymous — and an anonymous 404 in CI that will not reproduce
+     locally is a long evening. */
+  if (r.status() >= 400)
+    errors.push(`HTTP ${r.status()}: ` + r.url().replace(`http://localhost:${PORT}`, ""));
 });
 
 try {

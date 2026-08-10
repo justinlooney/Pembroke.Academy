@@ -36,6 +36,10 @@ jobs:
           sudo apt-get install -y -qq blender >/dev/null
           blender --version | head -1
           npm install -g --silent @gltf-transform/cli
+          # gdown, not curl: every one of these files is well over the 25MB
+          # where Drive stops serving bytes and starts serving a virus-scan
+          # interstitial. curl would fetch that HTML page perfectly happily.
+          pip install -q gdown
 
       - name: Fetch and build
         if: steps.plan.outputs.blocks != '0'
@@ -49,8 +53,8 @@ jobs:
             fail=0
             while IFS=$'\t' read -r name id; do
               [ -z "$name" ] && continue
-              curl -sL "https://drive.google.com/uc?export=download&id=$id" \
-                   -o "/tmp/fbx/$name.fbx"
+              gdown -q --fuzzy "https://drive.google.com/file/d/$id/view" \
+                    -O "/tmp/fbx/$name.fbx" || true
               # Drive answers a login page with HTTP 200, so the only
               # honest test is whether the bytes are an FBX.
               if head -c 20 "/tmp/fbx/$name.fbx" | grep -q "Kaydara"; then
