@@ -35,7 +35,10 @@ jobs:
               rm -f "incoming/$1"
             fi
           }
-          fetch reshall.glb 17R-z61Z7yx6-FlM_N0L8QKsnQpl8sGgl
+          fetch stadium01.glb 17xQpLndfWViS4lNp6Oe1lvn5Ug1Xfb8b
+          fetch stadium02.glb 1AfvdMF9YpZfFSIFk5i36cYz4XOfiuVBc
+          fetch stadium03.glb 16RIeyZddf_c35IoQ6TiQk43jRsMmAGCb
+          fetch stadium04.glb 1s9ut7xS96bd2AKK919wMoj9yzOB9wtb6
           ls -la incoming
           sha256sum incoming/* > incoming/MANIFEST.txt || true
       - name: Shrink oversized models
