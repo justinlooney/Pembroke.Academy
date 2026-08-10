@@ -21,18 +21,22 @@ GLTF="${GLTF:-gltf-transform}"
 command -v "$BLENDER" >/dev/null || { echo "blender not found — set BLENDER=/path/to/blender"; exit 1; }
 command -v "$GLTF"    >/dev/null || { echo "gltf-transform not found — npm i -g @gltf-transform/cli"; exit 1; }
 
-# model            keep-ratio  weld     texture-px   why
+# Triangle budgets, set by how close a visitor ever gets. These are
+# absolute targets, not ratios, so the result does not depend on how
+# messy a given scan is.
+#
+# model            target-tris  weld     texture-px   why
 TIERS="
-msu                0.10        0.02     1024   far horizon, fog-hazed
-cologne            0.15        0.02     1024   far horizon
-gothic_cathedral   0.15        0.02     1024   west horizon
-university         0.20        0.02     1024   east district, across the drive
-gridiron           0.22        0.02     2048   stadium, seen down the boulevard
-tennis             0.22        0.02     1024   southeast, never approached
-ballpark           0.25        0.02     1024   southwest, never approached
-reshall            0.45        0.01     2048   west lawn, walked past
-portal             0.55        0.01     2048   the cathedral door, seen up close
-cathedral2         0.70        0.00     2048   ENTERABLE — light touch only
+msu                60000        0.0002   1024   far horizon, fog-hazed
+cologne            60000        0.0002   1024   far horizon
+gothic_cathedral   70000        0.0002   1024   west horizon
+university         90000        0.0002   1024   east district, across the drive
+gridiron           140000       0.0002   2048   stadium, seen down the boulevard
+tennis             80000        0.0002   1024   southeast, never approached
+ballpark           80000        0.0002   1024   southwest, never approached
+reshall            140000       0.0001   2048   west lawn, walked past
+portal             260000       0.0001   2048   the cathedral door, seen up close
+cathedral2         500000       0        2048   ENTERABLE — light touch only
 "
 
 only="${1:-}"
@@ -43,7 +47,7 @@ total_before=0; total_after=0
 printf '%-20s %8s %8s %8s\n' model before after saved
 printf '%s\n' "---------------------------------------------------"
 
-while read -r name ratio weld tex _rest; do
+while read -r name target weld tex _rest; do
   [ -z "${name:-}" ] && continue
   [ -n "$only" ] && [ "$only" != "$name" ] && continue
   src="assets/$name.glb"
@@ -51,7 +55,7 @@ while read -r name ratio weld tex _rest; do
 
   before=$(stat -c%s "$src")
   if ! "$BLENDER" --background --python tools/decimate.py -- \
-        "$src" "$tmp/$name.dec.glb" "$ratio" "$weld" > "$tmp/$name.log" 2>&1; then
+        "$src" "$tmp/$name.dec.glb" "$target" "$weld" > "$tmp/$name.log" 2>&1; then
     echo "FAILED $name — see $tmp/$name.log"; tail -5 "$tmp/$name.log"; continue
   fi
   grep '^\[decimate\]' "$tmp/$name.log" | tail -1
