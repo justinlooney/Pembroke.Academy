@@ -2083,42 +2083,102 @@ world.add(skyline);
 
 const pathMat = new THREE.MeshStandardMaterial({ map: pathTex, bumpMap: pathBump, bumpScale: 0.4,
   roughness: 0.55, metalness: 0.06, envMapIntensity: 0.6 });
-function pathPlane(px, py, w, d, y = 0.25){
-  const v = new THREE.Mesh(new THREE.PlaneGeometry(w + 16, d + 16), vergeMat);
-  v.rotation.x = -Math.PI / 2;
-  v.position.set(W(px + w / 2), 0.12, W(py + d / 2));
+/* ── curved ways ─────────────────────────────────────────────────────
+   Real campuses are not laid out on graph paper. Paths run building to
+   building along the line people actually walk, bending around lawns
+   rather than turning square corners, and the drive curves because the
+   ground does. This lays a ribbon along a Catmull-Rom curve through a
+   list of plane coordinates, so a way can be described by the places it
+   connects instead of by axis-aligned rectangles. */
+function ribbonGeom(pts, width, lift){
+  const curve = new THREE.CatmullRomCurve3(
+    pts.map(([px, py]) => new THREE.Vector3(W(px), lift, W(py))), false, "catmullrom", 0.5);
+  const N = Math.max(24, Math.round(curve.getLength() / 7));
+  const P = curve.getPoints(N);
+  const pos = [], uv = [], idx = [];
+  let run = 0;
+  for (let i = 0; i <= N; i++){
+    const p = P[i];
+    const t = curve.getTangentAt(i / N);
+    /* left normal in the ground plane */
+    let nx = -t.z, nz = t.x;
+    const L = Math.hypot(nx, nz) || 1;
+    nx = nx / L * width / 2; nz = nz / L * width / 2;
+    if (i > 0) run += P[i].distanceTo(P[i - 1]);
+    pos.push(p.x - nx, lift, p.z - nz, p.x + nx, lift, p.z + nz);
+    uv.push(0, run / width, 1, run / width);       /* texture paces the length */
+    if (i < N){ const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+/* the ribbon's own texture is paced by the UVs above, so it must not
+   also be tiled by the material */
+const walkTex = pathTex.clone(); walkTex.repeat.set(1, 1); walkTex.needsUpdate = true;
+const walkBump = pathBump.clone(); walkBump.repeat.set(1, 1); walkBump.needsUpdate = true;
+const walkMat = new THREE.MeshStandardMaterial({ map: walkTex, bumpMap: walkBump,
+  bumpScale: 0.4, roughness: 0.55, metalness: 0.06, envMapIntensity: 0.6 });
+function walkway(pts, width = 26, y = 0.26){
+  /* a mown verge under every way, so it meets the grass instead of
+     being pasted on top of it */
+  const v = new THREE.Mesh(ribbonGeom(pts, width + 14, 0.13), vergeMat);
   world.add(v);
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), pathMat);
-  m.rotation.x = -Math.PI / 2;
-  m.position.set(W(px + w / 2), y, W(py + d / 2));
+  const m = new THREE.Mesh(ribbonGeom(pts, width, y), walkMat);
   m.receiveShadow = true;
+  m.userData.way = true;              /* so a test can check where ways run */
   world.add(m);
   return m;
 }
+
 let fountainWater = null;
 /* the great oval ring + spokes (same plan as before) */
 {
   const ring = new THREE.Mesh(new THREE.RingGeometry(168, 197, 96), pathMat);
   ring.rotation.x = -Math.PI / 2; ring.position.set(0, 0.3, 0); ring.receiveShadow = true;
   world.add(ring);
-  pathPlane(485, 178, 30, 140); pathPlane(485, 668, 30, 282);
-  pathPlane(485, 62, 30, 116);  /* processional walk to the cathedral doors */
-  pathPlane(668, 485, 272, 30); pathPlane(60, 485, 272, 30);
-  pathPlane(485, 332, 30, 106); pathPlane(485, 562, 30, 106);
-  pathPlane(332, 485, 106, 30); pathPlane(562, 485, 106, 30);
-  [[368,368,-135],[631,369,-45],[369,631,135],[631,631,45]].forEach(([px, py, deg]) => {
-    const a = deg * Math.PI / 180;
-    const v = new THREE.Mesh(new THREE.PlaneGeometry(164, 40), vergeMat);
-    v.rotation.x = -Math.PI / 2; v.rotation.z = -a;
-    v.position.set(W(px) + Math.cos(a) * 75, 0.12, W(py) + Math.sin(a) * 75);
-    world.add(v);
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(150, 26), pathMat);
-    m.rotation.x = -Math.PI / 2;
-    m.rotation.z = -a;
-    m.position.set(W(px) + Math.cos(a) * 75, 0.28, W(py) + Math.sin(a) * 75);
-    m.receiveShadow = true;
-    world.add(m);
-  });
+  /* The ways, described by what they join rather than by rectangles.
+     The four hall doors sit at the corners — library NW, engineering NE,
+     science SW, administration SE — the cathedral closes the north axis,
+     and everything meets the ring around the great lawn. Each line bows
+     slightly off true, because nobody lays a walk with a set square. */
+  const RING_N = [500, 320], RING_S = [500, 682], RING_W = [318, 500], RING_E = [682, 500];
+
+  /* the processional: cathedral doors, down the north axis, to the ring */
+  walkway([[500, 60], [500, 150], [497, 236], [500, 300], RING_N], 30);
+  /* the south walk out to the gatehouse and the stadium boulevard */
+  walkway([RING_S, [500, 760], [503, 840], [500, 918], [500, 985]], 30);
+
+  /* Hall door to lawn. Each one goes round its own building rather than
+     through it — the halls are wide (the science hall alone runs 200 by
+     150) and a walk drawn straight from door to lawn buries itself in
+     masonry. These skirt the footprints the way the ground forces. */
+  walkway([[268, 340], [300, 392], [330, 444], RING_W], 22);
+  walkway([[740, 306], [690, 340], [672, 412], [676, 456], RING_E], 22);
+  walkway([[240, 822], [302, 832], [360, 800], [380, 738], [370, 660],
+           [348, 594], RING_W], 22);
+  walkway([[735, 832], [668, 838], [620, 798], [604, 718], [610, 640],
+           [642, 570], RING_E], 22);
+
+  /* hall to hall, skirting the lawn rather than crossing it — the north
+     range keeps south of the library and engineering, the south range
+     keeps clear of the lodge */
+  walkway([[268, 340], [350, 330], [450, 320], [550, 318], [650, 320], [740, 306]], 20);
+  walkway([[240, 822], [296, 844], [356, 898], [440, 922], [560, 912], [660, 872], [735, 832]], 20);
+  /* the west and east ranges, each passing on the open side of the hall
+     that would otherwise block it */
+  walkway([[268, 340], [300, 430], [304, 540], [318, 610], [370, 660]], 20);
+  walkway([[740, 306], [828, 336], [842, 440], [816, 528], [740, 588], [676, 626]], 20);
+
+  /* the residence hall and the refectory, joined to the halls they serve */
+  walkway([[212, 362], [240, 352], [268, 340]], 18);
+  walkway([[746, 326], [744, 316], [740, 306]], 18);
+  /* the south lodge, and the walk down to the west car park */
+  walkway([[240, 822], [292, 830], [334, 834]], 18);
+  walkway([[304, 540], [200, 556], [110, 568]], 18);
   /* mowing stripes on the great oval, faint and angled like the photo */
   const stripeTex = canvasTex(256, (x) => {
     for (let ry = 0; ry < 8; ry++){
@@ -2187,53 +2247,54 @@ function lot(px, py, w, d, stalls){
 }
 lot(900, 310, 84, 300, 6);
 lot(16, 430, 70, 240, 5);
-/* the campus drive: a U of asphalt hugging west, south, and east
-   edges (the cathedral closes the north), with curbs, lane dashes,
-   lot connectors, and a zebra crossing at the gatehouse spur */
+/* the campus drive: one carriage road curving around the grounds, with
+   a shoulder, a dashed centre line, lot spurs, and a crossing where the
+   south walk meets it */
 {
-  const curbMat = new THREE.MeshStandardMaterial({ color: 0xb9b2a2, roughness: 0.9 });
   const dashMat = new THREE.MeshBasicMaterial({ color: 0xd8d4c8 });
-  const road = (px, py, w, d) => {
+
+  /* The drive used to be three straight legs meeting at right angles —
+     a square drawn around the campus. Real ones bend: they follow the
+     ground, swing wide of the buildings they serve, and meet the public
+     road at an angle. This is one continuous carriage drive entering
+     from the south-west, curving north past the residence hall, around
+     the top of the campus and back down the east side to the gates. */
+  const drive = (pts, width = 34) => {
     const t = asphaltTex.clone();
-    t.repeat.set(Math.max(1, w / 34), Math.max(1, d / 34));
-    t.needsUpdate = true;
-    const roadMat = new THREE.MeshStandardMaterial({ map: t, color: 0xb8bcc2, roughness: 1 });
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), roadMat);
-    m.rotation.x = -Math.PI / 2;
-    m.position.set(W(px + w / 2), 0.2, W(py + d / 2));
+    t.repeat.set(1, 1); t.needsUpdate = true;
+    const mat = new THREE.MeshStandardMaterial({ map: t, color: 0xb8bcc2, roughness: 1 });
+    /* a kerb-dark shoulder just proud of the carriageway, since a curved
+       drive cannot take the straight kerb boxes the old legs used */
+    const sh = new THREE.Mesh(ribbonGeom(pts, width + 7, 0.16),
+      new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 1 }));
+    world.add(sh);
+    const m = new THREE.Mesh(ribbonGeom(pts, width, 0.22), mat);
     m.receiveShadow = true;
     world.add(m);
-    const horiz = w > d;
-    for (const side of [-1, 1]){
-      const c = new THREE.Mesh(
-        horiz ? new THREE.BoxGeometry(w + 3, 2, 3) : new THREE.BoxGeometry(3, 2, d + 3), curbMat);
-      c.position.set(W(px + w / 2) + (horiz ? 0 : side * (w / 2 + 1.5)), 1,
-                     W(py + d / 2) + (horiz ? side * (d / 2 + 1.5) : 0));
-      c.receiveShadow = true;
-      world.add(c);
-    }
-    const len = horiz ? w : d, n = Math.floor(len / 46);
-    for (let k = 0; k < n; k++){
-      const dash = new THREE.Mesh(new THREE.PlaneGeometry(horiz ? 18 : 2.2, horiz ? 2.2 : 18), dashMat);
-      dash.rotation.x = -Math.PI / 2;
-      dash.position.set(
-        horiz ? W(px + 24 + k * 46) : W(px + w / 2),
-        0.3,
-        horiz ? W(py + d / 2) : W(py + 24 + k * 46));
-      world.add(dash);
-    }
+    /* centre line, dashed along the curve */
+    const g = ribbonGeom(pts, 2.4, 0.31);
+    const dash = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+      map: (() => { const d = canvasTex(64, (x) => {
+              x.fillStyle = "#000"; x.fillRect(0, 0, 64, 64);
+              x.fillStyle = "#e8e2c8"; x.fillRect(0, 10, 64, 30); }, 1);
+            d.wrapT = THREE.RepeatWrapping; return d; })(),
+      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    world.add(dash);
   };
-  road(-48, 80, 30, 950);          /* west leg  */
-  road(1012, 60, 30, 970);         /* east leg  */
-  road(-48, 1000, 1090, 30);       /* south leg */
-  road(-18, 516, 34, 30);          /* west lot connector */
-  road(984, 430, 28, 30);          /* east lot connector */
-  road(478, 948, 44, 52);          /* gatehouse spur */
-  road(470, 1030, 60, 120);        /* stadium boulevard, south to the gates */
-  for (let k = 0; k < 6; k++){     /* zebra crossing on the south leg */
-    const stripe = new THREE.Mesh(new THREE.PlaneGeometry(30, 3.2), dashMat);
+  drive([[-40, 1080], [40, 980], [70, 880], [64, 700], [50, 560],
+         [70, 400], [140, 250], [300, 150], [500, 110], [700, 140],
+         [880, 240], [960, 400], [980, 600], [966, 800], [930, 950],
+         [880, 1060]]);
+  /* the spur off the drive to the gatehouse, and the boulevard beyond it
+     running south to the stadium gates */
+  drive([[500, 985], [500, 1040], [498, 1120], [500, 1220]], 46);
+  /* service loops to the lots either side */
+  drive([[64, 700], [10, 690], [-40, 700]], 24);
+  drive([[966, 800], [1020, 790], [1070, 800]], 24);
+  for (let k = 0; k < 6; k++){     /* zebra crossing where the south walk meets the drive */
+    const stripe = new THREE.Mesh(new THREE.PlaneGeometry(34, 3.2), dashMat);
     stripe.rotation.x = -Math.PI / 2;
-    stripe.position.set(W(500), 0.34, W(1003 + 4.8 * k));
+    stripe.position.set(W(500), 0.34, W(996 + 4.8 * k));
     world.add(stripe);
   }
 }
