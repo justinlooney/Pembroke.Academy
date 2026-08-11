@@ -245,7 +245,13 @@ jobs:
                 && m.extensions.KHR_materials_pbrSpecularGlossiness)?0:1);
             ' "$out"; then
               echo "  .. specular-glossiness materials — converting so they can be seen"
-              gltf-transform metalrough "$out" "$out.mr" && mv "$out.mr" "$out"
+              # A .glb temp name, not "$out.mr" — gltf-transform picks its
+              # output format from the extension, cannot make anything of
+              # ".mr", and falls back to glTF+bin. That left 47MB of stray
+              # buffer files committed beside two models. The models
+              # themselves recovered on the final optimize; the debris did
+              # not clean itself up.
+              gltf-transform metalrough "$out" /tmp/mr.glb && mv /tmp/mr.glb "$out"
             fi
             gltf-transform optimize "$out" "$out" \
               --compress meshopt --texture-compress webp --texture-size "$tex" \
