@@ -4592,6 +4592,99 @@ function setClip(s, name, fade = 0.25){
   if (a.current && a.actions[a.current]) a.actions[a.current].fadeOut(fade);
   a.current = name;
 }
+/* ── standing still, on a body that has no idle ───────────────────────
+   Eleven bodies; only five carry a Mixamo skeleton. Three are Character
+   Creator (CC_Base_Spine01, CC_Base_L_Foot) and one is neither, and a
+   clip addresses bones by NAME — so lifting Idle off the walker and
+   handing it to those eight would land on nothing whatsoever. Valid
+   file, no error, a person standing perfectly still and insisting they
+   are breathing. This file has shipped that failure twice already.
+
+   Retargeting properly means a bone-mapping table per convention, a
+   courier run, three rebuilt models and a cache bump — all to fix a
+   pose. So instead: hold the walk the body already has at the frame
+   where its feet pass each other, which IS a person standing with
+   their feet together, and add breathing on top.
+
+   It never asks what a bone is called except through one regex that
+   both conventions happen to satisfy (/foot/, /spine|chest|neck|head/),
+   and if even that finds nothing it gives up and lets them walk, which
+   is what they did before. */
+const PASS_CACHE = {};
+function passingTime(g){
+  const a = g.userData.anim;
+  const key = g.userData.figure + "|" + (a && a.current);
+  if (key in PASS_CACHE) return PASS_CACHE[key];
+  const act = a && a.actions[a.current];
+  if (!act){ return (PASS_CACHE[key] = null); }
+  const feet = [];
+  g.traverse(o => { if (o.isBone && /foot/i.test(o.name)) feet.push(o); });
+  const L = feet.find(b => /(^|[^a-z])(l|left)([^a-z]|$)/i.test(b.name));
+  const R = feet.find(b => b !== L && /(^|[^a-z])(r|right)([^a-z]|$)/i.test(b.name));
+  if (!L || !R){ return (PASS_CACHE[key] = null); }
+  const was = act.time, wasPaused = act.paused;
+  const p = new THREE.Vector3(), q = new THREE.Vector3();
+  let best = null, bestD = Infinity;
+  const dur = act.getClip().duration;
+  for (let i = 0; i < 24; i++){
+    const t = (i / 24) * dur;
+    act.time = t;
+    a.mixer.update(0);
+    g.updateMatrixWorld(true);
+    L.getWorldPosition(p); R.getWorldPosition(q);
+    const d = Math.hypot(p.x - q.x, p.z - q.z);
+    if (d < bestD){ bestD = d; best = t; }
+  }
+  act.time = was; act.paused = wasPaused;
+  a.mixer.update(0);
+  return (PASS_CACHE[key] = best);
+}
+/* Hold that frame. The mixer keeps writing the same pose every update,
+   which is what lets breathe() add to it and not fight it. */
+function holdStill(s){
+  const a = s.g.userData?.anim;
+  if (!a) return false;
+  setClip(s, s.gait2, 0.3);
+  const act = a.actions[a.current];
+  if (!act) return false;
+  if (s.holdAt === undefined) s.holdAt = passingTime(s.g);
+  if (s.holdAt === null) return false;         /* no feet found — keep walking */
+  act.paused = true;
+  act.time = s.holdAt;
+  s.held = true;
+  return true;
+}
+function release(s){
+  const a = s.g.userData?.anim;
+  const act = a && a.actions[a.current];
+  if (act) act.paused = false;
+  s.held = false;
+}
+/* Nobody stands like a statue. A held frame plus a slow rise and fall
+   through the spine, a little sway, and a head that is not quite level
+   reads as a person waiting; the same frame without it reads as a bug.
+   Applied AFTER the mixer has written the pose, every frame, because
+   the mixer would otherwise overwrite it. */
+const BREATHE = /spine|chest|neck|head/i;
+function breathe(g, t, phase){
+  if (!g.userData.__breath){
+    const bones = [];
+    g.traverse(o => { if (o.isBone && BREATHE.test(o.name)) bones.push(o); });
+    /* Lowest first: the rise starts at the waist and arrives at the
+       head, which is the order a breath actually travels. */
+    bones.sort((a, b) => a.position.y - b.position.y);
+    g.userData.__breath = bones.slice(0, 6);
+  }
+  const bones = g.userData.__breath;
+  if (!bones.length) return;
+  const b = Math.sin(t * 1.15 + phase);
+  const sway = Math.sin(t * 0.42 + phase * 1.7);
+  bones.forEach((bone, i) => {
+    const k = (i + 1) / bones.length;
+    bone.rotation.x += b * 0.011 * k;
+    bone.rotation.z += sway * 0.006 * k;
+  });
+}
 /* Play the clip at the pace the body is actually travelling. Clamped
    because a student hurrying at double speed should look hurried, not
    like a film run fast. */
@@ -4700,6 +4793,7 @@ function stepStudents(dt, now){
         if (s.startedAt !== undefined && now - s.startedAt > 620){
           s.startedAt = undefined;
         }
+        if (s.held) release(s);       /* setClip alone will not unpause it */
         if (s.startedAt === undefined){
           setClip(s, s.gait2);
           matchSpeed(s, s.gait2, s.speed);
@@ -4707,6 +4801,11 @@ function stepStudents(dt, now){
           matchSpeed(s, R.start, s.speed);
         }
         s.anim0 = "moving";
+      } else if (!R.idle && holdStill(s)){
+        /* no idle clip on this body — its own walk, held at the frame
+           where the feet pass, plus breathing from the render loop */
+        s.anim0 = "held";
+        s.startedAt = undefined;
       } else if (R.idle){
         setClip(s, R.idle);
         /* standing still is where identical clips are most obvious, so
@@ -5626,6 +5725,11 @@ renderer.setAnimationLoop(() => {
   /* a skeleton nobody can see the legs of is a skeleton not worth
      stepping — see detailPass */
   castMixers.forEach(x => { if (x.g.userData.animate !== false) x.m.update(dt); });
+  /* after the mixers, never before: a held pose is written afresh every
+     update, so breathing added first would simply be overwritten */
+  for (const s of students){
+    if (s.held && s.g.userData.animate !== false) breathe(s.g, now / 1000, s.phase || 0);
+  }
   {  /* leaves drift down and sideways, respawning at the canopy */
     const lp = leaves.geometry.attributes.position;
     for (let i = 0; i < lp.count; i++){
@@ -6099,9 +6203,16 @@ function convoOpen(s){
      nothing else — for those, walking on the spot reads better than a
      freeze, which is the same judgement makeRoamer already makes. */
   if (s.roles && s.roles.idle) setClipOn(g, s.roles.idle, 0.3);
+  else holdStill(s);                  /* the eight with only a walk cycle */
 
   /* Framed off this body, not off a number: the cast runs from 38 to 43
-     units and a fixed camera would crop one and strand another. */
+     units and a fixed camera would crop one and strand another.
+     updateMatrixWorld first — Box3.setFromObject reads world matrices,
+     and without it the box comes back at wherever on the campus she was
+     standing a moment ago. The camera then aims at empty lawn, and the
+     view renders exactly one draw call: the backdrop, with nobody in
+     front of it. */
+  g.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(g);
   const tall = Math.max(1, box.max.y - box.min.y);
   const eye = box.min.y + tall * 0.88;
@@ -6182,6 +6293,7 @@ function convoFrame(dt){
   convoT += dt;
   const m = castMixers.find(x => x.g === convoView.g);
   if (m) m.m.update(dt);
+  if (convoView.held) breathe(convoView.g, convoT, convoView.phase || 0);
   const sway = Math.sin(convoT * 0.42) * 0.35;
   convoCam.position.x += (sway - convoCam.position.x) * Math.min(1, dt * 1.4);
   convoCam.lookAt(0, convoCam.position.y - 1.2, 0);
