@@ -99,8 +99,30 @@ jobs:
             echo "::endgroup::"
           done
 
-      - name: Bump the cache version
+      # Rebuilding the same links produces the same bytes, and a run that
+      # changed no model has nothing to tell returning visitors. Bumping
+      # anyway costs every one of them a fresh 39MB download of a campus
+      # they already have — which is exactly the cost the service worker
+      # exists to avoid. It happened: commit 7c36c3f is a courier commit
+      # whose entire diff is one line of sw.js.
+      #
+      # The existing "nothing changed" guard could never catch it, because
+      # the bump ran first and left sw.js modified, so the commit always
+      # had something to commit. Ask the question before touching sw.js.
+      - name: Did any model actually change?
+        id: changed
         if: steps.plan.outputs.blocks != '0'
+        run: |
+          if [ -n "$(git status --porcelain assets)" ]; then
+            echo "assets=yes" >> "$GITHUB_OUTPUT"
+            git status --porcelain assets
+          else
+            echo "assets=no" >> "$GITHUB_OUTPUT"
+            echo "the rebuild produced the same bytes — no bump, no commit"
+          fi
+
+      - name: Bump the cache version
+        if: steps.changed.outputs.assets == 'yes'
         run: |
           # assets/ changed, so returning visitors would otherwise keep the
           # old campus forever — and the PR guard would fail the build.
@@ -132,7 +154,7 @@ jobs:
           echo "cache version: pembroke-v$cur -> pembroke-v$next"
 
       - name: Commit
-        if: steps.plan.outputs.blocks != '0'
+        if: steps.changed.outputs.assets == 'yes'
         run: |
           git config user.name "pembroke-asset-courier"
           git config user.email "actions@users.noreply.github.com"
