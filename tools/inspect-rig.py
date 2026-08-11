@@ -19,6 +19,7 @@ run, and it turns a guess into a fact before any pipeline is written
 around it.
 """
 import bpy
+import math
 import os
 import re
 import sys
@@ -27,6 +28,18 @@ argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 if not argv:
     print(__doc__)
     sys.exit(1)
+
+# --render DIR also writes a front and side view of each file. Statistics
+# answer "is it rigged"; only a picture answers "can it BE rigged", because
+# automatic weights need the mesh and the skeleton's rest pose to roughly
+# agree — and whether a character stands in a T-pose with its arms out or
+# slouches with its hands in its pockets is not in any of the numbers.
+RENDER = None
+if "--render" in argv:
+    i = argv.index("--render")
+    RENDER = argv[i + 1]
+    argv = argv[:i] + argv[i + 2:]
+    os.makedirs(RENDER, exist_ok=True)
 
 BONE_ALIASES = [
     ("mixamo",  re.compile(r"^mixamorig\d*:", re.I)),
@@ -117,4 +130,46 @@ for path in argv:
             hit = len(addressed & have)
             print("      lands on this file's own skeleton: %d/%d bones"
                   % (hit, len(addressed)))
+
+    if RENDER and meshes:
+        """Cycles on the CPU, deliberately. EEVEE wants a GL context and a
+        headless runner has none, so it either falls over or renders
+        nothing — which would read as "the file is empty" rather than
+        "the renderer is". Sixteen samples is plenty: this is a pose
+        check, not a portrait."""
+        import mathutils
+        scn = bpy.context.scene
+        scn.render.engine = "CYCLES"
+        scn.cycles.samples = 16
+        scn.render.resolution_x = scn.render.resolution_y = 640
+        scn.render.film_transparent = False
+        world = bpy.data.worlds.new("w")
+        world.use_nodes = True
+        world.node_tree.nodes["Background"].inputs[1].default_value = 1.5
+        scn.world = world
+
+        lo = mathutils.Vector((1e9, 1e9, 1e9)); hi = -lo
+        for m in meshes:
+            for c in m.bound_box:
+                v = m.matrix_world @ mathutils.Vector(c)
+                lo = mathutils.Vector(map(min, lo, v)); hi = mathutils.Vector(map(max, hi, v))
+        ctr = (lo + hi) / 2
+        span = max(hi.x - lo.x, hi.y - lo.y, hi.z - lo.z) or 1.0
+
+        cam_d = bpy.data.cameras.new("c")
+        cam = bpy.data.objects.new("c", cam_d)
+        scn.collection.objects.link(cam)
+        scn.camera = cam
+        stem = os.path.splitext(os.path.basename(path))[0]
+        for label, ang in (("front", 0.0), ("side", 1.5708)):
+            r = span * 2.1
+            cam.location = (ctr.x + r * math.sin(ang), ctr.y - r * math.cos(ang), ctr.z)
+            direction = ctr - cam.location
+            cam.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
+            scn.render.filepath = os.path.join(RENDER, f"{stem}-{label}.png")
+            try:
+                bpy.ops.render.render(write_still=True)
+                print("    rendered", scn.render.filepath)
+            except Exception as e:                          # noqa: BLE001
+                print("    render failed:", e)
 print("\ndone")

@@ -78,18 +78,18 @@ jobs:
               if [ "${#models[@]}" -eq 0 ]; then
                 echo "  no model file in this zip"
               else
-                blender --background --python tools/inspect-rig.py -- "${models[@]}" 2>&1 \
+                blender --background --python tools/inspect-rig.py -- --render /tmp/shots "${models[@]}" 2>&1 \
                   | grep -v '^Blender quit\|^Read prefs\|^Warning: ' || true
               fi
             elif head -c 20 "/tmp/look/$name.bin" | grep -q "Kaydara"; then
               echo "$name: $size fbx"
               mv "/tmp/look/$name.bin" "/tmp/look/$name.fbx"
-              blender --background --python tools/inspect-rig.py -- "/tmp/look/$name.fbx" 2>&1 \
+              blender --background --python tools/inspect-rig.py -- --render /tmp/shots "/tmp/look/$name.fbx" 2>&1 \
                 | grep -v '^Blender quit\|^Read prefs\|^Warning: ' || true
             elif [ "$magic" = "glTF" ]; then
               echo "$name: $size glb"
               mv "/tmp/look/$name.bin" "/tmp/look/$name.glb"
-              blender --background --python tools/inspect-rig.py -- "/tmp/look/$name.glb" 2>&1 \
+              blender --background --python tools/inspect-rig.py -- --render /tmp/shots "/tmp/look/$name.glb" 2>&1 \
                 | grep -v '^Blender quit\|^Read prefs\|^Warning: ' || true
             else
               echo "::error::$name is neither zip, FBX nor GLB — first bytes: $magic"
@@ -97,3 +97,16 @@ jobs:
             fi
             echo "::endgroup::"
           done
+
+      # Statistics say whether a file is rigged. Only a picture says
+      # whether it COULD be — automatic weights need the mesh and the
+      # skeleton's rest pose to agree, and "arms out" is not a number.
+      - name: Keep the pictures
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: inspected
+          path: /tmp/shots/*.png
+          if-no-files-found: ignore
+          retention-days: 14
