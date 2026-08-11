@@ -776,6 +776,52 @@ body.day .hall-tag{background:linear-gradient(180deg, rgba(24,30,44,.86), rgba(2
 .int-prof .cap{position:absolute;left:50%;bottom:38px;transform:translateX(-50%);width:13px;height:13px;border-radius:50%;background:#e2cfae;}
 .int-prof .cap::after{content:"";position:absolute;left:50%;top:-3px;transform:translateX(-50%);width:19px;height:5px;background:#15151a;border-radius:2px;}
 .int-lectern{position:absolute;width:34px;height:44px;background:linear-gradient(180deg,#5d4930,#3a2d1c);border-radius:4px 4px 2px 2px;box-shadow:0 8px 14px -5px rgba(0,0,0,.6);}
+/* ── talking to somebody ──────────────────────────────────────────────
+   The campus stops while this is open. Standing on the quad costs 887
+   draw calls and 6.4M triangles; one person costs six draws and forty
+   thousand. That is the whole reason this view exists — it is not a
+   flourish, it is the only way a close-up can afford good light and a
+   full-detail body on the same phone that renders the quad at 26fps. */
+/* Fixed, not absolute. The stage leaves the document while a
+   conversation is open, and an absolutely-positioned overlay resolves
+   inset:0 against the hero section instead of the window — which left
+   the dialogue card floating across the middle of the screen with the
+   figure behind it. */
+#convo{position:fixed;inset:0;z-index:32;opacity:0;pointer-events:none;
+  transition:opacity .4s ease;}
+#convo.open{opacity:1;pointer-events:auto;}
+.convo-open #labels2d, .convo-open #quest, .convo-open #walkhud,
+.convo-open #doorprompt, .convo-open #minimap,
+.convo-open .moon, .convo-open .cloud{display:none !important;}
+/* The stage is a banner inside a scrolling page — which is right for a
+   campus you look at and wrong for a conversation you are in. Scroll
+   halfway down and the 3D is a strip along the top with the course
+   ledger showing through behind the dialogue. So for the duration it
+   leaves the document and covers the window. Specificity beats the
+   utility classes on the element; the renderer is resized to match. */
+body.convo-open{overflow:hidden;}
+body.convo-open #stage{position:fixed;inset:0;z-index:31;}
+.convo-card{position:absolute;left:0;right:0;bottom:0;
+  padding:1.1rem 1.4rem 1.3rem;
+  background:linear-gradient(0deg, rgba(6,8,14,.94) 55%, rgba(6,8,14,.72) 80%, transparent);
+  display:flex;flex-direction:column;gap:.7rem;max-height:62%;}
+.convo-who{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap;}
+.convo-name{font-size:1.35rem;font-weight:600;color:var(--parchment);line-height:1;}
+.convo-major{font-size:10px;letter-spacing:.22em;text-transform:uppercase;}
+.convo-said{font-size:14.5px;line-height:1.55;color:#e8eef7;min-height:3.1em;
+  border-left:2px solid rgba(212,175,106,.45);padding-left:.85rem;}
+.convo-asks{display:flex;gap:.5rem;flex-wrap:wrap;}
+.convo-ask{border:1px solid rgba(148,163,184,.34);border-radius:999px;
+  padding:.4rem .95rem;font-size:11.5px;color:#cbd5e1;background:rgba(12,18,32,.72);
+  cursor:pointer;transition:all .2s ease;text-align:left;}
+.convo-ask:hover{border-color:rgba(212,175,106,.7);color:var(--parchment);
+  background:rgba(212,175,106,.14);}
+.convo-ask.leave{border-color:rgba(212,175,106,.5);color:var(--parchment);}
+@media (max-width:640px){
+  .convo-card{padding:.85rem 1rem 1rem;max-height:66%;}
+  .convo-said{font-size:13.5px;}
+  .convo-ask{padding:.36rem .8rem;font-size:11px;}
+}
 .int-hud{position:absolute;left:0;right:0;bottom:0;padding:1rem 1.5rem 1.2rem;
   display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap;
   background:linear-gradient(0deg, rgba(8,10,16,.88), transparent);}
@@ -905,6 +951,18 @@ body.day .int-lamp::after{opacity:.45;}
     <div id="campus-hints" class="absolute right-5 sm:right-8 bottom-5 z-10 text-right pointer-events-none">
       <div id="hint-keys" class="text-[10px] uppercase tracking-[.24em] text-slate-500">Keys 1–4 · quads · 0 · syllabus · N · day/night · F · walk mode</div>
       <div class="text-[10px] uppercase tracking-[.24em] text-slate-600 mt-1">drag to orbit · scroll to zoom</div>
+    </div>
+
+    <!-- ═══════ CONVERSATION (the campus stops; one person remains) ═══════ -->
+    <div id="convo" aria-hidden="true">
+      <div class="convo-card">
+        <div class="convo-who">
+          <div class="convo-name" id="convo-name"></div>
+          <div class="convo-major" id="convo-major"></div>
+        </div>
+        <div class="convo-said" id="convo-said"></div>
+        <div class="convo-asks" id="convo-asks"></div>
+      </div>
     </div>
 
     <!-- ═══════ INTERIOR CLASSROOM SCENE (revealed on entering a hall) ═══════ -->
@@ -2822,7 +2880,24 @@ BUILDINGS.forEach(spec => {
       await new Promise(r => setTimeout(r, 250));   /* let the GPU breathe */
     }
   }
-  const deferOuter = () => setTimeout(loadOuterWorld, 2200);
+  /* After the cast, not alongside it. Measured: the stadium landed at
+     66 seconds and the residence hall at 97, both while the bodies you
+     actually walk among were still decoding — 11MB of scenery ahead of
+     the thing the visitor is standing in. A two-second delay after
+     `load` was never a queue, it was a head start.
+
+     So it waits for crowdReady, which is the campus being populated,
+     and gives up waiting after a minute in case that never comes. The
+     scenery still arrives; it arrives behind. */
+  const deferOuter = () => {
+    const t0 = performance.now();
+    const wait = () => {
+      const ready = window.__crowd?.().ready;
+      if (ready || performance.now() - t0 > 60000) setTimeout(loadOuterWorld, 600);
+      else setTimeout(wait, 400);
+    };
+    wait();
+  };
   if (document.readyState === "complete") deferOuter();
   else window.addEventListener("load", deferOuter, { once: true });
   /* re-brand the football stadium: navy-and-gold Pembroke boards
@@ -2908,10 +2983,12 @@ BUILDINGS.forEach(spec => {
   gableRoof(amb, { x: 856, y: 240, w: 64, d: 310, z: 70, h: 28, axis: "y" });
   /* the west residence hall: akhazaee's scanned Colgate dorm (CC-BY-4.0),
      clean facade toward the quad, replacing the procedural west range */
-  loadLandmark("assets/reshall.glb", {
+  /* Queued with the rest of the outer world rather than fetched on
+     sight. 2.68MB that used to land at 97 seconds, ahead of people. */
+  OUTER.push(["assets/reshall.glb", {
     plane: [140, 330], height: 96, rotY: 0, maxFoot: [150, 200], sink: 2.4,
     collider: "auto", vista: "Pembroke Residence Hall",
-  });
+  }]);
   /* terracotta refectory */
   stoneBox(amb, { x: 700, y: 330, w: 110, d: 72, h: 46, windows: "lancet", seed: 18, accent: "#f0b47a", noRoof: true });
   gableRoof(amb, { x: 700, y: 330, w: 110, d: 72, z: 46, h: 30, terra: true });
@@ -3037,13 +3114,36 @@ BUILDINGS.forEach(spec => {
 }
 
 /* ── glTF 2.0 prop library (assets/*.glb) ────────────────────────── */
-/* Three species, placed like a groundskeeper would: an allée up the
-   processional walk, specimen oaks on the lawn, groves flanking the
-   diagonal spokes, shade belts at the campus edges, and a pine-heavy
-   forest rolling to the horizon. */
+/* Placed like a groundskeeper would: an allée up the processional walk,
+   specimen maples on the lawn, groves flanking the diagonal spokes,
+   shade belts at the campus edges, and a forest rolling to the horizon.
+ *
+ * Two libraries, split by how close you get. Everything on the campus
+ * plate — anything you can walk up to — is a photographed tree. The
+ * horizon forest stays stylised, because at 700 to 1,200 feet through
+ * fog a 36,000-triangle tree and a 1,000-triangle tree are the same
+ * grey-green mass and only one of them is free.
+ *
+ * That split is the whole reason the campus still read as bubbles: the
+ * stylised set was doing both jobs, and it is only good at one. Fifty-
+ * seven of them stood on the plate, along the belts and in the groves
+ * beside the walkways, where you get close enough to count the leaves
+ * that are not there.
+ *
+ * The cost is real and worth stating. Instancing saves draw calls, not
+ * triangles — a tree planted twenty times is twenty trees' worth of
+ * geometry — so this trades about 46,000 triangles of stylised trees
+ * for roughly 300,000 of photographed ones. It buys them at the cheap
+ * end of the collection on purpose: EZTree0.Medium011 is 4,958
+ * triangles, comparable to the maple already on the lawn, where
+ * EZTree1.Large001 is 36,489 and is used nowhere. */
 const TREE_SETS = { oak: [], elm: [], pine: [], maple: [] };
+/* the photographed set, by species — filled here, planted with the rest
+   of the flora further down, where trees.glb is loaded once */
+const EZ_SETS = { m011: [], m002: [], m010: [], l009: [] };
 {
   const T = TREE_SETS;
+  const E = EZ_SETS;
   /* the ring arc along the oval's north side — photoreal maples up close */
   [[10,235],[80,235],[100,235],[170,235],[190,235],[260,235],[280,235],[350,235],
    [35,258],[145,258],[215,258],[325,258]].forEach(([a, r], i) => {
@@ -3058,25 +3158,37 @@ const TREE_SETS = { oak: [], elm: [], pine: [], maple: [] };
   /* maple allées flanking the walk, north approach and south entry */
   [130, 195, 265, 345].forEach(y => { T.maple.push([462, y, 0.76 + (y % 20) / 160], [538, y, 0.8 + (y % 17) / 160]); });
   [655, 735, 815].forEach(y => { T.maple.push([462, y, 0.76 + (y % 19) / 160], [538, y, 0.8 + (y % 23) / 160]); });
-  /* paired groves flanking each diagonal spoke */
+  /* Paired groves flanking each diagonal spoke. These stand within a
+     few feet of the walkways, which is as close as anyone gets to a
+     tree here — so the cheapest photographed species, three of them to
+     a grove, rather than the stylised shapes that used to be here. */
   [[280,352],[352,280],[648,280],[720,352],[280,648],[352,720],[648,720],[720,648]].forEach(([cx, cy], ci) => {
     for (let i = 0; i < 3; i++){
       const a = (i / 3) * Math.PI * 2 + ci * 0.9;
       const r = 14 + ((i * 53 + ci * 31) % 14);
-      const sp = (i + ci) % 4 === 0 ? "pine" : ((i + ci) % 2 ? "maple" : "elm");
-      T[sp].push([cx + Math.cos(a) * r, cy + Math.sin(a) * r, 0.85 + ((i * 29 + ci * 17) % 30) / 55]);
+      const sp = (i + ci) % 4 === 0 ? "m011" : ((i + ci) % 2 ? "maple" : "m002");
+      (sp === "maple" ? T.maple : E[sp])
+        .push([cx + Math.cos(a) * r, cy + Math.sin(a) * r, 0.85 + ((i * 29 + ci * 17) % 30) / 55]);
     }
   });
-  /* shade belts along the campus edges (clear of halls, lots, cathedral) */
-  for (let x = 110; x <= 290; x += 45) T[x % 90 < 45 ? "oak" : "pine"].push([x, 26 + (x * 13) % 30, 0.95 + (x * 7) % 25 / 60]);
-  for (let x = 710; x <= 890; x += 45) T[x % 90 < 45 ? "pine" : "oak"].push([x, 26 + (x * 11) % 30, 0.95 + (x * 3) % 25 / 60]);
+  /* Shade belts along the campus edges (clear of halls, lots, cathedral).
+     The north pair sits behind the halls and is read over their roofs;
+     the south belt lines the walk out to the athletics district, which
+     is the longest stretch of "beyond the quad" anyone walks. */
+  for (let x = 110; x <= 290; x += 45) E[x % 90 < 45 ? "m010" : "m011"].push([x, 26 + (x * 13) % 30, 0.95 + (x * 7) % 25 / 60]);
+  for (let x = 710; x <= 890; x += 45) E[x % 90 < 45 ? "m011" : "m010"].push([x, 26 + (x * 11) % 30, 0.95 + (x * 3) % 25 / 60]);
   for (let x = 80; x <= 920; x += 55){
     if (Math.abs(x - 500) < 75) continue;               /* gatehouse */
-    T[x % 110 < 55 ? "oak" : "elm"].push([x, 935 + (x * 7) % 25, 1 + (x * 13) % 30 / 55]);
+    /* Every fourth one a full canopy, so the belt has a skyline rather
+       than a hedge line. Only every fourth: Large009 is three times a
+       Medium011 and fourteen of them would cost more than the whole
+       change put together. */
+    E[x % 220 < 55 ? "l009" : (x % 110 < 55 ? "m002" : "m011")]
+      .push([x, 935 + (x * 7) % 25, 1 + (x * 13) % 30 / 55]);
   }
   for (let y = 120; y <= 880; y += 60){
-    if (y < 640 && y > 400){} else T.oak.push([20 + (y * 7) % 18, y, 0.9 + (y * 11) % 25 / 55]);
-    if (y < 600 && y > 280){} else T.pine.push([950 + (y * 13) % 18, y, 0.95 + (y * 17) % 25 / 55]);
+    if (y < 640 && y > 400){} else E.m011.push([20 + (y * 7) % 18, y, 0.9 + (y * 11) % 25 / 55]);
+    if (y < 600 && y > 280){} else E.m002.push([950 + (y * 13) % 18, y, 0.95 + (y * 17) % 25 / 55]);
   }
   /* the forest to the horizon — pine-heavy, parting for the landmarks */
   for (let i = 0; i < 90; i++){
@@ -3139,15 +3251,72 @@ function toFloatAttrs(geo){
     geo.setAttribute(name, f);
   });
 }
+/* ── what a thing is called ───────────────────────────────────────────
+   Nothing in these files is named what its author wrote, and every
+   naming bug on this campus has come from believing otherwise. The same
+   tree mesh is
+
+     in the file      Tree EZTree0.Medium011_branches.011_0
+     in the loader    Tree_EZTree0Medium011_branches011_0
+
+   because GLTFLoader runs every name through
+   PropertyBinding.sanitizeNodeName, which strips [ ] . : / and turns
+   whitespace into underscores, and then createUniqueName appends a
+   number when two names collide. The same is true of bones: a Mixamo
+   FBX says mixamorig2:LeftFoot and the model in assets/ says
+   mixamorigLeftFoot_064.
+
+   So: compare on what survives all of that.
+
+   canon() keeps letters and digits and throws away every separator and
+   every piece of punctuation, which makes the two spellings above
+   identical — and means a prefix can be written the way the file writes
+   it, legibly, and still match.
+
+   boneKey() does the same after removing a Mixamo namespace with or
+   without its colon, and a trailing uniquifier. LeftFoot from either
+   side; CC_Base_L_Foot stays itself, which is correct, because that is
+   a different bone and not a different spelling.
+
+   Five bugs in one day came out of doing this ad hoc in four places:
+   the flora that planted nothing, an idle clip refused by every body, a
+   foot matcher that missed every Mixamo skeleton, and two before those. */
+function canon(s){ return (s || "").replace(/[^a-z0-9]/gi, "").toLowerCase(); }
+function boneKey(s){
+  s = (s || "").split("|").pop().split(":").pop();
+  s = s.replace(/^mixamorig\d*/i, "").replace(/[._]\d+$/, "");
+  return canon(s);
+}
 function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
   const meshes = [];
   root.updateMatrixWorld(true);
   root.traverse(o => {
     if (!o.isMesh) return;
-    if (prefix !== "" && !o.name.toLowerCase().startsWith(prefix)) return;
-    if (dropMat && (o.material.name || "").toLowerCase() === dropMat) return;
+    if (prefix !== "" && !canon(o.name).startsWith(canon(prefix))) return;
+    if (dropMat && canon(o.material.name) === canon(dropMat)) return;
     meshes.push(o);
   });
+  /* A prefix that matches nothing plants nothing, and used to do it in
+     total silence — no error, a valid file, a campus that simply has no
+     trees on it. Every trees.glb prefix here was wrong for a whole
+     release that way: they were copied from the file's own mesh names,
+     and GLTFLoader renames on load. PropertyBinding.sanitizeNodeName
+     strips [ ] . : / and turns whitespace into underscores, so
+     "Tree EZTree0.Medium011_branches.011_0" arrives as
+     "Tree_EZTree0Medium011_branches011_0" — and a prefix taken from the
+     file matches none of it. plantpack and maple were fine only because
+     their names have neither a space nor a dot in them.
+
+     So it says so now, and the smoke test fails on it. Nothing else in
+     this file can tell you the difference between "planted nothing" and
+     "planted something you have not walked over to yet". */
+  if (prefix !== "" && !meshes.length){
+    console.error(`[flora] nothing matches "${prefix}" — ` +
+      `${list.length} plantings dropped. Names as the loader sees them: ` +
+      (() => { const n = []; root.traverse(o => { if (o.isMesh) n.push(o.name); }); return n.join(", "); })());
+    (window.__floraMisses = window.__floraMisses || []).push(prefix);
+    return;
+  }
   if (!meshes.length || !list.length) return;
   const bb = new THREE.Box3();
   const parts = meshes.map(o => {
@@ -3198,7 +3367,11 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
     if (py > 1040 && px > -650 && px < 1550) continue;   /* athletics district */
     (i % 2 ? PINES1 : PINES2).push([px, py, 0.9 + ((i * 31) % 40) / 60]);
   }
-  [[150, 60, 1], [252, 44, 0.85], [744, 52, 0.9], [862, 60, 1.05]].forEach(p => PINES2.push(p));
+  /* Four conifers used to stand here, on the north edge where the drive
+     comes in. They are eight triangles each and it shows at that
+     distance, so they join the belts they sit in. */
+  [[150, 60, 1], [252, 44, 0.85], [744, 52, 0.9], [862, 60, 1.05]]
+    .forEach((p, i) => EZ_SETS[i % 2 ? "m011" : "m010"].push(p));
   /* a conifer screen between the east drive and the neighboring district */
   for (let y = 140; y <= 940; y += 88) (y % 176 < 88 ? PINES1 : PINES2).push([1085 + (y * 7) % 26, y, 1 + (y * 13) % 30 / 55]);
   const TREE2S = [[300,330,1.1],[360,268,0.9],[700,332,1],[268,640,1.05],[352,708,0.95],
@@ -3257,18 +3430,32 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
                           ["", TSMALL, 40, true, null, true]]],
     /* And beyond the quad, where the campus was all conifer belts and
        stylised shapes: an avenue down the boulevard to the athletics
-       district, the approach to the gatehouse, and the edge of the
-       forecourt.
+       district, the approach to the gatehouse, the edge of the
+       forecourt — and now the groves beside the walkways, the belts
+       along all four campus edges, and the drives down either side.
+       Everything, in short, that you can walk up to.
 
        Chosen by cost, not by looks. Instancing saves draw calls but not
        triangles — a tree planted ten times is drawn ten times — and
        this collection runs from 4,958 triangles for EZTree0.Medium011
-       up to 36,489 for EZTree1.Large001. The two mediums do the avenue
-       work; the large one is used six times where it is the thing you
-       are looking at, and Large001 is not used at all. */
-    ["assets/trees.glb", [["tree eztree0.medium011", AVEN_W, 58, true, null, true],
-                          ["tree eztree1.medium002", AVEN_E, 58, true, null, true],
-                          ["tree eztree0.large",     FEATURE, 74, true, null, true]]],
+       up to 36,489 for EZTree1.Large001. So Medium011 does the bulk of
+       the work, Medium002 stands opposite it wherever a pair would
+       otherwise read as two clones, Medium010 thickens the north belts
+       behind the halls, and Large009 is spent every fourth position on
+       the south belt to give it a skyline. Large001 is used nowhere:
+       at 36,489 triangles a single one costs more than a whole grove,
+       and nothing here is looked at that closely.
+
+       The lists are built up where the rest of the planting is decided,
+       a few hundred lines up, so the layout reads in one place; only
+       the loading happens here. */
+    ["assets/trees.glb", [["Tree EZTree0.Medium011", AVEN_W, 58, true, null, true],
+                          ["Tree EZTree1.Medium002", AVEN_E, 58, true, null, true],
+                          ["Tree EZTree0.Large",     FEATURE, 74, true, null, true],
+                          ["Tree EZTree0.Medium011", EZ_SETS.m011, 52, true, null, true],
+                          ["Tree EZTree1.Medium002", EZ_SETS.m002, 56, true, null, true],
+                          ["Tree EZTree0.Medium010", EZ_SETS.m010, 60, true, null, true],
+                          ["Tree EZTree1.Large009",  EZ_SETS.l009, 72, true, null, true]]],
     ["assets/daffodils.glb", [["", DAFF, 3.4, false, "material"]]],
     ["assets/lavender.glb",  [["", LAV, 6]]],
     ["assets/cypress.glb",   [["", CYP, 12]]],
@@ -3388,18 +3575,12 @@ gltf.load("assets/lamp.glb", (g) => {
     world.add(ch);
   });
 }
-/* "Campus Conversation" by restore50 (CC-BY-4.0) — a scanned group of
-   students mid-chat, posed on the lawn just off the fountain plaza */
-gltf.load("assets/students.glb", (g) => {
-  const grp = g.scene;
-  const SCALE = 21;                       /* scan is ~1.9 units tall → people ≈ 40 */
-  grp.scale.setScalar(SCALE);
-  grp.position.set(W(444), 0.95 * SCALE, W(546));
-  grp.rotation.y = -0.7;                  /* facing the fountain */
-  grp.traverse(o => { if (o.isMesh){ o.castShadow = o.receiveShadow = true; } });
-  world.add(grp);
-  COLLIDERS.push({ x: 430, y: 532, w: 28, d: 28 });
-});
+/* "Campus Conversation" by restore50 stood here: a scanned group of
+   students frozen mid-chat on the lawn, 1.55MB and 181,682 triangles.
+   It was here because the campus had nobody on it. It now has fifteen
+   rigged bodies who walk past that spot, stop, and can be spoken to —
+   and a photograph of four people not moving among them reads as
+   exactly what it is. Removed. */
 gltf.load("assets/bench.glb", (g) => {
   for (let k = 0; k < 6; k++){
     const a = (15 + 60 * k) * Math.PI / 180;
@@ -3522,15 +3703,76 @@ const ALL_WAYS = Object.keys(WAYPOINTS);
 const RING_SET = new Set(window.__ring);
 window.__ways = { WAYPOINTS, EDGES };   /* test/debug hook */
 
+/* Each of them already had a voice — three lines apiece, all of them
+   about their own subject. `at` is which hall that subject is taught
+   in, which is what lets a conversation know whether you have actually
+   sat the course they are enthusing about. `ask` is what you can put to
+   them: a question, and what they say back. */
 const STUDENT_ROSTER = [
-  { name:"Elowen", c:0x34d399, says:["Off to Calc III — gradients await!","The Library dome at dusk… unbeatable.","Stokes' theorem finally clicked!"] },
-  { name:"Marcus", c:0xfbbf24, says:["My first Python script ran — no errors!","Binary search in 17 steps. SEVENTEEN.","Whitmore Quad study group, 8pm."] },
-  { name:"Priya",  c:0x38bdf8, says:["My full adder passed every row!","RAX holds the whole sum. Registers are elegant.","Lab practical on flip-flops today."] },
-  { name:"Jun",    c:0xa78bfa, says:["Tuned my PID — no more overshoot!","A* found a corridor through the no-fly grid.","Capstone flight over the quad Friday!"] },
-  { name:"Sofia",  c:0xf472b6, says:["Simpson's rule tamed the Gaussian bell.","Unit circle from memory. All of it.","Meet at the fountain after lecture?"] },
-  { name:"Theo",   c:0x5eead4, says:["Pointers finally make sense!","Committed my problem sets — git push, done.","K-maps are just crossword puzzles."] },
-  { name:"Amara",  c:0xfb923c, says:["Ten laps of the oval before class.","The chapel bells at dusk — worth the walk.","Green's theorem is just bookkeeping for flow."] },
-  { name:"Kenji",  c:0xa3e635, says:["Parked by the east lot, sprinting to lab!","My A* found a shorter path to lecture.","The refectory's roof matches my notebook."] },
+  { name:"Elowen", c:0x34d399, at:"lib", major:"Pure Mathematics",
+    says:["Off to Calc III — gradients await!","The Library dome at dusk… unbeatable.","Stokes' theorem finally clicked!"],
+    ask:[["What are you working on?",
+          "Calculus III. Vector fields, mostly. You spend a fortnight thinking a gradient is just a slope with extra steps, and then one afternoon it stops being arithmetic and starts being a picture — the field pointing uphill everywhere at once."],
+         ["Stokes' theorem — honestly?",
+          "Honestly? It says the swirl inside a region and the push around its edge are the same number. That's it. Everything else is bookkeeping to make the two sides line up."],
+         ["Why the Library?",
+          "The dome. Go up at dusk, when the lamps come on under the emerald glass and the whole reading room turns the colour of a pond. Nobody talks. It's the only place on this campus where I get anything done."]] },
+  { name:"Marcus", c:0xfbbf24, at:"eng", major:"Software Foundations",
+    says:["My first Python script ran — no errors!","Binary search in 17 steps. SEVENTEEN.","Whitmore Quad study group, 8pm."],
+    ask:[["What are you working on?",
+          "Python, and I'm not going to pretend to be cool about it. My first script ran with no errors this morning. Eleven lines. I've read them back about six times."],
+         ["Binary search — what's the fuss?",
+          "A hundred and thirty thousand records and it found the one I wanted in seventeen looks. Seventeen! You halve the haystack, then halve what's left. I keep doing it on paper to check it isn't a trick."],
+         ["Any advice for a beginner?",
+          "Type it out. Don't copy it in — type it. You'll make a mistake somewhere around line four, and fixing that mistake is the bit where you actually learn something."]] },
+  { name:"Priya",  c:0x38bdf8, at:"sci", major:"Electrical Hardware",
+    says:["My full adder passed every row!","RAX holds the whole sum. Registers are elegant.","Lab practical on flip-flops today."],
+    ask:[["What are you working on?",
+          "A full adder. Two bits in, a carry in, a sum and a carry out — and this afternoon it passed all eight rows of the truth table on the first go. I may have made a noise in the lab."],
+         ["Why does hardware appeal?",
+          "Because there's nowhere to hide. Software you can talk yourself into believing. A gate either switches or it doesn't, and the scope on the bench will tell you which without any sympathy at all."],
+         ["What's a flip-flop, really?",
+          "A circuit that remembers one thing. That's the whole trick — feed the output back to the input and it holds its state until you tell it otherwise. Every byte of memory you have ever used is that, repeated until it's a machine."]] },
+  { name:"Jun",    c:0xa78bfa, at:"adm", major:"AI Robotics & Flight",
+    says:["Tuned my PID — no more overshoot!","A* found a corridor through the no-fly grid.","Capstone flight over the quad Friday!"],
+    ask:[["What are you working on?",
+          "Flight planners. I spent three days tuning a PID loop that kept overshooting the setpoint and oscillating like a nervous dog. Turned the derivative term up. It settles now. Three days for one number."],
+         ["What is A* actually doing?",
+          "Guessing well. It's a search that keeps asking 'how far have I come, and how far do I probably still have to go' — and it always expands the option where that sum is smallest. Give it an honest guess and it finds the shortest path without checking the whole map."],
+         ["Capstone flight?",
+          "Friday, over the quad, if the wind behaves. Full autonomous circuit round the fountain and back to the pad at Aldergate. Come and watch. Stand well back."]] },
+  { name:"Sofia",  c:0xf472b6, at:"lib", major:"Pure Mathematics",
+    says:["Simpson's rule tamed the Gaussian bell.","Unit circle from memory. All of it.","Meet at the fountain after lecture?"],
+    ask:[["What are you working on?",
+          "Numerical integration. The Gaussian bell has no nice antiderivative — you cannot just write the answer down — so you approximate it, and Simpson's rule does it with parabolas instead of rectangles. Frighteningly accurate for how little work it is."],
+         ["The whole unit circle from memory?",
+          "All of it. Not because anyone made me — because once you can see it, half of trigonometry stops being formulas to remember and turns into one picture you already know."],
+         ["Where's good to sit out here?",
+          "The fountain, after lecture. The lawn's warm by then and you can hear the water over the walk. I usually have a problem set and no intention of finishing it."]] },
+  { name:"Theo",   c:0x5eead4, at:"eng", major:"Software Foundations",
+    says:["Pointers finally make sense!","Committed my problem sets — git push, done.","K-maps are just crossword puzzles."],
+    ask:[["What are you working on?",
+          "C. Pointers, specifically, which everybody warns you about for a fortnight and then one day you realise a pointer is just an address — a house number, not the house. After that it's fine. Mostly fine."],
+         ["K-maps — worth learning?",
+          "They're crossword puzzles. You draw the truth table as a grid, circle the neighbouring ones in the biggest blocks you can, and each block is a term you get to delete from the expression. It's the most fun anyone has ever had removing gates."],
+         ["Why bother with git?",
+          "Because I lost a week's work once. Now every problem set is committed the moment it runs. It isn't discipline, it's fear, and fear is a perfectly good reason."]] },
+  { name:"Amara",  c:0xfb923c, at:"lib", major:"Pure Mathematics",
+    says:["Ten laps of the oval before class.","The chapel bells at dusk — worth the walk.","Green's theorem is just bookkeeping for flow."],
+    ask:[["What are you working on?",
+          "Vector calculus, between laps. Ten round the oval before the first lecture — it's the only hour of the day when this campus is completely mine."],
+         ["Green's theorem, briefly?",
+          "Bookkeeping for flow. Whatever's circulating round the edge of a patch has to equal whatever's swirling about inside it. Nothing appears from nowhere. Once you believe that, the algebra is just the receipt."],
+         ["Where do you run to?",
+          "Out past the athletics field, down the boulevard, back up through the gate. Do it at dusk when the chapel bells go and tell me it isn't worth the walk."]] },
+  { name:"Kenji",  c:0xa3e635, at:"adm", major:"AI Robotics & Flight",
+    says:["Parked by the east lot, sprinting to lab!","My A* found a shorter path to lecture.","The refectory's roof matches my notebook."],
+    ask:[["What are you working on?",
+          "Path planning — and then applying it to my own commute, which is how I found out the diagonal past the science hall saves me ninety seconds. I have been late to precisely one lecture since."],
+         ["Does the theory actually help?",
+          "It made me notice things. Once you've written a planner that weights every edge, you start seeing the campus as a graph: the paving is edges, the doors are nodes, and the lawn is a shortcut everyone takes and nobody admits to."],
+         ["The refectory roof?",
+          "Same green as my notebook. I noticed it in first week and now I can't stop seeing it. That's the whole story, I'm afraid — I did warn you it was a small thing."]] },
 ];
 const students = [];
 const skinMat = new THREE.MeshStandardMaterial({ color: 0xe2cfae, roughness: 0.8 });
@@ -3618,8 +3860,18 @@ const CAST_FILES = {
   oreizo:  "assets/stu_oreizo.glb",     /* 33k tris, one walk cycle     */
   nathan:  "assets/stu_nathan.glb",     /* 22k tris, a scan, one walk   */
   strider: "assets/stu_strider.glb",    /* 13k tris, one walk cycle     */
+  /* Brought in together to be judged on the quad rather than in a log.
+     kenta is the cheapest body here by a distance and the only newcomer
+     whose skeleton is Mixamo-named, so he can take the standing idle;
+     isla walks but arrives at 183k triangles and leans on the courier's
+     simplifier; nadia is a full Character Creator anatomy and the one
+     to watch on weight. sophia is not a roamer at all — her bones are
+     named ..._idling_... and her clip runs 488 frames. */
+  kenta:   "assets/stu_kenta.glb",      /* 22k tris, mixamo-named, walks */
+  isla:    "assets/stu_isla.glb",       /* walks; heavy until simplified */
+  nadia:   "assets/stu_nadia.glb",      /* character creator, 46 maps    */
+  sophia:  "assets/stu_sophia.glb",     /* 16k tris, 20 seconds of idle  */
   tutor:   "assets/stu_tutor.glb",      /*  6k tris, a 25s standing loop */
-  stand:   "assets/stu_anim.glb",
   skate:   "assets/stu_skater.glb",
 };
 /* ── who has to be here before the doors open ─────────────────────────
@@ -3637,21 +3889,43 @@ const CAST_FILES = {
    looks like anyway.
 
      first   8.3MB   walker gent mia nathan stand skate tutor
-     after  10.8MB   teen woman alina ariel oreizo strider          */
-const CAST_FIRST = ["walker", "gent", "mia", "nathan", "stand", "skate", "tutor"];
+     after  10.8MB   teen woman alina ariel oreizo strider
+
+   Which bodies come first is a question about variety, not only about
+   megabytes, and the first list got it wrong. Of the four ROAMING
+   bodies in it, three could not be dressed at all: gent and mia carry
+   no colour data and are painted one flat skin tone, and nathan is a
+   scan whose body and clothes are a single mesh on a single material.
+   So the crowd for the first minute or two of a visit — and the whole
+   crowd on any machine slow enough for the give-up to fire — was one
+   dressable person and a set of mannequins.
+
+   Measured across all sixteen bodies, exactly six have a shirt mesh
+   the wardrobe can find: walker, strider, oreizo, ariel, woman, nadia.
+   Two of the cheapest are strider (0.40MB, and dressable in all five
+   slots) and oreizo (0.75MB, likewise), so they take the places gent
+   and mia held for 0.80MB between them. Costs 0.35MB more and turns
+   one dressable body in the opening wave into three.                  */
+const CAST_FIRST = ["walker", "strider", "oreizo", "nathan", "sophia", "skate", "tutor"];
 /* A teenager is shorter, and the height is doing as much work here as
    any of the colours — see buildOf, which varies each figure another
    ±11% on top of these. */
 const CAST_HEIGHT = { walker: 42, gent: 43, mia: 40, teen: 38, woman: 41,
                       alina: 40, ariel: 40, oreizo: 43, nathan: 43,
-                      strider: 42, tutor: 41, stand: 41, skate: 42 };
+                      strider: 42, tutor: 41, skate: 42,
+                      kenta: 41, isla: 40, nadia: 41, sophia: 40 };
 /* Which bodies can be given a waypoint and told to walk it, and which
    are only good for standing about. Eight that walk against a crowd
    that caps at ten: the round robin runs out of new people only on the
    ninth, and by then they are scattered over sixty-eight waypoints. */
 const ROAMING = ["walker", "gent", "mia", "teen", "woman", "alina",
-                 "oreizo", "nathan", "ariel", "strider"];
-const LOITERING = ["tutor", "stand"];
+                 "oreizo", "nathan", "ariel", "strider",
+                 "kenta", "isla", "nadia"];
+/* sophia joins the standers rather than the walkers, because that is
+   what she came with: 488 frames of idle and no gait at all. She is
+   also 16k triangles against stu_anim's 179,598 for the same job, which
+   is the heaviest figure on this campus doing the least. */
+const LOITERING = ["tutor", "sophia"];
 /* Asked at the moment a figure is built, never pruned. Bodies now
    arrive in two waves, so a list filtered once at startup would be
    permanently missing the six that come in later — and every extra
@@ -3663,21 +3937,21 @@ const loadedLoitering = () => LOITERING.filter(k => castLib[k]);
    drawn per figure in makeRoamer rather than fixed here, so the mix
    changes between visits. */
 const CAST_PLAN = [
-  { k: "gent" },                                            /* Elowen — roams        */
-  { k: "stand", at: [700, 340], face: -0.9, live: true, pose: 0 }, /* Marcus — Whitmore door */
+  { k: "any" },                                             /* Elowen — roams        */
+  { k: "loiter", at: [700, 340], face: -0.9, live: true, pose: 0 }, /* Marcus — Whitmore door */
   { k: "walker", at: [449, 449], face:  0.8, kind: "chat",  /* Priya  — plaza        */
     clip: "Idle" },
   { k: "walker", at: [543, 449], face: -2.4, kind: "laptop",/* Sofia  — lawn         */
     clip: "Sitting Talking" },
-  { k: "mia" },                                             /* Theo   — roams        */
+  { k: "any" },                                             /* Theo   — roams        */
   /* Jun stood at 270,700 — which is inside the science hall, invisible
      behind its south wall. Out on the front now, facing the quad. */
-  { k: "stand", at: [286, 838], face:  0.2, live: true, pose: 1 }, /* Jun — Alden front */
+  { k: "loiter", at: [286, 838], face:  0.2, live: true, pose: 1 }, /* Jun — Alden front */
   /* Amara used to lap the ring at 182 — which, with the player standing
      in the middle of it, meant she was on screen permanently. She runs
      the campus now, on the same paths as everyone else, just faster. */
   { k: "walker", jog: true },                               /* Amara  — runs the campus */
-  { k: "nathan" },                                          /* Kenji  — roams        */
+  { k: "any" },                                             /* Kenji  — roams        */
 ];
 const castLib = {};
 const castMixers = [];
@@ -3748,6 +4022,19 @@ function prepareClips(anims){
    know that the gent's model 404'd. Standing in for them is a smaller
    loss than losing the student. */
 function bodyFor(k){
+  /* "any" means this student has no particular body — Elowen, Theo and
+     Kenji roam and nothing about them depends on which one they are, so
+     they are dealt a different one each visit like the crowd. Priya,
+     Sofia and Amara ask by name because they need the original walker's
+     clips: Idle, Sitting Talking and Jogging, which no other body has. */
+  if (k === "any" || k === "loiter"){
+    /* "loiter" is "any" for the standers. Marcus and Jun used to ask
+       for stu_anim by name — 179,598 triangles to hold still by a door,
+       the heaviest figure on the campus doing the least. Whoever is
+       standing about today does it instead. */
+    const pool = k === "any" ? loadedRoaming() : loadedLoitering();
+    return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+  }
   if (castLib[k]) return k;
   const pool = ROAMING.includes(k) ? loadedRoaming() : loadedLoitering();
   const alt = pool[0] || loadedRoaming()[0] || loadedLoitering()[0] || null;
@@ -4018,12 +4305,19 @@ function dressFigure(g, seed){
        the three bodies silently keep their factory outfit — which looks
        exactly like the wardrobe working, since they are different
        people to begin with. */
-    const tag = (o.name || "") + " " + (o.material.name || "");
+    const tag = canon(o.name) + " " + canon(o.material.name);
     /* A beard follows the hair. One of these bodies carries its
        moustache on its own material, and a blond crop over a black
        moustache is not a person, it is a bug. */
     const what = /hair|beard|moustache|mustache|scalp|brow|eyelash/i.test(tag) ? "hair"
-               : /shirt|top|jacket/i.test(tag) ? "shirt"
+               /* "suit" because the skater's clothing is one mesh named
+                  male_casualsuit06 — a whole outfit rather than a
+                  shirt, but it is the garment, and leaving it out left
+                  him in his factory colours on every visit. Not
+                  "outfit": Wolf3D names both halves that way, and this
+                  branch is tested before the trousers, so it would put
+                  Outfit_Bottom in a shirt colour. */
+               : /shirt|top|jacket|suit|hoodie|sweater/i.test(tag) ? "shirt"
                : /short|pant|trouser|jean|bottom|denim/i.test(tag) ? "shorts"
                : /shoe|sneaker|boot|footwear|canvas/i.test(tag) ? "sneakers"
                : /body|skin|head/i.test(tag) ? "skin" : null;
@@ -4100,14 +4394,54 @@ function buildOf(seed){
   const s = Math.sin(seed * 74.3 + 9.1) * 43758.5453;
   return 0.89 + (s - Math.floor(s)) * 0.22;           /* ±11% of height */
 }
+/* ── who is out today ─────────────────────────────────────────────────
+   The named eight used to all be on the lawn, every visit, in the same
+   places. Twelve fixed figures — the eight, the skater, three loiterers
+   — is about four in view from the middle of the quad before a single
+   extra arrives, which is most of a crowd on its own and identical
+   every time.
+
+   So they attend. A student has lectures, and a campus where everybody
+   is outside at once is a campus on fire drill. Two in five turn out on
+   any visit, never fewer than two, so the quad is populated but not the
+   same population — and whoever is missing today is the reason it looks
+   different tomorrow. */
+function attendance(){
+  const n = STUDENT_ROSTER.length;
+  /* ?crowd means "show me the campus at its fullest" — for a review on
+     real hardware, and for the test that counts heads. A random
+     attendance would make that flag mean something different every run,
+     which is the one thing a diagnostic must not do. */
+  if (CROWD_FORCE !== null) return STUDENT_ROSTER.map(() => true);
+  /* Measured, then corrected. Two in five put the average at 1.20
+     people in view across 192 viewpoints and left 39% of them empty —
+     the floor of "one to three", not the middle of it, and rather more
+     than the "moments at a time" an empty quad was meant to be. Eleven
+     in twenty. */
+  let who = STUDENT_ROSTER.map(() => Math.random() < 0.55);
+  let out = who.filter(Boolean).length;
+  /* two is the floor: below that the campus reads as closed rather than
+     quiet, and the tagged students are the ones you came to meet */
+  while (out < 2){
+    const i = Math.floor(Math.random() * n);
+    if (!who[i]){ who[i] = true; out++; }
+  }
+  return who;
+}
 function buildCast(){
+  const present = attendance();
   STUDENT_ROSTER.forEach((st, i) => {
+    if (!present[i]) return;             /* in a lecture */
     const plan = CAST_PLAN[i];
     const k = bodyFor(plan.k);
     if (!k) return;                      /* nothing loaded at all */
-    const g = prepFigure(k, CAST_HEIGHT[k] * buildOf(i), plan.live, plan.pose || 0);
+    /* Dressed off this visit's seed, so Elowen is not wearing the same
+       shirt she wore last time either. Her name, her lines and where
+       she is going are hers; her clothes are not. */
+    const seed = VISIT + i * 101;
+    const g = prepFigure(k, CAST_HEIGHT[k] * buildOf(seed), plan.live, plan.pose || 0);
     if (!g) return;
-    if (ROAMING.includes(k)) dressFigure(g, i);
+    if (ROAMING.includes(k)) dressFigure(g, seed);
     const tagEl = document.createElement("div");
     tagEl.className = "stu-tag";
     tagEl.textContent = st.name;
@@ -4136,14 +4470,17 @@ function buildCast(){
        220 feet of the fountain, which is a crowd however well the extras
        are spread. They carry name tags, so meeting Theo on the boulevard
        finds him just as well as circling the lawn did. */
-    const s = makeRoamer(g, ALL_WAYS[(i * 11 + 5) % ALL_WAYS.length], { data: st },
+    const s = makeRoamer(g, ALL_WAYS[Math.floor(Math.random() * ALL_WAYS.length)], { data: st },
                          plan.jog ? "Jogging" : null);
     if (plan.jog) s.speed *= 1.5;
   });
   /* An uncommissioned regular, carving laps — down at the athletics
      forecourt, where a skateboard belongs and where he is not making up
      a sixth of everything visible from the fountain. */
-  const sk = castLib.skate ? prepFigure("skate", 0, true) : null;
+  /* Some days he is not out either. He laps the forecourt endlessly, so
+     when he is there he is there for the whole visit. */
+  const sk = (castLib.skate && (CROWD_FORCE !== null || Math.random() < 0.5))
+    ? prepFigure("skate", 0, true) : null;
   if (sk){
     world.add(sk);
     students.push({ g: sk, orbit: 84, orbitA: 3.6, orbitW: -0.6, skate: true,
@@ -4159,7 +4496,12 @@ function buildCast(){
      209 feet from the fountain, which is to say permanently in shot from
      the middle of the quad — a figure that never moves costs the view
      far more than one walking through it. */
-  [[236, 344, -1.4, 1], [520, 962, 2.9, 2], [470, 1150, -2.0, 3]].forEach(([x, y, face, pose], i) => {
+  /* And not all of them either, for the same reason — a figure that
+     never moves is in shot for as long as you stand there, so three of
+     them permanently is three of your one-to-three. */
+  [[236, 344, -1.4, 1], [520, 962, 2.9, 2], [470, 1150, -2.0, 3]]
+    .filter(() => CROWD_FORCE !== null || Math.random() < 0.4)
+    .forEach(([x, y, face, pose], i) => {
     const pool = loadedLoitering();
     if (!pool.length) return;
     const k = pool[i % pool.length];
@@ -4200,8 +4542,34 @@ function buildCast(){
    holding" is not a feature. A handful always arrive; the ramp only
    decides how far past them to go.
    ══════════════════════════════════════════════════════════════════ */
+/* ── how many, this time ──────────────────────────────────────────────
+   A fixed cap meant every visit filled to the same number and, with
+   fixed seeds, with the same people. The count is drawn per visit now.
+
+   The target is what a campus should look like from the middle of it:
+   one to three people in sight, sometimes nobody, occasionally a rush.
+   That is a statement about the view, not the population — students are
+   spread over sixty-eight waypoints and pause at two thirds of them, so
+   only a fraction are ever in front of you.
+
+   The fraction was guessed at one in three and then measured, by
+   standing at 192 waypoints across eight visits and counting who was
+   in the frustum, close enough to read as a person, and not behind a
+   building. It is closer to one in six: seven on the campus read as
+   1.20 in view, with 39% of viewpoints empty. So the first draw was
+   too thin — the floor of "one to three" rather than the middle of it.
+
+   Weighted low on purpose, still. Squaring a uniform draw makes the
+   small crowds common and the large ones rare, which is what
+   "sometimes more, sometimes fewer" means: an average with a long
+   tail, rather than a coin flip between empty and packed. */
 const CROWD_MAX = 10;
-const CROWD_MIN = 3;                 /* arrive regardless of what it costs */
+const CROWD_TARGET = 2 + Math.floor(Math.random() * Math.random() * 7);
+/* One arrives regardless of what it costs. This was Math.min(1,
+   CROWD_TARGET), written when the target could be zero; it cannot any
+   more, so the expression was always 1 and only looked like it meant
+   something. */
+const CROWD_MIN = 1;
 /* Above any 30Hz display cap and well below 60, so a phone that is
    merely capped is not mistaken for a phone that is struggling — and a
    machine actually labouring in the low thirties stops at the five. */
@@ -4226,35 +4594,60 @@ function fillForcedCrowd(){
        software rasterizer, and a body that never arrives at all would
        otherwise leave ?crowd showing an empty quad forever. Twenty
        seconds, then fill with whoever is here. */
-    if (!lateGiveUp) lateGiveUp = setTimeout(() => { lateOutstanding = 0; fillForcedCrowd(); }, 20000);
+    /* Forty-five, not twenty. There are nine deferred bodies now rather
+       than six, and ?crowd exists to show the variety they provide — a
+       give-up that fires first fills the quad from the first wave and
+       demonstrates the opposite. */
+    if (!lateGiveUp) lateGiveUp = setTimeout(() => { lateOutstanding = 0; fillForcedCrowd(); }, 45000);
     return;
   }
   clearTimeout(lateGiveUp);
   while (crowdN < CROWD_FORCE) addExtra(crowdN++);
   crowdDone = true;
 }
-function addExtra(n){
-  const seed = 101 + n * 3;
-  /* Round the bodies rather than at random, so a crowd of three is
-     three different people rather than three rolls of the same die. */
+/* Nobody should be where they were yesterday. Every seed below hangs
+   off this, so a visit gets its own people in its own clothes starting
+   from its own corners of the campus — where before, the arithmetic was
+   fixed and every visit produced the same nine strangers standing in
+   the same nine places. */
+const VISIT = Math.floor(Math.random() * 1e6);
+/* The bodies dealt out in a fresh order each visit rather than taken
+   from the list as written. Still a deal rather than a roll: three
+   people should be three different people, not three throws of the same
+   die that might come up the same twice. */
+let castDeck = [];
+function nextBody(n){
   const pool = loadedRoaming();
-  if (!pool.length) return;
-  const k = pool[n % pool.length];
+  if (!pool.length) return null;
+  if (n === 0 || castDeck.length === 0){
+    castDeck = pool.slice();
+    for (let i = castDeck.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      [castDeck[i], castDeck[j]] = [castDeck[j], castDeck[i]];
+    }
+  }
+  return castDeck.pop();
+}
+function addExtra(n){
+  const k = nextBody(n);
+  if (!k) return;
+  const seed = VISIT + n * 37;
   const g = prepFigure(k, CAST_HEIGHT[k] * buildOf(seed), false);
   if (!g) return;
   dressFigure(g, seed);
   g.userData.crowd = true;               /* test/debug: not one of the named */
   world.add(g);
-  /* Started at nodes drawn from across the whole graph rather than in
-     order, so the first arrivals are not all standing on the same walk.
-     The stride is deliberately coprime-ish with the node count. */
-  makeRoamer(g, ALL_WAYS[(n * 7 + 3) % ALL_WAYS.length]);
+  /* Anywhere on the campus, drawn rather than strided. Sixty-eight
+     waypoints and half a dozen people means the odds of two starting
+     together are small, and if they do they will have walked apart
+     within the minute. */
+  makeRoamer(g, ALL_WAYS[Math.floor(Math.random() * ALL_WAYS.length)]);
 }
 function stepCrowd(now, dt){
   /* a slow average, so one stutter — a model finishing its decode, a
      texture uploading — does not permanently cap the campus */
   crowdFps += (1 / Math.max(dt, 1e-4) - crowdFps) * Math.min(1, dt * 1.5);
-  if (crowdDone || !crowdReady || crowdN >= CROWD_MAX) return;
+  if (crowdDone || !crowdReady || crowdN >= CROWD_TARGET) return;
   /* Not while the campus is still arriving. 39MB of models decode on
      the main thread, and on a phone that is half a minute of frames the
      renderer never got to draw. Reading that as "this machine is slow"
@@ -4272,10 +4665,32 @@ function stepCrowd(now, dt){
   addExtra(crowdN++);
 }
 /* test/debug hook: how many people are on campus, whether more are
-   coming, and what they cost to draw */
+   coming, and what they cost to draw. `target` is what this visit drew
+   for itself — without it, "n: 3" cannot be told from "n: 3, capped". */
 window.__crowd = () => ({ n: crowdN, done: crowdDone, fps: crowdFps,
+  target: CROWD_TARGET, ready: crowdReady,
+  pending: assetLog.filter(a => a.ms == null && !a.late).length,
   people: students.length, draws: renderer.info.render.calls,
   tris: renderer.info.render.triangles });
+/* test/debug hook: put this visit's whole crowd out at once.
+ *
+ * Measuring what a visitor sees is impossible through the ramp, because
+ * the ramp is deliberately hostile to the machine doing the measuring:
+ * it waits for every core asset, and a headless software rasterizer
+ * takes minutes over those, and then the fps floor caps the crowd at
+ * one on the grounds that anything drawing at 3fps cannot afford
+ * people. Both are right on a phone and both make the harness report a
+ * campus that no real visitor gets — the first run of this measurement
+ * sampled the named cast alone and called it the crowd.
+ *
+ * So this skips the ramp and not the numbers: same CROWD_TARGET, same
+ * bodies, same deck. What arrives is what a machine that could keep up
+ * would have shown, all at once instead of over a few seconds. */
+window.__crowdFill = () => {
+  while (crowdN < CROWD_TARGET) addExtra(crowdN++);
+  crowdDone = true;
+  return crowdN;
+};
 /* Crossfade rather than cut. A student who reaches a door and snaps from
    mid-stride to standing reads as a glitch; a quarter-second blend reads
    as someone arriving. */
@@ -4289,6 +4704,137 @@ function setClip(s, name, fade = 0.25){
   next.reset().setEffectiveWeight(1).fadeIn(fade).play();
   if (a.current && a.actions[a.current]) a.actions[a.current].fadeOut(fade);
   a.current = name;
+}
+/* ── standing still, on a body that has no idle ───────────────────────
+   Eleven bodies; only five carry a Mixamo skeleton. Three are Character
+   Creator (CC_Base_Spine01, CC_Base_L_Foot) and one is neither, and a
+   clip addresses bones by NAME — so lifting Idle off the walker and
+   handing it to those eight would land on nothing whatsoever. Valid
+   file, no error, a person standing perfectly still and insisting they
+   are breathing. This file has shipped that failure twice already.
+
+   Retargeting properly means a bone-mapping table per convention, a
+   courier run, three rebuilt models and a cache bump — all to fix a
+   pose. So instead: hold the walk the body already has at the frame
+   where its feet pass each other, which IS a person standing with
+   their feet together, and add breathing on top.
+
+   It never asks what a bone is called except through one regex that
+   both conventions happen to satisfy (/foot/, /spine|chest|neck|head/),
+   and if even that finds nothing it gives up and lets them walk, which
+   is what they did before. */
+const PASS_CACHE = {};
+function passingTime(g){
+  const a = g.userData.anim;
+  const key = g.userData.figure + "|" + (a && a.current);
+  if (key in PASS_CACHE) return PASS_CACHE[key];
+  const act = a && a.actions[a.current];
+  if (!act){ return (PASS_CACHE[key] = null); }
+  const feet = [];
+  g.traverse(o => { if (o.isBone && /foot/.test(boneKey(o.name))) feet.push(o); });
+  /* Two shapes of name, and the first version only caught one of them.
+     "CC_Base_L_Foot" has its side as a lone letter between separators;
+     "mixamorig:LeftFoot" spells it out and runs straight into the next
+     word, so a test that demanded a non-letter afterwards missed every
+     Mixamo body on the campus — which is most of them. */
+  /* "mixamorigLeftFoot_064" spells its side out and runs into the next
+     word; "CC_Base_L_Foot" uses a lone letter. canon() has already
+     removed the separators, so both are read off the key: the word if
+     it is there, otherwise a lone l or r at the front. */
+  const side = (b, word, letter) => {
+    /* Two shapes, and each needs its own reading. "mixamorigLeftFoot"
+       spells the side out and runs into the next word, so it is found
+       on the canonical key. "CC_Base_L_Foot" carries it as a lone
+       letter BETWEEN SEPARATORS — and canon() has thrown those away, so
+       ccbaselfoot hides it completely. That one has to be read off the
+       raw name, where the underscores still exist. */
+    if (boneKey(b.name).includes(word)) return true;
+    return new RegExp("(^|[^a-z])" + letter + "([^a-z]|$)", "i").test(b.name);
+  };
+  const L = feet.find(b => side(b, "left", "l"));
+  const R = feet.find(b => b !== L && side(b, "right", "r"));
+  if (!L || !R){ return (PASS_CACHE[key] = null); }
+  const hands = [];
+  g.traverse(o => {
+    /* the hand itself, not its fingers: LeftHand yes, LeftHandIndex1 no */
+    if (o.isBone && /(hand|wrist)$/.test(boneKey(o.name))) hands.push(o);
+  });
+  const was = act.time, wasPaused = act.paused;
+  const p = new THREE.Vector3(), q = new THREE.Vector3();
+  const root = new THREE.Vector3();
+  g.getWorldPosition(root);
+  const mid = root.x;
+  let best = null, bestD = Infinity;
+  const dur = act.getClip().duration;
+  for (let i = 0; i < 24; i++){
+    const t = (i / 24) * dur;
+    act.time = t;
+    a.mixer.update(0);
+    g.updateMatrixWorld(true);
+    L.getWorldPosition(p); R.getWorldPosition(q);
+    let d = Math.hypot(p.x - q.x, p.z - q.z);
+    /* Feet together is necessary and nowhere near sufficient. A bind
+       pose has the feet together too — and arms straight out sideways —
+       so scoring on the feet alone picked frame zero and stood a
+       student in the middle of a conversation in a T-pose. Charge for
+       the arms as well: how far the hands sit from the body's centre
+       line. A passing stride keeps them near the hips; a T-pose does
+       not, and now loses. */
+    for (const h of hands){
+      h.getWorldPosition(p);
+      d += Math.abs(p.x - mid) * 0.6;
+    }
+    if (d < bestD){ bestD = d; best = t; }
+  }
+  act.time = was; act.paused = wasPaused;
+  a.mixer.update(0);
+  return (PASS_CACHE[key] = best);
+}
+/* Hold that frame. The mixer keeps writing the same pose every update,
+   which is what lets breathe() add to it and not fight it. */
+function holdStill(s){
+  const a = s.g.userData?.anim;
+  if (!a) return false;
+  setClip(s, s.gait2, 0.3);
+  const act = a.actions[a.current];
+  if (!act) return false;
+  if (s.holdAt === undefined) s.holdAt = passingTime(s.g);
+  if (s.holdAt === null) return false;         /* no feet found — keep walking */
+  act.paused = true;
+  act.time = s.holdAt;
+  s.held = true;
+  return true;
+}
+function release(s){
+  const a = s.g.userData?.anim;
+  const act = a && a.actions[a.current];
+  if (act) act.paused = false;
+  s.held = false;
+}
+/* Nobody stands like a statue. A held frame plus a slow rise and fall
+   through the spine, a little sway, and a head that is not quite level
+   reads as a person waiting; the same frame without it reads as a bug.
+   Applied AFTER the mixer has written the pose, every frame, because
+   the mixer would otherwise overwrite it. */
+const BREATHE = /spine|chest|neck|head/;
+function breathe(g, t, phase){
+  if (!g.userData.__breath){
+    const bones = [];
+    g.traverse(o => { if (o.isBone && BREATHE.test(boneKey(o.name))) bones.push(o); });
+    /* Lowest first: the rise starts at the waist and arrives at the
+       head, which is the order a breath actually travels. */
+    bones.sort((a, b) => a.position.y - b.position.y);
+    g.userData.__breath = bones.slice(0, 6);
+  }
+  const bones = g.userData.__breath;
+  if (!bones.length) return;
+  const b = Math.sin(t * 1.15 + phase);
+  const sway = Math.sin(t * 0.42 + phase * 1.7);
+  bones.forEach((bone, i) => {
+    const k = (i + 1) / bones.length;
+    bone.rotation.x += b * 0.011 * k;
+    bone.rotation.z += sway * 0.006 * k;
+  });
 }
 /* Play the clip at the pace the body is actually travelling. Clamped
    because a student hurrying at double speed should look hurried, not
@@ -4398,6 +4944,7 @@ function stepStudents(dt, now){
         if (s.startedAt !== undefined && now - s.startedAt > 620){
           s.startedAt = undefined;
         }
+        if (s.held) release(s);       /* setClip alone will not unpause it */
         if (s.startedAt === undefined){
           setClip(s, s.gait2);
           matchSpeed(s, s.gait2, s.speed);
@@ -4405,6 +4952,11 @@ function stepStudents(dt, now){
           matchSpeed(s, R.start, s.speed);
         }
         s.anim0 = "moving";
+      } else if (!R.idle && holdStill(s)){
+        /* no idle clip on this body — its own walk, held at the frame
+           where the feet pass, plus breathing from the render loop */
+        s.anim0 = "held";
+        s.startedAt = undefined;
       } else if (R.idle){
         setClip(s, R.idle);
         /* standing still is where identical clips are most obvious, so
@@ -4852,13 +5404,27 @@ const ray = new THREE.Raycaster();
 let downAt = null;
 renderer.domElement.addEventListener("pointerdown", e => { downAt = [e.clientX, e.clientY]; });
 renderer.domElement.addEventListener("pointerup", e => {
-  if (!downAt || walker.on) return;
+  if (!downAt || convoView) return;
   const moved = Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]);
   downAt = null;
   if (moved > 6) return;
   const r = renderer.domElement.getBoundingClientRect();
   const ndc = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
   ray.setFromCamera(ndc, camera);
+  /* People first, and in walk mode too — everything else here is
+     buildings, and a tap that lands on a person means the person. The
+     crowd are strangers with no name tag and nothing to say; only the
+     named eight carry a `data` record, so only they answer. */
+  {
+    let best = null, bestD = Infinity;
+    for (const s of students){
+      if (!s.data || !s.g || !s.g.visible) continue;
+      const hit = ray.intersectObject(s.g, true);
+      if (hit.length && hit[0].distance < bestD){ bestD = hit[0].distance; best = s; }
+    }
+    if (best){ convoOpen(best); return; }
+  }
+  if (walker.on) return;                /* the rest is aerial-only picking */
   for (const k of SECTOR_ORDER){
     if (ray.intersectObject(hallGroups[k], true).length){
       selectSector(k, true);
@@ -4929,6 +5495,7 @@ function returnToQuad(){
 }
 document.getElementById("vista-back").addEventListener("click", returnToQuad);
 addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && convoView){ convoClose(); return; }
   if (e.key === "Escape" && focused && !walker.on) returnToQuad();
 });
 
@@ -5267,7 +5834,7 @@ function dbgUpdate(now, dt){
       " · " + (window.__visual || "?") + "\n" +
     "crowd  " + students.length + " people" +
       (CROWD_FORCE !== null ? "  (forced by ?crowd)" :
-       crowdN >= CROWD_MAX ? "  (full)" :
+       crowdN >= CROWD_TARGET ? "  (all " + CROWD_TARGET + " in)" :
        crowdDone ? "  (capped at " + crowdFps.toFixed(0) + "fps)" : "  (arriving)") + "\n" +
     "assets " + done.length + "/" + core.length + (bad.length ? "  " + bad.length + " FAILED" : "") +
       (pending ? "  (" + pending + " loading)" : "  all in " + (last / 1000).toFixed(1) + "s") + "\n" +
@@ -5281,6 +5848,12 @@ renderer.setAnimationLoop(() => {
   const now = performance.now();
   const dt = Math.min(0.05, (now - lastT) / 1000);
   lastT = now;
+  /* Everything below this line is the campus. In a conversation none of
+     it is on screen, so none of it runs — not the crowd ramp, not the
+     walk graph, not the day cycle, not the detail pass, not the
+     minimap, and not sixty skeletons' worth of mixers. That is where
+     the 887 draws go. */
+  if (convoView){ convoFrame(dt); dbgUpdate(now, dt); return; }
   stepCrowd(now, dt);
   stepStudents(dt, now);
   if (walker.on) walkUpdate(dt);
@@ -5303,6 +5876,11 @@ renderer.setAnimationLoop(() => {
   /* a skeleton nobody can see the legs of is a skeleton not worth
      stepping — see detailPass */
   castMixers.forEach(x => { if (x.g.userData.animate !== false) x.m.update(dt); });
+  /* after the mixers, never before: a held pose is written afresh every
+     update, so breathing added first would simply be overwritten */
+  for (const s of students){
+    if (s.held && s.g.userData.animate !== false) breathe(s.g, now / 1000, s.phase || 0);
+  }
   {  /* leaves drift down and sideways, respawning at the canopy */
     const lp = leaves.geometry.attributes.position;
     for (let i = 0; i < lp.count; i++){
@@ -5702,6 +6280,253 @@ function toast(title, body, color, ms){
 
 /* ── interior classroom scenes ───────────────────────────────────── */
 const interiorEl = document.getElementById("interior");
+/* ══════════════════════════════════════════════════════════════════
+   TALKING TO SOMEBODY — the campus stops, one person remains
+   ══════════════════════════════════════════════════════════════════
+   Measured, standing on the quad: 887 draw calls, 6.42M triangles,
+   every crowd mixer stepped, the walk graph advanced, the detail pass
+   run and the minimap redrawn — all of it every frame. In here it is
+   one figure: six draws and forty thousand triangles, one mixer, and
+   nothing else moving at all.
+
+   That 40-to-100-fold cut is the point. It buys a close-up good enough
+   to look at — a key light, a proper rim, no distance culling — on the
+   same phone that renders the campus at 26fps, and it leaves the GPU
+   free for whatever else wants it.
+
+   The body is REPARENTED here rather than cloned. A clone would share
+   its skeleton and diverge in pose, and the wardrobe is per-figure —
+   Elowen's shirt is hers, dealt this visit. Moving the real one means
+   the person you walked up to is the person you are talking to. It goes
+   home on close, and stepStudents puts it back on its path.
+
+   The backdrop is one frame of the campus, captured on the way in at a
+   fraction of the resolution. Downsampling IS the blur; there is no
+   filter and no second pass. It costs one texture and it means you are
+   still visibly standing on the quad instead of in a void. */
+let convoView = null;                  /* the student record, or null */
+let convoScene = null, convoCam = null, convoRT = null, convoHome = null, convoBase = null;
+let convoHomeCull = [];
+const convoEl = document.getElementById("convo");
+
+function convoSetup(){
+  if (convoScene) return;
+  convoScene = new THREE.Scene();
+  /* Same environment map as the campus, so skin and cloth respond the
+     way they did outside. Without it a figure lifted out of the world
+     turns matte and plastic on the way in. */
+  convoScene.environment = world.environment;
+  convoScene.backgroundIntensity = 0.42;      /* let the person carry the frame */
+  /* Calmer than it was. Key, fill, rim and ambient summed to about
+     five, which on top of an environment map flattened a textured body
+     to plain ivory — every fold and every printed shirt washed out. The
+     environment does most of the work; these only shape it. */
+  const key = new THREE.DirectionalLight(0xfff4e2, 1.35);
+  key.position.set(-40, 70, 60);
+  const fill = new THREE.DirectionalLight(0xbcd3ff, 0.35);
+  fill.position.set(55, 20, 35);
+  const rim = new THREE.DirectionalLight(0xffe9c9, 0.7);
+  rim.position.set(20, 45, -70);
+  convoScene.add(key, fill, rim, new THREE.AmbientLight(0xffffff, 0.18));
+  convoCam = new THREE.PerspectiveCamera(38, 1, 0.5, 400);
+}
+
+/* Which way is this body facing? Read off the skeleton rather than
+   assumed from a convention the models do not share — one arrived
+   facing away at a rotation of zero and another at π. A toe sits
+   forward of its ankle on every humanoid that has ever been rigged, so
+   the ankle-to-toe vector, flattened, is the facing. Returns the world
+   heading in radians, or null if this body has no toes to ask. */
+function facingOf(g){
+  let foot = null;
+  g.traverse(o => { if (!foot && o.isBone && /foot$/.test(boneKey(o.name))) foot = o; });
+  if (!foot) return null;
+  let toe = null;
+  foot.traverse(o => { if (!toe && o !== foot && o.isBone && /toe/.test(boneKey(o.name))) toe = o; });
+  if (!toe) return null;
+  const a = new THREE.Vector3(), b = new THREE.Vector3();
+  foot.getWorldPosition(a); toe.getWorldPosition(b);
+  const dx = b.x - a.x, dz = b.z - a.z;
+  if (Math.hypot(dx, dz) < 1e-5) return null;      /* toes straight down */
+  return Math.atan2(dx, dz);
+}
+function convoOpen(s){
+  if (!s || !s.data || convoView || interiorView) return;
+  convoSetup();
+
+  /* One frame of where you are standing, small on purpose. */
+  /* A quarter, not a seventh. A seventh reads as blocks rather than
+     blur once it is stretched back over the window. */
+  const w = Math.max(2, Math.round((stageEl.clientWidth || 640) / 4));
+  const h = Math.max(2, Math.round((stageEl.clientHeight || 400) / 4));
+  if (convoRT) convoRT.dispose();
+  convoRT = new THREE.WebGLRenderTarget(w, h);
+  renderer.setRenderTarget(convoRT);
+  renderer.render(world, camera);
+  renderer.setRenderTarget(null);
+  convoScene.background = convoRT.texture;
+
+  const g = s.g;
+  convoHome = { parent: g.parent, pos: g.position.clone(), rot: g.rotation.y,
+                vis: g.visible, animate: g.userData.animate };
+  g.visible = true;
+  g.userData.animate = true;                /* whatever the detail pass decided */
+  /* Frustum culling off, for this one figure, while we are in here.
+     three.js culls a SkinnedMesh on its GEOMETRY's bounding sphere
+     transformed by the MESH's world matrix — and the mesh's matrix
+     knows nothing about the bones, which are what place and scale a
+     glTF body. Measured on this cast: a sphere of radius 1.1 around a
+     figure 45.9 units tall. On the campus it survives, because a camera
+     that far back has everything in frustum anyway; from two feet away
+     aimed at her face, that sphere is off screen and every mesh is
+     culled. The view then renders exactly one draw call — the backdrop,
+     with nobody in front of it, which is precisely what it did.
+
+     Culling one figure saves nothing, so it simply stops. */
+  convoHomeCull = [];
+  g.traverse(o => {
+    if (o.isMesh){ convoHomeCull.push([o, o.frustumCulled]); o.frustumCulled = false; }
+  });
+  convoScene.add(g);
+  g.position.set(0, 0, 0);
+  /* Turned to face you — measured off her own feet, not assumed.
+     Zero put her back to the room; so did π on a different body, which
+     is the tell: these models come from different pipelines and do not
+     agree on which way forward is. A constant cannot be right for all
+     of them and there is no reason to guess, because the skeleton
+     knows. Toes are forward of ankles on every humanoid ever rigged,
+     so the ankle-to-toe vector IS the facing. */
+  g.rotation.y = 0;
+  g.updateMatrixWorld(true);
+  const face = facingOf(g);
+  g.rotation.y = face === null ? Math.PI : -face;
+
+  /* Standing rather than mid-stride, where the body has anything to
+     stand with. Most of the cohort arrived with a single walk cycle and
+     nothing else — for those, walking on the spot reads better than a
+     freeze, which is the same judgement makeRoamer already makes. */
+  if (s.roles && s.roles.idle) setClipOn(g, s.roles.idle, 0.3);
+  else holdStill(s);                  /* the eight with only a walk cycle */
+
+  /* Framed off this body, not off a number: the cast runs from 38 to 43
+     units and a fixed camera would crop one and strand another.
+     updateMatrixWorld first — Box3.setFromObject reads world matrices,
+     and without it the box comes back at wherever on the campus she was
+     standing a moment ago. The camera then aims at empty lawn, and the
+     view renders exactly one draw call: the backdrop, with nobody in
+     front of it. */
+  g.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(g);
+  const tall = Math.max(1, box.max.y - box.min.y);
+  const eye = box.min.y + tall * 0.88;
+  const fit = tall * 0.46;                  /* head and shoulders, a little air */
+  const dist = fit / Math.tan((convoCam.fov * Math.PI / 180) / 2);
+  /* Kept, because the frame drifts around it. convoFrame used to ease
+     the camera towards the sway value itself rather than towards this
+     plus the sway, which quietly walked the shot back to dead centre
+     over the first few seconds and undid the framing. */
+  convoBase = { x: tall * 0.10, lookY: eye - tall * 0.06 };
+  convoCam.position.set(convoBase.x, eye, dist);
+  convoCam.lookAt(0, convoBase.lookY, 0);
+
+  convoView = s;
+  convoSay(s, null);
+  convoEl.classList.add("open");
+  convoEl.setAttribute("aria-hidden", "false");
+  document.body.classList.add("convo-open");
+  /* the stage has just left the document and covers the window, so the
+     renderer and both cameras need the new shape */
+  resize();
+  convoCam.aspect = camera.aspect;
+  convoCam.updateProjectionMatrix();
+}
+
+function convoClose(){
+  if (!convoView) return;
+  const g = convoView.g;
+  (convoHome.parent || world).add(g);
+  g.position.copy(convoHome.pos);
+  g.rotation.y = convoHome.rot;
+  g.visible = convoHome.vis;
+  g.userData.animate = convoHome.animate;
+  convoHomeCull.forEach(([o, was]) => { o.frustumCulled = was; });
+  convoHomeCull = [];
+  convoView = null; convoHome = null;
+  convoEl.classList.remove("open");
+  convoEl.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("convo-open");
+  resize();                      /* and back into the page it goes */
+}
+
+/* What they say, and what you can put to them. Authored, and aware of
+   where you have actually got to — a student whose hall you have
+   finished says something different from one whose hall you have never
+   walked into. No network, no key, nothing to fail. */
+function convoSay(s, line){
+  const d = s.data;
+  const hall = SECTORS[d.at];
+  const mine = COURSES.filter(c => c.sector === d.at);
+  const sat = mine.filter(c => done.includes(c.id)).length;
+  document.getElementById("convo-name").textContent = d.name;
+  const maj = document.getElementById("convo-major");
+  maj.textContent = d.major + " · " + (hall ? hall.hall : "");
+  maj.style.color = "#" + d.c.toString(16).padStart(6, "0");
+
+  if (line === null){
+    const hour = new Date().getHours();
+    const when = hour < 11 ? "Morning." : hour < 17 ? "Afternoon." : "Evening.";
+    line = sat === 0
+      ? when + " You're new, aren't you — I'd know the face. " +
+        (hall ? hall.hall + " is where I'll be if you want the tour." : "")
+      : sat >= mine.length
+        ? when + " You've finished the whole " + (hall ? hall.track : "track") +
+          " — every course sealed. Nobody does that quietly. What did it cost you?"
+        : when + " I've seen you in " + (hall ? hall.hall : "lectures") +
+          " — you're " + sat + " of " + mine.length + " through, aren't you? Keep at it.";
+  }
+  document.getElementById("convo-said").textContent = line;
+
+  const asks = document.getElementById("convo-asks");
+  asks.textContent = "";
+  (d.ask || []).forEach(([q, a]) => {
+    const b = document.createElement("button");
+    b.className = "convo-ask";
+    b.textContent = q;
+    b.addEventListener("click", () => convoSay(s, a));
+    asks.appendChild(b);
+  });
+  const bye = document.createElement("button");
+  bye.className = "convo-ask leave";
+  bye.textContent = "← Leave";
+  bye.addEventListener("click", convoClose);
+  asks.appendChild(bye);
+}
+
+/* A little life, so a paused campus does not read as a paused game:
+   the camera breathes and the figure keeps its own animation. */
+let convoT = 0;
+function convoFrame(dt){
+  convoT += dt;
+  const m = castMixers.find(x => x.g === convoView.g);
+  if (m) m.m.update(dt);
+  if (convoView.held) breathe(convoView.g, convoT, convoView.phase || 0);
+  /* Sway about the framing, not towards it — and look where convoOpen
+     decided, rather than at a fixed offset below the lens that happens
+     to be near it for one body height and wrong for the rest. */
+  const sway = Math.sin(convoT * 0.42) * 0.35;
+  const wantX = (convoBase ? convoBase.x : 0) + sway;
+  convoCam.position.x += (wantX - convoCam.position.x) * Math.min(1, dt * 1.4);
+  convoCam.lookAt(0, convoBase ? convoBase.lookY : convoCam.position.y - 1.2, 0);
+  convoCam.aspect = camera.aspect;
+  convoCam.updateProjectionMatrix();
+  renderer.render(convoScene, convoCam);
+}
+/* test/debug hooks: the cast, and the conversation they can be pulled
+   into. `named` is the eight with a dossier — the crowd are strangers. */
+window.__students = students;
+window.__convo = { open: convoOpen, close: convoClose, on: () => !!convoView,
+                   named: () => students.filter(s => s.data) };
+
 function openInterior(key){
   const S = SECTORS[key];
   if (!S) return;

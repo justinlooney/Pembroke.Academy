@@ -1,0 +1,32 @@
+# Inspection inbox — what is actually inside a Drive link?
+#
+# THIS IS A DATA FILE, NOT A SCRIPT. Nothing here is typed at a shell.
+#
+# Put "name link" on a line, commit, and .github/workflows/inspect.yml
+# fetches each one and prints what it is: the meshes, the materials, the
+# images, the skeleton, its naming convention, every clip, how many of
+# each clip's curves actually move, and how many of its bones exist on
+# the rig in the same file. It renders a front and a side view too, and
+# uploads them as run artifacts.
+#
+# Nothing is built and nothing is committed. This only looks.
+#
+# Three things decide whether a body can join the campus, and not one
+# of them is visible in a file name or a byte count:
+#
+#   a skeleton      no armature, no walking. A scan is scenery.
+#   a clip that moves   a bind pose exports as 520 curves that never
+#                   change and looks exactly like an animation.
+#   colour          no texture, no vertex colours and no baseColorFactor
+#                   means a white mannequin. Three of the current cast
+#                   ship that way, which is what these are replacing.
+
+# ── candidates to replace gent, mia and teen ─────────────────────────
+# Those three carry geometry and nothing else: no images, one material
+# called Bodymat, so the wardrobe paints the whole person one flat skin
+# tone. Invisible across a lawn, unmistakable in a conversation.
+woman_walk    https://drive.google.com/file/d/1eWh_xTiL2N1iHNA6YElJ_9Q_C9F2jbys/view
+japanese_man  https://drive.google.com/file/d/1LXZQqv6Nis3XEIwgh_QmqkGaZ3KIsAez/view
+nathan_003    https://drive.google.com/file/d/1FPBq7Sfw9CHT7QlochIFUlM7iFy3MRV6/view
+sophia_003    https://drive.google.com/file/d/1Mpt2wtc4HQT9SlpnL810uqb2_ilFVm87/view
+realistic_f   https://drive.google.com/file/d/1r1Nt3ebMnR0LZpRiF0zLSOGZWatAypuK/view

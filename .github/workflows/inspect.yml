@@ -1,0 +1,112 @@
+name: inspect
+
+# What is actually in that Drive link?
+#
+# The courier builds characters; this only looks at them. It exists
+# because the sandbox where the code gets written cannot reach Drive at
+# all — only the runners can — so the alternative to running this is
+# guessing, and the guess that matters ("is this rig Mixamo-named?") is
+# the one that decides whether a clip lands on a skeleton or silently
+# addresses nothing at all.
+#
+# Driven by a data file for the same reason the courier is: dispatching
+# a workflow by name through the API needs it present on the DEFAULT
+# branch, which a workflow added on a feature branch is not, and a push
+# trigger has no such rule. Put links in tools/inspect-inbox.txt, push,
+# read the log. Nothing is committed.
+on:
+  push:
+    paths: ['tools/inspect-inbox.txt', '.github/workflows/inspect.yml', 'tools/inspect-rig.py']
+  workflow_dispatch:
+
+jobs:
+  look:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Anything to look at?
+        id: plan
+        run: |
+          n=$(grep -cE '^[[:space:]]*[^#[:space:]]+[[:space:]]+\S+' tools/inspect-inbox.txt || true)
+          echo "n=$n" >> "$GITHUB_OUTPUT"
+          echo "$n file(s) listed"
+
+      - name: Install Blender
+        if: steps.plan.outputs.n != '0'
+        run: |
+          sudo apt-get update -qq
+          # python3-numpy explicitly: Ubuntu's blender runs on the system
+          # python and its FBX importer imports numpy at module load, but
+          # the runner image installs without recommended packages.
+          sudo apt-get install -y -qq blender python3-numpy >/dev/null
+          blender --version | head -1
+          # gdown, not curl: these files are well past the 25MB where
+          # Drive stops serving bytes and starts serving an interstitial.
+          pip install -q gdown
+
+      - name: Fetch and look
+        if: steps.plan.outputs.n != '0'
+        run: |
+          set -o pipefail
+          mkdir -p /tmp/look
+          # name then link, one per line; # is a comment. Same shape as
+          # the courier's inbox so there is only one format to remember.
+          grep -E '^[[:space:]]*[^#[:space:]]+[[:space:]]+\S+' tools/inspect-inbox.txt \
+          | while read -r name url rest; do
+            id=$(printf '%s' "$url" | sed -n -e 's|.*/d/\([^/]*\).*|\1|p' -e 's|.*[?&]id=\([^&]*\).*|\1|p' | head -1)
+            [ -z "$id" ] && id="$url"
+            echo "::group::$name"
+            if ! gdown -q "https://drive.google.com/uc?id=$id" -O "/tmp/look/$name.bin"; then
+              echo "::error::$name — gdown could not download $id"
+              echo "::endgroup::"; continue
+            fi
+            size=$(du -h "/tmp/look/$name.bin" | cut -f1)
+            magic=$(head -c 4 "/tmp/look/$name.bin")
+            # Magic bytes, not the file name — a Drive link's name is
+            # whatever the inbox happened to call it.
+            if [ "$(head -c 2 "/tmp/look/$name.bin")" = "PK" ]; then
+              echo "$name: $size zip"
+              rm -rf "/tmp/look/$name.d" && mkdir -p "/tmp/look/$name.d"
+              unzip -q "/tmp/look/$name.bin" -d "/tmp/look/$name.d" || {
+                echo "::error::$name — could not unpack"; echo "::endgroup::"; continue; }
+              echo "  contents:"
+              find "/tmp/look/$name.d" -type f -printf '    %10s  %P\n' | sort -k2 | head -60
+              mapfile -t models < <(find "/tmp/look/$name.d" -type f \
+                \( -iname '*.fbx' -o -iname '*.glb' -o -iname '*.gltf' -o -iname '*.obj' \) | sort)
+              if [ "${#models[@]}" -eq 0 ]; then
+                echo "  no model file in this zip"
+              else
+                blender --background --python tools/inspect-rig.py -- --render /tmp/shots "${models[@]}" 2>&1 \
+                  | grep -v '^Blender quit\|^Read prefs\|^Warning: ' || true
+              fi
+            elif head -c 20 "/tmp/look/$name.bin" | grep -q "Kaydara"; then
+              echo "$name: $size fbx"
+              mv "/tmp/look/$name.bin" "/tmp/look/$name.fbx"
+              blender --background --python tools/inspect-rig.py -- --render /tmp/shots "/tmp/look/$name.fbx" 2>&1 \
+                | grep -v '^Blender quit\|^Read prefs\|^Warning: ' || true
+            elif [ "$magic" = "glTF" ]; then
+              echo "$name: $size glb"
+              mv "/tmp/look/$name.bin" "/tmp/look/$name.glb"
+              blender --background --python tools/inspect-rig.py -- --render /tmp/shots "/tmp/look/$name.glb" 2>&1 \
+                | grep -v '^Blender quit\|^Read prefs\|^Warning: ' || true
+            else
+              echo "::error::$name is neither zip, FBX nor GLB — first bytes: $magic"
+              file "/tmp/look/$name.bin"
+            fi
+            echo "::endgroup::"
+          done
+
+      # Statistics say whether a file is rigged. Only a picture says
+      # whether it COULD be — automatic weights need the mesh and the
+      # skeleton's rest pose to agree, and "arms out" is not a number.
+      - name: Keep the pictures
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: inspected
+          path: /tmp/shots/*.png
+          if-no-files-found: ignore
+          retention-days: 14
