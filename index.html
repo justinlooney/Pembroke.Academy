@@ -4942,6 +4942,10 @@ function refreshQuest(){
     }
     else setFold(el.classList.contains("folded"), false);
   };
+  /* test/debug hook: the announce-then-fold behaviour only happens when
+     the objective actually changes, and nothing else can provoke that
+     from outside the module */
+  window.__refreshQuest = () => refreshQuest();
 }
 const mm = document.getElementById("minimap");
 function drawMinimap(){
