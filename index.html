@@ -2364,7 +2364,12 @@ window.__assets = assetLog;   /* test/debug hook */
 {
   const rawLoad = gltf.load.bind(gltf);
   gltf.load = (url, onLoad, onProgress, onError) => {
-    const rec = { name: url.split("/").pop(), t0: performance.now(), ms: null };
+    const rec = { name: url.split("/").pop(), t0: performance.now(), ms: null,
+                  /* Late arrivals are logged like everything else — ?debug
+                     should still show what they cost — but they must not
+                     count towards "the campus has finished loading", or
+                     deferring them would achieve nothing. */
+                  late: !!gltf.__late };
     assetLog.push(rec);
     rawLoad(url,
       (g) => { rec.ms = performance.now() - rec.t0; if (onLoad) onLoad(g); },
@@ -3586,6 +3591,23 @@ const CAST_FILES = {
   stand:   "assets/stu_anim.glb",
   skate:   "assets/stu_skater.glb",
 };
+/* ── who has to be here before the doors open ─────────────────────────
+   Thirteen rigged files is 19MB, all of it decoded on the main thread
+   before a phone can draw anything. But only seven of them are needed
+   to build the campus you arrive on: the named eight, the skater and
+   the loiterers. The other six exist solely for the crowd — and the
+   crowd deliberately does not start arriving until the campus has
+   finished loading, so making the campus wait for them is waiting for
+   people who are not allowed in yet.
+
+   They are fetched the moment the first group is done, and the ramp
+   uses whoever has turned up. Someone who joins the campus a few
+   seconds after you do is a student walking in, which is what this
+   looks like anyway.
+
+     first   8.3MB   walker gent mia nathan stand skate tutor
+     after  10.8MB   teen woman alina ariel oreizo strider          */
+const CAST_FIRST = ["walker", "gent", "mia", "nathan", "stand", "skate", "tutor"];
 /* A teenager is shorter, and the height is doing as much work here as
    any of the colours — see buildOf, which varies each figure another
    ±11% on top of these. */
@@ -3596,14 +3618,15 @@ const CAST_HEIGHT = { walker: 42, gent: 43, mia: 40, teen: 38, woman: 41,
    are only good for standing about. Eight that walk against a crowd
    that caps at ten: the round robin runs out of new people only on the
    ninth, and by then they are scattered over sixty-eight waypoints. */
-let ROAMING = ["walker", "gent", "mia", "teen", "woman", "alina",
-               "oreizo", "nathan", "ariel", "strider"];
-let LOITERING = ["tutor", "stand"];
-/* The intended lists, kept whole. ROAMING and LOITERING are pruned to
-   whatever actually loaded, so after that they can no longer answer
-   "was this body supposed to walk?" — which is exactly what choosing a
-   stand-in for a missing one needs to know. */
-const ROAM_ALL = ROAMING.slice();
+const ROAMING = ["walker", "gent", "mia", "teen", "woman", "alina",
+                 "oreizo", "nathan", "ariel", "strider"];
+const LOITERING = ["tutor", "stand"];
+/* Asked at the moment a figure is built, never pruned. Bodies now
+   arrive in two waves, so a list filtered once at startup would be
+   permanently missing the six that come in later — and every extra
+   after the sixth would be built from nothing. */
+const loadedRoaming = () => ROAMING.filter(k => castLib[k]);
+const loadedLoitering = () => LOITERING.filter(k => castLib[k]);
 /* Where the named eight are and what they are doing. A plan with
    neither `at` nor `orbit` roams the ring; the gait it roams with is
    drawn per figure in makeRoamer rather than fixed here, so the mix
@@ -3695,8 +3718,8 @@ function prepareClips(anims){
    loss than losing the student. */
 function bodyFor(k){
   if (castLib[k]) return k;
-  const pool = ROAM_ALL.includes(k) ? ROAMING : LOITERING;
-  const alt = pool.find(x => castLib[x]) || ROAMING[0] || LOITERING[0] || null;
+  const pool = ROAMING.includes(k) ? loadedRoaming() : loadedLoitering();
+  const alt = pool[0] || loadedRoaming()[0] || loadedLoitering()[0] || null;
   console.warn("cast: " + k + " is missing" +
                (alt ? ", standing in " + alt : ", and nothing can stand in"));
   return alt;
@@ -3857,32 +3880,43 @@ function detailPass(){
   }
 }
 {
+  const first = CAST_FIRST.filter(k => CAST_FILES[k]);
+  const later = Object.keys(CAST_FILES).filter(k => !first.includes(k));
   let castReady = 0;
-  const keys = Object.keys(CAST_FILES);
-  const done = () => {
-    if (++castReady < keys.length) return;
-    /* Whoever actually turned up. A body that failed to load must not be
-       handed out by the round robin, or every ninth student is an empty
-       group walking the campus invisibly. */
-    ROAMING = ROAMING.filter(k => castLib[k]);
-    LOITERING = LOITERING.filter(k => castLib[k]);
-    if (!ROAMING.length){ console.error("no rigged body loaded — no students"); return; }
-    buildCast();
-  };
-  keys.forEach(k => gltf.load(CAST_FILES[k], (g) => {
+  const arrive = (k, g) => {
     castLib[k] = g;
     /* Measured before they are pinned in place, for every body that
        walks — the gait count is what both paces playback and tells a
        walk cycle from a standing loop. */
     if (ROAMING.includes(k)) prepareClips(g.animations);
+  };
+  /* One missing model used to take the whole cohort with it: the counter
+     never reached the total, buildCast never ran, and the campus had
+     nobody on it at all — with the only clue a 404 in the console. With
+     thirteen bodies that is thirteen ways to empty the quad, so a body
+     that does not arrive is simply one fewer person. */
+  const lost = (k, err) =>
+    console.warn("cast: " + CAST_FILES[k] + " did not load, carrying on without it", err);
+  const done = () => {
+    if (++castReady < first.length) return;
+    if (!loadedRoaming().length && !loadedLoitering().length){
+      console.error("no rigged body loaded — no students");
+      return;
+    }
+    buildCast();
+    /* Now, and not before. Fetching these alongside the campus would put
+       10.8MB of people nobody can meet yet in front of the models the
+       campus is made of. */
+    gltf.__late = true;
+    later.forEach(k => gltf.load(CAST_FILES[k],
+      (g) => arrive(k, g), undefined, (e) => lost(k, e)));
+    gltf.__late = false;
+  };
+  first.forEach(k => gltf.load(CAST_FILES[k], (g) => {
+    arrive(k, g);
     done();
   }, undefined, (err) => {
-    /* One missing model used to take the whole cohort with it: the
-       counter never reached the total, buildCast never ran, and the
-       campus had nobody on it at all — with the only clue a 404 in the
-       console. With nine bodies that is nine ways to empty the quad, so
-       a body that does not arrive is simply one fewer person. */
-    console.warn("cast: " + CAST_FILES[k] + " did not load, carrying on without it", err);
+    lost(k, err);
     done();
   }));
 }
@@ -4086,8 +4120,9 @@ function buildCast(){
      the middle of the quad — a figure that never moves costs the view
      far more than one walking through it. */
   [[236, 344, -1.4, 1], [520, 962, 2.9, 2], [470, 1150, -2.0, 3]].forEach(([x, y, face, pose], i) => {
-    if (!LOITERING.length) return;
-    const k = LOITERING[i % LOITERING.length];
+    const pool = loadedLoitering();
+    if (!pool.length) return;
+    const k = pool[i % pool.length];
     const g = prepFigure(k, CAST_HEIGHT[k] * buildOf(pose * 17 + 5), true, pose);
     if (!g) return;
     g.position.set(W(x), 0, W(y));
@@ -4136,8 +4171,9 @@ function addExtra(n){
   const seed = 101 + n * 3;
   /* Round the bodies rather than at random, so a crowd of three is
      three different people rather than three rolls of the same die. */
-  if (!ROAMING.length) return;
-  const k = ROAMING[n % ROAMING.length];
+  const pool = loadedRoaming();
+  if (!pool.length) return;
+  const k = pool[n % pool.length];
   const g = prepFigure(k, CAST_HEIGHT[k] * buildOf(seed), false);
   if (!g) return;
   dressFigure(g, seed);
@@ -4158,7 +4194,11 @@ function stepCrowd(now, dt){
      renderer never got to draw. Reading that as "this machine is slow"
      would cap the crowd at nobody on exactly the hardware where the
      measurement was supposed to help. */
-  if (!assetLog.length || assetLog.some(a => a.ms == null)) return;
+  /* `late` is excluded on purpose: those are the six bodies fetched only
+     for this crowd, and waiting for them before starting it is a
+     deadlock in slow motion — the campus would hold the ramp for models
+     that exist to feed it. */
+  if (!assetLog.length || assetLog.some(a => a.ms == null && !a.late)) return;
   if (!crowdNext){ crowdNext = now + 2000; crowdFps = 60; return; }   /* settle */
   if (now < crowdNext) return;
   if (crowdN >= CROWD_MIN && crowdFps < CROWD_FLOOR){ crowdDone = true; return; }
@@ -5134,8 +5174,15 @@ function dbgUpdate(now, dt){
   const fps = dbgAcc > 0 ? dbgFrames / dbgAcc : 0;
   dbgFrames = 0; dbgAcc = 0;
   const inf = renderer.info;
-  const done = assetLog.filter(a => a.ms != null);
-  const pending = assetLog.length - done.length;
+  /* The campus is what "all in" means. The six bodies fetched after it
+     are reported separately, or the headline time would jump backwards
+     the moment the crowd's models start arriving and read as a
+     regression in something that just got faster. */
+  const core = assetLog.filter(a => !a.late);
+  const done = core.filter(a => a.ms != null);
+  const pending = core.length - done.length;
+  const lateIn = assetLog.filter(a => a.late && a.ms != null).length;
+  const lateAll = assetLog.filter(a => a.late).length;
   const bad = done.filter(a => a.err);
   /* failures first: a 404 fails fast, and sorting by duration alone
      would bury it under six slow successes — exactly when it matters */
@@ -5156,8 +5203,10 @@ function dbgUpdate(now, dt){
       (CROWD_FORCE !== null ? "  (forced by ?crowd)" :
        crowdN >= CROWD_MAX ? "  (full)" :
        crowdDone ? "  (capped at " + crowdFps.toFixed(0) + "fps)" : "  (arriving)") + "\n" +
-    "assets " + done.length + "/" + assetLog.length + (bad.length ? "  " + bad.length + " FAILED" : "") +
+    "assets " + done.length + "/" + core.length + (bad.length ? "  " + bad.length + " FAILED" : "") +
       (pending ? "  (" + pending + " loading)" : "  all in " + (last / 1000).toFixed(1) + "s") + "\n" +
+    (lateAll ? "cast   " + lateIn + "/" + lateAll + " later bodies" +
+               (lateIn < lateAll ? "  (arriving)" : "") + "\n" : "") +
     (slow ? "slowest\n" + slow : "");
 }
 
