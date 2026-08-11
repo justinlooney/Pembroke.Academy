@@ -3663,13 +3663,13 @@ const loadedLoitering = () => LOITERING.filter(k => castLib[k]);
    drawn per figure in makeRoamer rather than fixed here, so the mix
    changes between visits. */
 const CAST_PLAN = [
-  { k: "gent" },                                            /* Elowen — roams        */
+  { k: "any" },                                             /* Elowen — roams        */
   { k: "stand", at: [700, 340], face: -0.9, live: true, pose: 0 }, /* Marcus — Whitmore door */
   { k: "walker", at: [449, 449], face:  0.8, kind: "chat",  /* Priya  — plaza        */
     clip: "Idle" },
   { k: "walker", at: [543, 449], face: -2.4, kind: "laptop",/* Sofia  — lawn         */
     clip: "Sitting Talking" },
-  { k: "mia" },                                             /* Theo   — roams        */
+  { k: "any" },                                             /* Theo   — roams        */
   /* Jun stood at 270,700 — which is inside the science hall, invisible
      behind its south wall. Out on the front now, facing the quad. */
   { k: "stand", at: [286, 838], face:  0.2, live: true, pose: 1 }, /* Jun — Alden front */
@@ -3677,7 +3677,7 @@ const CAST_PLAN = [
      in the middle of it, meant she was on screen permanently. She runs
      the campus now, on the same paths as everyone else, just faster. */
   { k: "walker", jog: true },                               /* Amara  — runs the campus */
-  { k: "nathan" },                                          /* Kenji  — roams        */
+  { k: "any" },                                             /* Kenji  — roams        */
 ];
 const castLib = {};
 const castMixers = [];
@@ -3748,6 +3748,15 @@ function prepareClips(anims){
    know that the gent's model 404'd. Standing in for them is a smaller
    loss than losing the student. */
 function bodyFor(k){
+  /* "any" means this student has no particular body — Elowen, Theo and
+     Kenji roam and nothing about them depends on which one they are, so
+     they are dealt a different one each visit like the crowd. Priya,
+     Sofia and Amara ask by name because they need the original walker's
+     clips: Idle, Sitting Talking and Jogging, which no other body has. */
+  if (k === "any"){
+    const pool = loadedRoaming();
+    return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+  }
   if (castLib[k]) return k;
   const pool = ROAMING.includes(k) ? loadedRoaming() : loadedLoitering();
   const alt = pool[0] || loadedRoaming()[0] || loadedLoitering()[0] || null;
@@ -4100,14 +4109,49 @@ function buildOf(seed){
   const s = Math.sin(seed * 74.3 + 9.1) * 43758.5453;
   return 0.89 + (s - Math.floor(s)) * 0.22;           /* ±11% of height */
 }
+/* ── who is out today ─────────────────────────────────────────────────
+   The named eight used to all be on the lawn, every visit, in the same
+   places. Twelve fixed figures — the eight, the skater, three loiterers
+   — is about four in view from the middle of the quad before a single
+   extra arrives, which is most of a crowd on its own and identical
+   every time.
+
+   So they attend. A student has lectures, and a campus where everybody
+   is outside at once is a campus on fire drill. Two in five turn out on
+   any visit, never fewer than two, so the quad is populated but not the
+   same population — and whoever is missing today is the reason it looks
+   different tomorrow. */
+function attendance(){
+  const n = STUDENT_ROSTER.length;
+  /* ?crowd means "show me the campus at its fullest" — for a review on
+     real hardware, and for the test that counts heads. A random
+     attendance would make that flag mean something different every run,
+     which is the one thing a diagnostic must not do. */
+  if (CROWD_FORCE !== null) return STUDENT_ROSTER.map(() => true);
+  let who = STUDENT_ROSTER.map(() => Math.random() < 0.40);
+  let out = who.filter(Boolean).length;
+  /* two is the floor: below that the campus reads as closed rather than
+     quiet, and the tagged students are the ones you came to meet */
+  while (out < 2){
+    const i = Math.floor(Math.random() * n);
+    if (!who[i]){ who[i] = true; out++; }
+  }
+  return who;
+}
 function buildCast(){
+  const present = attendance();
   STUDENT_ROSTER.forEach((st, i) => {
+    if (!present[i]) return;             /* in a lecture */
     const plan = CAST_PLAN[i];
     const k = bodyFor(plan.k);
     if (!k) return;                      /* nothing loaded at all */
-    const g = prepFigure(k, CAST_HEIGHT[k] * buildOf(i), plan.live, plan.pose || 0);
+    /* Dressed off this visit's seed, so Elowen is not wearing the same
+       shirt she wore last time either. Her name, her lines and where
+       she is going are hers; her clothes are not. */
+    const seed = VISIT + i * 101;
+    const g = prepFigure(k, CAST_HEIGHT[k] * buildOf(seed), plan.live, plan.pose || 0);
     if (!g) return;
-    if (ROAMING.includes(k)) dressFigure(g, i);
+    if (ROAMING.includes(k)) dressFigure(g, seed);
     const tagEl = document.createElement("div");
     tagEl.className = "stu-tag";
     tagEl.textContent = st.name;
@@ -4136,14 +4180,17 @@ function buildCast(){
        220 feet of the fountain, which is a crowd however well the extras
        are spread. They carry name tags, so meeting Theo on the boulevard
        finds him just as well as circling the lawn did. */
-    const s = makeRoamer(g, ALL_WAYS[(i * 11 + 5) % ALL_WAYS.length], { data: st },
+    const s = makeRoamer(g, ALL_WAYS[Math.floor(Math.random() * ALL_WAYS.length)], { data: st },
                          plan.jog ? "Jogging" : null);
     if (plan.jog) s.speed *= 1.5;
   });
   /* An uncommissioned regular, carving laps — down at the athletics
      forecourt, where a skateboard belongs and where he is not making up
      a sixth of everything visible from the fountain. */
-  const sk = castLib.skate ? prepFigure("skate", 0, true) : null;
+  /* Some days he is not out either. He laps the forecourt endlessly, so
+     when he is there he is there for the whole visit. */
+  const sk = (castLib.skate && (CROWD_FORCE !== null || Math.random() < 0.5))
+    ? prepFigure("skate", 0, true) : null;
   if (sk){
     world.add(sk);
     students.push({ g: sk, orbit: 84, orbitA: 3.6, orbitW: -0.6, skate: true,
@@ -4159,7 +4206,12 @@ function buildCast(){
      209 feet from the fountain, which is to say permanently in shot from
      the middle of the quad — a figure that never moves costs the view
      far more than one walking through it. */
-  [[236, 344, -1.4, 1], [520, 962, 2.9, 2], [470, 1150, -2.0, 3]].forEach(([x, y, face, pose], i) => {
+  /* And not all of them either, for the same reason — a figure that
+     never moves is in shot for as long as you stand there, so three of
+     them permanently is three of your one-to-three. */
+  [[236, 344, -1.4, 1], [520, 962, 2.9, 2], [470, 1150, -2.0, 3]]
+    .filter(() => CROWD_FORCE !== null || Math.random() < 0.4)
+    .forEach(([x, y, face, pose], i) => {
     const pool = loadedLoitering();
     if (!pool.length) return;
     const k = pool[i % pool.length];
@@ -4200,8 +4252,24 @@ function buildCast(){
    holding" is not a feature. A handful always arrive; the ramp only
    decides how far past them to go.
    ══════════════════════════════════════════════════════════════════ */
+/* ── how many, this time ──────────────────────────────────────────────
+   A fixed cap meant every visit filled to the same number and, with
+   fixed seeds, with the same people. The count is drawn per visit now.
+
+   The target is what a campus should look like from the middle of it:
+   one to three people in sight, sometimes nobody, occasionally a rush.
+   That is a statement about the view, not the population — students are
+   spread over sixty-eight waypoints and pause at two thirds of them, so
+   only a fraction are ever in front of you. Measured at roughly one in
+   three: nine on the campus reads as three in view.
+
+   Weighted low on purpose. Squaring a uniform draw makes the small
+   crowds common and the large ones rare, which is what "sometimes more,
+   sometimes fewer" means — an average with a long tail, rather than a
+   coin flip between empty and packed. */
 const CROWD_MAX = 10;
-const CROWD_MIN = 3;                 /* arrive regardless of what it costs */
+const CROWD_TARGET = 1 + Math.floor(Math.random() * Math.random() * 6);
+const CROWD_MIN = Math.min(1, CROWD_TARGET);   /* arrives regardless of cost */
 /* Above any 30Hz display cap and well below 60, so a phone that is
    merely capped is not mistaken for a phone that is struggling — and a
    machine actually labouring in the low thirties stops at the five. */
@@ -4233,28 +4301,49 @@ function fillForcedCrowd(){
   while (crowdN < CROWD_FORCE) addExtra(crowdN++);
   crowdDone = true;
 }
-function addExtra(n){
-  const seed = 101 + n * 3;
-  /* Round the bodies rather than at random, so a crowd of three is
-     three different people rather than three rolls of the same die. */
+/* Nobody should be where they were yesterday. Every seed below hangs
+   off this, so a visit gets its own people in its own clothes starting
+   from its own corners of the campus — where before, the arithmetic was
+   fixed and every visit produced the same nine strangers standing in
+   the same nine places. */
+const VISIT = Math.floor(Math.random() * 1e6);
+/* The bodies dealt out in a fresh order each visit rather than taken
+   from the list as written. Still a deal rather than a roll: three
+   people should be three different people, not three throws of the same
+   die that might come up the same twice. */
+let castDeck = [];
+function nextBody(n){
   const pool = loadedRoaming();
-  if (!pool.length) return;
-  const k = pool[n % pool.length];
+  if (!pool.length) return null;
+  if (n === 0 || castDeck.length === 0){
+    castDeck = pool.slice();
+    for (let i = castDeck.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      [castDeck[i], castDeck[j]] = [castDeck[j], castDeck[i]];
+    }
+  }
+  return castDeck.pop();
+}
+function addExtra(n){
+  const k = nextBody(n);
+  if (!k) return;
+  const seed = VISIT + n * 37;
   const g = prepFigure(k, CAST_HEIGHT[k] * buildOf(seed), false);
   if (!g) return;
   dressFigure(g, seed);
   g.userData.crowd = true;               /* test/debug: not one of the named */
   world.add(g);
-  /* Started at nodes drawn from across the whole graph rather than in
-     order, so the first arrivals are not all standing on the same walk.
-     The stride is deliberately coprime-ish with the node count. */
-  makeRoamer(g, ALL_WAYS[(n * 7 + 3) % ALL_WAYS.length]);
+  /* Anywhere on the campus, drawn rather than strided. Sixty-eight
+     waypoints and half a dozen people means the odds of two starting
+     together are small, and if they do they will have walked apart
+     within the minute. */
+  makeRoamer(g, ALL_WAYS[Math.floor(Math.random() * ALL_WAYS.length)]);
 }
 function stepCrowd(now, dt){
   /* a slow average, so one stutter — a model finishing its decode, a
      texture uploading — does not permanently cap the campus */
   crowdFps += (1 / Math.max(dt, 1e-4) - crowdFps) * Math.min(1, dt * 1.5);
-  if (crowdDone || !crowdReady || crowdN >= CROWD_MAX) return;
+  if (crowdDone || !crowdReady || crowdN >= CROWD_TARGET) return;
   /* Not while the campus is still arriving. 39MB of models decode on
      the main thread, and on a phone that is half a minute of frames the
      renderer never got to draw. Reading that as "this machine is slow"
@@ -5267,7 +5356,7 @@ function dbgUpdate(now, dt){
       " · " + (window.__visual || "?") + "\n" +
     "crowd  " + students.length + " people" +
       (CROWD_FORCE !== null ? "  (forced by ?crowd)" :
-       crowdN >= CROWD_MAX ? "  (full)" :
+       crowdN >= CROWD_TARGET ? "  (all " + CROWD_TARGET + " in)" :
        crowdDone ? "  (capped at " + crowdFps.toFixed(0) + "fps)" : "  (arriving)") + "\n" +
     "assets " + done.length + "/" + core.length + (bad.length ? "  " + bad.length + " FAILED" : "") +
       (pending ? "  (" + pending + " loading)" : "  all in " + (last / 1000).toFixed(1) + "s") + "\n" +
