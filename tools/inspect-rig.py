@@ -118,11 +118,29 @@ for path in argv:
         ratio = wide / max(tall, 1e-9)
         print("  extent   %.3f x %.3f x %.3f — longest along %s, span/length %.2f"
               % (d.x, d.y, d.z, axis, ratio))
+        """The verdict is about THIS file alone. What actually decides
+        whether automatic weights hold is the difference between the
+        character's ratio and the donor skeleton's — a 0.46 character
+        under a 0.96 donor has arm bones running horizontally through
+        open air while the arms hang sixty degrees down, and the upper
+        arms then bind to the chest. Two files that both say "A-pose"
+        are a match; a 0.46 and a 0.96 are not, however reassuring
+        either line reads on its own."""
+        """Calibrated against real figures, not guessed. A Mixamo
+        character measures 0.96. A scanned woman standing with her arms
+        down beside her, hands at hip height, measures 0.46 — so 0.46
+        is NOT the middle of the range, it is the bottom of it, and an
+        earlier version of this that called 0.45 "an A-pose, usually
+        fine" was wrong about the one file it was written for. Shoulder
+        width and hair put a floor under the number well above zero."""
         print("  pose     " + (
-            "arms out, close to a T — automatic weights should hold" if ratio > 0.75 else
-            "arms partly out (an A-pose) — usually fine, check the armpits" if ratio > 0.45 else
-            "arms at the sides — a T-posed donor rig will put the arm bones in "
-            "open air. Expect torn shoulders and plan to move them by hand."))
+            "a T-pose, arms straight out" if ratio > 0.80 else
+            "an A-pose, arms roughly 45 degrees out" if ratio > 0.55 else
+            "arms at the sides, hands near the hips" if ratio > 0.38 else
+            "arms tight to the body, or not a humanoid"))
+        print("  match    pair this only with a donor whose span/length is near %.2f. "
+              "The gap between the two is what tears shoulders, not either number."
+              % ratio)
         if axis != "Z":
             print("  NOTE     longest axis is %s, not Z. If this figure is lying down, a "
                   "bounding-box fit scales the skeleton to its LENGTH. Stand it up first."
