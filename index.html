@@ -3037,13 +3037,36 @@ BUILDINGS.forEach(spec => {
 }
 
 /* ── glTF 2.0 prop library (assets/*.glb) ────────────────────────── */
-/* Three species, placed like a groundskeeper would: an allée up the
-   processional walk, specimen oaks on the lawn, groves flanking the
-   diagonal spokes, shade belts at the campus edges, and a pine-heavy
-   forest rolling to the horizon. */
+/* Placed like a groundskeeper would: an allée up the processional walk,
+   specimen maples on the lawn, groves flanking the diagonal spokes,
+   shade belts at the campus edges, and a forest rolling to the horizon.
+ *
+ * Two libraries, split by how close you get. Everything on the campus
+ * plate — anything you can walk up to — is a photographed tree. The
+ * horizon forest stays stylised, because at 700 to 1,200 feet through
+ * fog a 36,000-triangle tree and a 1,000-triangle tree are the same
+ * grey-green mass and only one of them is free.
+ *
+ * That split is the whole reason the campus still read as bubbles: the
+ * stylised set was doing both jobs, and it is only good at one. Fifty-
+ * seven of them stood on the plate, along the belts and in the groves
+ * beside the walkways, where you get close enough to count the leaves
+ * that are not there.
+ *
+ * The cost is real and worth stating. Instancing saves draw calls, not
+ * triangles — a tree planted twenty times is twenty trees' worth of
+ * geometry — so this trades about 46,000 triangles of stylised trees
+ * for roughly 300,000 of photographed ones. It buys them at the cheap
+ * end of the collection on purpose: EZTree0.Medium011 is 4,958
+ * triangles, comparable to the maple already on the lawn, where
+ * EZTree1.Large001 is 36,489 and is used nowhere. */
 const TREE_SETS = { oak: [], elm: [], pine: [], maple: [] };
+/* the photographed set, by species — filled here, planted with the rest
+   of the flora further down, where trees.glb is loaded once */
+const EZ_SETS = { m011: [], m002: [], m010: [], l009: [] };
 {
   const T = TREE_SETS;
+  const E = EZ_SETS;
   /* the ring arc along the oval's north side — photoreal maples up close */
   [[10,235],[80,235],[100,235],[170,235],[190,235],[260,235],[280,235],[350,235],
    [35,258],[145,258],[215,258],[325,258]].forEach(([a, r], i) => {
@@ -3058,25 +3081,37 @@ const TREE_SETS = { oak: [], elm: [], pine: [], maple: [] };
   /* maple allées flanking the walk, north approach and south entry */
   [130, 195, 265, 345].forEach(y => { T.maple.push([462, y, 0.76 + (y % 20) / 160], [538, y, 0.8 + (y % 17) / 160]); });
   [655, 735, 815].forEach(y => { T.maple.push([462, y, 0.76 + (y % 19) / 160], [538, y, 0.8 + (y % 23) / 160]); });
-  /* paired groves flanking each diagonal spoke */
+  /* Paired groves flanking each diagonal spoke. These stand within a
+     few feet of the walkways, which is as close as anyone gets to a
+     tree here — so the cheapest photographed species, three of them to
+     a grove, rather than the stylised shapes that used to be here. */
   [[280,352],[352,280],[648,280],[720,352],[280,648],[352,720],[648,720],[720,648]].forEach(([cx, cy], ci) => {
     for (let i = 0; i < 3; i++){
       const a = (i / 3) * Math.PI * 2 + ci * 0.9;
       const r = 14 + ((i * 53 + ci * 31) % 14);
-      const sp = (i + ci) % 4 === 0 ? "pine" : ((i + ci) % 2 ? "maple" : "elm");
-      T[sp].push([cx + Math.cos(a) * r, cy + Math.sin(a) * r, 0.85 + ((i * 29 + ci * 17) % 30) / 55]);
+      const sp = (i + ci) % 4 === 0 ? "m011" : ((i + ci) % 2 ? "maple" : "m002");
+      (sp === "maple" ? T.maple : E[sp])
+        .push([cx + Math.cos(a) * r, cy + Math.sin(a) * r, 0.85 + ((i * 29 + ci * 17) % 30) / 55]);
     }
   });
-  /* shade belts along the campus edges (clear of halls, lots, cathedral) */
-  for (let x = 110; x <= 290; x += 45) T[x % 90 < 45 ? "oak" : "pine"].push([x, 26 + (x * 13) % 30, 0.95 + (x * 7) % 25 / 60]);
-  for (let x = 710; x <= 890; x += 45) T[x % 90 < 45 ? "pine" : "oak"].push([x, 26 + (x * 11) % 30, 0.95 + (x * 3) % 25 / 60]);
+  /* Shade belts along the campus edges (clear of halls, lots, cathedral).
+     The north pair sits behind the halls and is read over their roofs;
+     the south belt lines the walk out to the athletics district, which
+     is the longest stretch of "beyond the quad" anyone walks. */
+  for (let x = 110; x <= 290; x += 45) E[x % 90 < 45 ? "m010" : "m011"].push([x, 26 + (x * 13) % 30, 0.95 + (x * 7) % 25 / 60]);
+  for (let x = 710; x <= 890; x += 45) E[x % 90 < 45 ? "m011" : "m010"].push([x, 26 + (x * 11) % 30, 0.95 + (x * 3) % 25 / 60]);
   for (let x = 80; x <= 920; x += 55){
     if (Math.abs(x - 500) < 75) continue;               /* gatehouse */
-    T[x % 110 < 55 ? "oak" : "elm"].push([x, 935 + (x * 7) % 25, 1 + (x * 13) % 30 / 55]);
+    /* Every fourth one a full canopy, so the belt has a skyline rather
+       than a hedge line. Only every fourth: Large009 is three times a
+       Medium011 and fourteen of them would cost more than the whole
+       change put together. */
+    E[x % 220 < 55 ? "l009" : (x % 110 < 55 ? "m002" : "m011")]
+      .push([x, 935 + (x * 7) % 25, 1 + (x * 13) % 30 / 55]);
   }
   for (let y = 120; y <= 880; y += 60){
-    if (y < 640 && y > 400){} else T.oak.push([20 + (y * 7) % 18, y, 0.9 + (y * 11) % 25 / 55]);
-    if (y < 600 && y > 280){} else T.pine.push([950 + (y * 13) % 18, y, 0.95 + (y * 17) % 25 / 55]);
+    if (y < 640 && y > 400){} else E.m011.push([20 + (y * 7) % 18, y, 0.9 + (y * 11) % 25 / 55]);
+    if (y < 600 && y > 280){} else E.m002.push([950 + (y * 13) % 18, y, 0.95 + (y * 17) % 25 / 55]);
   }
   /* the forest to the horizon — pine-heavy, parting for the landmarks */
   for (let i = 0; i < 90; i++){
@@ -3198,7 +3233,11 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
     if (py > 1040 && px > -650 && px < 1550) continue;   /* athletics district */
     (i % 2 ? PINES1 : PINES2).push([px, py, 0.9 + ((i * 31) % 40) / 60]);
   }
-  [[150, 60, 1], [252, 44, 0.85], [744, 52, 0.9], [862, 60, 1.05]].forEach(p => PINES2.push(p));
+  /* Four conifers used to stand here, on the north edge where the drive
+     comes in. They are eight triangles each and it shows at that
+     distance, so they join the belts they sit in. */
+  [[150, 60, 1], [252, 44, 0.85], [744, 52, 0.9], [862, 60, 1.05]]
+    .forEach((p, i) => EZ_SETS[i % 2 ? "m011" : "m010"].push(p));
   /* a conifer screen between the east drive and the neighboring district */
   for (let y = 140; y <= 940; y += 88) (y % 176 < 88 ? PINES1 : PINES2).push([1085 + (y * 7) % 26, y, 1 + (y * 13) % 30 / 55]);
   const TREE2S = [[300,330,1.1],[360,268,0.9],[700,332,1],[268,640,1.05],[352,708,0.95],
@@ -3257,18 +3296,32 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
                           ["", TSMALL, 40, true, null, true]]],
     /* And beyond the quad, where the campus was all conifer belts and
        stylised shapes: an avenue down the boulevard to the athletics
-       district, the approach to the gatehouse, and the edge of the
-       forecourt.
+       district, the approach to the gatehouse, the edge of the
+       forecourt — and now the groves beside the walkways, the belts
+       along all four campus edges, and the drives down either side.
+       Everything, in short, that you can walk up to.
 
        Chosen by cost, not by looks. Instancing saves draw calls but not
        triangles — a tree planted ten times is drawn ten times — and
        this collection runs from 4,958 triangles for EZTree0.Medium011
-       up to 36,489 for EZTree1.Large001. The two mediums do the avenue
-       work; the large one is used six times where it is the thing you
-       are looking at, and Large001 is not used at all. */
+       up to 36,489 for EZTree1.Large001. So Medium011 does the bulk of
+       the work, Medium002 stands opposite it wherever a pair would
+       otherwise read as two clones, Medium010 thickens the north belts
+       behind the halls, and Large009 is spent every fourth position on
+       the south belt to give it a skyline. Large001 is used nowhere:
+       at 36,489 triangles a single one costs more than a whole grove,
+       and nothing here is looked at that closely.
+
+       The lists are built up where the rest of the planting is decided,
+       a few hundred lines up, so the layout reads in one place; only
+       the loading happens here. */
     ["assets/trees.glb", [["tree eztree0.medium011", AVEN_W, 58, true, null, true],
                           ["tree eztree1.medium002", AVEN_E, 58, true, null, true],
-                          ["tree eztree0.large",     FEATURE, 74, true, null, true]]],
+                          ["tree eztree0.large",     FEATURE, 74, true, null, true],
+                          ["tree eztree0.medium011", EZ_SETS.m011, 52, true, null, true],
+                          ["tree eztree1.medium002", EZ_SETS.m002, 56, true, null, true],
+                          ["tree eztree0.medium010", EZ_SETS.m010, 60, true, null, true],
+                          ["tree eztree1.large009",  EZ_SETS.l009, 72, true, null, true]]],
     ["assets/daffodils.glb", [["", DAFF, 3.4, false, "material"]]],
     ["assets/lavender.glb",  [["", LAV, 6]]],
     ["assets/cypress.glb",   [["", CYP, 12]]],
