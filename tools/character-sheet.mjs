@@ -84,7 +84,7 @@ window.__sheet = (url) => new Promise((done) => {
 
     /* Facts worth having beside the picture, none of them a verdict. */
     let tris = 0, meshes = 0, images = 0, spike = 0;
-    const mats = new Set(), slots = {};
+    const mats = new Set(), slots = {}, finish = [];
     root.traverse(o => {
       if (!o.isMesh) return;
       meshes++;
@@ -94,6 +94,25 @@ window.__sheet = (url) => new Promise((done) => {
         mats.add(o.material.name || "(unnamed)");
         for (const k of ["map","normalMap","roughnessMap","emissiveMap"])
           if (o.material[k]) images++;
+        /* Shininess is a material fact, not a lighting one, and it is
+           the first thing anyone says about a body that looks wet.
+           Roughness near 0 is a mirror; cloth and skin live at 0.7-1.0.
+           Metalness above 0 on a person is almost always an export
+           artifact — nobody is made of metal. */
+        const m = o.material;
+        finish.push({
+          mat: m.name || "(unnamed)",
+          rough: m.roughness == null ? "-" : +m.roughness.toFixed(2),
+          metal: m.metalness == null ? "-" : +m.metalness.toFixed(2),
+          roughMap: !!m.roughnessMap, metalMap: !!m.metalnessMap,
+          /* KHR_materials_specular / _ior arrive as MeshPhysicalMaterial
+             properties, and they put a highlight on a surface whose
+             roughness is already 1 — which is how cloth ends up looking
+             wet with nothing obviously wrong in the usual two numbers. */
+          spec: m.specularIntensity == null ? null : +m.specularIntensity.toFixed(2),
+          specMap: !!m.specularIntensityMap,
+          ior: m.ior == null ? null : +m.ior.toFixed(2),
+        });
       }
       const tag = canon(o.name) + " " + canon(o.material?.name);
       const what = /hair|beard|scalp|brow|eyelash/i.test(tag) ? "hair"
@@ -102,6 +121,24 @@ window.__sheet = (url) => new Promise((done) => {
                  : /shoe|sneaker|boot|footwear|canvas/i.test(tag) ? "sneakers"
                  : /body|skin|head/i.test(tag) ? "skin" : null;
       if (what) slots[what] = (slots[what] || 0) + 1;
+    });
+
+    /* The campus corrects two material faults at load — metalness on a
+       person, and a roughness low enough to look wet — so the sheet
+       applies the same rule before drawing. Otherwise the pictures show
+       a body nobody will ever see. The RAW values are still printed
+       underneath, which is where "walker is too shiny" is answered.
+       Keep this in step with deshine() in index.html. */
+    root.traverse(o => {
+      if (!o.isMesh || !o.material) return;
+      const tag = canon(o.name) + " " + canon(o.material.name);
+      if (!/body|skin|head|hair|shirt|top|jacket|suit|short|pant|trouser|jean|shoe|sneaker|boot|eyelash|brow|scalp|avatar|mat$/i
+            .test(tag)) return;
+      const m = o.material;
+      if (typeof m.metalness === "number" && m.metalness > 0) m.metalness = 0;
+      if (typeof m.roughness === "number" && m.roughness < 0.5) m.roughness = 0.6;
+      if (typeof m.specularIntensity === "number" && m.specularIntensity > 0.4)
+        m.specularIntensity = 0.35;
     });
 
     const mixer = new THREE.AnimationMixer(root);
@@ -188,6 +225,14 @@ window.__sheet = (url) => new Promise((done) => {
       "clips: " + (gl.animations.map(c => (c.name||"?") + " " + c.duration.toFixed(2) + "s")
                      .join(", ") || "none") + "\\n" +
       "wardrobe can tint: " + (dressable.join(", ") || "nothing — this body is always the same") +
+      "\\nfinish: " + [...new Map(finish.map(f => [f.mat, f])).values()]
+        .map(f => f.mat + "  rough " + f.rough + (f.roughMap ? "+map" : "") +
+                  "  metal " + f.metal + (f.metalMap ? "+map" : "") +
+                  (f.spec == null ? "" : "  spec " + f.spec + (f.specMap ? "+map" : "")) +
+                  (f.ior == null ? "" : "  ior " + f.ior)).join("\\n        ") +
+      "\\n   (raw file values. The pictures above have the campus"
+      + " correction applied:\\n   on person parts, metalness -> 0,"
+      + " roughness floored at 0.5, specular damped to 0.35.)\\n" +
       "\\nskin reaches " + (spike === Infinity ? "NaN — BROKEN" : spike.toFixed(2)) +
       " figure-heights from the spine" +
       "\\n   calibrated on this cast: sound bodies measure 0.02-0.80 (arms out" +

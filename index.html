@@ -4063,6 +4063,47 @@ function bodyFor(k){
                (alt ? ", standing in " + alt : ", and nothing can stand in"));
   return alt;
 }
+/* ── nobody is made of metal ──────────────────────────────────────────
+   Reported as "walker is too shiny", and it is: a wet, plastic sheen
+   across the shirt and shorts, and hair with a highlight like a
+   varnished helmet.
+
+   It is one asset, not the lighting. Read across the whole cast, every
+   other person carries metalness 0; the walker alone carries 0.5 on
+   both its materials, and its hair sits at roughness 0.12 where the
+   next shiniest surface on any person is 0.45. Half-metal skin is an
+   export artifact — glTF defaults metallicFactor to 1 and an exporter
+   that writes 0.5 has simply not thought about it.
+
+   Corrected here rather than in the file, because the same artifact
+   will arrive again with the next body somebody drops in, and because
+   re-encoding a meshopt-compressed asset to change two numbers risks
+   more than it fixes.
+
+   Only parts the wardrobe recognises as belonging to a PERSON are
+   touched. The skater rides a board whose truck is metalness 0.98, and
+   that one is right — it is a metal truck. */
+function deshine(root){
+  root.traverse(o => {
+    if (!o.isMesh || !o.material) return;
+    const tag = canon(o.name) + " " + canon(o.material.name);
+    if (!/body|skin|head|hair|shirt|top|jacket|suit|short|pant|trouser|jean|shoe|sneaker|boot|eyelash|brow|scalp|avatar|mat$/i
+          .test(tag)) return;
+    const m = o.material;
+    if (typeof m.metalness === "number" && m.metalness > 0) m.metalness = 0;
+    /* A floor, not a fixed value: most of this cast sits at 0.68-1.0
+       already and there is no reason to flatten a deliberate sheen. */
+    if (typeof m.roughness === "number" && m.roughness < 0.5) m.roughness = 0.6;
+    /* And the one that actually made the shorts look wet. KHR_materials_specular
+       arrives as specularIntensity on a MeshPhysicalMaterial and lays a
+       highlight over a surface whose roughness is ALREADY 1 — so denim
+       shines with nothing wrong in either of the two numbers anyone
+       thinks to check. Full strength on cloth is a raincoat. Damped,
+       not removed: skin and cotton both catch some light. */
+    if (typeof m.specularIntensity === "number" && m.specularIntensity > 0.4)
+      m.specularIntensity = 0.35;
+  });
+}
 function prepFigure(k, height, live, clipIx = 0){
   const src = castLib[k];
   /* Belt as well as braces. Every caller goes through bodyFor now, but
@@ -4240,6 +4281,7 @@ function detailPass(){
   let castReady = 0;
   const arrive = (k, g) => {
     castLib[k] = g;
+    deshine(g.scene);
     /* Measured before they are pinned in place, for every body that
        walks — the gait count is what both paces playback and tells a
        walk cycle from a standing loop. */
