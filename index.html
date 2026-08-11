@@ -3183,6 +3183,27 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
     if (dropMat && (o.material.name || "").toLowerCase() === dropMat) return;
     meshes.push(o);
   });
+  /* A prefix that matches nothing plants nothing, and used to do it in
+     total silence — no error, a valid file, a campus that simply has no
+     trees on it. Every trees.glb prefix here was wrong for a whole
+     release that way: they were copied from the file's own mesh names,
+     and GLTFLoader renames on load. PropertyBinding.sanitizeNodeName
+     strips [ ] . : / and turns whitespace into underscores, so
+     "Tree EZTree0.Medium011_branches.011_0" arrives as
+     "Tree_EZTree0Medium011_branches011_0" — and a prefix taken from the
+     file matches none of it. plantpack and maple were fine only because
+     their names have neither a space nor a dot in them.
+
+     So it says so now, and the smoke test fails on it. Nothing else in
+     this file can tell you the difference between "planted nothing" and
+     "planted something you have not walked over to yet". */
+  if (prefix !== "" && !meshes.length){
+    console.error(`[flora] nothing matches "${prefix}" — ` +
+      `${list.length} plantings dropped. Names as the loader sees them: ` +
+      (() => { const n = []; root.traverse(o => { if (o.isMesh) n.push(o.name); }); return n.join(", "); })());
+    (window.__floraMisses = window.__floraMisses || []).push(prefix);
+    return;
+  }
   if (!meshes.length || !list.length) return;
   const bb = new THREE.Box3();
   const parts = meshes.map(o => {
@@ -3315,13 +3336,13 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
        The lists are built up where the rest of the planting is decided,
        a few hundred lines up, so the layout reads in one place; only
        the loading happens here. */
-    ["assets/trees.glb", [["tree eztree0.medium011", AVEN_W, 58, true, null, true],
-                          ["tree eztree1.medium002", AVEN_E, 58, true, null, true],
-                          ["tree eztree0.large",     FEATURE, 74, true, null, true],
-                          ["tree eztree0.medium011", EZ_SETS.m011, 52, true, null, true],
-                          ["tree eztree1.medium002", EZ_SETS.m002, 56, true, null, true],
-                          ["tree eztree0.medium010", EZ_SETS.m010, 60, true, null, true],
-                          ["tree eztree1.large009",  EZ_SETS.l009, 72, true, null, true]]],
+    ["assets/trees.glb", [["tree_eztree0medium011", AVEN_W, 58, true, null, true],
+                          ["tree_eztree1medium002", AVEN_E, 58, true, null, true],
+                          ["tree_eztree0large",     FEATURE, 74, true, null, true],
+                          ["tree_eztree0medium011", EZ_SETS.m011, 52, true, null, true],
+                          ["tree_eztree1medium002", EZ_SETS.m002, 56, true, null, true],
+                          ["tree_eztree0medium010", EZ_SETS.m010, 60, true, null, true],
+                          ["tree_eztree1large009",  EZ_SETS.l009, 72, true, null, true]]],
     ["assets/daffodils.glb", [["", DAFF, 3.4, false, "material"]]],
     ["assets/lavender.glb",  [["", LAV, 6]]],
     ["assets/cypress.glb",   [["", CYP, 12]]],

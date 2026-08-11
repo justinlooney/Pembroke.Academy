@@ -209,6 +209,38 @@ try {
   step("no console errors or failed assets", errors.length === 0,
        errors.slice(0, 5).join(" | "));
 
+  /* Flora is planted by matching a mesh-name prefix, and a prefix that
+     matches nothing plants nothing without complaining — a valid file,
+     no error, and a campus with no trees on it. Every trees.glb prefix
+     was wrong for a whole release exactly that way: they were written
+     against the names inside the file, and GLTFLoader renames on load
+     (PropertyBinding.sanitizeNodeName strips [].:/  and turns spaces
+     into underscores). Reading the file tells you nothing; only the
+     loader knows. So the page records its misses and this fails on
+     them. */
+  const misses = await page.evaluate(() => window.__floraMisses || []).catch(() => []);
+  step("every flora prefix planted something", misses.length === 0,
+       misses.length ? "matched nothing: " + misses.join(", ")
+                     : "no unmatched prefixes");
+
+  /* And a count, because "planted something" is satisfied by one tree.
+     The photographed collection is the whole point of the flora pass;
+     if it silently drops back to the stylised set the campus still
+     builds, still passes, and still looks like it did before anyone
+     asked for real trees. */
+  const flora = await page.evaluate(() => {
+    let inst = 0, tris = 0;
+    window.__app?.world?.traverse?.(o => {
+      if (!o.isInstancedMesh) return;
+      inst++;
+      tris += (o.geometry.index ? o.geometry.index.count / 3
+                                : o.geometry.attributes.position.count / 3) * o.count;
+    });
+    return { inst, tris: Math.round(tris) };
+  }).catch(() => ({ inst: 0, tris: 0 }));
+  step("the photographed trees are actually planted", flora.tris > 600_000,
+       `${flora.inst} instanced meshes, ${(flora.tris / 1e6).toFixed(2)}M triangles of flora`);
+
   await page.keyboard.press("f");
   await shoot("smoke-campus.png");
 
