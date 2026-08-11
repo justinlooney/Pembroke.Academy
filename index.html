@@ -3134,7 +3134,7 @@ function toFloatAttrs(geo){
     geo.setAttribute(name, f);
   });
 }
-function plantSpecies(root, prefix, list, targetH, shadows, dropMat){
+function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
   const meshes = [];
   root.updateMatrixWorld(true);
   root.traverse(o => {
@@ -3151,7 +3151,14 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat){
     geo.applyMatrix4(o.matrixWorld);
     geo.computeBoundingBox();
     bb.union(geo.boundingBox);
-    if (o.material.alphaTest) o.material.alphaTest = 0.12;
+    /* The plantpack foliage is cut out with a harsh mask and loses its
+       thinner fronds at the authored cutoff, so it is softened. A tree
+       whose leaves are photographs is the opposite case: the maple asks
+       for 0.4 and means it, and dropping it to 0.12 keeps the pale
+       matte around every leaf — which is precisely the white-card look
+       these were brought in to replace. Trust the asset when it says
+       so. */
+    if (o.material.alphaTest && !keepAlpha) o.material.alphaTest = 0.12;
     return [geo, o.material];
   });
   const size = new THREE.Vector3(); bb.getSize(size);
@@ -3209,15 +3216,31 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat){
                  [384,470,1],[400,452,0.85],[529,384,1],[545,400,0.85],[350,80,1.2],[650,84,1.2]];
   const FLORA = [
     ["assets/plantpack.glb", [["pine1", PINES1, 78, true], ["pine2", PINES2, 66, true],
-                              ["tree2", TREE2S, 54, true], ["treesmall", TSMALL, 40, true],
                               ["bushbig", BUSHA, 10], ["bushmed", BUSHB, 8], ["bushflower", BUSHC, 7]]],
+    /* The eighteen trees closest to the quad — the ones you walk under.
+       They were plantpack's stylised shapes, which are 211 triangles for
+       the entire pack of eight meshes: pleasant at a distance, and the
+       reason the campus still read as bubbles up close.
+
+       This is a sugar maple with photographed leaves, and it was sitting
+       unreferenced in assets/ the whole time. It costs nothing to bring
+       in — already committed, already downloaded — and because flora is
+       instanced, eighteen of them is two draw calls, not eighteen.
+
+       Its alpha cutoff is kept: see plantSpecies. The conifer belts and
+       the bushes stay stylised on purpose. They are read at distance and
+       in silhouette, where a photographed leaf buys nothing and costs
+       five thousand triangles a tree. */
+    ["assets/maple.glb", [["", TREE2S, 54, true, null, true],
+                          ["", TSMALL, 40, true, null, true]]],
     ["assets/daffodils.glb", [["", DAFF, 3.4, false, "material"]]],
     ["assets/lavender.glb",  [["", LAV, 6]]],
     ["assets/cypress.glb",   [["", CYP, 12]]],
     ["assets/fern.glb",      [["", FERNS, 5]]],
   ];
   FLORA.forEach(([url, specs]) =>
-    gltf.load(url, g => specs.forEach(([p, l, h, sh, dm]) => plantSpecies(g.scene, p, l, h, sh, dm))));
+    gltf.load(url, g => specs.forEach(([p, l, h, sh, dm, ka]) =>
+      plantSpecies(g.scene, p, l, h, sh, dm, ka))));
 }
 const CARS = [];
 for (let i = 0; i < 10; i++){          /* east lot, two columns nose-in */

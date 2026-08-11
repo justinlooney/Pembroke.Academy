@@ -52,3 +52,11 @@ Realistic_Woman_Walking  https://drive.google.com/file/d/1BoerD9I8YcpZGE7WNvQBCz
 
 # out: assets/stu_alina.glb
 Alina_Realistic_Woman  https://drive.google.com/file/d/1KchXnerEn9vgJlemnehy8ViPqZ18FVhS/view
+
+# ── a collection ─────────────────────────────────────────────────────
+# A zip of several models is merged into one file with its parts named,
+# which is the shape plantSpecies() plants from — it picks a species by
+# mesh-name prefix. The log prints the names it found; those are what
+# the placement code refers to.
+# out: assets/trees.glb
+Realistic_Trees  https://drive.google.com/file/d/1KbKXm6qk3JgzJ0KLGjmKqCw6hx6-z-sR/view
