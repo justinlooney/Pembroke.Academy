@@ -4100,8 +4100,17 @@ function deshine(root){
        shines with nothing wrong in either of the two numbers anyone
        thinks to check. Full strength on cloth is a raincoat. Damped,
        not removed: skin and cotton both catch some light. */
-    if (typeof m.specularIntensity === "number" && m.specularIntensity > 0.4)
-      m.specularIntensity = 0.35;
+    /* 0.12, not the 0.35 this started at. On a lawn 0.35 passed; in the
+       conversation view, where the key is 1.35 and there is a rim
+       light, the red shirt still read as latex. Cloth keeps a trace of
+       specular and no more. */
+    if (typeof m.specularIntensity === "number" && m.specularIntensity > 0.15)
+      m.specularIntensity = 0.12;
+    /* And the index of refraction with it. 1.45 is glass and lacquer;
+       it is what puts the bright rim along a shoulder and reads as wet
+       even after the highlight itself is damped. Cloth and skin sit
+       nearer 1.3. */
+    if (typeof m.ior === "number" && m.ior > 1.35) m.ior = 1.3;
   });
 }
 function prepFigure(k, height, live, clipIx = 0){
@@ -6412,6 +6421,7 @@ const interiorEl = document.getElementById("interior");
    filter and no second pass. It costs one texture and it means you are
    still visibly standing on the quad instead of in a void. */
 let convoView = null;                  /* the student record, or null */
+let convoLook = null;                  /* the head bone and its neutral, or null */
 let convoScene = null, convoCam = null, convoRT = null, convoHome = null, convoBase = null;
 let convoHomeCull = [];
 const convoEl = document.getElementById("convo");
@@ -6432,12 +6442,104 @@ function convoSetup(){
   key.position.set(-40, 70, 60);
   const fill = new THREE.DirectionalLight(0xbcd3ff, 0.35);
   fill.position.set(55, 20, 35);
-  const rim = new THREE.DirectionalLight(0xffe9c9, 0.7);
+  /* 0.6. This went to 0.4 alongside the specular fix and that was one
+     change too many: the wet line down a shoulder and the edge that
+     lifts a head off a near-black backdrop are the same highlight, and
+     with the material corrected the rim was no longer the thing making
+     him shine — it was the only thing making him visible. Backed off a
+     little from 0.7, not gutted. */
+  const rim = new THREE.DirectionalLight(0xffe9c9, 0.6);
   rim.position.set(20, 45, -70);
   convoScene.add(key, fill, rim, new THREE.AmbientLight(0xffffff, 0.18));
   convoCam = new THREE.PerspectiveCamera(38, 1, 0.5, 400);
 }
 
+/* ── keeping his eyes on you ──────────────────────────────────────────
+   A standing idle turns the head. The walker's is four seconds long and
+   swings through about forty degrees, so whichever moment you happen to
+   open a conversation on, there is a good chance you are talking to
+   somebody looking off at the hedge. That reads as being ignored, and
+   it is the difference between a person and a shop mannequin.
+
+   The obvious fix — point the head at the camera — is the one that
+   produces an owl. A head bone's local axes differ between the three
+   naming conventions on this campus and are not documented by any of
+   them; there is no "forward" to rotate towards without knowing which
+   way the bone was authored, and guessing wrong twists a neck through
+   ninety degrees.
+
+   So nothing here is assumed. The body has ALREADY been turned to face
+   the camera by facingOf, which means "looking at you" is the same
+   thing as "head neutral with respect to the body" — no axis needed,
+   only the head's rest relationship to the chest, and that can be
+   measured. A head that turns left and right is near neutral more of
+   the time than it is anywhere else, so the median of its orientation
+   across the clip IS neutral. Measure that once, then each frame pull
+   anything past a small tolerance back towards it.
+
+   Damped rather than pinned, and clamped rather than zeroed: twelve
+   degrees of drift stays, because a head locked dead level is its own
+   kind of uncanny. Returns null on any body without a head bone, and
+   the caller does nothing at all in that case — an unturned head is a
+   great deal better than a wrung neck. */
+const LOOK_FREE = 0.21;                 /* ~12°, left alone */
+const LOOK_PULL = 0.65;                 /* how much of the excess to take back */
+function headNeutral(g){
+  let head = null;
+  g.traverse(o => { if (!head && o.isBone && /head$/.test(boneKey(o.name))) head = o; });
+  if (!head || !head.parent) return null;
+  const a = g.userData.anim;
+  const act = a && a.actions[a.current];
+  const bodyQ = new THREE.Quaternion(), headQ = new THREE.Quaternion();
+  const rels = [];
+  const relAt = () => {
+    g.updateMatrixWorld(true);
+    g.getWorldQuaternion(bodyQ); head.getWorldQuaternion(headQ);
+    return bodyQ.clone().invert().multiply(headQ);
+  };
+  if (!act) return { head, neutral: relAt() };   /* nothing playing: now is neutral */
+  const was = act.time, wasPaused = act.paused;
+  const dur = act.getClip().duration || 1;
+  for (let i = 0; i < 20; i++){
+    act.time = (i / 20) * dur;
+    a.mixer.update(0);
+    rels.push(relAt());
+  }
+  act.time = was; act.paused = wasPaused;
+  a.mixer.update(0);
+  /* The median by yaw, measured against the first sample — not the
+     mean, which a single big turn would drag off centre. */
+  const e = new THREE.Euler();
+  const base = rels[0].clone().invert();
+  const yaws = rels.map(r => { e.setFromQuaternion(r.clone().multiply(base), "YXZ"); return e.y; });
+  const order = yaws.map((y, i) => [y, i]).sort((p, q) => p[0] - q[0]);
+  return { head, neutral: rels[order[Math.floor(order.length / 2)][1]] };
+}
+/* Applied after the mixer has written the pose and after breathe(), for
+   the same reason breathe() is: anything earlier is simply overwritten. */
+const _lookUp = new THREE.Vector3(0, 1, 0);
+function lookAtViewer(g, look){
+  if (!look || !look.head) return;
+  const bodyQ = new THREE.Quaternion(), headQ = new THREE.Quaternion();
+  const parentQ = new THREE.Quaternion();
+  g.getWorldQuaternion(bodyQ);
+  look.head.getWorldQuaternion(headQ);
+  const rel = bodyQ.invert().multiply(headQ);
+  const dev = rel.multiply(look.neutral.clone().invert());
+  const e = new THREE.Euler().setFromQuaternion(dev, "YXZ");
+  const want = THREE.MathUtils.clamp(e.y, -LOOK_FREE, LOOK_FREE);
+  const corr = (want - e.y) * LOOK_PULL;
+  if (Math.abs(corr) < 1e-4) return;
+  /* A world-space turn applied to a local quaternion: conjugate it by
+     the parent's world rotation, so this works whichever way the bone
+     was authored. Bodies here stand upright, so world Y is the neck's
+     yaw axis whatever the rig calls it. */
+  look.head.parent.getWorldQuaternion(parentQ);
+  const d = new THREE.Quaternion().setFromAxisAngle(_lookUp, corr);
+  look.head.quaternion.premultiply(
+    parentQ.clone().invert().multiply(d).multiply(parentQ));
+  look.head.updateMatrixWorld(true);
+}
 /* Which way is this body facing? Read off the skeleton rather than
    assumed from a convention the models do not share — one arrived
    facing away at a rotation of zero and another at π. A toe sits
@@ -6514,6 +6616,9 @@ function convoOpen(s){
      freeze, which is the same judgement makeRoamer already makes. */
   if (s.roles && s.roles.idle) setClipOn(g, s.roles.idle, 0.3);
   else holdStill(s);                  /* the eight with only a walk cycle */
+  /* Measured after the clip is chosen, because neutral is a property of
+     the clip that will actually play. */
+  convoLook = headNeutral(g);
 
   /* Framed off this body, not off a number: the cast runs from 38 to 43
      units and a fixed camera would crop one and strand another.
@@ -6558,6 +6663,10 @@ function convoClose(){
   g.userData.animate = convoHome.animate;
   convoHomeCull.forEach(([o, was]) => { o.frustumCulled = was; });
   convoHomeCull = [];
+  /* Dropped with the view. Holding a bone reference from a figure that
+     has gone back to the lawn would keep correcting a head nobody is
+     looking at, and keep the body alive after it should be collectable. */
+  convoLook = null;
   convoView = null; convoHome = null;
   convoEl.classList.remove("open");
   convoEl.setAttribute("aria-hidden", "true");
@@ -6617,6 +6726,7 @@ function convoFrame(dt){
   const m = castMixers.find(x => x.g === convoView.g);
   if (m) m.m.update(dt);
   if (convoView.held) breathe(convoView.g, convoT, convoView.phase || 0);
+  lookAtViewer(convoView.g, convoLook);
   /* Sway about the framing, not towards it — and look where convoOpen
      decided, rather than at a fixed offset below the lens that happens
      to be near it for one body height and wrong for the rest. */
