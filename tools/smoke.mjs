@@ -399,10 +399,26 @@ try {
      fine and the clock was not, which is the least useful way for a
      test to go red. The wait paces the run; the state that follows is
      what is judged, and it is judged once. */
+  /* Seventeen heads is not the thing being checked. What follows counts
+     shirt colours and complexions across the cohort, and a cohort drawn
+     before the deferred bodies land is four people in fourteen copies
+     however many of them there are — which is exactly what this test
+     exists to catch, so waiting on the headcount made it fail for the
+     one reason that is not a bug.
+
+     It went red when the outer world stopped competing for the main
+     thread: the campus reached seventeen sooner, and sooner was worse.
+     So wait for the bodies themselves. */
   await crowdPage
     .waitForFunction(() => window.__crowd && window.__crowd().people >= 17,
                      null, { timeout: 300_000 })
     .catch(() => {});
+  await crowdPage
+    .waitForFunction(() => (window.__assets || [])
+                     .filter(a => /^stu_/.test(a.name))
+                     .every(a => a.ms != null),
+                     null, { timeout: 180_000 })
+    .catch(() => console.log("  ..   some bodies never arrived; judging what did"));
   const c = await crowdPage.evaluate(() => {
     const out = { ...window.__crowd(), shirts: new Set(), skins: new Set(),
                   builds: new Set(), bodies: new Set(), tinted: 0 };

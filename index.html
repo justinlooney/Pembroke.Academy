@@ -4571,7 +4571,11 @@ function fillForcedCrowd(){
        software rasterizer, and a body that never arrives at all would
        otherwise leave ?crowd showing an empty quad forever. Twenty
        seconds, then fill with whoever is here. */
-    if (!lateGiveUp) lateGiveUp = setTimeout(() => { lateOutstanding = 0; fillForcedCrowd(); }, 20000);
+    /* Forty-five, not twenty. There are nine deferred bodies now rather
+       than six, and ?crowd exists to show the variety they provide — a
+       give-up that fires first fills the quad from the first wave and
+       demonstrates the opposite. */
+    if (!lateGiveUp) lateGiveUp = setTimeout(() => { lateOutstanding = 0; fillForcedCrowd(); }, 45000);
     return;
   }
   clearTimeout(lateGiveUp);
