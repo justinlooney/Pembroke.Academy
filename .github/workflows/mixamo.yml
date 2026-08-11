@@ -74,16 +74,57 @@ jobs:
               # blaming sharing for a failed fetch sends people off to
               # re-share files that were never the problem.
               #
-              # Two kinds of file are welcome. Mixamo hands out FBX, which
-              # needs Blender to become a character. But a finished GLB is
-              # already a character, and putting one through Blender only
-              # risks what it already has — so it is passed straight to the
-              # optimizer. Told apart by their magic bytes rather than by
-              # the file name, which on a Drive link is whatever the inbox
-              # happened to call it.
+              # Three kinds of file are welcome. Mixamo hands out FBX,
+              # which needs Blender to become a character. A finished GLB
+              # is already a character, and putting one through Blender
+              # only risks what it already has, so it goes straight to
+              # the optimizer. And a zip is how anything with textures
+              # arrives — a Sketchfab download, or a whole collection of
+              # trees in one file.
+              #
+              # Told apart by magic bytes rather than by file name, which
+              # on a Drive link is whatever the inbox happened to call
+              # it. PK is a zip, glTF is a GLB, Kaydara is an FBX.
               magic=$(head -c 4 "/tmp/fbx/$name.bin")
               size=$(du -h "/tmp/fbx/$name.bin" | cut -f1)
-              if head -c 20 "/tmp/fbx/$name.bin" | grep -q "Kaydara"; then
+              if [ "$(head -c 2 "/tmp/fbx/$name.bin")" = "PK" ]; then
+                printf '  ..   %-18s %-8s zip, unpacking\n' "$name" "$size"
+                rm -rf "/tmp/fbx/$name.d" && mkdir -p "/tmp/fbx/$name.d"
+                if ! unzip -q "/tmp/fbx/$name.bin" -d "/tmp/fbx/$name.d"; then
+                  echo "::error::$name — could not unpack the zip"
+                  fail=1; continue
+                fi
+                # A Sketchfab zip is scene.gltf beside its .bin and a
+                # textures/ directory, so the model must be read where it
+                # was unpacked — the relative paths inside it are the
+                # only way it finds its own textures.
+                mapfile -t found < <(find "/tmp/fbx/$name.d" -type f \
+                  \( -iname '*.glb' -o -iname '*.gltf' \) | sort)
+                if [ "${#found[@]}" -eq 0 ]; then
+                  echo "::error::$name — the zip holds no .glb or .gltf"
+                  find "/tmp/fbx/$name.d" -type f | head -20
+                  fail=1; continue
+                fi
+                if [ "${#found[@]}" -eq 1 ]; then
+                  printf '  ok   %-18s %-8s one model in the zip\n' "$name" "$size"
+                  ready="${found[0]}"
+                else
+                  # A collection. Merged into one file, which is the shape
+                  # plantpack.glb already has and the shape plantSpecies()
+                  # wants: it plants by mesh-name prefix out of a single
+                  # scene. gltf-transform puts each input in a Scene of
+                  # its own, and three.js loads only the default one — so
+                  # a twelve-tree collection would arrive as one tree and
+                  # eleven silent absences, with no error and a valid
+                  # file. flatten-scenes.mjs is what stops that.
+                  printf '  ok   %-18s %-8s %d models, merging\n' \
+                    "$name" "$size" "${#found[@]}"
+                  printf '         %s\n' "${found[@]#/tmp/fbx/$name.d/}"
+                  gltf-transform merge "${found[@]}" "/tmp/fbx/$name.merged.glb"
+                  node tools/flatten-scenes.mjs "/tmp/fbx/$name.merged.glb"
+                  ready="/tmp/fbx/$name.merged.glb"
+                fi
+              elif head -c 20 "/tmp/fbx/$name.bin" | grep -q "Kaydara"; then
                 printf '  ok   %-18s %-8s fbx\n' "$name" "$size"
                 mv "/tmp/fbx/$name.bin" "/tmp/fbx/$name.fbx"
                 args="$args /tmp/fbx/$name.fbx"
@@ -116,7 +157,11 @@ jobs:
                 echo "::error::separate '# out:' blocks."
                 exit 1
               fi
-              cp "$ready" "$out"
+              # Not cp. Out of a zip this is often scene.gltf beside its
+              # .bin and a textures/ directory, and copying the one file
+              # would leave the geometry and every texture behind. copy
+              # reads it where it lies and writes a self-contained GLB.
+              gltf-transform copy "$ready" "$out"
               # A character-creator export carries a full anatomy — a
               # tongue, teeth, fingernails, the wet films over the eyes —
               # and each one has its own material and so its own draw
@@ -124,16 +169,28 @@ jobs:
               # This must run here rather than by hand afterwards: the
               # courier rebuilds from Drive, and it has already silently
               # undone one hand-thinned model (stu_woman, 2.66MB back up
-              # to 4.76MB) by doing exactly that.
+              # to 4.76MB) by doing exactly that. On anything without a
+              # face it matches nothing and says so.
               node tools/thin-character.mjs "$out"
-              # These arrive at 80k triangles and up, several times what
-              # the hand-built characters cost. Simplification is refused
-              # for the Blender path below, where it would rewrite a mesh
-              # that was just assembled from parts; here the character is
-              # finished and meshoptimizer carries the joints and weights
-              # through, which was checked on two of them before this was
-              # turned on.
-              gltf-transform simplify "$out" "$out" --ratio 0.45 --error 0.003
+              # Only the heavy ones. Character-creator people arrive at
+              # 80k triangles and up, several times what the hand-built
+              # characters cost, and halving them is invisible at campus
+              # distance. A tree collection is not that: plantpack is 211
+              # triangles for eight meshes, and simplifying foliage eats
+              # the leaf cards that make it read as foliage. So the
+              # threshold decides, not the filename.
+              tris=$(node -e '
+                const fs=require("fs");const b=fs.readFileSync(process.argv[1]);
+                const j=JSON.parse(b.slice(20,20+b.readUInt32LE(12)).toString("utf8"));
+                console.log(Math.round((j.meshes||[]).reduce((t,m)=>t+m.primitives
+                  .reduce((s,p)=>s+(p.indices!==undefined?j.accessors[p.indices].count/3:0),0),0)));
+              ' "$out")
+              if [ "$tris" -gt 60000 ]; then
+                echo "  .. $tris triangles — simplifying"
+                gltf-transform simplify "$out" "$out" --ratio 0.45 --error 0.003
+              else
+                echo "  .. $tris triangles — light enough, left alone"
+              fi
             else
               blender --background --python-exit-code 1 \
                       --python tools/mixamo-to-glb.py -- "$out" $args
