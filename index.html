@@ -788,6 +788,14 @@ body.day .hall-tag{background:linear-gradient(180deg, rgba(24,30,44,.86), rgba(2
 .convo-open #labels2d, .convo-open #quest, .convo-open #walkhud,
 .convo-open #doorprompt, .convo-open #minimap,
 .convo-open .moon, .convo-open .cloud{display:none !important;}
+/* The stage is a banner inside a scrolling page — which is right for a
+   campus you look at and wrong for a conversation you are in. Scroll
+   halfway down and the 3D is a strip along the top with the course
+   ledger showing through behind the dialogue. So for the duration it
+   leaves the document and covers the window. Specificity beats the
+   utility classes on the element; the renderer is resized to match. */
+body.convo-open{overflow:hidden;}
+body.convo-open #stage{position:fixed;inset:0;z-index:31;}
 .convo-card{position:absolute;left:0;right:0;bottom:0;
   padding:1.1rem 1.4rem 1.3rem;
   background:linear-gradient(0deg, rgba(6,8,14,.94) 55%, rgba(6,8,14,.72) 80%, transparent);
@@ -4633,8 +4641,15 @@ function passingTime(g){
   const L = feet.find(b => side(b, /left/i, "l"));
   const R = feet.find(b => b !== L && side(b, /right/i, "r"));
   if (!L || !R){ return (PASS_CACHE[key] = null); }
+  const hands = [];
+  g.traverse(o => {
+    if (o.isBone && /hand$|hand[._]?\d*$|wrist/i.test(o.name)) hands.push(o);
+  });
   const was = act.time, wasPaused = act.paused;
   const p = new THREE.Vector3(), q = new THREE.Vector3();
+  const root = new THREE.Vector3();
+  g.getWorldPosition(root);
+  const mid = root.x;
   let best = null, bestD = Infinity;
   const dur = act.getClip().duration;
   for (let i = 0; i < 24; i++){
@@ -4643,7 +4658,18 @@ function passingTime(g){
     a.mixer.update(0);
     g.updateMatrixWorld(true);
     L.getWorldPosition(p); R.getWorldPosition(q);
-    const d = Math.hypot(p.x - q.x, p.z - q.z);
+    let d = Math.hypot(p.x - q.x, p.z - q.z);
+    /* Feet together is necessary and nowhere near sufficient. A bind
+       pose has the feet together too — and arms straight out sideways —
+       so scoring on the feet alone picked frame zero and stood a
+       student in the middle of a conversation in a T-pose. Charge for
+       the arms as well: how far the hands sit from the body's centre
+       line. A passing stride keeps them near the hips; a T-pose does
+       not, and now loses. */
+    for (const h of hands){
+      h.getWorldPosition(p);
+      d += Math.abs(p.x - mid) * 0.6;
+    }
     if (d < bestD){ bestD = d; best = t; }
   }
   act.time = was; act.paused = wasPaused;
@@ -6259,6 +6285,11 @@ function convoOpen(s){
   convoEl.classList.add("open");
   convoEl.setAttribute("aria-hidden", "false");
   document.body.classList.add("convo-open");
+  /* the stage has just left the document and covers the window, so the
+     renderer and both cameras need the new shape */
+  resize();
+  convoCam.aspect = camera.aspect;
+  convoCam.updateProjectionMatrix();
 }
 
 function convoClose(){
@@ -6275,6 +6306,7 @@ function convoClose(){
   convoEl.classList.remove("open");
   convoEl.setAttribute("aria-hidden", "true");
   document.body.classList.remove("convo-open");
+  resize();                      /* and back into the page it goes */
 }
 
 /* What they say, and what you can put to them. Authored, and aware of
