@@ -3543,11 +3543,15 @@ function mkPerson(jacketColor, seed){
      stu_oreizo   "Oreizo" by T-Art (person-x)
      stu_tutor    "Animated Instructor Avatar" by sagefreeman
      stu_gent     "Mr Man Walking" by Instinto Ideal Studio (instideal2019)
+     stu_mia      "Mia Walking"    by Instinto Ideal Studio (instideal2019)
+     stu_ariel    "walking test"   by Oussama.Lamrani
    stu_nathan is a scanned figure supplied by the site owner, who holds
    the rights to it.                                                    */
 const CAST_FILES = {
   walker:  "assets/stu_walker.glb",     /* 50k tris, 7 mocap clips      */
   gent:    "assets/stu_gent.glb",       /* 41k tris, one walk cycle     */
+  mia:     "assets/stu_mia.glb",        /* 36k tris, one walk cycle     */
+  ariel:   "assets/stu_ariel.glb",      /* 35k tris, one walk cycle     */
   oreizo:  "assets/stu_oreizo.glb",     /* 33k tris, one walk cycle     */
   nathan:  "assets/stu_nathan.glb",     /* 22k tris, a scan, one walk   */
   strider: "assets/stu_strider.glb",    /* 13k tris, one walk cycle     */
@@ -3555,12 +3559,14 @@ const CAST_FILES = {
   stand:   "assets/stu_anim.glb",
   skate:   "assets/stu_skater.glb",
 };
-const CAST_HEIGHT = { walker: 42, gent: 43, oreizo: 43, nathan: 43,
-                      strider: 42, tutor: 41, stand: 41, skate: 42 };
+const CAST_HEIGHT = { walker: 42, gent: 43, mia: 40, ariel: 40, oreizo: 43,
+                      nathan: 43, strider: 42, tutor: 41, stand: 41, skate: 42 };
 /* Which bodies can be given a waypoint and told to walk it, and which
-   are only good for standing about. Five that walk means the round
-   robin below hands out five different people before it repeats one. */
-const ROAMING = ["walker", "gent", "oreizo", "nathan", "strider"];
+   are only good for standing about. Seven that walk means the round
+   robin below hands out seven different people before it repeats one,
+   against a crowd that caps at ten — so a repeat needs eight people on
+   the campus at once, and they will not be near each other. */
+const ROAMING = ["walker", "gent", "mia", "oreizo", "nathan", "ariel", "strider"];
 const LOITERING = ["tutor", "stand"];
 /* Where the named eight are and what they are doing. A plan with
    neither `at` nor `orbit` roams the ring; the gait it roams with is
@@ -3845,10 +3851,10 @@ function dressFigure(g, seed){
     /* A beard follows the hair. One of these bodies carries its
        moustache on its own material, and a blond crop over a black
        moustache is not a person, it is a bug. */
-    const what = /hair|beard|moustache|mustache/i.test(tag) ? "hair"
+    const what = /hair|beard|moustache|mustache|scalp|brow|eyelash/i.test(tag) ? "hair"
                : /shirt|top|jacket/i.test(tag) ? "shirt"
-               : /short|pant|trouser|jean|bottom/i.test(tag) ? "shorts"
-               : /shoe|sneaker|boot|footwear/i.test(tag) ? "sneakers"
+               : /short|pant|trouser|jean|bottom|denim/i.test(tag) ? "shorts"
+               : /shoe|sneaker|boot|footwear|canvas/i.test(tag) ? "sneakers"
                : /body|skin|head/i.test(tag) ? "skin" : null;
     if (!what) return;                     /* eyes and eyelashes are left alone */
     /* Clone first. SkeletonUtils shares materials between clones, so
