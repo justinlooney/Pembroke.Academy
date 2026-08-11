@@ -85,14 +85,37 @@ if action is None:
     print("[idle]", os.path.basename(clip_file), "carries no animation")
     sys.exit(1)
 
+"""Matched by SUFFIX, not by rebuilding a namespace.
+
+The first version assumed the body carried a mixamorig*: prefix and
+rewrote the clip's prefix to match. When the body's bones are named
+plainly — which is what a glTF round trip through the courier leaves —
+`ns` comes back empty, the rewrite strips the clip down to bare Hips
+and LeftArm, and then nothing matches anything. Every body was refused,
+including the five that should have taken the clip.
+
+So read the naming that is actually there instead of assuming one.
+Strip whatever prefix each side happens to carry and match on the bone
+itself, which is the only part both conventions agree on. It handles
+mixamorig:, mixamorig2:, no prefix at all, and an Armature| pathname,
+and it still refuses CC_Base_L_Upperarm — because that genuinely is a
+different bone name, not a different way of writing the same one."""
+def stem(n):
+    return NS.sub("", n).split("|")[-1].split(":")[-1].lower()
+
+
+lookup = {}
+for b in rig.data.bones:
+    lookup.setdefault(stem(b.name), b.name)
+
 moved = 0
 for fc in action.fcurves:
     m = re.match(r'(pose\.bones\[")([^"]+)("\].*)', fc.data_path)
     if not m:
         continue
     head, bone, tail = m.groups()
-    want = ns + NS.sub("", bone)
-    if want != bone:
+    want = lookup.get(stem(bone))
+    if want and want != bone:
         fc.data_path = head + want + tail
         moved += 1
 
