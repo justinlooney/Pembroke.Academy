@@ -6262,6 +6262,25 @@ function convoSetup(){
   convoCam = new THREE.PerspectiveCamera(38, 1, 0.5, 400);
 }
 
+/* Which way is this body facing? Read off the skeleton rather than
+   assumed from a convention the models do not share — one arrived
+   facing away at a rotation of zero and another at π. A toe sits
+   forward of its ankle on every humanoid that has ever been rigged, so
+   the ankle-to-toe vector, flattened, is the facing. Returns the world
+   heading in radians, or null if this body has no toes to ask. */
+function facingOf(g){
+  let foot = null;
+  g.traverse(o => { if (!foot && o.isBone && /foot$/.test(boneKey(o.name))) foot = o; });
+  if (!foot) return null;
+  let toe = null;
+  foot.traverse(o => { if (!toe && o !== foot && o.isBone && /toe/.test(boneKey(o.name))) toe = o; });
+  if (!toe) return null;
+  const a = new THREE.Vector3(), b = new THREE.Vector3();
+  foot.getWorldPosition(a); toe.getWorldPosition(b);
+  const dx = b.x - a.x, dz = b.z - a.z;
+  if (Math.hypot(dx, dz) < 1e-5) return null;      /* toes straight down */
+  return Math.atan2(dx, dz);
+}
 function convoOpen(s){
   if (!s || !s.data || convoView || interiorView) return;
   convoSetup();
@@ -6301,11 +6320,17 @@ function convoOpen(s){
   });
   convoScene.add(g);
   g.position.set(0, 0, 0);
-  /* Turned to face you. The campus heading convention says a figure's
-     forward is +Z and the camera sits at +Z, which reasons its way
-     neatly to zero — and put her back to the room. The render settled
-     it in one look, as it settled the T-pose. */
-  g.rotation.y = Math.PI;
+  /* Turned to face you — measured off her own feet, not assumed.
+     Zero put her back to the room; so did π on a different body, which
+     is the tell: these models come from different pipelines and do not
+     agree on which way forward is. A constant cannot be right for all
+     of them and there is no reason to guess, because the skeleton
+     knows. Toes are forward of ankles on every humanoid ever rigged,
+     so the ankle-to-toe vector IS the facing. */
+  g.rotation.y = 0;
+  g.updateMatrixWorld(true);
+  const face = facingOf(g);
+  g.rotation.y = face === null ? Math.PI : -face;
 
   /* Standing rather than mid-stride, where the body has anything to
      stand with. Most of the cohort arrived with a single walk cycle and
