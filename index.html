@@ -782,7 +782,12 @@ body.day .hall-tag{background:linear-gradient(180deg, rgba(24,30,44,.86), rgba(2
    thousand. That is the whole reason this view exists — it is not a
    flourish, it is the only way a close-up can afford good light and a
    full-detail body on the same phone that renders the quad at 26fps. */
-#convo{position:absolute;inset:0;z-index:32;opacity:0;pointer-events:none;
+/* Fixed, not absolute. The stage leaves the document while a
+   conversation is open, and an absolutely-positioned overlay resolves
+   inset:0 against the hero section instead of the window — which left
+   the dialogue card floating across the middle of the screen with the
+   figure behind it. */
+#convo{position:fixed;inset:0;z-index:32;opacity:0;pointer-events:none;
   transition:opacity .4s ease;}
 #convo.open{opacity:1;pointer-events:auto;}
 .convo-open #labels2d, .convo-open #quest, .convo-open #walkhud,
@@ -6252,13 +6257,17 @@ function convoSetup(){
      turns matte and plastic on the way in. */
   convoScene.environment = world.environment;
   convoScene.backgroundIntensity = 0.42;      /* let the person carry the frame */
-  const key = new THREE.DirectionalLight(0xfff4e2, 2.6);
+  /* Calmer than it was. Key, fill, rim and ambient summed to about
+     five, which on top of an environment map flattened a textured body
+     to plain ivory — every fold and every printed shirt washed out. The
+     environment does most of the work; these only shape it. */
+  const key = new THREE.DirectionalLight(0xfff4e2, 1.35);
   key.position.set(-40, 70, 60);
-  const fill = new THREE.DirectionalLight(0xbcd3ff, 0.75);
+  const fill = new THREE.DirectionalLight(0xbcd3ff, 0.35);
   fill.position.set(55, 20, 35);
-  const rim = new THREE.DirectionalLight(0xffe9c9, 1.5);
+  const rim = new THREE.DirectionalLight(0xffe9c9, 0.7);
   rim.position.set(20, 45, -70);
-  convoScene.add(key, fill, rim, new THREE.AmbientLight(0xffffff, 0.35));
+  convoScene.add(key, fill, rim, new THREE.AmbientLight(0xffffff, 0.18));
   convoCam = new THREE.PerspectiveCamera(38, 1, 0.5, 400);
 }
 
