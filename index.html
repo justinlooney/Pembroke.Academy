@@ -3856,7 +3856,6 @@ const CAST_FILES = {
   ariel:   "assets/stu_ariel.glb",      /* 35k tris, one walk cycle     */
   woman:   "assets/stu_woman.glb",      /* ferried in by the courier    */
   alina:   "assets/stu_alina.glb",      /* ferried in by the courier    */
-  oreizo:  "assets/stu_oreizo.glb",     /* 33k tris, one walk cycle     */
   nathan:  "assets/stu_nathan.glb",     /* 22k tris, a scan, one walk   */
   /* Brought in together to be judged on the quad rather than in a log.
      kenta is the cheapest body here by a distance and the only newcomer
@@ -3901,7 +3900,7 @@ const CAST_FILES = {
    Measured across all sixteen bodies, exactly six had a shirt mesh the
    wardrobe could find: walker, strider, oreizo, ariel, woman, nadia.
    strider and oreizo were the two cheapest, so they took the places
-   gent and mia held.
+   gent and mia held. Both then turned out to be broken files.
 
    strider then turned out to be the giant. Three of its eight meshes
    carry 65 of 66 NaN inverse bind matrices, so every vertex weighted
@@ -3911,17 +3910,27 @@ const CAST_FILES = {
    roster entirely, and prepFigure now refuses any body it cannot
    measure rather than scaling by NaN.
 
-   That leaves walker and oreizo dressable in the opening wave against
-   gent and mia's one. mia stays for 0.37MB — she cannot be dressed, but
-   she is a fourth roaming body, and three would leave the cohort one
-   removal away from failing the check that it is drawn from more than
-   one person at all.                                                   */
-const CAST_FIRST = ["walker", "oreizo", "mia", "nathan", "sophia", "skate", "tutor"];
+   oreizo went the same way as strider and for a worse reason: its mesh
+   tears. Walked through applyBoneTransform, its skin reaches SEVEN
+   figure-heights from its own spine — arms drawn out into spikes past
+   the feet, with a fan of torn geometry behind — on every clip it has,
+   including its own walk. Every other body in the cohort measures
+   between 0.02 and 0.63 by the same reading. No bone is out of place,
+   which is why three separate probes that measured bones called it
+   healthy; only walking the skinned vertices found it.
+
+   ariel takes the place, at 1.66MB against oreizo's 0.75MB. That is the
+   whole cost of this, and it buys the only other dressable body cheap
+   enough to sit in the opening wave. mia stays for 0.37MB — she cannot
+   be dressed, but she is a fourth roaming body, and three would leave
+   the cohort one removal away from failing the check that it is drawn
+   from more than one person at all.                                    */
+const CAST_FIRST = ["walker", "ariel", "mia", "nathan", "sophia", "skate", "tutor"];
 /* A teenager is shorter, and the height is doing as much work here as
    any of the colours — see buildOf, which varies each figure another
    ±11% on top of these. */
 const CAST_HEIGHT = { walker: 42, gent: 43, mia: 40, teen: 38, woman: 41,
-                      alina: 40, ariel: 40, oreizo: 43, nathan: 43,
+                      alina: 40, ariel: 40, nathan: 43,
                       tutor: 41, skate: 42,
                       kenta: 41, isla: 40, nadia: 41, sophia: 40 };
 /* Which bodies can be given a waypoint and told to walk it, and which
@@ -3929,7 +3938,7 @@ const CAST_HEIGHT = { walker: 42, gent: 43, mia: 40, teen: 38, woman: 41,
    that caps at ten: the round robin runs out of new people only on the
    ninth, and by then they are scattered over sixty-eight waypoints. */
 const ROAMING = ["walker", "gent", "mia", "teen", "woman", "alina",
-                 "oreizo", "nathan", "ariel",
+                 "nathan", "ariel",
                  "kenta", "isla", "nadia"];
 /* sophia joins the standers rather than the walkers, because that is
    what she came with: 488 frames of idle and no gait at all. She is

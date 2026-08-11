@@ -13,9 +13,20 @@ name: idle
 # nothing, so add-idle.py refuses them and they keep the held frame.
 # That refusal is the point: a clip that binds to nothing exports
 # perfectly and ships a statue.
+# Run by hand only. This fired on any push touching the tool or this
+# file, which meant editing either one re-landed the clip on four
+# bodies and pushed the result to main unreviewed. It did that three
+# times in one afternoon, and what landed was not three copies of one
+# animation but three DIFFERENT truncations of it — 6.02s, then 0.37s,
+# then 0.95s, all named Idle — with index.html picking whichever sorted
+# first. A third of a second of a standing loop, played on repeat, is
+# what "everyone is swaying around" looks like.
+#
+# A workflow that writes character assets straight to the branch needs
+# somebody to look at the result before it ships. Nothing here can tell
+# a good landing from a bad one, and the bad ones were visible from the
+# first frame and invisible in every log.
 on:
-  push:
-    paths: ['tools/add-idle.py', '.github/workflows/idle.yml', 'tools/clips/**']
   workflow_dispatch:
 
 permissions:
