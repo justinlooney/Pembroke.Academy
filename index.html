@@ -3535,7 +3535,10 @@ const CAST_PLAN = [
   /* Jun stood at 270,700 — which is inside the science hall, invisible
      behind its south wall. Out on the front now, facing the quad. */
   { k: "stand", at: [286, 838], face:  0.2, live: true, pose: 1 }, /* Jun — Alden front */
-  { k: "walker", orbit: 1, clip: "Jogging" },               /* Amara  — laps the oval */
+  /* Amara used to lap the ring at 182 — which, with the player standing
+     in the middle of it, meant she was on screen permanently. She runs
+     the campus now, on the same paths as everyone else, just faster. */
+  { k: "walker", jog: true },                               /* Amara  — runs the campus */
   { k: "walker" },                                          /* Kenji  — roams        */
 ];
 const castLib = {};
@@ -3792,8 +3795,8 @@ const GAITS = ["Standard Walk", "Strut Walking", "Walk Forward"];
    cast and by the crowd behind them, so the two move under identical
    rules — an extra who walks differently from a classmate reads as a
    bug, however well dressed. */
-function makeRoamer(g, startKey, extra){
-  const gait = GAITS[Math.floor(Math.random() * GAITS.length)];
+function makeRoamer(g, startKey, extra, forceGait){
+  const gait = forceGait || GAITS[Math.floor(Math.random() * GAITS.length)];
   if (g.userData.anim){ setClipOn(g, "Idle"); stagger(g, "Idle"); stagger(g, gait); }
   /* Let the clip set the pace rather than stretching it to fit a speed
      picked out of the air. A gait has a natural rate, and a student
@@ -3859,20 +3862,28 @@ function buildCast(){
        220 feet of the fountain, which is a crowd however well the extras
        are spread. They carry name tags, so meeting Theo on the boulevard
        finds him just as well as circling the lawn did. */
-    makeRoamer(g, ALL_WAYS[(i * 11 + 5) % ALL_WAYS.length], { data: st });
+    const s = makeRoamer(g, ALL_WAYS[(i * 11 + 5) % ALL_WAYS.length], { data: st },
+                         plan.jog ? "Jogging" : null);
+    if (plan.jog) s.speed *= 1.5;
   });
-  /* an uncommissioned regular: the skater, carving the ring the other way */
+  /* An uncommissioned regular, carving laps — down at the athletics
+     forecourt, where a skateboard belongs and where he is not making up
+     a sixth of everything visible from the fountain. */
   const sk = prepFigure("skate", 0, true);
   world.add(sk);
-  students.push({ g: sk, orbit: 175, orbitA: 3.6, orbitW: -0.34, skate: true,
-                  pos: [500 + Math.cos(3.6) * 175, 500 + Math.sin(3.6) * 175] });
+  students.push({ g: sk, orbit: 84, orbitA: 3.6, orbitW: -0.6, skate: true,
+                  cx: 500, cy: 1120,
+                  pos: [500 + Math.cos(3.6) * 84, 1120 + Math.sin(3.6) * 84] });
   /* Three more of the second rigged character — a genuinely different
      body rather than the walker re-dressed, which is worth more than any
      amount of recolouring. Their download carries no gait, so they are
-     put where standing about is what people do: by a door, at the edge
-     of the plaza, under the trees. Each takes a different one of the
-     four clips that came with them. */
-  [[612, 806, -1.1, 1], [418, 372, 2.3, 2], [560, 300, -2.6, 3]].forEach(([x, y, face, pose]) => {
+     put where standing about is what people do.
+
+     Out at the edges, not on the lawn. Two of them used to stand 152 and
+     209 feet from the fountain, which is to say permanently in shot from
+     the middle of the quad — a figure that never moves costs the view
+     far more than one walking through it. */
+  [[236, 344, -1.4, 1], [520, 962, 2.9, 2], [470, 1150, -2.0, 3]].forEach(([x, y, face, pose]) => {
     const g = prepFigure("stand", CAST_HEIGHT.stand * buildOf(pose * 17 + 5), true, pose);
     g.position.set(W(x), 0, W(y));
     g.rotation.y = face;
@@ -3999,8 +4010,9 @@ function stepStudents(dt, now){
     if (s.orbit){
       /* the jogger and the skater carve steady laps of the oval */
       s.orbitA += dt * s.orbitW;
-      const nx = 500 + Math.cos(s.orbitA) * s.orbit;
-      const ny = 500 + Math.sin(s.orbitA) * s.orbit;
+      const cx = s.cx ?? 500, cy = s.cy ?? 500;
+      const nx = cx + Math.cos(s.orbitA) * s.orbit;
+      const ny = cy + Math.sin(s.orbitA) * s.orbit;
       s.g.rotation.y = Math.atan2(nx - s.pos[0], ny - s.pos[1]);
       s.pos[0] = nx; s.pos[1] = ny;
       /* the jogger's own bob comes from the clip now; only the skater,
