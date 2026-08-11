@@ -3510,16 +3510,46 @@ function mkPerson(jacketColor, seed){
   }
   return { g, legL, legR, armL, armR };
 }
-/* the photoreal cast, ferried in by the registrar: a mid-stride
-   walker, a rigged student frozen in a natural stance, a talker
-   mid-gesture, and a coder folded up with her laptop */
-/* stu_walker.glb is the only figure with a skeleton and real motion —
-   seven mocap clips on one Mixamo rig. The models it replaces (walk,
-   chat, laptop, athlete) carry no skin and no clips at all, which is why
-   those students used to glide across the lawn without moving a leg. */
-const CAST_FILES = { walker: "assets/stu_walker.glb", stand: "assets/stu_anim.glb",
-                     skate: "assets/stu_skater.glb" };
-const CAST_HEIGHT = { walker: 42, stand: 41, skate: 42 };
+/* ── the bodies ───────────────────────────────────────────────────────
+   Five rigged people, not one. This matters more than any amount of
+   recolouring: a campus built from a single mesh is a campus of
+   identical twins, and the eye reads that as a rendering fault long
+   before it reads it as a crowd. Tinting shirts buys a little; a
+   different skeleton, a different build and a different walk buys the
+   rest.
+
+   They are cheap, too. The original walker is 50k triangles, which is
+   extravagant for someone crossing a lawn — the strider is 13k and the
+   tutor 6k for the same silhouette at the same distance, so a mixed
+   crowd costs less per head than a uniform one did.
+
+   Each carries its own clips on its own skeleton (66, 68 and 69 bones —
+   they cannot share), so the roles below say what this body can do
+   rather than assuming everyone has the walker's seven clips.
+
+     roam    a gait to travel on
+     idle    something to do when standing still; without one, this
+             body simply does not stop
+     start   the first stride out of a standstill, if it has one
+
+   Models by their authors under CC-BY-4.0:
+     stu_strider  "Walk Characters B" by remy (noremey.rasip)
+     stu_oreizo   "Oreizo" by T-Art (person-x)
+     stu_tutor    "Animated Instructor Avatar" by sagefreeman           */
+const CAST_FILES = {
+  walker:  "assets/stu_walker.glb",     /* 50k tris, 7 mocap clips      */
+  strider: "assets/stu_strider.glb",    /* 13k tris, one walk cycle     */
+  oreizo:  "assets/stu_oreizo.glb",     /* 33k tris, one walk cycle     */
+  tutor:   "assets/stu_tutor.glb",      /*  6k tris, a 25s standing loop */
+  stand:   "assets/stu_anim.glb",
+  skate:   "assets/stu_skater.glb",
+};
+const CAST_HEIGHT = { walker: 42, strider: 42, oreizo: 43, tutor: 41,
+                      stand: 41, skate: 42 };
+/* Which bodies can be given a waypoint and told to walk it, and which
+   are only good for standing about. */
+const ROAMING = ["walker", "strider", "oreizo"];
+const LOITERING = ["tutor", "stand"];
 /* Where the named eight are and what they are doing. A plan with
    neither `at` nor `orbit` roams the ring; the gait it roams with is
    drawn per figure in makeRoamer rather than fixed here, so the mix
@@ -3650,7 +3680,7 @@ function prepFigure(k, height, live, clipIx = 0){
   g2.userData.meshes = meshes;
   g2.userData.shadow = true;
   if (standMixer) castMixers.push({ m: standMixer, g: g2 });
-  if (k === "walker"){
+  if (ROAMING.includes(k)){
     const mixer = new THREE.AnimationMixer(root);
     const actions = {}, nominal = {};
     for (const c of src.animations){
@@ -3664,9 +3694,36 @@ function prepFigure(k, height, live, clipIx = 0){
       nominal[c.name] = (c.userData.cycles || 1) * perCycle / Math.max(0.05, c.duration);
     }
     castMixers.push({ m: mixer, g: g2 });
-    g2.userData.anim = { mixer, actions, nominal, current: null };
+    g2.userData.anim = { mixer, actions, nominal, current: null, roles: rolesOf(k, src) };
   }
   return g2;
+}
+/* ── what can this body do? ───────────────────────────────────────────
+   Every download names its clips "mixamo.com", so the names say
+   nothing. What they can be asked is how fast a thigh swings in them:
+   a gait carries roughly one cycle a second and a standing loop barely
+   moves the legs at all — which is the same measure that paces
+   playback, so a body that reads as walking here also walks at the
+   right speed.
+
+   The original walker is the exception and keeps its hand-named clips,
+   because it has seven of them and they are known good. */
+const ROLE_CACHE = {};
+function rolesOf(k, src){
+  if (ROLE_CACHE[k]) return ROLE_CACHE[k];
+  if (k === "walker")
+    return (ROLE_CACHE[k] = { gaits: GAITS, idle: "Idle", start: "Start Walking" });
+  const scored = src.animations
+    .filter(c => c.duration > 0.2)                 /* an eye-blink is not a clip */
+    .map(c => ({ name: c.name, cadence: (c.userData?.cycles || 0) / c.duration }));
+  const gaits = scored.filter(c => c.cadence > 0.45).map(c => c.name);
+  const still = scored.filter(c => c.cadence <= 0.45).map(c => c.name);
+  /* No idle is not a fault, it is a fact about the download: a body
+     with nothing to do when standing simply never stops walking. That
+     reads far better than freezing someone mid-stride. */
+  const roles = { gaits, idle: still[0] || null, start: null };
+  ROLE_CACHE[k] = roles;
+  return roles;
 }
 /* ── what a figure is worth at this distance ──────────────────────────
    A student across the campus costs exactly as much as one at your
@@ -3707,7 +3764,10 @@ function detailPass(){
   const keys = Object.keys(CAST_FILES);
   keys.forEach(k => gltf.load(CAST_FILES[k], (g) => {
     castLib[k] = g;
-    if (k === "walker") prepareClips(g.animations);
+    /* Measured before they are pinned in place, for every body that
+       walks — the gait count is what both paces playback and tells a
+       walk cycle from a standing loop. */
+    if (ROAMING.includes(k)) prepareClips(g.animations);
     if (++castReady === keys.length) buildCast();
   }));
 }
@@ -3762,12 +3822,20 @@ function dressFigure(g, seed){
                   shorts: pick(WARDROBE.shorts, 3), sneakers: pick(WARDROBE.sneakers, 4) };
   g.traverse(o => {
     if (!o.isMesh || !o.material) return;
-    const what = /hair/i.test(o.name) ? "hair"
-               : /shirt|top|jacket/i.test(o.name) ? "shirt"
-               : /short|pant|trouser|jean/i.test(o.name) ? "shorts"
-               : /shoe|sneaker|boot/i.test(o.name) ? "sneakers"
-               : /body|skin|head/i.test(o.name) ? "skin" : null;
-    if (!what) return;                     /* the eyelashes are left alone */
+    /* Every body names its parts somewhere, but not in the same place.
+       The Mixamo walker names the nodes (Ch42_Shirt); the Ready Player
+       Me avatar and Oreizo name the materials (Wolf3D_Outfit_Top,
+       Shirt.001) and leave the nodes as Object_11. Read both, or two of
+       the three bodies silently keep their factory outfit — which looks
+       exactly like the wardrobe working, since they are different
+       people to begin with. */
+    const tag = (o.name || "") + " " + (o.material.name || "");
+    const what = /hair/i.test(tag) ? "hair"
+               : /shirt|top|jacket/i.test(tag) ? "shirt"
+               : /short|pant|trouser|jean|bottom/i.test(tag) ? "shorts"
+               : /shoe|sneaker|boot|footwear/i.test(tag) ? "sneakers"
+               : /body|skin|head/i.test(tag) ? "skin" : null;
+    if (!what) return;                     /* eyes and eyelashes are left alone */
     /* Clone first. SkeletonUtils shares materials between clones, so
        tinting in place would dress the entire cohort identically — and
        the mistake is invisible until the second figure is built. */
@@ -3796,8 +3864,19 @@ const GAITS = ["Standard Walk", "Strut Walking", "Walk Forward"];
    rules — an extra who walks differently from a classmate reads as a
    bug, however well dressed. */
 function makeRoamer(g, startKey, extra, forceGait){
-  const gait = forceGait || GAITS[Math.floor(Math.random() * GAITS.length)];
-  if (g.userData.anim){ setClipOn(g, "Idle"); stagger(g, "Idle"); stagger(g, gait); }
+  /* Whatever this body can actually do. The walker has three gaits and
+     an idle; the strider has one walk and nothing else, so it never
+     stands still — which is the truthful thing to do with it, and looks
+     better than freezing someone mid-stride. */
+  const roles = g.userData.anim?.roles || { gaits: GAITS, idle: "Idle", start: null };
+  const pool = roles.gaits.length ? roles.gaits : GAITS;
+  const gait = (forceGait && pool.includes(forceGait)) ? forceGait
+             : pool[Math.floor(Math.random() * pool.length)];
+  if (g.userData.anim){
+    if (roles.idle){ setClipOn(g, roles.idle); stagger(g, roles.idle); }
+    else setClipOn(g, gait);
+    stagger(g, gait);
+  }
   /* Let the clip set the pace rather than stretching it to fit a speed
      picked out of the air. A gait has a natural rate, and a student
      walking faster than their own animation is exactly the sliding-feet
@@ -3813,11 +3892,11 @@ function makeRoamer(g, startKey, extra, forceGait){
      single file and then overlaps outright — which is precisely what a
      crowd must not do. */
   const lane = [(Math.random() - 0.5) * 24, (Math.random() - 0.5) * 24];
-  const open = startKey[0] === "R";       /* the ring; doors are too tight — see below */
-  const s = { g, node: startKey, lane, speed, target: null, pauseUntil: 0,
+  const open = RING_SET.has(startKey);
+  const s = { g, node: startKey, lane, speed, target: null, pauseUntil: 0, roles,
               pos: [WAYPOINTS[startKey][0] + (open ? lane[0] : 0),
                     WAYPOINTS[startKey][1] + (open ? lane[1] : 0)],
-              anim0: "Idle", idleRate: 0.85 + Math.random() * 0.3,
+              anim0: roles.idle, idleRate: 0.85 + Math.random() * 0.3,
               phase: Math.random() * 9, walkT: 0, gait: 0, gait2: gait };
   if (extra) Object.assign(s, extra);
   students.push(s);
@@ -3883,8 +3962,9 @@ function buildCast(){
      209 feet from the fountain, which is to say permanently in shot from
      the middle of the quad — a figure that never moves costs the view
      far more than one walking through it. */
-  [[236, 344, -1.4, 1], [520, 962, 2.9, 2], [470, 1150, -2.0, 3]].forEach(([x, y, face, pose]) => {
-    const g = prepFigure("stand", CAST_HEIGHT.stand * buildOf(pose * 17 + 5), true, pose);
+  [[236, 344, -1.4, 1], [520, 962, 2.9, 2], [470, 1150, -2.0, 3]].forEach(([x, y, face, pose], i) => {
+    const k = LOITERING[i % LOITERING.length];
+    const g = prepFigure(k, CAST_HEIGHT[k] * buildOf(pose * 17 + 5), true, pose);
     g.position.set(W(x), 0, W(y));
     g.rotation.y = face;
     world.add(g);
@@ -3929,7 +4009,10 @@ const CROWD_FORCE = q.has("crowd") ? Math.max(0, Math.min(CROWD_MAX, +q.get("cro
 let crowdReady = false, crowdN = 0, crowdNext = 0, crowdDone = false, crowdFps = 60;
 function addExtra(n){
   const seed = 101 + n * 3;
-  const g = prepFigure("walker", CAST_HEIGHT.walker * buildOf(seed), false);
+  /* Round the bodies rather than at random, so a crowd of three is
+     three different people rather than three rolls of the same die. */
+  const k = ROAMING[n % ROAMING.length];
+  const g = prepFigure(k, CAST_HEIGHT[k] * buildOf(seed), false);
   dressFigure(g, seed);
   g.userData.crowd = true;               /* test/debug: not one of the named */
   world.add(g);
@@ -4046,7 +4129,8 @@ function stepStudents(dt, now){
            student who stops is a student not adding to the queue behind
            them. Two thirds pause at each waypoint, for longer than they
            used to. */
-        if (Math.random() < 0.66) s.pauseUntil = now + 1400 + Math.random() * 5200;
+        if (s.roles?.idle && Math.random() < 0.66)
+          s.pauseUntil = now + 1400 + Math.random() * 5200;
       } else {
         const nx = s.pos[0] + dx / dist * s.speed * dt;
         const ny = s.pos[1] + dy / dist * s.speed * dt;
@@ -4067,13 +4151,16 @@ function stepStudents(dt, now){
     if (s.g.userData.anim){
       /* walking or standing about, and the clip supplies every bit of the
          motion — no faked bob, no swaying, no procedural limbs */
+      const R = s.roles || {};
       if (moving){
-        /* Nobody goes from standing to full stride in one frame. There is
-           a clip for exactly this — Start Walking — so use it for the
-           first stride and hand over to the gait once it has played. */
-        if (s.startedAt === undefined && s.anim0 === "Idle"){
+        /* Nobody goes from standing to full stride in one frame. The
+           walker has a clip for exactly this — Start Walking — so it
+           takes the first stride and hands over to the gait. The bodies
+           that came with a single walk cycle have nothing to hand over
+           from, and never stood still to begin with. */
+        if (R.start && s.startedAt === undefined && s.anim0 === R.idle){
           s.startedAt = now;
-          setClip(s, "Start Walking", 0.18);
+          setClip(s, R.start, 0.18);
         }
         if (s.startedAt !== undefined && now - s.startedAt > 620){
           s.startedAt = undefined;
@@ -4082,16 +4169,16 @@ function stepStudents(dt, now){
           setClip(s, s.gait2);
           matchSpeed(s, s.gait2, s.speed);
         } else {
-          matchSpeed(s, "Start Walking", s.speed);
+          matchSpeed(s, R.start, s.speed);
         }
         s.anim0 = "moving";
-      } else {
-        setClip(s, "Idle");
+      } else if (R.idle){
+        setClip(s, R.idle);
         /* standing still is where identical clips are most obvious, so
            give every figure its own slightly different tempo */
-        const idle = s.g.userData.anim.actions["Idle"];
+        const idle = s.g.userData.anim.actions[R.idle];
         if (idle) idle.timeScale = s.idleRate;
-        s.anim0 = "Idle";
+        s.anim0 = R.idle;
         s.startedAt = undefined;
       }
       s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));

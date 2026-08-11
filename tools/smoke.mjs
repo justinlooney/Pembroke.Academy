@@ -364,19 +364,23 @@ try {
     .catch(() => {});
   const c = await crowdPage.evaluate(() => {
     const out = { ...window.__crowd(), shirts: new Set(), skins: new Set(),
-                  builds: new Set(), tinted: 0 };
+                  builds: new Set(), bodies: new Set(), tinted: 0 };
     window.__app.world.children.forEach(fig => {
       if (!fig.userData?.anim) return;                /* not one of the walkers */
       out.builds.add(fig.scale.x.toFixed(3));
+      out.bodies.add(fig.userData.figure);
       fig.traverse(o => {
         if (!o.isSkinnedMesh) return;
+        /* the same both-places read the wardrobe does: the walker names
+           its nodes, the other two name their materials */
+        const tag = (o.name || "") + " " + (o.material.name || "");
         const hex = o.material.color.getHexString();
-        if (/shirt/i.test(o.name)){ out.shirts.add(hex); out.tinted++; }
-        if (/body/i.test(o.name)) out.skins.add(hex);
+        if (/shirt|top|jacket/i.test(tag)){ out.shirts.add(hex); out.tinted++; }
+        if (/body|skin/i.test(tag)) out.skins.add(hex);
       });
     });
     return { ...out, shirts: out.shirts.size, skins: out.skins.size,
-             builds: out.builds.size };
+             builds: out.builds.size, bodies: [...out.bodies].sort().join("+") };
   }).catch(() => null);
   step("?crowd fills the quad", !!c && c.people >= 17,
        c ? c.people + " people" : "no crowd hook");
@@ -438,6 +442,12 @@ try {
        reach ? `${reach.reached}/${reach.total} nodes reachable` +
                (reach.orphaned ? `, ${reach.orphaned} with no way out` : "")
              : "could not read the waypoint graph");
+  /* Three rigged bodies, not one wearing three shirts. A body that
+     stops being loaded, or a wardrobe regex that stops matching the
+     material names two of them use, leaves a cohort that still passes
+     every colour count while looking like one man in fancy dress. */
+  step("the crowd is drawn from more than one body",
+       !!c && c.bodies.split("+").length >= 3, c ? c.bodies : "could not read the cohort");
   step("the crowd is not one person fourteen times",
        !!c && c.shirts >= 6 && c.skins >= 4 && c.builds >= 8,
        c ? `${c.shirts} shirt colours, ${c.skins} complexions, ${c.builds} builds ` +
