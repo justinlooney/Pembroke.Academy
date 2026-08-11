@@ -52,8 +52,20 @@ jobs:
         if: steps.plan.outputs.blocks != '0'
         run: |
           set -o pipefail
+          failed_any=0
           for block in /tmp/plan/block-*; do
             out=$(head -1 "$block")
+            # Already built? Leave it alone. This used to rebuild every
+            # block on every run, which meant a hundred megabytes off
+            # Drive to add one character — and Drive starts refusing
+            # ("you may have had many accesses") long before that is
+            # reasonable. It also meant one stale link from three
+            # characters ago aborted the run before it reached the new
+            # ones. Delete the file to force a rebuild.
+            if [ -f "$out" ] && [ "${REBUILD_ALL:-}" != "1" ]; then
+              echo "  ..   $out already built — skipped"
+              continue
+            fi
             echo "::group::$out"
             rm -rf /tmp/fbx && mkdir -p /tmp/fbx
             args=""
@@ -146,7 +158,16 @@ jobs:
                 fail=1
               fi
             done < <(tail -n +2 "$block")
-            [ "$fail" = 1 ] && exit 1
+            # One block failing must not take the others with it. The
+            # run still goes red at the end — a link that has gone stale
+            # is worth knowing about — but the characters that CAN be
+            # built get built.
+            if [ "$fail" = 1 ]; then
+              echo "::error::$out — skipped, see above"
+              failed_any=1
+              echo "::endgroup::"
+              continue
+            fi
 
             mkdir -p "$(dirname "$out")"
             if [ -n "$ready" ]; then
@@ -233,6 +254,9 @@ jobs:
               | awk '{printf "  %.1fMB -> %.1fMB\n", $1/1e6, $2/1e6}'
             echo "::endgroup::"
           done
+          [ "$failed_any" = 1 ] && {
+            echo "::error::at least one character could not be fetched"; exit 1; }
+          exit 0
 
       # Rebuilding the same links produces the same bytes, and a run that
       # changed no model has nothing to tell returning visitors. Bumping
