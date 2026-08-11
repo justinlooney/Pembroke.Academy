@@ -3826,9 +3826,9 @@ function mkPerson(jacketColor, seed){
    rest.
 
    They are cheap, too. The original walker is 50k triangles, which is
-   extravagant for someone crossing a lawn — the strider is 13k and the
-   tutor 6k for the same silhouette at the same distance, so a mixed
-   crowd costs less per head than a uniform one did.
+   extravagant for someone crossing a lawn — the tutor is 6k for the
+   same silhouette at the same distance, so a mixed crowd costs less
+   per head than a uniform one did.
 
    Each carries its own clips on its own skeleton (66, 68 and 69 bones —
    they cannot share), so the roles below say what this body can do
@@ -3840,7 +3840,6 @@ function mkPerson(jacketColor, seed){
      start   the first stride out of a standstill, if it has one
 
    Models by their authors under CC-BY-4.0:
-     stu_strider  "Walk Characters B" by remy (noremey.rasip)
      stu_oreizo   "Oreizo" by T-Art (person-x)
      stu_tutor    "Animated Instructor Avatar" by sagefreeman
      stu_gent     "Mr Man Walking" by Instinto Ideal Studio (instideal2019)
@@ -3859,7 +3858,6 @@ const CAST_FILES = {
   alina:   "assets/stu_alina.glb",      /* ferried in by the courier    */
   oreizo:  "assets/stu_oreizo.glb",     /* 33k tris, one walk cycle     */
   nathan:  "assets/stu_nathan.glb",     /* 22k tris, a scan, one walk   */
-  strider: "assets/stu_strider.glb",    /* 13k tris, one walk cycle     */
   /* Brought in together to be judged on the quad rather than in a log.
      kenta is the cheapest body here by a distance and the only newcomer
      whose skeleton is Mixamo-named, so he can take the standing idle;
@@ -3889,7 +3887,7 @@ const CAST_FILES = {
    looks like anyway.
 
      first   8.3MB   walker gent mia nathan stand skate tutor
-     after  10.8MB   teen woman alina ariel oreizo strider
+     after  10.8MB   teen woman alina ariel oreizo
 
    Which bodies come first is a question about variety, not only about
    megabytes, and the first list got it wrong. Of the four ROAMING
@@ -3900,26 +3898,38 @@ const CAST_FILES = {
    crowd on any machine slow enough for the give-up to fire — was one
    dressable person and a set of mannequins.
 
-   Measured across all sixteen bodies, exactly six have a shirt mesh
-   the wardrobe can find: walker, strider, oreizo, ariel, woman, nadia.
-   Two of the cheapest are strider (0.40MB, and dressable in all five
-   slots) and oreizo (0.75MB, likewise), so they take the places gent
-   and mia held for 0.80MB between them. Costs 0.35MB more and turns
-   one dressable body in the opening wave into three.                  */
-const CAST_FIRST = ["walker", "strider", "oreizo", "nathan", "sophia", "skate", "tutor"];
+   Measured across all sixteen bodies, exactly six had a shirt mesh the
+   wardrobe could find: walker, strider, oreizo, ariel, woman, nadia.
+   strider and oreizo were the two cheapest, so they took the places
+   gent and mia held.
+
+   strider then turned out to be the giant. Three of its eight meshes
+   carry 65 of 66 NaN inverse bind matrices, so every vertex weighted
+   to them lands on NaN and the GPU draws a figure the size of the
+   county. Neither recomputing the inverses nor a full rebind repairs
+   it — the file is corrupt at the bind level — so it is gone from the
+   roster entirely, and prepFigure now refuses any body it cannot
+   measure rather than scaling by NaN.
+
+   That leaves walker and oreizo dressable in the opening wave against
+   gent and mia's one. mia stays for 0.37MB — she cannot be dressed, but
+   she is a fourth roaming body, and three would leave the cohort one
+   removal away from failing the check that it is drawn from more than
+   one person at all.                                                   */
+const CAST_FIRST = ["walker", "oreizo", "mia", "nathan", "sophia", "skate", "tutor"];
 /* A teenager is shorter, and the height is doing as much work here as
    any of the colours — see buildOf, which varies each figure another
    ±11% on top of these. */
 const CAST_HEIGHT = { walker: 42, gent: 43, mia: 40, teen: 38, woman: 41,
                       alina: 40, ariel: 40, oreizo: 43, nathan: 43,
-                      strider: 42, tutor: 41, skate: 42,
+                      tutor: 41, skate: 42,
                       kenta: 41, isla: 40, nadia: 41, sophia: 40 };
 /* Which bodies can be given a waypoint and told to walk it, and which
    are only good for standing about. Eight that walk against a crowd
    that caps at ten: the round robin runs out of new people only on the
    ninth, and by then they are scattered over sixty-eight waypoints. */
 const ROAMING = ["walker", "gent", "mia", "teen", "woman", "alina",
-                 "oreizo", "nathan", "ariel", "strider",
+                 "oreizo", "nathan", "ariel",
                  "kenta", "isla", "nadia"];
 /* sophia joins the standers rather than the walkers, because that is
    what she came with: 488 frames of idle and no gait at all. She is
@@ -4064,7 +4074,23 @@ function prepFigure(k, height, live, clipIx = 0){
   }
   root.updateMatrixWorld(true);
   const bb = new THREE.Box3().setFromObject(root);
-  const sc2 = (height || CAST_HEIGHT[k]) / Math.max(1e-6, bb.max.y - bb.min.y);
+  /* Box3.setFromObject runs a SkinnedMesh through its skeleton, so this
+     span is NaN for any body whose inverse bind matrices are corrupt —
+     and Math.max(1e-6, NaN) is NaN, not 1e-6. The old guard was written
+     against a zero-height box and passed NaN straight through to
+     scale.setScalar, which sends every vertex of the figure to NaN. The
+     GPU draws that as a shape the size of the county: this is the
+     "mega giant walking through campus", and it was one body doing it.
+     A person we cannot measure is one fewer person, which the cast has
+     been able to survive since the loader stopped taking the whole
+     cohort down with one bad file. */
+  const span = bb.max.y - bb.min.y;
+  if (!Number.isFinite(span) || span < 1e-6){
+    console.warn("cast: " + k + " has no measurable height (span " + span +
+                 ") — its skeleton is broken, leaving it out");
+    return null;
+  }
+  const sc2 = (height || CAST_HEIGHT[k]) / span;
   const g2 = new THREE.Group();
   root.scale.setScalar(sc2);
   root.position.set(-(bb.min.x + bb.max.x) / 2 * sc2, -bb.min.y * sc2, -(bb.min.z + bb.max.z) / 2 * sc2);
@@ -4282,6 +4308,27 @@ const WARDROBE = {
    that a campus generating it one time in ten looks arbitrary rather
    than diverse. Past this tone, hair comes from the dark end. */
 const DARK_HAIR = 6;
+/* Shirts are DEALT, not rolled — the same argument nextBody makes about
+   bodies, and for a more visible reason. A shirt is the largest block of
+   colour on a student, so two of them in the same one, twenty feet
+   apart on the same lawn, reads as the copy-paste it is. Sixteen
+   independent rolls across six dressed students land on a repeat more
+   often than not; sixteen cards dealt off a shuffled deck cannot until
+   the deck runs out.
+   Drawn lazily, at the first shirt mesh a body turns out to have, so the
+   ten bodies with nothing the wardrobe can dress do not burn cards they
+   will never wear. */
+let shirtDeck = [];
+function nextShirt(){
+  if (!shirtDeck.length){
+    shirtDeck = WARDROBE.shirt.slice();
+    for (let i = shirtDeck.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      [shirtDeck[i], shirtDeck[j]] = [shirtDeck[j], shirtDeck[i]];
+    }
+  }
+  return shirtDeck.pop();
+}
 function dressFigure(g, seed){
   /* A proper hash, not seed modulo length: with an integer seed and a
      handful of palettes, arithmetic that simple walks the lists in step
@@ -4294,7 +4341,7 @@ function dressFigure(g, seed){
   const tone = Math.floor(R(0) * WARDROBE.skin.length);
   const hair = tone >= 4 ? WARDROBE.hair[Math.floor(R(1) * DARK_HAIR)]
                          : pick(WARDROBE.hair, 1);
-  const dress = { hair, shirt: pick(WARDROBE.shirt, 2),
+  const dress = { hair, shirt: null,      /* dealt below, on first sight */
                   shorts: pick(WARDROBE.shorts, 3), sneakers: pick(WARDROBE.sneakers, 4) };
   g.traverse(o => {
     if (!o.isMesh || !o.material) return;
@@ -4326,6 +4373,9 @@ function dressFigure(g, seed){
        tinting in place would dress the entire cohort identically — and
        the mistake is invisible until the second figure is built. */
     o.material = o.material.clone();
+    /* One card for the whole body: Oreizo carries two shirt meshes, and
+       a second draw would put this student in a two-tone top. */
+    if (what === "shirt" && dress.shirt === null) dress.shirt = nextShirt();
     if (what === "skin") o.material.color.setRGB(...WARDROBE.skin[tone]);
     else o.material.color = new THREE.Color(dress[what]);
   });
@@ -4351,7 +4401,7 @@ const GAITS = ["Standard Walk", "Strut Walking", "Walk Forward"];
    bug, however well dressed. */
 function makeRoamer(g, startKey, extra, forceGait){
   /* Whatever this body can actually do. The walker has three gaits and
-     an idle; the strider has one walk and nothing else, so it never
+     an idle; some bodies have one walk and nothing else, so they never
      stands still — which is the truthful thing to do with it, and looks
      better than freezing someone mid-stride. */
   const roles = g.userData.anim?.roles || { gaits: GAITS, idle: "Idle", start: null };
@@ -5144,21 +5194,25 @@ function buildInteriorScene(key){
       bm.rotation.y = -a + Math.PI; bm.castShadow = true; sc.add(bm);
       /* a scattered cohort in attendance — laptop coders on the seats */
       if ((k2 * 7 + r * 5) % 3 === 0 && castLib.laptop){
+        /* prepFigure can now decline a body it cannot measure, so these
+           two interior callers check like every other one does */
         const fig = prepFigure("laptop", 22);
-        fig.position.set(px2, y2 + 15.2, pz2);
-        fig.rotation.y = -a + Math.PI;
-        sc.add(fig);
+        if (fig){
+          fig.position.set(px2, y2 + 15.2, pz2);
+          fig.rotation.y = -a + Math.PI;
+          sc.add(fig);
+        }
       }
     }
     /* aisle steps */
     box(mat.white, 20, 3, 9, AC.x, y2 - 4, AC.z + R0 - 17);
   }
   /* the professor at the lectern, caught mid-gesture */
-  if (castLib.chat){
-    const prof = prepFigure("chat", 42);
-    prof.position.set(52, 11, -200);
-    prof.rotation.y = Math.PI * 0.55;
-    sc.add(prof);
+  const prof0 = castLib.chat ? prepFigure("chat", 42) : null;
+  if (prof0){
+    prof0.position.set(52, 11, -200);
+    prof0.rotation.y = Math.PI * 0.55;
+    sc.add(prof0);
   } else {
     const prof = mkPerson(0x2c2c34, 97);
     prof.g.position.set(52, 11, -200);
