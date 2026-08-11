@@ -94,6 +94,39 @@ for path in argv:
     mats = sorted({ms.material.name for m in meshes for ms in m.material_slots
                    if ms.material})
     print("  meshes   %d  (%d triangles)" % (len(meshes), tris))
+    if meshes:
+        """Whether a figure stands with its arms out is the fact that
+        decides whether automatic weights will hold, and it has a
+        signature you can measure: a T-pose is nearly as wide as it is
+        tall, arms at the sides is about a third. Worth printing,
+        because the render needs someone to look at it and this does
+        not — and because a scan exported Z-up arrives lying down,
+        where a bounding-box fit would scale a skeleton to the figure's
+        LENGTH and put it inside a horizontal person."""
+        import mathutils
+        lo = mathutils.Vector((1e30, 1e30, 1e30))
+        hi = -lo
+        for m in meshes:
+            for c in m.bound_box:
+                v = m.matrix_world @ mathutils.Vector(c)
+                lo = mathutils.Vector(map(min, lo, v))
+                hi = mathutils.Vector(map(max, hi, v))
+        d = hi - lo
+        tall = max(d.x, d.y, d.z)
+        axis = "XYZ"[[d.x, d.y, d.z].index(tall)]
+        wide = max(v for i, v in enumerate([d.x, d.y, d.z]) if "XYZ"[i] != axis)
+        ratio = wide / max(tall, 1e-9)
+        print("  extent   %.3f x %.3f x %.3f — longest along %s, span/length %.2f"
+              % (d.x, d.y, d.z, axis, ratio))
+        print("  pose     " + (
+            "arms out, close to a T — automatic weights should hold" if ratio > 0.75 else
+            "arms partly out (an A-pose) — usually fine, check the armpits" if ratio > 0.45 else
+            "arms at the sides — a T-posed donor rig will put the arm bones in "
+            "open air. Expect torn shoulders and plan to move them by hand."))
+        if axis != "Z":
+            print("  NOTE     longest axis is %s, not Z. If this figure is lying down, a "
+                  "bounding-box fit scales the skeleton to its LENGTH. Stand it up first."
+                  % axis)
     print("  materials %d: %s" % (len(mats), ", ".join(mats[:24])))
     print("  images   %d: %s" % (len(bpy.data.images),
                                  ", ".join(sorted(i.name for i in bpy.data.images)[:12])))
