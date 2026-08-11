@@ -3362,33 +3362,89 @@ leaves.material.blending = THREE.NormalBlending;
 leaves.material.opacity = 0.75;
 world.add(leaves);
 
-/* ── students of the quad ────────────────────────────────────────── */
-const WAYPOINTS = { C: [500, 500] };
-const EDGES = { C: [] };
-for (let k = 0; k < 8; k++){
-  const a = 45 * k * Math.PI / 180;
-  WAYPOINTS["R" + k] = [Math.round(500 + 186 * Math.cos(a)), Math.round(500 + 186 * Math.sin(a))];
+/* ── where the students walk ──────────────────────────────────────────
+   They used to circle one ring around the great lawn, which put every
+   student on campus inside the same 180-unit circle — so however few of
+   them there were, they arrived in a parade. This is the paved campus
+   instead: the north walk to the cathedral, the south walk out to the
+   gates, the boulevard down to the athletics district and its branches,
+   the hall-to-hall ranges, the residence front, the car park.
+
+   The graph is built from the same polylines the walkways are drawn
+   from, which is the point. A student can only follow a path that
+   physically exists, and since those walks were already routed around
+   the halls — the science and administration walks visibly bend round
+   their own buildings — no route can pass through masonry by
+   construction rather than by a check that has to be remembered.
+
+   Nodes within a few feet of each other are the same node, so where two
+   walks meet, they join.  */
+const WAYPOINTS = {};
+const EDGES = {};
+{
+  let n = 0;
+  const node = (p) => {
+    for (const k in WAYPOINTS){
+      const q = WAYPOINTS[k];
+      if (Math.abs(q[0] - p[0]) < 10 && Math.abs(q[1] - p[1]) < 10) return k;
+    }
+    const k = "w" + (n++);
+    WAYPOINTS[k] = [Math.round(p[0]), Math.round(p[1])];
+    EDGES[k] = [];
+    return k;
+  };
+  const link = (a, b) => {
+    if (a === b) return;
+    if (!EDGES[a].includes(b)) EDGES[a].push(b);
+    if (!EDGES[b].includes(a)) EDGES[b].push(a);
+  };
+  const walk = (pts, loop) => {
+    const ks = pts.map(node);
+    for (let i = 1; i < ks.length; i++) link(ks[i - 1], ks[i]);
+    if (loop) link(ks[ks.length - 1], ks[0]);
+    return ks;
+  };
+  /* the ring around the great lawn, on the paving rather than the grass */
+  const RING_R = 182, ring = (k) =>
+    [500 + RING_R * Math.cos(k * Math.PI / 4), 500 + RING_R * Math.sin(k * Math.PI / 4)];
+  window.__ring = walk([0, 1, 2, 3, 4, 5, 6, 7].map(ring), true);
+  const N = ring(6), S = ring(2), W = ring(4), E = ring(0);
+
+  walk([[500, 150], [497, 236], [500, 300], N]);                 /* the processional  */
+  walk([S, [500, 760], [503, 840], [500, 918], [500, 985]]);      /* south to the gates */
+  walk([[268, 340], [300, 392], [330, 444], W]);                  /* library door       */
+  walk([[740, 306], [690, 340], [672, 412], [676, 456], E]);      /* engineering door   */
+  walk([[240, 822], [302, 832], [360, 800], [380, 738], [370, 660], [348, 594], W]);
+  /* kept south of the administration hall until it is west of it: the
+     drawn walk cuts that corner, and a student following it walks
+     through the corner rather than round it */
+  walk([[735, 832], [668, 838], [620, 836], [604, 718], [610, 640], [642, 570], E]);
+  walk([[268, 340], [350, 330], [450, 320], [550, 318], [650, 320], [740, 306]]);
+  walk([[240, 822], [296, 844], [356, 898], [440, 922], [560, 912], [660, 872], [735, 832]]);
+  walk([[268, 340], [300, 430], [304, 540], [318, 610], [370, 660]]);
+  walk([[740, 306], [828, 336], [842, 440], [816, 528], [740, 588], [676, 626]]);
+  /* The residence front, starting south of the library. The drawn walk
+     runs the full height of the hall, but its northern end is inside the
+     library's footprint — the two buildings overlap on paper even though
+     they do not on screen — so students join it below that. */
+  walk([[212, 330], [211, 392], [214, 466]]);                     /* residence front  */
+  walk([[212, 330], [240, 336], [268, 340]]);
+  walk([[214, 466], [244, 500], [286, 512], W]);
+  walk([[304, 540], [200, 556], [110, 568]]);                     /* down to the car park */
+  walk([[500, 985], [500, 1046], [500, 1104], [500, 1156]]);      /* the boulevard        */
+  /* Both branches leave the boulevard at the same node it actually has.
+     Drawn they peel off either side of it, but 24 feet apart is two
+     separate walks as far as a graph is concerned — and a student who
+     started on one would have spent the day on a stretch of path with
+     no way back to campus. */
+  walk([[500, 1104], [330, 1148], [152, 1192], [-40, 1236]]);     /* west to the ballpark */
+  walk([[500, 1104], [678, 1148], [854, 1190], [982, 1236]]);     /* east to the tennis   */
 }
-for (let k = 0; k < 8; k++) EDGES["R" + k] = ["R" + ((k + 1) % 8), "R" + ((k + 7) % 8)];
-Object.assign(WAYPOINTS, {
-  chapel: [500, 218], gate: [500, 905], south: [500, 946], east: [928, 500], west: [72, 500],
-  libDoor: [260, 326], engDoor: [740, 306], sciDoor: [240, 822], admDoor: [735, 832],
-  /* The two southern halls stand between their door and the ring, so a
-     straight run at the door goes through the building — sampled at 72%
-     and 85% of the way inside. The library and the engineering quad do
-     not have this problem: their doors face the ring across open lawn.
-     These corners take the walk out and around the front, the way you
-     would actually reach a door you can see but cannot walk through. */
-  sciApp: [402, 838], admApp: [598, 848],
-});
-Object.assign(EDGES, {
-  chapel: ["R6"], gate: ["R2", "south"], south: ["gate"], east: ["R0"], west: ["R4"],
-  libDoor: ["R5"], engDoor: ["R7"],
-  sciApp: ["R3", "sciDoor"], sciDoor: ["sciApp"],
-  admApp: ["R1", "admDoor"], admDoor: ["admApp"],
-});
-EDGES.R6.push("chapel"); EDGES.R2.push("gate"); EDGES.R0.push("east"); EDGES.R4.push("west");
-EDGES.R5.push("libDoor"); EDGES.R7.push("engDoor"); EDGES.R3.push("sciApp"); EDGES.R1.push("admApp");
+/* Somewhere to start that is not where everyone else started. Spread
+   across the whole graph rather than taken in order, so the extras open
+   the day scattered over the campus instead of filing out of one gate. */
+const ALL_WAYS = Object.keys(WAYPOINTS);
+const RING_SET = new Set(window.__ring);
 window.__ways = { WAYPOINTS, EDGES };   /* test/debug hook */
 
 const STUDENT_ROSTER = [
@@ -3747,7 +3803,9 @@ function buildCast(){
                       phase0: i * 1.7, pos: [...plan.at] });
       return;
     }
-    makeRoamer(g, ["R0","R1","R2","R3","R4","R5","R6","R7"][i % 8], { data: st });
+    /* the named eight keep to the quad — they are who you are meant to
+       meet, and the ring is where you walk */
+    makeRoamer(g, window.__ring[i % 8], { data: st });
   });
   /* an uncommissioned regular: the skater, carving the ring the other way */
   const sk = prepFigure("skate", 0, true);
@@ -3792,8 +3850,8 @@ function buildCast(){
    holding" is not a feature. A handful always arrive; the ramp only
    decides how far past them to go.
    ══════════════════════════════════════════════════════════════════ */
-const CROWD_MAX = 26;
-const CROWD_MIN = 5;                 /* arrive regardless of what it costs */
+const CROWD_MAX = 10;
+const CROWD_MIN = 3;                 /* arrive regardless of what it costs */
 /* Above any 30Hz display cap and well below 60, so a phone that is
    merely capped is not mistaken for a phone that is struggling — and a
    machine actually labouring in the low thirties stops at the five. */
@@ -3804,15 +3862,16 @@ const CROWD_FLOOR = 33;
    crowd untested on the only machine that tests anything. */
 const CROWD_FORCE = q.has("crowd") ? Math.max(0, Math.min(CROWD_MAX, +q.get("crowd") || 0)) : null;
 let crowdReady = false, crowdN = 0, crowdNext = 0, crowdDone = false, crowdFps = 60;
-const CROWD_START = ["R0","R1","R2","R3","R4","R5","R6","R7",
-                     "libDoor","engDoor","sciDoor","admDoor","gate","chapel","east","west"];
 function addExtra(n){
   const seed = 101 + n * 3;
   const g = prepFigure("walker", CAST_HEIGHT.walker * buildOf(seed), false);
   dressFigure(g, seed);
   g.userData.crowd = true;               /* test/debug: not one of the named */
   world.add(g);
-  makeRoamer(g, CROWD_START[n % CROWD_START.length]);
+  /* Started at nodes drawn from across the whole graph rather than in
+     order, so the first arrivals are not all standing on the same walk.
+     The stride is deliberately coprime-ish with the node count. */
+  makeRoamer(g, ALL_WAYS[(n * 7 + 3) % ALL_WAYS.length]);
 }
 function stepCrowd(now, dt){
   /* a slow average, so one stutter — a model finishing its decode, a
@@ -3861,6 +3920,20 @@ function matchSpeed(s, name, speed){
   if (!act) return;
   act.timeScale = (nom > 0.5) ? Math.max(0.55, Math.min(1.9, speed / nom)) : 1;
 }
+/* Would this step put a student inside someone else's space? Only a
+   step that closes an already-short gap counts — otherwise two people
+   who have ended up near each other could never walk apart again. */
+const SPACE = 27;
+function crowded(self, nx, ny){
+  for (const o of students){
+    if (o === self || !o.pos) continue;
+    const d2 = (o.pos[0] - nx) ** 2 + (o.pos[1] - ny) ** 2;
+    if (d2 > SPACE * SPACE) continue;
+    const was = (o.pos[0] - self.pos[0]) ** 2 + (o.pos[1] - self.pos[1]) ** 2;
+    if (d2 < was) return true;
+  }
+  return false;
+}
 function stepStudents(dt, now){
   for (const s of students){
     if (s.static){
@@ -3892,24 +3965,37 @@ function stepStudents(dt, now){
       }
       /* Aim for this student's own lane through the waypoint rather than
          its exact centre — see makeRoamer — but only out on the ring.
-         The door and gate waypoints sit hard against the buildings they
-         serve, close enough that the walkways themselves graze the
-         footprints on the way in; offsetting an approach by a few feet
-         puts a shoulder through a wall. On the open ring there is
-         nothing to walk into and everything to spread out from. */
+         The walks elsewhere are narrow and run close to the buildings
+         they serve; offsetting an approach by a few feet puts a shoulder
+         through a wall. On the open ring there is nothing to walk into
+         and everything to spread out from. */
       const w = WAYPOINTS[s.target];
-      const lane = s.lane && s.target[0] === "R" ? s.lane : null;
+      const lane = s.lane && RING_SET.has(s.target) ? s.lane : null;
       const tx = w[0] + (lane ? lane[0] : 0), ty = w[1] + (lane ? lane[1] : 0);
       const dx = tx - s.pos[0], dy = ty - s.pos[1];
       const dist = Math.hypot(dx, dy);
       if (dist < 2){
         s.node = s.target; s.target = null;
-        if (Math.random() < 0.5) s.pauseUntil = now + 900 + Math.random() * 2600;
+        /* Standing about is most of what people do on a campus, and a
+           student who stops is a student not adding to the queue behind
+           them. Two thirds pause at each waypoint, for longer than they
+           used to. */
+        if (Math.random() < 0.66) s.pauseUntil = now + 1400 + Math.random() * 5200;
       } else {
-        moving = true;
-        s.pos[0] += dx / dist * s.speed * dt;
-        s.pos[1] += dy / dist * s.speed * dt;
-        s.g.rotation.y = Math.atan2(dx, dy);
+        const nx = s.pos[0] + dx / dist * s.speed * dt;
+        const ny = s.pos[1] + dy / dist * s.speed * dt;
+        /* Personal space. Nothing stopped two students standing in the
+           same square foot, and on a shared walk they would converge and
+           then walk as one silhouette — which, with a single character
+           model, reads as the renderer having drawn the same man twice.
+           Never step closer to someone you are already too close to;
+           hang back a moment instead, the way you would. */
+        if (crowded(s, nx, ny)) s.pauseUntil = now + 300 + Math.random() * 700;
+        else {
+          moving = true;
+          s.pos[0] = nx; s.pos[1] = ny;
+          s.g.rotation.y = Math.atan2(dx, dy);
+        }
       }
     }
     if (s.g.userData.anim){
@@ -4650,6 +4736,7 @@ function refreshQuest(){
 {
   const LS_QUEST = "pembroke.registrar.quest";
   const el = document.getElementById("quest");
+  let questTimer = 0;
   const setFold = (folded, remember) => {
     el.classList.toggle("folded", folded);
     el.setAttribute("aria-expanded", String(!folded));
@@ -4662,7 +4749,12 @@ function refreshQuest(){
       (folded ? ". Activate to expand." : ". Activate to fold away."));
     if (remember) localStorage.setItem(LS_QUEST, folded ? "folded" : "open");
   };
-  setFold(localStorage.getItem(LS_QUEST) === "folded", false);
+  /* Folded unless you have opened it. It was the other way round, and on
+     a phone in walk mode this card is a bar across the width of the
+     screen — the one thing you are looking through. The objective is
+     still on the pip, in the tooltip and on the accessible name, and a
+     new one still announces itself below. */
+  setFold(localStorage.getItem(LS_QUEST) !== "open", false);
   el.addEventListener("click", () => setFold(!el.classList.contains("folded"), true));
   el.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " "){
@@ -4678,7 +4770,17 @@ function refreshQuest(){
     const after = document.getElementById("quest-text").textContent;
     /* either way the name has to follow the objective, or a folded card
        keeps announcing the course you already finished */
-    if (before && before !== after) setFold(false, false);
+    if (before && before !== after){
+      /* A new objective is worth interrupting for — once. It opens,
+         says what changed, and folds itself back away, rather than
+         holding the screen until someone thinks to dismiss it. Not if
+         you had deliberately opened it: that is your choice, not the
+         registrar's. */
+      setFold(false, false);
+      clearTimeout(questTimer);
+      if (localStorage.getItem(LS_QUEST) !== "open")
+        questTimer = setTimeout(() => setFold(true, false), 6500);
+    }
     else setFold(el.classList.contains("folded"), false);
   };
 }
@@ -5257,7 +5359,7 @@ document.getElementById("daynight").addEventListener("click", () => {
 });
 
 /* ── ignition ────────────────────────────────────────────────────── */
-window.__app = { selectSector, openInterior, camera, controls, world };   /* test/debug hooks */
+window.__app = { selectSector, openInterior, camera, controls, world, THREE };   /* test/debug hooks */
 aerialHome();          /* now that #stage has a real size, frame for it */
 applyMode();
 renderChips();
