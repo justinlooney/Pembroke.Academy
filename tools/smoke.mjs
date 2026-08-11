@@ -352,10 +352,16 @@ try {
   crowdPage.on("pageerror", e => crowdErrs.push(e.message.split("\n")[0]));
   await crowdPage.goto(`http://localhost:${PORT}/?crowd=8`,
                        { waitUntil: "domcontentloaded", timeout: 90_000 });
-  const filled = await crowdPage
+  /* Wait for the quad to fill, but do not let the wait be the verdict.
+     On a slow enough rasterizer this timed out and the very next line
+     then read seventeen people standing on the lawn — the campus was
+     fine and the clock was not, which is the least useful way for a
+     test to go red. The wait paces the run; the state that follows is
+     what is judged, and it is judged once. */
+  await crowdPage
     .waitForFunction(() => window.__crowd && window.__crowd().people >= 17,
-                     null, { timeout: 240_000 })
-    .then(() => true, () => false);
+                     null, { timeout: 300_000 })
+    .catch(() => {});
   const c = await crowdPage.evaluate(() => {
     const out = { ...window.__crowd(), shirts: new Set(), skins: new Set(),
                   builds: new Set(), tinted: 0 };
@@ -372,7 +378,8 @@ try {
     return { ...out, shirts: out.shirts.size, skins: out.skins.size,
              builds: out.builds.size };
   }).catch(() => null);
-  step("?crowd fills the quad", filled, c ? c.people + " people" : "no crowd hook");
+  step("?crowd fills the quad", !!c && c.people >= 17,
+       c ? c.people + " people" : "no crowd hook");
 
   /* Where the students walk, sampled against what they would walk into.
      Two of the four door routes ran straight through the hall they were
