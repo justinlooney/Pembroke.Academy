@@ -1,0 +1,108 @@
+name: materials
+
+# Give back the colour that was already in the file.
+#
+# Three of the cast store every diffuse texture under
+# KHR_materials_pbrSpecularGlossiness — deprecated in glTF and removed
+# from three.js GLTFLoader, which does not mention it once. So the
+# loader ignores the lot and the material falls back to plain white.
+# stu_woman ships fifteen images that have never been drawn.
+#
+# Nothing needs re-downloading. gltf-transform metalrough rewrites those
+# materials into the metallic-roughness the loader does read, and every
+# texture comes back.
+#
+# Runs on demand, or whenever the checker changes. It commits the
+# rebuilt models and bumps the cache, exactly as the courier does.
+on:
+  push:
+    paths: ['tools/check-materials.mjs', '.github/workflows/materials.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency: mixamo          # shares the courier's lane; both write assets/
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install gltf-transform
+        run: npm install -g --silent @gltf-transform/cli
+
+      - name: What is white, and why
+        run: node tools/check-materials.mjs || true
+
+      - name: Convert
+        run: |
+          set -o pipefail
+          for src in assets/*.glb; do
+            node -e '
+              const fs=require("fs");
+              const b=fs.readFileSync(process.argv[1]);
+              if (b.readUInt32LE(0)!==0x46546c67) process.exit(1);
+              const j=JSON.parse(b.slice(20,20+b.readUInt32LE(12)).toString("utf8"));
+              const spec=(j.materials||[]).some(m=>m.extensions
+                && m.extensions.KHR_materials_pbrSpecularGlossiness);
+              process.exit(spec?0:1);
+            ' "$src" || continue
+            echo "::group::$src"
+            gltf-transform metalrough "$src" /tmp/mr.glb
+            # Straight back to what the campus ships. metalrough decodes
+            # meshopt on the way in and would leave the file three times
+            # its size otherwise — which has silently undone the
+            # courier's work twice in this repo already.
+            gltf-transform optimize /tmp/mr.glb "$src" \
+              --compress meshopt --texture-compress webp --texture-size 512 \
+              --simplify false --join false
+            echo "::endgroup::"
+          done
+
+      - name: And now?
+        run: node tools/check-materials.mjs || true
+
+      - name: Did any model actually change?
+        id: diff
+        run: |
+          if [ -n "$(git status --porcelain assets)" ]; then
+            echo "assets=yes" >> "$GITHUB_OUTPUT"; git status --porcelain assets
+          else
+            echo "assets=no" >> "$GITHUB_OUTPUT"; echo "nothing to convert"
+          fi
+
+      - name: Bump the cache version
+        if: steps.diff.outputs.assets == 'yes'
+        run: |
+          cur=$(sed -n 's/^const VERSION = "pembroke-v\([0-9][0-9]*\)";$/\1/p' sw.js)
+          case "$cur" in '' | *[!0-9]*)
+            echo "::error::cannot read a single cache version from sw.js"; exit 1 ;;
+          esac
+          next=$((cur + 1))
+          sed -i "s/^const VERSION = \"pembroke-v$cur\";\$/const VERSION = \"pembroke-v$next\";/" sw.js
+          got=$(sed -n 's/^const VERSION = "pembroke-v\([0-9][0-9]*\)";$/\1/p' sw.js)
+          [ "$got" = "$next" ] || { echo "::error::VERSION did not bump"; exit 1; }
+          echo "cache version: pembroke-v$cur -> pembroke-v$next"
+
+      - name: Commit
+        if: steps.diff.outputs.assets == 'yes'
+        run: |
+          git config user.name "pembroke-asset-courier"
+          git config user.email "actions@users.noreply.github.com"
+          git add assets sw.js
+          git commit -m "Courier: give back the colour glTF's deprecated extension was hiding" \
+            || { echo "nothing changed"; exit 0; }
+          git push origin HEAD:${{ github.ref_name }}
+          curl -sS -X POST \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/smoke.yml/dispatches" \
+            -d '{"ref":"${{ github.ref_name }}"}' \
+            && echo "asked smoke to run on ${{ github.ref_name }}"

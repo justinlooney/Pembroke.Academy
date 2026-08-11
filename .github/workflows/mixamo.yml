@@ -210,6 +210,22 @@ jobs:
             # mesh and takes the skin weights with it, and joining merges
             # the nodes the skeleton is bound to — either one turns a
             # walking student into a bag of knots.
+            # Anything arriving with KHR_materials_pbrSpecularGlossiness
+            # is arriving white: the extension is deprecated in glTF and
+            # GLTFLoader does not read it, so every diffuse texture in
+            # the file is ignored and the material falls back to plain
+            # colour. Three models shipped that way, one of them with
+            # fifteen images that had never been drawn. A no-op on
+            # anything already metallic-roughness, so it just runs.
+            if node -e '
+              const fs=require("fs");const b=fs.readFileSync(process.argv[1]);
+              const j=JSON.parse(b.slice(20,20+b.readUInt32LE(12)).toString("utf8"));
+              process.exit((j.materials||[]).some(m=>m.extensions
+                && m.extensions.KHR_materials_pbrSpecularGlossiness)?0:1);
+            ' "$out"; then
+              echo "  .. specular-glossiness materials — converting so they can be seen"
+              gltf-transform metalrough "$out" "$out.mr" && mv "$out.mr" "$out"
+            fi
             gltf-transform optimize "$out" "$out" \
               --compress meshopt --texture-compress webp --texture-size "$tex" \
               --simplify false --join false
