@@ -678,6 +678,16 @@ body.diagnosing #campus-wing-intro{opacity:0;pointer-events:none;}
     padding:.4rem .6rem; font-size:11px; line-height:1.35; opacity:.92;
   }
   .walkmode #quest .q-label{ display:none; } /* drop the heading, keep the task */
+  /* One line, cut short. Two lines of objective across a phone in walk
+     mode is a bar through the middle of the thing you are looking at,
+     and the sentence is on the tooltip and the accessible name anyway. */
+  .walkmode #quest > div{ min-width:0; }
+  .walkmode #quest .q-text{
+    margin-top:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  /* folded, it is a pip — it must not sit on the panel someone opened
+     ?debug specifically to read */
+  .diagnosing.walkmode #quest{ top:auto; bottom:1rem; right:auto; width:max-content; }
   .walkmode #minimap{ width:74px; height:74px; }
 }
 
@@ -3588,6 +3598,7 @@ function prepFigure(k, height, live, clipIx = 0){
   const src = castLib[k];
   const skinned = true;                  /* every remaining source is rigged */
   const root = skeletonClone(src.scene);
+  let standMixer = null;
   if (k !== "walker" && src.animations.length){
     const mixer = new THREE.AnimationMixer(root);
     /* This character came down with four clips, and playing the first
@@ -3596,7 +3607,7 @@ function prepFigure(k, height, live, clipIx = 0){
        at this distance. */
     const clip = src.animations[clipIx % src.animations.length];
     mixer.clipAction(inPlaceClip(clip)).play();
-    if (live) castMixers.push(mixer);
+    if (live) standMixer = mixer;
     else mixer.update(0.7);              /* freeze in a natural stance */
   }
   root.updateMatrixWorld(true);
@@ -3605,9 +3616,11 @@ function prepFigure(k, height, live, clipIx = 0){
   const g2 = new THREE.Group();
   root.scale.setScalar(sc2);
   root.position.set(-(bb.min.x + bb.max.x) / 2 * sc2, -bb.min.y * sc2, -(bb.min.z + bb.max.z) / 2 * sc2);
+  const meshes = [];
   root.traverse(o => {
     if (!o.isMesh) return;
     o.castShadow = true;
+    meshes.push(o);                      /* kept for the distance detail pass */
     /* A skinned mesh's bounds are the bind pose, so a figure whose arms
        swing wider than that pops out of view at the edge of the screen.
        The cheap fix is to turn culling off — which is what this used to
@@ -3631,6 +3644,9 @@ function prepFigure(k, height, live, clipIx = 0){
   });
   g2.add(root);
   g2.userData.figure = k;                /* test/debug: this is a person */
+  g2.userData.meshes = meshes;
+  g2.userData.shadow = true;
+  if (standMixer) castMixers.push({ m: standMixer, g: g2 });
   if (k === "walker"){
     const mixer = new THREE.AnimationMixer(root);
     const actions = {}, nominal = {};
@@ -3644,10 +3660,44 @@ function prepFigure(k, height, live, clipIx = 0){
       const perCycle = 0.68 * (height || CAST_HEIGHT[k]);
       nominal[c.name] = (c.userData.cycles || 1) * perCycle / Math.max(0.05, c.duration);
     }
-    castMixers.push(mixer);
+    castMixers.push({ m: mixer, g: g2 });
     g2.userData.anim = { mixer, actions, nominal, current: null };
   }
   return g2;
+}
+/* ── what a figure is worth at this distance ──────────────────────────
+   A student across the campus costs exactly as much as one at your
+   elbow: six draws in the main pass, six more into the shadow map, and
+   a skeleton of sixty-odd bones stepped every frame. Two of those three
+   stop being worth anything long before the figure does.
+
+   Deliberately NOT a despawn radius. In walk mode the vertical field of
+   view is 62°, so a 42-unit figure is still about 4% of the screen
+   height at 900 units away — roughly 36px on the phone this was
+   measured on. Anything close enough to be worth culling is close
+   enough to see wink out, and a campus where people vanish at a fixed
+   range is worse than a campus with a few too many on it.
+
+   Their shadows and their skeletons are another matter. A shadow at 340
+   units is a smudge a few pixels across, and a walk cycle at 460 units
+   is below what the eye resolves as motion — so those go, and the
+   figure itself stays exactly where it was. */
+const SHADOW_TO = 340, ANIMATE_TO = 460;
+const _fp = new THREE.Vector3();
+function detailPass(){
+  const cam = camera.position;
+  for (const s of students){
+    const g = s.g;
+    if (!g) continue;
+    g.getWorldPosition(_fp);
+    const d = _fp.distanceTo(cam);
+    g.userData.animate = d < ANIMATE_TO;
+    const want = d < SHADOW_TO;
+    if (g.userData.shadow !== want){
+      g.userData.shadow = want;
+      for (const m of g.userData.meshes) m.castShadow = want;
+    }
+  }
 }
 {
   let castReady = 0;
@@ -3803,9 +3853,13 @@ function buildCast(){
                       phase0: i * 1.7, pos: [...plan.at] });
       return;
     }
-    /* the named eight keep to the quad — they are who you are meant to
-       meet, and the ring is where you walk */
-    makeRoamer(g, window.__ring[i % 8], { data: st });
+    /* The named ones walk the campus too. Keeping them on the ring put
+       five of the nine fixed figures inside a 182-foot circle that the
+       player stands in the middle of — measured at eight people within
+       220 feet of the fountain, which is a crowd however well the extras
+       are spread. They carry name tags, so meeting Theo on the boulevard
+       finds him just as well as circling the lawn did. */
+    makeRoamer(g, ALL_WAYS[(i * 11 + 5) % ALL_WAYS.length], { data: st });
   });
   /* an uncommissioned regular: the skater, carving the ring the other way */
   const sk = prepFigure("skate", 0, true);
@@ -4900,7 +4954,10 @@ renderer.setAnimationLoop(() => {
     fireflies.position.y = Math.sin(now / 1700) * 4;
   }
   if (fountainWater) fountainWater.rotation.z += dt * 0.4;
-  castMixers.forEach(m => m.update(dt));
+  detailPass();
+  /* a skeleton nobody can see the legs of is a skeleton not worth
+     stepping — see detailPass */
+  castMixers.forEach(x => { if (x.g.userData.animate !== false) x.m.update(dt); });
   {  /* leaves drift down and sideways, respawning at the canopy */
     const lp = leaves.geometry.attributes.position;
     for (let i = 0; i < lp.count; i++){
