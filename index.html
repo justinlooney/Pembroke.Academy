@@ -4113,6 +4113,51 @@ function deshine(root){
     if (typeof m.ior === "number" && m.ior > 1.35) m.ior = 1.3;
   });
 }
+/* ── two things a close-up shows and a lawn hides ─────────────────────
+ *
+ * ANISOTROPY. Every texture on every body arrives at anisotropy 1,
+ * which is the default and which is the setting that blurs a surface
+ * the moment you see it at an angle. On a shirt that is every fold; on
+ * shorts and sneakers it is most of the garment. The GPU has the
+ * filtering already — it is one property and no extra memory, and it
+ * is the single cheapest improvement available to a figure that fills
+ * the screen. Capped at 8: past that the returns stop and some mobile
+ * drivers charge for it.
+ *
+ * HAIR SORTING. Mixamo hair arrives as blended transparency with
+ * alphaTest 0 and depthWrite off — so the cards are drawn in whatever
+ * order they happen to be in and strands show through each other. It
+ * reads as a clump of dark jelly rather than hair, most visibly from
+ * the front, which is exactly where a conversation puts you. Cutout
+ * instead: a threshold, depth written, sorted correctly by the depth
+ * buffer like any solid thing. Eyelashes get a gentler threshold than
+ * the hair, because they are thin enough that a hard cut erases them. */
+function sharpen(root){
+  const aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy() || 1);
+  root.traverse(o => {
+    if (!o.isMesh || !o.material) return;
+    const m = o.material;
+    for (const k of ["map", "normalMap", "roughnessMap", "metalnessMap",
+                     "specularIntensityMap", "emissiveMap", "aoMap"]){
+      const t = m[k];
+      if (t && t.anisotropy !== aniso){ t.anisotropy = aniso; t.needsUpdate = true; }
+    }
+    const tag = canon(o.name) + " " + canon(m.name);
+    if (!/hair|eyelash|brow|scalp|beard/i.test(tag)) return;
+    if (!m.transparent || m.alphaTest > 0) return;   /* already handled */
+    /* 0.28, not the 0.45 this started at. Cutout fixes the sorting
+       either way, but a high threshold eats the soft edge a hair card
+       is drawn with and leaves a spiky fringe — which trades dark jelly
+       for a bad haircut. Low enough to keep the silhouette, high enough
+       that the transparent margin around each card stops writing depth.
+       Eyelashes get less still: they are thin enough that any hard cut
+       erases them. */
+    m.alphaTest = /eyelash|brow/i.test(tag) ? 0.15 : 0.28;
+    m.transparent = false;
+    m.depthWrite = true;
+    m.needsUpdate = true;
+  });
+}
 function prepFigure(k, height, live, clipIx = 0){
   const src = castLib[k];
   /* Belt as well as braces. Every caller goes through bodyFor now, but
@@ -4291,6 +4336,7 @@ function detailPass(){
   const arrive = (k, g) => {
     castLib[k] = g;
     deshine(g.scene);
+    sharpen(g.scene);
     /* Measured before they are pinned in place, for every body that
        walks — the gait count is what both paces playback and tells a
        walk cycle from a standing loop. */
