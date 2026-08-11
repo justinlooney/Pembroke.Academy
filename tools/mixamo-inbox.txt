@@ -49,3 +49,6 @@ Sitting_Talking https://drive.google.com/file/d/1LPSnmgWqpgAT1SCbs7wCBH1k2hSgQVt
 # than through a browser upload.
 # out: assets/stu_woman.glb
 Realistic_Woman_Walking  https://drive.google.com/file/d/1BoerD9I8YcpZGE7WNvQBCzj-WvRw0-JH/view
+
+# out: assets/stu_alina.glb
+Alina_Realistic_Woman  https://drive.google.com/file/d/1KchXnerEn9vgJlemnehy8ViPqZ18FVhS/view
