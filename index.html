@@ -6218,8 +6218,10 @@ function convoOpen(s){
   convoSetup();
 
   /* One frame of where you are standing, small on purpose. */
-  const w = Math.max(2, Math.round((stageEl.clientWidth || 640) / 7));
-  const h = Math.max(2, Math.round((stageEl.clientHeight || 400) / 7));
+  /* A quarter, not a seventh. A seventh reads as blocks rather than
+     blur once it is stretched back over the window. */
+  const w = Math.max(2, Math.round((stageEl.clientWidth || 640) / 4));
+  const h = Math.max(2, Math.round((stageEl.clientHeight || 400) / 4));
   if (convoRT) convoRT.dispose();
   convoRT = new THREE.WebGLRenderTarget(w, h);
   renderer.setRenderTarget(convoRT);
@@ -6250,7 +6252,11 @@ function convoOpen(s){
   });
   convoScene.add(g);
   g.position.set(0, 0, 0);
-  g.rotation.y = 0;                         /* a figure's forward is +Z here */
+  /* Turned to face you. The campus heading convention says a figure's
+     forward is +Z and the camera sits at +Z, which reasons its way
+     neatly to zero — and put her back to the room. The render settled
+     it in one look, as it settled the T-pose. */
+  g.rotation.y = Math.PI;
 
   /* Standing rather than mid-stride, where the body has anything to
      stand with. Most of the cohort arrived with a single walk cycle and
