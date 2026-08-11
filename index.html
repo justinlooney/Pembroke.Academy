@@ -3889,8 +3889,24 @@ const CAST_FILES = {
    looks like anyway.
 
      first   8.3MB   walker gent mia nathan stand skate tutor
-     after  10.8MB   teen woman alina ariel oreizo strider          */
-const CAST_FIRST = ["walker", "gent", "mia", "nathan", "sophia", "skate", "tutor"];
+     after  10.8MB   teen woman alina ariel oreizo strider
+
+   Which bodies come first is a question about variety, not only about
+   megabytes, and the first list got it wrong. Of the four ROAMING
+   bodies in it, three could not be dressed at all: gent and mia carry
+   no colour data and are painted one flat skin tone, and nathan is a
+   scan whose body and clothes are a single mesh on a single material.
+   So the crowd for the first minute or two of a visit — and the whole
+   crowd on any machine slow enough for the give-up to fire — was one
+   dressable person and a set of mannequins.
+
+   Measured across all sixteen bodies, exactly six have a shirt mesh
+   the wardrobe can find: walker, strider, oreizo, ariel, woman, nadia.
+   Two of the cheapest are strider (0.40MB, and dressable in all five
+   slots) and oreizo (0.75MB, likewise), so they take the places gent
+   and mia held for 0.80MB between them. Costs 0.35MB more and turns
+   one dressable body in the opening wave into three.                  */
+const CAST_FIRST = ["walker", "strider", "oreizo", "nathan", "sophia", "skate", "tutor"];
 /* A teenager is shorter, and the height is doing as much work here as
    any of the colours — see buildOf, which varies each figure another
    ±11% on top of these. */
@@ -4294,7 +4310,14 @@ function dressFigure(g, seed){
        moustache on its own material, and a blond crop over a black
        moustache is not a person, it is a bug. */
     const what = /hair|beard|moustache|mustache|scalp|brow|eyelash/i.test(tag) ? "hair"
-               : /shirt|top|jacket/i.test(tag) ? "shirt"
+               /* "suit" because the skater's clothing is one mesh named
+                  male_casualsuit06 — a whole outfit rather than a
+                  shirt, but it is the garment, and leaving it out left
+                  him in his factory colours on every visit. Not
+                  "outfit": Wolf3D names both halves that way, and this
+                  branch is tested before the trousers, so it would put
+                  Outfit_Bottom in a shirt colour. */
+               : /shirt|top|jacket|suit|hoodie|sweater/i.test(tag) ? "shirt"
                : /short|pant|trouser|jean|bottom|denim/i.test(tag) ? "shorts"
                : /shoe|sneaker|boot|footwear|canvas/i.test(tag) ? "sneakers"
                : /body|skin|head/i.test(tag) ? "skin" : null;

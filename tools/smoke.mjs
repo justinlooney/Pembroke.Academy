@@ -421,7 +421,8 @@ try {
     .catch(() => console.log("  ..   some bodies never arrived; judging what did"));
   const c = await crowdPage.evaluate(() => {
     const out = { ...window.__crowd(), shirts: new Set(), skins: new Set(),
-                  builds: new Set(), bodies: new Set(), tinted: 0 };
+                  builds: new Set(), bodies: new Set(), dressable: new Set(),
+                  tinted: 0 };
     window.__app.world.children.forEach(fig => {
       if (!fig.userData?.anim) return;                /* not one of the walkers */
       out.builds.add(fig.scale.x.toFixed(3));
@@ -432,12 +433,18 @@ try {
            its nodes, the other two name their materials */
         const tag = (o.name || "") + " " + (o.material.name || "");
         const hex = o.material.color.getHexString();
-        if (/shirt|top|jacket/i.test(tag)){ out.shirts.add(hex); out.tinted++; }
+        if (/shirt|top|jacket|suit|hoodie|sweater/i.test(tag)){
+          out.shirts.add(hex); out.tinted++;
+          /* which BODIES can be dressed, not how many meshes — the
+             number that explains a low colour count */
+          out.dressable.add(fig.userData.figure);
+        }
         if (/body|skin/i.test(tag)) out.skins.add(hex);
       });
     });
     return { ...out, shirts: out.shirts.size, skins: out.skins.size,
-             builds: out.builds.size, bodies: [...out.bodies].sort().join("+") };
+             builds: out.builds.size, bodies: [...out.bodies].sort().join("+"),
+             dressable: [...out.dressable].sort().join("+") || "none" };
   }).catch(() => null);
   step("?crowd fills the quad", !!c && c.people >= 17,
        c ? c.people + " people" : "no crowd hook");
@@ -505,10 +512,19 @@ try {
      every colour count while looking like one man in fancy dress. */
   step("the crowd is drawn from more than one body",
        !!c && c.bodies.split("+").length >= 3, c ? c.bodies : "could not read the cohort");
+  /* When this goes red the useful question is never "why so few
+     colours" — it is "who is out there". Only six of the sixteen
+     bodies own a shirt mesh the wardrobe can find; the rest are either
+     colourless or a scan whose clothes and skin are one mesh on one
+     material, and no palette can touch those. So a quad filled from a
+     wave that happens to contain one dressable body caps at one
+     colour per figure of that body, and reads as a colour bug when it
+     is a casting bug. Print who could be dressed. */
   step("the crowd is not one person fourteen times",
        !!c && c.shirts >= 6 && c.skins >= 4 && c.builds >= 8,
-       c ? `${c.shirts} shirt colours, ${c.skins} complexions, ${c.builds} builds ` +
-           `across ${c.tinted} figures` : "could not read the cohort");
+       c ? `${c.shirts} shirt colours over ${c.tinted} garments, ` +
+           `${c.skins} complexions, ${c.builds} builds; dressable bodies: ${c.dressable}`
+         : "could not read the cohort");
   step("a full quad still draws", !!c && c.draws > 0 && c.tris > 0,
        c ? `draws ${c.draws} · tris ${(c.tris / 1e6).toFixed(2)}M` : "");
   step("the crowd arrives without errors", crowdErrs.length === 0,
