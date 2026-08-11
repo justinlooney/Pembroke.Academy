@@ -3840,19 +3840,12 @@ function mkPerson(jacketColor, seed){
      start   the first stride out of a standstill, if it has one
 
    Models by their authors under CC-BY-4.0:
-     stu_oreizo   "Oreizo" by T-Art (person-x)
      stu_tutor    "Animated Instructor Avatar" by sagefreeman
-     stu_gent     "Mr Man Walking" by Instinto Ideal Studio (instideal2019)
-     stu_mia      "Mia Walking"    by Instinto Ideal Studio (instideal2019)
      stu_ariel    "walking test"   by Oussama.Lamrani
-     stu_teen     a teenage walker of the same family as the two above
    stu_nathan is a scanned figure supplied by the site owner, who holds
    the rights to it.                                                    */
 const CAST_FILES = {
   walker:  "assets/stu_walker.glb",     /* 50k tris, 7 mocap clips      */
-  gent:    "assets/stu_gent.glb",       /* 41k tris, one walk cycle     */
-  mia:     "assets/stu_mia.glb",        /* 36k tris, one walk cycle     */
-  teen:    "assets/stu_teen.glb",       /* 35k tris, one walk cycle     */
   ariel:   "assets/stu_ariel.glb",      /* 35k tris, one walk cycle     */
   woman:   "assets/stu_woman.glb",      /* ferried in by the courier    */
   alina:   "assets/stu_alina.glb",      /* ferried in by the courier    */
@@ -3885,17 +3878,27 @@ const CAST_FILES = {
    seconds after you do is a student walking in, which is what this
    looks like anyway.
 
-     first   8.3MB   walker gent mia nathan stand skate tutor
-     after  10.8MB   teen woman alina ariel oreizo
+     first           walker ariel kenta nathan sophia skate tutor
+     after           woman alina isla nadia
 
    Which bodies come first is a question about variety, not only about
    megabytes, and the first list got it wrong. Of the four ROAMING
-   bodies in it, three could not be dressed at all: gent and mia carry
-   no colour data and are painted one flat skin tone, and nathan is a
+   bodies in it, three could not be dressed at all: gent and mia carried
+   no colour data and were painted one flat skin tone, and nathan is a
    scan whose body and clothes are a single mesh on a single material.
    So the crowd for the first minute or two of a visit — and the whole
    crowd on any machine slow enough for the give-up to fire — was one
    dressable person and a set of mannequins.
+
+   gent, mia and teen are gone entirely now. They carried no colour of
+   any kind — no texture, no vertex colours, not even a base colour
+   factor, just one material named Bodymat — so the wardrobe could only
+   paint each of them a single flat tone, which reads as a mannequin
+   from any distance you can make out a person at. They had been left in
+   the roster pending a re-source that has not come, and mia had been
+   promoted into the opening wave for a body count, which guaranteed a
+   mannequin among the first people a visitor meets. Eight roaming
+   bodies remain, all of which carry their own colour.
 
    Measured across all sixteen bodies, exactly six had a shirt mesh the
    wardrobe could find: walker, strider, oreizo, ariel, woman, nadia.
@@ -3925,11 +3928,11 @@ const CAST_FILES = {
    be dressed, but she is a fourth roaming body, and three would leave
    the cohort one removal away from failing the check that it is drawn
    from more than one person at all.                                    */
-const CAST_FIRST = ["walker", "ariel", "mia", "nathan", "sophia", "skate", "tutor"];
+const CAST_FIRST = ["walker", "ariel", "kenta", "nathan", "sophia", "skate", "tutor"];
 /* A teenager is shorter, and the height is doing as much work here as
    any of the colours — see buildOf, which varies each figure another
    ±11% on top of these. */
-const CAST_HEIGHT = { walker: 42, gent: 43, mia: 40, teen: 38, woman: 41,
+const CAST_HEIGHT = { walker: 42, woman: 41,
                       alina: 40, ariel: 40, nathan: 43,
                       tutor: 41, skate: 42,
                       kenta: 41, isla: 40, nadia: 41, sophia: 40 };
@@ -3937,8 +3940,7 @@ const CAST_HEIGHT = { walker: 42, gent: 43, mia: 40, teen: 38, woman: 41,
    are only good for standing about. Eight that walk against a crowd
    that caps at ten: the round robin runs out of new people only on the
    ninth, and by then they are scattered over sixty-eight waypoints. */
-const ROAMING = ["walker", "gent", "mia", "teen", "woman", "alina",
-                 "nathan", "ariel",
+const ROAMING = ["walker", "woman", "alina", "nathan", "ariel",
                  "kenta", "isla", "nadia"];
 /* sophia joins the standers rather than the walkers, because that is
    what she came with: 488 frames of idle and no gait at all. She is
@@ -4037,9 +4039,9 @@ function prepareClips(anims){
 }
 /* Which body to actually build, given one that was asked for. The
    crowd draws from a list already filtered to what loaded, but the
-   named cast asks by name — Elowen is the gent — and CAST_PLAN cannot
-   know that the gent's model 404'd. Standing in for them is a smaller
-   loss than losing the student. */
+   named cast asks by name, and CAST_PLAN cannot know that a body has
+   left the roster or that its model 404'd. Standing in for them is a
+   smaller loss than losing the student. */
 function bodyFor(k){
   /* "any" means this student has no particular body — Elowen, Theo and
      Kenji roam and nothing about them depends on which one they are, so

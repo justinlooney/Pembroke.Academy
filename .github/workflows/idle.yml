@@ -13,6 +13,7 @@ name: idle
 # nothing, so add-idle.py refuses them and they keep the held frame.
 # That refusal is the point: a clip that binds to nothing exports
 # perfectly and ships a statue.
+#
 # Run by hand only. This fired on any push touching the tool or this
 # file, which meant editing either one re-landed the clip on four
 # bodies and pushed the result to main unreviewed. It did that three
@@ -55,11 +56,13 @@ jobs:
           set -o pipefail
           CLIP=tools/clips/Standing_Idle.fbx
           changed=0
-          # Every body that came with one walk cycle. The three Character
-          # Creator ones are listed too, on purpose: the tool decides,
-          # not this file, and its refusal is logged where it can be read.
-          for name in stu_gent stu_mia stu_teen stu_oreizo \
-                      stu_alina stu_ariel stu_woman stu_nathan; do
+          # Every body that came with one walk cycle. Character Creator
+          # ones are listed too, on purpose: the tool decides, not this
+          # file, and its refusal is logged where it can be read.
+          # gent, mia and teen are gone from the campus entirely — they
+          # carried no colour of any kind — and oreizo with them, for a
+          # mesh that tears.
+          for name in stu_alina stu_ariel stu_woman stu_nathan; do
             src="assets/$name.glb"
             [ -f "$src" ] || continue
             echo "::group::$name"
