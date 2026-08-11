@@ -4460,7 +4460,11 @@ function buildCast(){
    tail, rather than a coin flip between empty and packed. */
 const CROWD_MAX = 10;
 const CROWD_TARGET = 2 + Math.floor(Math.random() * Math.random() * 7);
-const CROWD_MIN = Math.min(1, CROWD_TARGET);   /* arrives regardless of cost */
+/* One arrives regardless of what it costs. This was Math.min(1,
+   CROWD_TARGET), written when the target could be zero; it cannot any
+   more, so the expression was always 1 and only looked like it meant
+   something. */
+const CROWD_MIN = 1;
 /* Above any 30Hz display cap and well below 60, so a phone that is
    merely capped is not mistaken for a phone that is struggling — and a
    machine actually labouring in the low thirties stops at the five. */
@@ -6161,7 +6165,7 @@ const interiorEl = document.getElementById("interior");
    filter and no second pass. It costs one texture and it means you are
    still visibly standing on the quad instead of in a void. */
 let convoView = null;                  /* the student record, or null */
-let convoScene = null, convoCam = null, convoRT = null, convoHome = null;
+let convoScene = null, convoCam = null, convoRT = null, convoHome = null, convoBase = null;
 const convoEl = document.getElementById("convo");
 
 function convoSetup(){
@@ -6225,8 +6229,13 @@ function convoOpen(s){
   const eye = box.min.y + tall * 0.88;
   const fit = tall * 0.46;                  /* head and shoulders, a little air */
   const dist = fit / Math.tan((convoCam.fov * Math.PI / 180) / 2);
-  convoCam.position.set(tall * 0.10, eye, dist);
-  convoCam.lookAt(0, eye - tall * 0.06, 0);
+  /* Kept, because the frame drifts around it. convoFrame used to ease
+     the camera towards the sway value itself rather than towards this
+     plus the sway, which quietly walked the shot back to dead centre
+     over the first few seconds and undid the framing. */
+  convoBase = { x: tall * 0.10, lookY: eye - tall * 0.06 };
+  convoCam.position.set(convoBase.x, eye, dist);
+  convoCam.lookAt(0, convoBase.lookY, 0);
 
   convoView = s;
   convoSay(s, null);
@@ -6301,9 +6310,13 @@ function convoFrame(dt){
   const m = castMixers.find(x => x.g === convoView.g);
   if (m) m.m.update(dt);
   if (convoView.held) breathe(convoView.g, convoT, convoView.phase || 0);
+  /* Sway about the framing, not towards it — and look where convoOpen
+     decided, rather than at a fixed offset below the lens that happens
+     to be near it for one body height and wrong for the rest. */
   const sway = Math.sin(convoT * 0.42) * 0.35;
-  convoCam.position.x += (sway - convoCam.position.x) * Math.min(1, dt * 1.4);
-  convoCam.lookAt(0, convoCam.position.y - 1.2, 0);
+  const wantX = (convoBase ? convoBase.x : 0) + sway;
+  convoCam.position.x += (wantX - convoCam.position.x) * Math.min(1, dt * 1.4);
+  convoCam.lookAt(0, convoBase ? convoBase.lookY : convoCam.position.y - 1.2, 0);
   convoCam.aspect = camera.aspect;
   convoCam.updateProjectionMatrix();
   renderer.render(convoScene, convoCam);
