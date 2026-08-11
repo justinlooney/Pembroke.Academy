@@ -776,6 +776,39 @@ body.day .hall-tag{background:linear-gradient(180deg, rgba(24,30,44,.86), rgba(2
 .int-prof .cap{position:absolute;left:50%;bottom:38px;transform:translateX(-50%);width:13px;height:13px;border-radius:50%;background:#e2cfae;}
 .int-prof .cap::after{content:"";position:absolute;left:50%;top:-3px;transform:translateX(-50%);width:19px;height:5px;background:#15151a;border-radius:2px;}
 .int-lectern{position:absolute;width:34px;height:44px;background:linear-gradient(180deg,#5d4930,#3a2d1c);border-radius:4px 4px 2px 2px;box-shadow:0 8px 14px -5px rgba(0,0,0,.6);}
+/* ── talking to somebody ──────────────────────────────────────────────
+   The campus stops while this is open. Standing on the quad costs 887
+   draw calls and 6.4M triangles; one person costs six draws and forty
+   thousand. That is the whole reason this view exists — it is not a
+   flourish, it is the only way a close-up can afford good light and a
+   full-detail body on the same phone that renders the quad at 26fps. */
+#convo{position:absolute;inset:0;z-index:32;opacity:0;pointer-events:none;
+  transition:opacity .4s ease;}
+#convo.open{opacity:1;pointer-events:auto;}
+.convo-open #labels2d, .convo-open #quest, .convo-open #walkhud,
+.convo-open #doorprompt, .convo-open #minimap,
+.convo-open .moon, .convo-open .cloud{display:none !important;}
+.convo-card{position:absolute;left:0;right:0;bottom:0;
+  padding:1.1rem 1.4rem 1.3rem;
+  background:linear-gradient(0deg, rgba(6,8,14,.94) 55%, rgba(6,8,14,.72) 80%, transparent);
+  display:flex;flex-direction:column;gap:.7rem;max-height:62%;}
+.convo-who{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap;}
+.convo-name{font-size:1.35rem;font-weight:600;color:var(--parchment);line-height:1;}
+.convo-major{font-size:10px;letter-spacing:.22em;text-transform:uppercase;}
+.convo-said{font-size:14.5px;line-height:1.55;color:#e8eef7;min-height:3.1em;
+  border-left:2px solid rgba(212,175,106,.45);padding-left:.85rem;}
+.convo-asks{display:flex;gap:.5rem;flex-wrap:wrap;}
+.convo-ask{border:1px solid rgba(148,163,184,.34);border-radius:999px;
+  padding:.4rem .95rem;font-size:11.5px;color:#cbd5e1;background:rgba(12,18,32,.72);
+  cursor:pointer;transition:all .2s ease;text-align:left;}
+.convo-ask:hover{border-color:rgba(212,175,106,.7);color:var(--parchment);
+  background:rgba(212,175,106,.14);}
+.convo-ask.leave{border-color:rgba(212,175,106,.5);color:var(--parchment);}
+@media (max-width:640px){
+  .convo-card{padding:.85rem 1rem 1rem;max-height:66%;}
+  .convo-said{font-size:13.5px;}
+  .convo-ask{padding:.36rem .8rem;font-size:11px;}
+}
 .int-hud{position:absolute;left:0;right:0;bottom:0;padding:1rem 1.5rem 1.2rem;
   display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap;
   background:linear-gradient(0deg, rgba(8,10,16,.88), transparent);}
@@ -905,6 +938,18 @@ body.day .int-lamp::after{opacity:.45;}
     <div id="campus-hints" class="absolute right-5 sm:right-8 bottom-5 z-10 text-right pointer-events-none">
       <div id="hint-keys" class="text-[10px] uppercase tracking-[.24em] text-slate-500">Keys 1–4 · quads · 0 · syllabus · N · day/night · F · walk mode</div>
       <div class="text-[10px] uppercase tracking-[.24em] text-slate-600 mt-1">drag to orbit · scroll to zoom</div>
+    </div>
+
+    <!-- ═══════ CONVERSATION (the campus stops; one person remains) ═══════ -->
+    <div id="convo" aria-hidden="true">
+      <div class="convo-card">
+        <div class="convo-who">
+          <div class="convo-name" id="convo-name"></div>
+          <div class="convo-major" id="convo-major"></div>
+        </div>
+        <div class="convo-said" id="convo-said"></div>
+        <div class="convo-asks" id="convo-asks"></div>
+      </div>
     </div>
 
     <!-- ═══════ INTERIOR CLASSROOM SCENE (revealed on entering a hall) ═══════ -->
@@ -3596,15 +3641,76 @@ const ALL_WAYS = Object.keys(WAYPOINTS);
 const RING_SET = new Set(window.__ring);
 window.__ways = { WAYPOINTS, EDGES };   /* test/debug hook */
 
+/* Each of them already had a voice — three lines apiece, all of them
+   about their own subject. `at` is which hall that subject is taught
+   in, which is what lets a conversation know whether you have actually
+   sat the course they are enthusing about. `ask` is what you can put to
+   them: a question, and what they say back. */
 const STUDENT_ROSTER = [
-  { name:"Elowen", c:0x34d399, says:["Off to Calc III — gradients await!","The Library dome at dusk… unbeatable.","Stokes' theorem finally clicked!"] },
-  { name:"Marcus", c:0xfbbf24, says:["My first Python script ran — no errors!","Binary search in 17 steps. SEVENTEEN.","Whitmore Quad study group, 8pm."] },
-  { name:"Priya",  c:0x38bdf8, says:["My full adder passed every row!","RAX holds the whole sum. Registers are elegant.","Lab practical on flip-flops today."] },
-  { name:"Jun",    c:0xa78bfa, says:["Tuned my PID — no more overshoot!","A* found a corridor through the no-fly grid.","Capstone flight over the quad Friday!"] },
-  { name:"Sofia",  c:0xf472b6, says:["Simpson's rule tamed the Gaussian bell.","Unit circle from memory. All of it.","Meet at the fountain after lecture?"] },
-  { name:"Theo",   c:0x5eead4, says:["Pointers finally make sense!","Committed my problem sets — git push, done.","K-maps are just crossword puzzles."] },
-  { name:"Amara",  c:0xfb923c, says:["Ten laps of the oval before class.","The chapel bells at dusk — worth the walk.","Green's theorem is just bookkeeping for flow."] },
-  { name:"Kenji",  c:0xa3e635, says:["Parked by the east lot, sprinting to lab!","My A* found a shorter path to lecture.","The refectory's roof matches my notebook."] },
+  { name:"Elowen", c:0x34d399, at:"lib", major:"Pure Mathematics",
+    says:["Off to Calc III — gradients await!","The Library dome at dusk… unbeatable.","Stokes' theorem finally clicked!"],
+    ask:[["What are you working on?",
+          "Calculus III. Vector fields, mostly. You spend a fortnight thinking a gradient is just a slope with extra steps, and then one afternoon it stops being arithmetic and starts being a picture — the field pointing uphill everywhere at once."],
+         ["Stokes' theorem — honestly?",
+          "Honestly? It says the swirl inside a region and the push around its edge are the same number. That's it. Everything else is bookkeeping to make the two sides line up."],
+         ["Why the Library?",
+          "The dome. Go up at dusk, when the lamps come on under the emerald glass and the whole reading room turns the colour of a pond. Nobody talks. It's the only place on this campus where I get anything done."]] },
+  { name:"Marcus", c:0xfbbf24, at:"eng", major:"Software Foundations",
+    says:["My first Python script ran — no errors!","Binary search in 17 steps. SEVENTEEN.","Whitmore Quad study group, 8pm."],
+    ask:[["What are you working on?",
+          "Python, and I'm not going to pretend to be cool about it. My first script ran with no errors this morning. Eleven lines. I've read them back about six times."],
+         ["Binary search — what's the fuss?",
+          "A hundred and thirty thousand records and it found the one I wanted in seventeen looks. Seventeen! You halve the haystack, then halve what's left. I keep doing it on paper to check it isn't a trick."],
+         ["Any advice for a beginner?",
+          "Type it out. Don't copy it in — type it. You'll make a mistake somewhere around line four, and fixing that mistake is the bit where you actually learn something."]] },
+  { name:"Priya",  c:0x38bdf8, at:"sci", major:"Electrical Hardware",
+    says:["My full adder passed every row!","RAX holds the whole sum. Registers are elegant.","Lab practical on flip-flops today."],
+    ask:[["What are you working on?",
+          "A full adder. Two bits in, a carry in, a sum and a carry out — and this afternoon it passed all eight rows of the truth table on the first go. I may have made a noise in the lab."],
+         ["Why does hardware appeal?",
+          "Because there's nowhere to hide. Software you can talk yourself into believing. A gate either switches or it doesn't, and the scope on the bench will tell you which without any sympathy at all."],
+         ["What's a flip-flop, really?",
+          "A circuit that remembers one thing. That's the whole trick — feed the output back to the input and it holds its state until you tell it otherwise. Every byte of memory you have ever used is that, repeated until it's a machine."]] },
+  { name:"Jun",    c:0xa78bfa, at:"adm", major:"AI Robotics & Flight",
+    says:["Tuned my PID — no more overshoot!","A* found a corridor through the no-fly grid.","Capstone flight over the quad Friday!"],
+    ask:[["What are you working on?",
+          "Flight planners. I spent three days tuning a PID loop that kept overshooting the setpoint and oscillating like a nervous dog. Turned the derivative term up. It settles now. Three days for one number."],
+         ["What is A* actually doing?",
+          "Guessing well. It's a search that keeps asking 'how far have I come, and how far do I probably still have to go' — and it always expands the option where that sum is smallest. Give it an honest guess and it finds the shortest path without checking the whole map."],
+         ["Capstone flight?",
+          "Friday, over the quad, if the wind behaves. Full autonomous circuit round the fountain and back to the pad at Aldergate. Come and watch. Stand well back."]] },
+  { name:"Sofia",  c:0xf472b6, at:"lib", major:"Pure Mathematics",
+    says:["Simpson's rule tamed the Gaussian bell.","Unit circle from memory. All of it.","Meet at the fountain after lecture?"],
+    ask:[["What are you working on?",
+          "Numerical integration. The Gaussian bell has no nice antiderivative — you cannot just write the answer down — so you approximate it, and Simpson's rule does it with parabolas instead of rectangles. Frighteningly accurate for how little work it is."],
+         ["The whole unit circle from memory?",
+          "All of it. Not because anyone made me — because once you can see it, half of trigonometry stops being formulas to remember and turns into one picture you already know."],
+         ["Where's good to sit out here?",
+          "The fountain, after lecture. The lawn's warm by then and you can hear the water over the walk. I usually have a problem set and no intention of finishing it."]] },
+  { name:"Theo",   c:0x5eead4, at:"eng", major:"Software Foundations",
+    says:["Pointers finally make sense!","Committed my problem sets — git push, done.","K-maps are just crossword puzzles."],
+    ask:[["What are you working on?",
+          "C. Pointers, specifically, which everybody warns you about for a fortnight and then one day you realise a pointer is just an address — a house number, not the house. After that it's fine. Mostly fine."],
+         ["K-maps — worth learning?",
+          "They're crossword puzzles. You draw the truth table as a grid, circle the neighbouring ones in the biggest blocks you can, and each block is a term you get to delete from the expression. It's the most fun anyone has ever had removing gates."],
+         ["Why bother with git?",
+          "Because I lost a week's work once. Now every problem set is committed the moment it runs. It isn't discipline, it's fear, and fear is a perfectly good reason."]] },
+  { name:"Amara",  c:0xfb923c, at:"lib", major:"Pure Mathematics",
+    says:["Ten laps of the oval before class.","The chapel bells at dusk — worth the walk.","Green's theorem is just bookkeeping for flow."],
+    ask:[["What are you working on?",
+          "Vector calculus, between laps. Ten round the oval before the first lecture — it's the only hour of the day when this campus is completely mine."],
+         ["Green's theorem, briefly?",
+          "Bookkeeping for flow. Whatever's circulating round the edge of a patch has to equal whatever's swirling about inside it. Nothing appears from nowhere. Once you believe that, the algebra is just the receipt."],
+         ["Where do you run to?",
+          "Out past the athletics field, down the boulevard, back up through the gate. Do it at dusk when the chapel bells go and tell me it isn't worth the walk."]] },
+  { name:"Kenji",  c:0xa3e635, at:"adm", major:"AI Robotics & Flight",
+    says:["Parked by the east lot, sprinting to lab!","My A* found a shorter path to lecture.","The refectory's roof matches my notebook."],
+    ask:[["What are you working on?",
+          "Path planning — and then applying it to my own commute, which is how I found out the diagonal past the science hall saves me ninety seconds. I have been late to precisely one lecture since."],
+         ["Does the theory actually help?",
+          "It made me notice things. Once you've written a planner that weights every edge, you start seeing the campus as a graph: the paving is edges, the doors are nodes, and the lawn is a shortcut everyone takes and nobody admits to."],
+         ["The refectory roof?",
+          "Same green as my notebook. I noticed it in first week and now I can't stop seeing it. That's the whole story, I'm afraid — I did warn you it was a small thing."]] },
 ];
 const students = [];
 const skinMat = new THREE.MeshStandardMaterial({ color: 0xe2cfae, roughness: 0.8 });
@@ -5048,13 +5154,27 @@ const ray = new THREE.Raycaster();
 let downAt = null;
 renderer.domElement.addEventListener("pointerdown", e => { downAt = [e.clientX, e.clientY]; });
 renderer.domElement.addEventListener("pointerup", e => {
-  if (!downAt || walker.on) return;
+  if (!downAt || convoView) return;
   const moved = Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]);
   downAt = null;
   if (moved > 6) return;
   const r = renderer.domElement.getBoundingClientRect();
   const ndc = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
   ray.setFromCamera(ndc, camera);
+  /* People first, and in walk mode too — everything else here is
+     buildings, and a tap that lands on a person means the person. The
+     crowd are strangers with no name tag and nothing to say; only the
+     named eight carry a `data` record, so only they answer. */
+  {
+    let best = null, bestD = Infinity;
+    for (const s of students){
+      if (!s.data || !s.g || !s.g.visible) continue;
+      const hit = ray.intersectObject(s.g, true);
+      if (hit.length && hit[0].distance < bestD){ bestD = hit[0].distance; best = s; }
+    }
+    if (best){ convoOpen(best); return; }
+  }
+  if (walker.on) return;                /* the rest is aerial-only picking */
   for (const k of SECTOR_ORDER){
     if (ray.intersectObject(hallGroups[k], true).length){
       selectSector(k, true);
@@ -5125,6 +5245,7 @@ function returnToQuad(){
 }
 document.getElementById("vista-back").addEventListener("click", returnToQuad);
 addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && convoView){ convoClose(); return; }
   if (e.key === "Escape" && focused && !walker.on) returnToQuad();
 });
 
@@ -5477,6 +5598,12 @@ renderer.setAnimationLoop(() => {
   const now = performance.now();
   const dt = Math.min(0.05, (now - lastT) / 1000);
   lastT = now;
+  /* Everything below this line is the campus. In a conversation none of
+     it is on screen, so none of it runs — not the crowd ramp, not the
+     walk graph, not the day cycle, not the detail pass, not the
+     minimap, and not sixty skeletons' worth of mixers. That is where
+     the 887 draws go. */
+  if (convoView){ convoFrame(dt); dbgUpdate(now, dt); return; }
   stepCrowd(now, dt);
   stepStudents(dt, now);
   if (walker.on) walkUpdate(dt);
@@ -5898,6 +6025,176 @@ function toast(title, body, color, ms){
 
 /* ── interior classroom scenes ───────────────────────────────────── */
 const interiorEl = document.getElementById("interior");
+/* ══════════════════════════════════════════════════════════════════
+   TALKING TO SOMEBODY — the campus stops, one person remains
+   ══════════════════════════════════════════════════════════════════
+   Measured, standing on the quad: 887 draw calls, 6.42M triangles,
+   every crowd mixer stepped, the walk graph advanced, the detail pass
+   run and the minimap redrawn — all of it every frame. In here it is
+   one figure: six draws and forty thousand triangles, one mixer, and
+   nothing else moving at all.
+
+   That 40-to-100-fold cut is the point. It buys a close-up good enough
+   to look at — a key light, a proper rim, no distance culling — on the
+   same phone that renders the campus at 26fps, and it leaves the GPU
+   free for whatever else wants it.
+
+   The body is REPARENTED here rather than cloned. A clone would share
+   its skeleton and diverge in pose, and the wardrobe is per-figure —
+   Elowen's shirt is hers, dealt this visit. Moving the real one means
+   the person you walked up to is the person you are talking to. It goes
+   home on close, and stepStudents puts it back on its path.
+
+   The backdrop is one frame of the campus, captured on the way in at a
+   fraction of the resolution. Downsampling IS the blur; there is no
+   filter and no second pass. It costs one texture and it means you are
+   still visibly standing on the quad instead of in a void. */
+let convoView = null;                  /* the student record, or null */
+let convoScene = null, convoCam = null, convoRT = null, convoHome = null;
+const convoEl = document.getElementById("convo");
+
+function convoSetup(){
+  if (convoScene) return;
+  convoScene = new THREE.Scene();
+  /* Same environment map as the campus, so skin and cloth respond the
+     way they did outside. Without it a figure lifted out of the world
+     turns matte and plastic on the way in. */
+  convoScene.environment = world.environment;
+  convoScene.backgroundIntensity = 0.42;      /* let the person carry the frame */
+  const key = new THREE.DirectionalLight(0xfff4e2, 2.6);
+  key.position.set(-40, 70, 60);
+  const fill = new THREE.DirectionalLight(0xbcd3ff, 0.75);
+  fill.position.set(55, 20, 35);
+  const rim = new THREE.DirectionalLight(0xffe9c9, 1.5);
+  rim.position.set(20, 45, -70);
+  convoScene.add(key, fill, rim, new THREE.AmbientLight(0xffffff, 0.35));
+  convoCam = new THREE.PerspectiveCamera(38, 1, 0.5, 400);
+}
+
+function convoOpen(s){
+  if (!s || !s.data || convoView || interiorView) return;
+  convoSetup();
+
+  /* One frame of where you are standing, small on purpose. */
+  const w = Math.max(2, Math.round((stageEl.clientWidth || 640) / 7));
+  const h = Math.max(2, Math.round((stageEl.clientHeight || 400) / 7));
+  if (convoRT) convoRT.dispose();
+  convoRT = new THREE.WebGLRenderTarget(w, h);
+  renderer.setRenderTarget(convoRT);
+  renderer.render(world, camera);
+  renderer.setRenderTarget(null);
+  convoScene.background = convoRT.texture;
+
+  const g = s.g;
+  convoHome = { parent: g.parent, pos: g.position.clone(), rot: g.rotation.y,
+                vis: g.visible, animate: g.userData.animate };
+  g.visible = true;
+  g.userData.animate = true;                /* whatever the detail pass decided */
+  convoScene.add(g);
+  g.position.set(0, 0, 0);
+  g.rotation.y = 0;                         /* a figure's forward is +Z here */
+
+  /* Standing rather than mid-stride, where the body has anything to
+     stand with. Most of the cohort arrived with a single walk cycle and
+     nothing else — for those, walking on the spot reads better than a
+     freeze, which is the same judgement makeRoamer already makes. */
+  if (s.roles && s.roles.idle) setClipOn(g, s.roles.idle, 0.3);
+
+  /* Framed off this body, not off a number: the cast runs from 38 to 43
+     units and a fixed camera would crop one and strand another. */
+  const box = new THREE.Box3().setFromObject(g);
+  const tall = Math.max(1, box.max.y - box.min.y);
+  const eye = box.min.y + tall * 0.88;
+  const fit = tall * 0.46;                  /* head and shoulders, a little air */
+  const dist = fit / Math.tan((convoCam.fov * Math.PI / 180) / 2);
+  convoCam.position.set(tall * 0.10, eye, dist);
+  convoCam.lookAt(0, eye - tall * 0.06, 0);
+
+  convoView = s;
+  convoSay(s, null);
+  convoEl.classList.add("open");
+  convoEl.setAttribute("aria-hidden", "false");
+  document.body.classList.add("convo-open");
+}
+
+function convoClose(){
+  if (!convoView) return;
+  const g = convoView.g;
+  (convoHome.parent || world).add(g);
+  g.position.copy(convoHome.pos);
+  g.rotation.y = convoHome.rot;
+  g.visible = convoHome.vis;
+  g.userData.animate = convoHome.animate;
+  convoView = null; convoHome = null;
+  convoEl.classList.remove("open");
+  convoEl.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("convo-open");
+}
+
+/* What they say, and what you can put to them. Authored, and aware of
+   where you have actually got to — a student whose hall you have
+   finished says something different from one whose hall you have never
+   walked into. No network, no key, nothing to fail. */
+function convoSay(s, line){
+  const d = s.data;
+  const hall = SECTORS[d.at];
+  const mine = COURSES.filter(c => c.sector === d.at);
+  const sat = mine.filter(c => done.includes(c.id)).length;
+  document.getElementById("convo-name").textContent = d.name;
+  const maj = document.getElementById("convo-major");
+  maj.textContent = d.major + " · " + (hall ? hall.hall : "");
+  maj.style.color = "#" + d.c.toString(16).padStart(6, "0");
+
+  if (line === null){
+    const hour = new Date().getHours();
+    const when = hour < 11 ? "Morning." : hour < 17 ? "Afternoon." : "Evening.";
+    line = sat === 0
+      ? when + " You're new, aren't you — I'd know the face. " +
+        (hall ? hall.hall + " is where I'll be if you want the tour." : "")
+      : sat >= mine.length
+        ? when + " You've finished the whole " + (hall ? hall.track : "track") +
+          " — every course sealed. Nobody does that quietly. What did it cost you?"
+        : when + " I've seen you in " + (hall ? hall.hall : "lectures") +
+          " — you're " + sat + " of " + mine.length + " through, aren't you? Keep at it.";
+  }
+  document.getElementById("convo-said").textContent = line;
+
+  const asks = document.getElementById("convo-asks");
+  asks.textContent = "";
+  (d.ask || []).forEach(([q, a]) => {
+    const b = document.createElement("button");
+    b.className = "convo-ask";
+    b.textContent = q;
+    b.addEventListener("click", () => convoSay(s, a));
+    asks.appendChild(b);
+  });
+  const bye = document.createElement("button");
+  bye.className = "convo-ask leave";
+  bye.textContent = "← Leave";
+  bye.addEventListener("click", convoClose);
+  asks.appendChild(bye);
+}
+
+/* A little life, so a paused campus does not read as a paused game:
+   the camera breathes and the figure keeps its own animation. */
+let convoT = 0;
+function convoFrame(dt){
+  convoT += dt;
+  const m = castMixers.find(x => x.g === convoView.g);
+  if (m) m.m.update(dt);
+  const sway = Math.sin(convoT * 0.42) * 0.35;
+  convoCam.position.x += (sway - convoCam.position.x) * Math.min(1, dt * 1.4);
+  convoCam.lookAt(0, convoCam.position.y - 1.2, 0);
+  convoCam.aspect = camera.aspect;
+  convoCam.updateProjectionMatrix();
+  renderer.render(convoScene, convoCam);
+}
+/* test/debug hooks: the cast, and the conversation they can be pulled
+   into. `named` is the eight with a dossier — the crowd are strangers. */
+window.__students = students;
+window.__convo = { open: convoOpen, close: convoClose, on: () => !!convoView,
+                   named: () => students.filter(s => s.data) };
+
 function openInterior(key){
   const S = SECTORS[key];
   if (!S) return;
