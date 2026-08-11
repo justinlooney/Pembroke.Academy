@@ -58,12 +58,13 @@ jobs:
             rm -rf /tmp/fbx && mkdir -p /tmp/fbx
             args=""
             fail=0
+            ready=""
             while IFS=$'\t' read -r name id; do
               [ -z "$name" ] && continue
               # The /uc?id= form is the one every gdown understands. Newer
               # versions dropped --fuzzy (it became the default) and older
               # ones need it, so avoid the flag entirely.
-              if ! gdown -q "https://drive.google.com/uc?id=$id" -O "/tmp/fbx/$name.fbx"; then
+              if ! gdown -q "https://drive.google.com/uc?id=$id" -O "/tmp/fbx/$name.bin"; then
                 echo "::error::$name — gdown could not download $id"
                 fail=1; continue
               fi
@@ -72,35 +73,175 @@ jobs:
               # problem once something has actually been downloaded —
               # blaming sharing for a failed fetch sends people off to
               # re-share files that were never the problem.
-              if head -c 20 "/tmp/fbx/$name.fbx" | grep -q "Kaydara"; then
-                printf '  ok   %-18s %s\n' "$name" "$(du -h "/tmp/fbx/$name.fbx" | cut -f1)"
+              #
+              # Three kinds of file are welcome. Mixamo hands out FBX,
+              # which needs Blender to become a character. A finished GLB
+              # is already a character, and putting one through Blender
+              # only risks what it already has, so it goes straight to
+              # the optimizer. And a zip is how anything with textures
+              # arrives — a Sketchfab download, or a whole collection of
+              # trees in one file.
+              #
+              # Told apart by magic bytes rather than by file name, which
+              # on a Drive link is whatever the inbox happened to call
+              # it. PK is a zip, glTF is a GLB, Kaydara is an FBX.
+              magic=$(head -c 4 "/tmp/fbx/$name.bin")
+              size=$(du -h "/tmp/fbx/$name.bin" | cut -f1)
+              if [ "$(head -c 2 "/tmp/fbx/$name.bin")" = "PK" ]; then
+                printf '  ..   %-18s %-8s zip, unpacking\n' "$name" "$size"
+                rm -rf "/tmp/fbx/$name.d" && mkdir -p "/tmp/fbx/$name.d"
+                if ! unzip -q "/tmp/fbx/$name.bin" -d "/tmp/fbx/$name.d"; then
+                  echo "::error::$name — could not unpack the zip"
+                  fail=1; continue
+                fi
+                # A Sketchfab zip is scene.gltf beside its .bin and a
+                # textures/ directory, so the model must be read where it
+                # was unpacked — the relative paths inside it are the
+                # only way it finds its own textures.
+                mapfile -t found < <(find "/tmp/fbx/$name.d" -type f \
+                  \( -iname '*.glb' -o -iname '*.gltf' \) | sort)
+                if [ "${#found[@]}" -eq 0 ]; then
+                  echo "::error::$name — the zip holds no .glb or .gltf"
+                  find "/tmp/fbx/$name.d" -type f | head -20
+                  fail=1; continue
+                fi
+                if [ "${#found[@]}" -eq 1 ]; then
+                  printf '  ok   %-18s %-8s one model in the zip\n' "$name" "$size"
+                  ready="${found[0]}"
+                else
+                  # A collection. Merged into one file, which is the shape
+                  # plantpack.glb already has and the shape plantSpecies()
+                  # wants: it plants by mesh-name prefix out of a single
+                  # scene. gltf-transform puts each input in a Scene of
+                  # its own, and three.js loads only the default one — so
+                  # a twelve-tree collection would arrive as one tree and
+                  # eleven silent absences, with no error and a valid
+                  # file. flatten-scenes.mjs is what stops that.
+                  printf '  ok   %-18s %-8s %d models, merging\n' \
+                    "$name" "$size" "${#found[@]}"
+                  printf '         %s\n' "${found[@]#/tmp/fbx/$name.d/}"
+                  gltf-transform merge "${found[@]}" "/tmp/fbx/$name.merged.glb"
+                  node tools/flatten-scenes.mjs "/tmp/fbx/$name.merged.glb"
+                  ready="/tmp/fbx/$name.merged.glb"
+                fi
+              elif head -c 20 "/tmp/fbx/$name.bin" | grep -q "Kaydara"; then
+                printf '  ok   %-18s %-8s fbx\n' "$name" "$size"
+                mv "/tmp/fbx/$name.bin" "/tmp/fbx/$name.fbx"
                 args="$args /tmp/fbx/$name.fbx"
+              elif [ "$magic" = "glTF" ]; then
+                # Two finished characters in one block cannot both become
+                # one file. Keeping the last silently would build the
+                # wrong person and pass, which is worse than stopping.
+                if [ -n "$ready" ]; then
+                  echo "::error::$out lists more than one finished GLB. Each is already a"
+                  echo "::error::whole character, so they cannot be combined — give them"
+                  echo "::error::separate '# out:' blocks."
+                  fail=1; continue
+                fi
+                printf '  ok   %-18s %-8s glb, already built\n' "$name" "$size"
+                ready="/tmp/fbx/$name.bin"
               else
-                echo "::error::$name downloaded but is not an FBX — share it as 'Anyone with the link'"
+                echo "::error::$name downloaded but is neither an FBX nor a GLB —"
+                echo "::error::share it as 'Anyone with the link' and check it is a model"
                 fail=1
               fi
             done < <(tail -n +2 "$block")
             [ "$fail" = 1 ] && exit 1
 
             mkdir -p "$(dirname "$out")"
-            blender --background --python-exit-code 1 \
-                    --python tools/mixamo-to-glb.py -- "$out" $args
+            if [ -n "$ready" ]; then
+              # A finished character: nothing to assemble, only to shrink.
+              if [ -n "$args" ]; then
+                echo "::error::$out mixes a finished GLB with FBX clips, which cannot be"
+                echo "::error::combined here — the GLB carries its own skeleton. Give them"
+                echo "::error::separate '# out:' blocks."
+                exit 1
+              fi
+              # Not cp. Out of a zip this is often scene.gltf beside its
+              # .bin and a textures/ directory, and copying the one file
+              # would leave the geometry and every texture behind. copy
+              # reads it where it lies and writes a self-contained GLB.
+              gltf-transform copy "$ready" "$out"
+              # A character-creator export carries a full anatomy — a
+              # tongue, teeth, fingernails, the wet films over the eyes —
+              # and each one has its own material and so its own draw
+              # call. None of it resolves on a figure crossing a quad.
+              # This must run here rather than by hand afterwards: the
+              # courier rebuilds from Drive, and it has already silently
+              # undone one hand-thinned model (stu_woman, 2.66MB back up
+              # to 4.76MB) by doing exactly that. On anything without a
+              # face it matches nothing and says so.
+              node tools/thin-character.mjs "$out"
+              # Only the heavy ones. Character-creator people arrive at
+              # 80k triangles and up, several times what the hand-built
+              # characters cost, and halving them is invisible at campus
+              # distance. A tree collection is not that: plantpack is 211
+              # triangles for eight meshes, and simplifying foliage eats
+              # the leaf cards that make it read as foliage. So the
+              # threshold decides, not the filename.
+              tris=$(node -e '
+                const fs=require("fs");const b=fs.readFileSync(process.argv[1]);
+                const j=JSON.parse(b.slice(20,20+b.readUInt32LE(12)).toString("utf8"));
+                console.log(Math.round((j.meshes||[]).reduce((t,m)=>t+m.primitives
+                  .reduce((s,p)=>s+(p.indices!==undefined?j.accessors[p.indices].count/3:0),0),0)));
+              ' "$out")
+              if [ "$tris" -gt 60000 ]; then
+                echo "  .. $tris triangles — simplifying"
+                gltf-transform simplify "$out" "$out" --ratio 0.45 --error 0.003
+              else
+                echo "  .. $tris triangles — light enough, left alone"
+              fi
+            else
+              blender --background --python-exit-code 1 \
+                      --python tools/mixamo-to-glb.py -- "$out" $args
+            fi
 
             before=$(stat -c%s "$out")
+            # A character assembled here from Mixamo parts is one of the
+            # named cast, met at conversational distance, and keeps 1024.
+            # Anything arriving finished is crowd or scenery, seen across
+            # a lawn, and 512 is indistinguishable there — a difference
+            # worth 2.5MB across two of them, which this workflow put
+            # back the first time it rebuilt models that had been shrunk
+            # by hand.
+            tex=1024
+            [ -n "$ready" ] && tex=512
             # Textures and vertex data only. Simplification rewrites the
             # mesh and takes the skin weights with it, and joining merges
             # the nodes the skeleton is bound to — either one turns a
             # walking student into a bag of knots.
             gltf-transform optimize "$out" "$out" \
-              --compress meshopt --texture-compress webp --texture-size 1024 \
+              --compress meshopt --texture-compress webp --texture-size "$tex" \
               --simplify false --join false
             stat -c%s "$out" | xargs -I{} echo "$before {}" \
               | awk '{printf "  %.1fMB -> %.1fMB\n", $1/1e6, $2/1e6}'
             echo "::endgroup::"
           done
 
-      - name: Bump the cache version
+      # Rebuilding the same links produces the same bytes, and a run that
+      # changed no model has nothing to tell returning visitors. Bumping
+      # anyway costs every one of them a fresh 39MB download of a campus
+      # they already have — which is exactly the cost the service worker
+      # exists to avoid. It happened: commit 7c36c3f is a courier commit
+      # whose entire diff is one line of sw.js.
+      #
+      # The existing "nothing changed" guard could never catch it, because
+      # the bump ran first and left sw.js modified, so the commit always
+      # had something to commit. Ask the question before touching sw.js.
+      - name: Did any model actually change?
+        id: changed
         if: steps.plan.outputs.blocks != '0'
+        run: |
+          if [ -n "$(git status --porcelain assets)" ]; then
+            echo "assets=yes" >> "$GITHUB_OUTPUT"
+            git status --porcelain assets
+          else
+            echo "assets=no" >> "$GITHUB_OUTPUT"
+            echo "the rebuild produced the same bytes — no bump, no commit"
+          fi
+
+      - name: Bump the cache version
+        if: steps.changed.outputs.assets == 'yes'
         run: |
           # assets/ changed, so returning visitors would otherwise keep the
           # old campus forever — and the PR guard would fail the build.
@@ -132,7 +273,7 @@ jobs:
           echo "cache version: pembroke-v$cur -> pembroke-v$next"
 
       - name: Commit
-        if: steps.plan.outputs.blocks != '0'
+        if: steps.changed.outputs.assets == 'yes'
         run: |
           git config user.name "pembroke-asset-courier"
           git config user.email "actions@users.noreply.github.com"

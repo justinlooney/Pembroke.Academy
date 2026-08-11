@@ -30,7 +30,15 @@ jobs:
 
   smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The campus has grown a cohort: eleven rigged bodies, 19MB of them,
+    # all decoded on a software rasterizer, and the crowd check loads
+    # the whole thing a second time in a sibling page. The last full run
+    # took 17m37s and the next was killed at 20m17s — a timeout, which
+    # GitHub reports as "cancelled" and which reads exactly like someone
+    # having pushed over it. Raised with room rather than to the line,
+    # so the next body added does not cost an evening working out why a
+    # green suite went red without a failing check in it.
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
 

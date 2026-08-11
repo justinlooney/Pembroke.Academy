@@ -678,6 +678,22 @@ body.diagnosing #campus-wing-intro{opacity:0;pointer-events:none;}
     padding:.4rem .6rem; font-size:11px; line-height:1.35; opacity:.92;
   }
   .walkmode #quest .q-label{ display:none; } /* drop the heading, keep the task */
+  /* One line, cut short. Two lines of objective across a phone in walk
+     mode is a bar through the middle of the thing you are looking at,
+     and the sentence is on the tooltip and the accessible name anyway. */
+  .walkmode #quest > div{ min-width:0; }
+  .walkmode #quest .q-text{
+    margin-top:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  /* Folded has to actually fold. The rule above stretches the card to
+     the width of the screen with `right`, and it outranks the plain
+     .folded rule — so on a phone in walk mode, the one place this
+     matters most, folding it away left a 300px bar sitting exactly
+     where it always was. Measured at 11,316px² folded against 1,583px²
+     on the desktop layout, which is to say: not folded at all. */
+  .walkmode #quest.folded{ right:auto; max-width:2.6rem; width:max-content; }
+  /* and it must not sit on the panel someone opened ?debug to read */
+  .diagnosing.walkmode #quest{ top:auto; bottom:1rem; right:auto; width:max-content; }
   .walkmode #minimap{ width:74px; height:74px; }
 }
 
@@ -2348,7 +2364,12 @@ window.__assets = assetLog;   /* test/debug hook */
 {
   const rawLoad = gltf.load.bind(gltf);
   gltf.load = (url, onLoad, onProgress, onError) => {
-    const rec = { name: url.split("/").pop(), t0: performance.now(), ms: null };
+    const rec = { name: url.split("/").pop(), t0: performance.now(), ms: null,
+                  /* Late arrivals are logged like everything else — ?debug
+                     should still show what they cost — but they must not
+                     count towards "the campus has finished loading", or
+                     deferring them would achieve nothing. */
+                  late: !!gltf.__late };
     assetLog.push(rec);
     rawLoad(url,
       (g) => { rec.ms = performance.now() - rec.t0; if (onLoad) onLoad(g); },
@@ -3118,7 +3139,7 @@ function toFloatAttrs(geo){
     geo.setAttribute(name, f);
   });
 }
-function plantSpecies(root, prefix, list, targetH, shadows, dropMat){
+function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
   const meshes = [];
   root.updateMatrixWorld(true);
   root.traverse(o => {
@@ -3135,7 +3156,14 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat){
     geo.applyMatrix4(o.matrixWorld);
     geo.computeBoundingBox();
     bb.union(geo.boundingBox);
-    if (o.material.alphaTest) o.material.alphaTest = 0.12;
+    /* The plantpack foliage is cut out with a harsh mask and loses its
+       thinner fronds at the authored cutoff, so it is softened. A tree
+       whose leaves are photographs is the opposite case: the maple asks
+       for 0.4 and means it, and dropping it to 0.12 keeps the pale
+       matte around every leaf — which is precisely the white-card look
+       these were brought in to replace. Trust the asset when it says
+       so. */
+    if (o.material.alphaTest && !keepAlpha) o.material.alphaTest = 0.12;
     return [geo, o.material];
   });
   const size = new THREE.Vector3(); bb.getSize(size);
@@ -3191,17 +3219,64 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat){
                [218,808,1],[262,814,0.85],[712,822,1],[758,826,0.85],[434,886,1.1],[566,886,1.1]];
   const FERNS = [[600,548,1],[616,532,0.85],[455,616,1],[472,600,0.85],
                  [384,470,1],[400,452,0.85],[529,384,1],[545,400,0.85],[350,80,1.2],[650,84,1.2]];
+  /* The boulevard is 24 wide and runs 500,985 to 500,1156, so the
+     avenue stands 46 off the centre line — clear of the paving, close
+     enough to walk under. West and east are different species on
+     purpose: an avenue of one clone reads as wallpaper. */
+  const AVEN_W = [[454, 1000, 1], [454, 1058, 0.92], [454, 1116, 1.05],
+                  /* wider apart either side of the gatehouse: the piers
+                     stand at 456 and 518, and a trunk two feet off one
+                     is a tree growing out of the gate */
+                  [428, 916, 0.95], [428, 858, 1.02]];
+  const AVEN_E = [[546, 1000, 0.96], [546, 1058, 1.06], [546, 1116, 0.94],
+                  [572, 916, 1.04], [572, 858, 0.98]];
+  /* Where a tree is the thing you are looking at rather than scenery:
+     either side of the gatehouse, the corners of the forecourt, and two
+     flanking the drive as it turns for the ballpark. */
+  const FEATURE = [[430, 962, 1], [570, 962, 0.94],
+                   [412, 1150, 1.06], [588, 1150, 0.98],
+                   [372, 1136, 0.9], [628, 1136, 0.92]];
   const FLORA = [
     ["assets/plantpack.glb", [["pine1", PINES1, 78, true], ["pine2", PINES2, 66, true],
-                              ["tree2", TREE2S, 54, true], ["treesmall", TSMALL, 40, true],
                               ["bushbig", BUSHA, 10], ["bushmed", BUSHB, 8], ["bushflower", BUSHC, 7]]],
+    /* The eighteen trees closest to the quad — the ones you walk under.
+       They were plantpack's stylised shapes, which are 211 triangles for
+       the entire pack of eight meshes: pleasant at a distance, and the
+       reason the campus still read as bubbles up close.
+
+       This is a sugar maple with photographed leaves, and it was sitting
+       unreferenced in assets/ the whole time. It costs nothing to bring
+       in — already committed, already downloaded — and because flora is
+       instanced, eighteen of them is two draw calls, not eighteen.
+
+       Its alpha cutoff is kept: see plantSpecies. The conifer belts and
+       the bushes stay stylised on purpose. They are read at distance and
+       in silhouette, where a photographed leaf buys nothing and costs
+       five thousand triangles a tree. */
+    ["assets/maple.glb", [["", TREE2S, 54, true, null, true],
+                          ["", TSMALL, 40, true, null, true]]],
+    /* And beyond the quad, where the campus was all conifer belts and
+       stylised shapes: an avenue down the boulevard to the athletics
+       district, the approach to the gatehouse, and the edge of the
+       forecourt.
+
+       Chosen by cost, not by looks. Instancing saves draw calls but not
+       triangles — a tree planted ten times is drawn ten times — and
+       this collection runs from 4,958 triangles for EZTree0.Medium011
+       up to 36,489 for EZTree1.Large001. The two mediums do the avenue
+       work; the large one is used six times where it is the thing you
+       are looking at, and Large001 is not used at all. */
+    ["assets/trees.glb", [["tree eztree0.medium011", AVEN_W, 58, true, null, true],
+                          ["tree eztree1.medium002", AVEN_E, 58, true, null, true],
+                          ["tree eztree0.large",     FEATURE, 74, true, null, true]]],
     ["assets/daffodils.glb", [["", DAFF, 3.4, false, "material"]]],
     ["assets/lavender.glb",  [["", LAV, 6]]],
     ["assets/cypress.glb",   [["", CYP, 12]]],
     ["assets/fern.glb",      [["", FERNS, 5]]],
   ];
   FLORA.forEach(([url, specs]) =>
-    gltf.load(url, g => specs.forEach(([p, l, h, sh, dm]) => plantSpecies(g.scene, p, l, h, sh, dm))));
+    gltf.load(url, g => specs.forEach(([p, l, h, sh, dm, ka]) =>
+      plantSpecies(g.scene, p, l, h, sh, dm, ka))));
 }
 const CARS = [];
 for (let i = 0; i < 10; i++){          /* east lot, two columns nose-in */
@@ -3362,33 +3437,89 @@ leaves.material.blending = THREE.NormalBlending;
 leaves.material.opacity = 0.75;
 world.add(leaves);
 
-/* ── students of the quad ────────────────────────────────────────── */
-const WAYPOINTS = { C: [500, 500] };
-const EDGES = { C: [] };
-for (let k = 0; k < 8; k++){
-  const a = 45 * k * Math.PI / 180;
-  WAYPOINTS["R" + k] = [Math.round(500 + 186 * Math.cos(a)), Math.round(500 + 186 * Math.sin(a))];
+/* ── where the students walk ──────────────────────────────────────────
+   They used to circle one ring around the great lawn, which put every
+   student on campus inside the same 180-unit circle — so however few of
+   them there were, they arrived in a parade. This is the paved campus
+   instead: the north walk to the cathedral, the south walk out to the
+   gates, the boulevard down to the athletics district and its branches,
+   the hall-to-hall ranges, the residence front, the car park.
+
+   The graph is built from the same polylines the walkways are drawn
+   from, which is the point. A student can only follow a path that
+   physically exists, and since those walks were already routed around
+   the halls — the science and administration walks visibly bend round
+   their own buildings — no route can pass through masonry by
+   construction rather than by a check that has to be remembered.
+
+   Nodes within a few feet of each other are the same node, so where two
+   walks meet, they join.  */
+const WAYPOINTS = {};
+const EDGES = {};
+{
+  let n = 0;
+  const node = (p) => {
+    for (const k in WAYPOINTS){
+      const q = WAYPOINTS[k];
+      if (Math.abs(q[0] - p[0]) < 10 && Math.abs(q[1] - p[1]) < 10) return k;
+    }
+    const k = "w" + (n++);
+    WAYPOINTS[k] = [Math.round(p[0]), Math.round(p[1])];
+    EDGES[k] = [];
+    return k;
+  };
+  const link = (a, b) => {
+    if (a === b) return;
+    if (!EDGES[a].includes(b)) EDGES[a].push(b);
+    if (!EDGES[b].includes(a)) EDGES[b].push(a);
+  };
+  const walk = (pts, loop) => {
+    const ks = pts.map(node);
+    for (let i = 1; i < ks.length; i++) link(ks[i - 1], ks[i]);
+    if (loop) link(ks[ks.length - 1], ks[0]);
+    return ks;
+  };
+  /* the ring around the great lawn, on the paving rather than the grass */
+  const RING_R = 182, ring = (k) =>
+    [500 + RING_R * Math.cos(k * Math.PI / 4), 500 + RING_R * Math.sin(k * Math.PI / 4)];
+  window.__ring = walk([0, 1, 2, 3, 4, 5, 6, 7].map(ring), true);
+  const N = ring(6), S = ring(2), W = ring(4), E = ring(0);
+
+  walk([[500, 150], [497, 236], [500, 300], N]);                 /* the processional  */
+  walk([S, [500, 760], [503, 840], [500, 918], [500, 985]]);      /* south to the gates */
+  walk([[268, 340], [300, 392], [330, 444], W]);                  /* library door       */
+  walk([[740, 306], [690, 340], [672, 412], [676, 456], E]);      /* engineering door   */
+  walk([[240, 822], [302, 832], [360, 800], [380, 738], [370, 660], [348, 594], W]);
+  /* kept south of the administration hall until it is west of it: the
+     drawn walk cuts that corner, and a student following it walks
+     through the corner rather than round it */
+  walk([[735, 832], [668, 838], [620, 836], [604, 718], [610, 640], [642, 570], E]);
+  walk([[268, 340], [350, 330], [450, 320], [550, 318], [650, 320], [740, 306]]);
+  walk([[240, 822], [296, 844], [356, 898], [440, 922], [560, 912], [660, 872], [735, 832]]);
+  walk([[268, 340], [300, 430], [304, 540], [318, 610], [370, 660]]);
+  walk([[740, 306], [828, 336], [842, 440], [816, 528], [740, 588], [676, 626]]);
+  /* The residence front, starting south of the library. The drawn walk
+     runs the full height of the hall, but its northern end is inside the
+     library's footprint — the two buildings overlap on paper even though
+     they do not on screen — so students join it below that. */
+  walk([[212, 330], [211, 392], [214, 466]]);                     /* residence front  */
+  walk([[212, 330], [240, 336], [268, 340]]);
+  walk([[214, 466], [244, 500], [286, 512], W]);
+  walk([[304, 540], [200, 556], [110, 568]]);                     /* down to the car park */
+  walk([[500, 985], [500, 1046], [500, 1104], [500, 1156]]);      /* the boulevard        */
+  /* Both branches leave the boulevard at the same node it actually has.
+     Drawn they peel off either side of it, but 24 feet apart is two
+     separate walks as far as a graph is concerned — and a student who
+     started on one would have spent the day on a stretch of path with
+     no way back to campus. */
+  walk([[500, 1104], [330, 1148], [152, 1192], [-40, 1236]]);     /* west to the ballpark */
+  walk([[500, 1104], [678, 1148], [854, 1190], [982, 1236]]);     /* east to the tennis   */
 }
-for (let k = 0; k < 8; k++) EDGES["R" + k] = ["R" + ((k + 1) % 8), "R" + ((k + 7) % 8)];
-Object.assign(WAYPOINTS, {
-  chapel: [500, 218], gate: [500, 905], south: [500, 946], east: [928, 500], west: [72, 500],
-  libDoor: [260, 326], engDoor: [740, 306], sciDoor: [240, 822], admDoor: [735, 832],
-  /* The two southern halls stand between their door and the ring, so a
-     straight run at the door goes through the building — sampled at 72%
-     and 85% of the way inside. The library and the engineering quad do
-     not have this problem: their doors face the ring across open lawn.
-     These corners take the walk out and around the front, the way you
-     would actually reach a door you can see but cannot walk through. */
-  sciApp: [402, 838], admApp: [598, 848],
-});
-Object.assign(EDGES, {
-  chapel: ["R6"], gate: ["R2", "south"], south: ["gate"], east: ["R0"], west: ["R4"],
-  libDoor: ["R5"], engDoor: ["R7"],
-  sciApp: ["R3", "sciDoor"], sciDoor: ["sciApp"],
-  admApp: ["R1", "admDoor"], admDoor: ["admApp"],
-});
-EDGES.R6.push("chapel"); EDGES.R2.push("gate"); EDGES.R0.push("east"); EDGES.R4.push("west");
-EDGES.R5.push("libDoor"); EDGES.R7.push("engDoor"); EDGES.R3.push("sciApp"); EDGES.R1.push("admApp");
+/* Somewhere to start that is not where everyone else started. Spread
+   across the whole graph rather than taken in order, so the extras open
+   the day scattered over the campus instead of filing out of one gate. */
+const ALL_WAYS = Object.keys(WAYPOINTS);
+const RING_SET = new Set(window.__ring);
 window.__ways = { WAYPOINTS, EDGES };   /* test/debug hook */
 
 const STUDENT_ROSTER = [
@@ -3444,33 +3575,109 @@ function mkPerson(jacketColor, seed){
   }
   return { g, legL, legR, armL, armR };
 }
-/* the photoreal cast, ferried in by the registrar: a mid-stride
-   walker, a rigged student frozen in a natural stance, a talker
-   mid-gesture, and a coder folded up with her laptop */
-/* stu_walker.glb is the only figure with a skeleton and real motion —
-   seven mocap clips on one Mixamo rig. The models it replaces (walk,
-   chat, laptop, athlete) carry no skin and no clips at all, which is why
-   those students used to glide across the lawn without moving a leg. */
-const CAST_FILES = { walker: "assets/stu_walker.glb", stand: "assets/stu_anim.glb",
-                     skate: "assets/stu_skater.glb" };
-const CAST_HEIGHT = { walker: 42, stand: 41, skate: 42 };
+/* ── the bodies ───────────────────────────────────────────────────────
+   Five rigged people, not one. This matters more than any amount of
+   recolouring: a campus built from a single mesh is a campus of
+   identical twins, and the eye reads that as a rendering fault long
+   before it reads it as a crowd. Tinting shirts buys a little; a
+   different skeleton, a different build and a different walk buys the
+   rest.
+
+   They are cheap, too. The original walker is 50k triangles, which is
+   extravagant for someone crossing a lawn — the strider is 13k and the
+   tutor 6k for the same silhouette at the same distance, so a mixed
+   crowd costs less per head than a uniform one did.
+
+   Each carries its own clips on its own skeleton (66, 68 and 69 bones —
+   they cannot share), so the roles below say what this body can do
+   rather than assuming everyone has the walker's seven clips.
+
+     roam    a gait to travel on
+     idle    something to do when standing still; without one, this
+             body simply does not stop
+     start   the first stride out of a standstill, if it has one
+
+   Models by their authors under CC-BY-4.0:
+     stu_strider  "Walk Characters B" by remy (noremey.rasip)
+     stu_oreizo   "Oreizo" by T-Art (person-x)
+     stu_tutor    "Animated Instructor Avatar" by sagefreeman
+     stu_gent     "Mr Man Walking" by Instinto Ideal Studio (instideal2019)
+     stu_mia      "Mia Walking"    by Instinto Ideal Studio (instideal2019)
+     stu_ariel    "walking test"   by Oussama.Lamrani
+     stu_teen     a teenage walker of the same family as the two above
+   stu_nathan is a scanned figure supplied by the site owner, who holds
+   the rights to it.                                                    */
+const CAST_FILES = {
+  walker:  "assets/stu_walker.glb",     /* 50k tris, 7 mocap clips      */
+  gent:    "assets/stu_gent.glb",       /* 41k tris, one walk cycle     */
+  mia:     "assets/stu_mia.glb",        /* 36k tris, one walk cycle     */
+  teen:    "assets/stu_teen.glb",       /* 35k tris, one walk cycle     */
+  ariel:   "assets/stu_ariel.glb",      /* 35k tris, one walk cycle     */
+  woman:   "assets/stu_woman.glb",      /* ferried in by the courier    */
+  alina:   "assets/stu_alina.glb",      /* ferried in by the courier    */
+  oreizo:  "assets/stu_oreizo.glb",     /* 33k tris, one walk cycle     */
+  nathan:  "assets/stu_nathan.glb",     /* 22k tris, a scan, one walk   */
+  strider: "assets/stu_strider.glb",    /* 13k tris, one walk cycle     */
+  tutor:   "assets/stu_tutor.glb",      /*  6k tris, a 25s standing loop */
+  stand:   "assets/stu_anim.glb",
+  skate:   "assets/stu_skater.glb",
+};
+/* ── who has to be here before the doors open ─────────────────────────
+   Thirteen rigged files is 19MB, all of it decoded on the main thread
+   before a phone can draw anything. But only seven of them are needed
+   to build the campus you arrive on: the named eight, the skater and
+   the loiterers. The other six exist solely for the crowd — and the
+   crowd deliberately does not start arriving until the campus has
+   finished loading, so making the campus wait for them is waiting for
+   people who are not allowed in yet.
+
+   They are fetched the moment the first group is done, and the ramp
+   uses whoever has turned up. Someone who joins the campus a few
+   seconds after you do is a student walking in, which is what this
+   looks like anyway.
+
+     first   8.3MB   walker gent mia nathan stand skate tutor
+     after  10.8MB   teen woman alina ariel oreizo strider          */
+const CAST_FIRST = ["walker", "gent", "mia", "nathan", "stand", "skate", "tutor"];
+/* A teenager is shorter, and the height is doing as much work here as
+   any of the colours — see buildOf, which varies each figure another
+   ±11% on top of these. */
+const CAST_HEIGHT = { walker: 42, gent: 43, mia: 40, teen: 38, woman: 41,
+                      alina: 40, ariel: 40, oreizo: 43, nathan: 43,
+                      strider: 42, tutor: 41, stand: 41, skate: 42 };
+/* Which bodies can be given a waypoint and told to walk it, and which
+   are only good for standing about. Eight that walk against a crowd
+   that caps at ten: the round robin runs out of new people only on the
+   ninth, and by then they are scattered over sixty-eight waypoints. */
+const ROAMING = ["walker", "gent", "mia", "teen", "woman", "alina",
+                 "oreizo", "nathan", "ariel", "strider"];
+const LOITERING = ["tutor", "stand"];
+/* Asked at the moment a figure is built, never pruned. Bodies now
+   arrive in two waves, so a list filtered once at startup would be
+   permanently missing the six that come in later — and every extra
+   after the sixth would be built from nothing. */
+const loadedRoaming = () => ROAMING.filter(k => castLib[k]);
+const loadedLoitering = () => LOITERING.filter(k => castLib[k]);
 /* Where the named eight are and what they are doing. A plan with
    neither `at` nor `orbit` roams the ring; the gait it roams with is
    drawn per figure in makeRoamer rather than fixed here, so the mix
    changes between visits. */
 const CAST_PLAN = [
-  { k: "walker" },                                          /* Elowen — roams        */
+  { k: "gent" },                                            /* Elowen — roams        */
   { k: "stand", at: [700, 340], face: -0.9, live: true, pose: 0 }, /* Marcus — Whitmore door */
   { k: "walker", at: [449, 449], face:  0.8, kind: "chat",  /* Priya  — plaza        */
     clip: "Idle" },
   { k: "walker", at: [543, 449], face: -2.4, kind: "laptop",/* Sofia  — lawn         */
     clip: "Sitting Talking" },
-  { k: "walker" },                                          /* Theo   — roams        */
+  { k: "mia" },                                             /* Theo   — roams        */
   /* Jun stood at 270,700 — which is inside the science hall, invisible
      behind its south wall. Out on the front now, facing the quad. */
   { k: "stand", at: [286, 838], face:  0.2, live: true, pose: 1 }, /* Jun — Alden front */
-  { k: "walker", orbit: 1, clip: "Jogging" },               /* Amara  — laps the oval */
-  { k: "walker" },                                          /* Kenji  — roams        */
+  /* Amara used to lap the ring at 182 — which, with the player standing
+     in the middle of it, meant she was on screen permanently. She runs
+     the campus now, on the same paths as everyone else, just faster. */
+  { k: "walker", jog: true },                               /* Amara  — runs the campus */
+  { k: "nathan" },                                          /* Kenji  — roams        */
 ];
 const castLib = {};
 const castMixers = [];
@@ -3487,7 +3694,14 @@ const castMixers = [];
    whatever the export settings, and clip length alone will not do it —
    some downloads carry two cycles and some one. */
 function gaitCycles(clip){
-  const t = clip.tracks.find(t => /UpLeg\.quaternion$/i.test(t.name));
+  /* Rigs do not agree on what a thigh is called. Mixamo says
+     LeftUpLeg; Character Creator says CC_Base_L_Thigh_04 and hangs
+     ThighTwist bones off it that rotate about the limb rather than
+     swinging it. Matching only UpLeg meant two of the bodies here
+     returned the fallback of one cycle — which makes their playback
+     pace wrong, and on a long clip reads as someone standing still. */
+  const t = clip.tracks.find(t =>
+    /(upleg|thigh|upperleg)[^.]*\.quaternion$/i.test(t.name) && !/twist|share|roll/i.test(t.name));
   if (!t) return 1;
   const v = t.values, n = 4;
   let mean = 0, count = 0;
@@ -3528,10 +3742,28 @@ function prepareClips(anims){
     inPlaceClip(c);
   }
 }
+/* Which body to actually build, given one that was asked for. The
+   crowd draws from a list already filtered to what loaded, but the
+   named cast asks by name — Elowen is the gent — and CAST_PLAN cannot
+   know that the gent's model 404'd. Standing in for them is a smaller
+   loss than losing the student. */
+function bodyFor(k){
+  if (castLib[k]) return k;
+  const pool = ROAMING.includes(k) ? loadedRoaming() : loadedLoitering();
+  const alt = pool[0] || loadedRoaming()[0] || loadedLoitering()[0] || null;
+  console.warn("cast: " + k + " is missing" +
+               (alt ? ", standing in " + alt : ", and nothing can stand in"));
+  return alt;
+}
 function prepFigure(k, height, live, clipIx = 0){
   const src = castLib[k];
-  const skinned = true;                  /* every remaining source is rigged */
+  /* Belt as well as braces. Every caller goes through bodyFor now, but
+     this is the line that used to throw — skeletonClone(undefined.scene)
+     — and throwing here kills buildCast and empties the entire campus,
+     which is the failure the loader was made resilient to avoid. */
+  if (!src) return null;
   const root = skeletonClone(src.scene);
+  let standMixer = null;
   if (k !== "walker" && src.animations.length){
     const mixer = new THREE.AnimationMixer(root);
     /* This character came down with four clips, and playing the first
@@ -3540,7 +3772,7 @@ function prepFigure(k, height, live, clipIx = 0){
        at this distance. */
     const clip = src.animations[clipIx % src.animations.length];
     mixer.clipAction(inPlaceClip(clip)).play();
-    if (live) castMixers.push(mixer);
+    if (live) standMixer = mixer;
     else mixer.update(0.7);              /* freeze in a natural stance */
   }
   root.updateMatrixWorld(true);
@@ -3549,9 +3781,11 @@ function prepFigure(k, height, live, clipIx = 0){
   const g2 = new THREE.Group();
   root.scale.setScalar(sc2);
   root.position.set(-(bb.min.x + bb.max.x) / 2 * sc2, -bb.min.y * sc2, -(bb.min.z + bb.max.z) / 2 * sc2);
+  const meshes = [];
   root.traverse(o => {
     if (!o.isMesh) return;
     o.castShadow = true;
+    meshes.push(o);                      /* kept for the distance detail pass */
     /* A skinned mesh's bounds are the bind pose, so a figure whose arms
        swing wider than that pops out of view at the edge of the screen.
        The cheap fix is to turn culling off — which is what this used to
@@ -3575,7 +3809,10 @@ function prepFigure(k, height, live, clipIx = 0){
   });
   g2.add(root);
   g2.userData.figure = k;                /* test/debug: this is a person */
-  if (k === "walker"){
+  g2.userData.meshes = meshes;
+  g2.userData.shadow = true;
+  if (standMixer) castMixers.push({ m: standMixer, g: g2 });
+  if (ROAMING.includes(k)){
     const mixer = new THREE.AnimationMixer(root);
     const actions = {}, nominal = {};
     for (const c of src.animations){
@@ -3588,18 +3825,139 @@ function prepFigure(k, height, live, clipIx = 0){
       const perCycle = 0.68 * (height || CAST_HEIGHT[k]);
       nominal[c.name] = (c.userData.cycles || 1) * perCycle / Math.max(0.05, c.duration);
     }
-    castMixers.push(mixer);
-    g2.userData.anim = { mixer, actions, nominal, current: null };
+    castMixers.push({ m: mixer, g: g2 });
+    g2.userData.anim = { mixer, actions, nominal, current: null, roles: rolesOf(k, src) };
   }
   return g2;
 }
+/* ── what can this body do? ───────────────────────────────────────────
+   Every download names its clips "mixamo.com", so the names say
+   nothing. What they can be asked is how fast a thigh swings in them:
+   a gait carries roughly one cycle a second and a standing loop barely
+   moves the legs at all — which is the same measure that paces
+   playback, so a body that reads as walking here also walks at the
+   right speed.
+
+   The original walker is the exception and keeps its hand-named clips,
+   because it has seven of them and they are known good. */
+const ROLE_CACHE = {};
+function rolesOf(k, src){
+  if (ROLE_CACHE[k]) return ROLE_CACHE[k];
+  if (k === "walker")
+    return (ROLE_CACHE[k] = { gaits: GAITS, idle: "Idle", start: "Start Walking" });
+  const scored = src.animations
+    .filter(c => c.duration > 0.2)                 /* an eye-blink is not a clip */
+    .map(c => ({ name: c.name, cadence: (c.userData?.cycles || 0) / c.duration }));
+  const gaits = scored.filter(c => c.cadence > 0.45).map(c => c.name);
+  const still = scored.filter(c => c.cadence <= 0.45).map(c => c.name);
+  /* No idle is not a fault, it is a fact about the download: a body
+     with nothing to do when standing simply never stops walking. That
+     reads far better than freezing someone mid-stride. */
+  const roles = { gaits, idle: still[0] || null, start: null };
+  ROLE_CACHE[k] = roles;
+  return roles;
+}
+/* ── what a figure is worth at this distance ──────────────────────────
+   A student across the campus costs exactly as much as one at your
+   elbow: six draws in the main pass, six more into the shadow map, and
+   a skeleton of sixty-odd bones stepped every frame. Two of those three
+   stop being worth anything long before the figure does.
+
+   Deliberately NOT a despawn radius. In walk mode the vertical field of
+   view is 62°, so a 42-unit figure is still about 4% of the screen
+   height at 900 units away — roughly 36px on the phone this was
+   measured on. Anything close enough to be worth culling is close
+   enough to see wink out, and a campus where people vanish at a fixed
+   range is worse than a campus with a few too many on it.
+
+   Their shadows and their skeletons are another matter — but only once
+   they are genuinely too small to read, and that is a question about
+   apparent size, not distance. This was first written as a pair of
+   fixed distances picked by eye, 340 and 460 units, and they were
+   wrong by about a factor of four: at walk-mode field of view a figure
+   460 units away still stands sixty-eight pixels tall, so what those
+   numbers actually did was freeze the legs of people plainly walking
+   towards you. It was invisible in a screenshot and obvious the moment
+   anything measured a thigh: every body on the campus read as frozen,
+   because in the aerial view the camera is a thousand units out and
+   nothing was being animated at all.
+
+   So the threshold is in pixels, worked out from the projection each
+   frame. Fifteen pixels is about where a stride stops registering as
+   motion; twenty-six is where a shadow becomes a smudge. On a campus
+   this size that means most of it keeps both, which is the honest
+   answer — the saving was never as large as those first numbers made
+   it look, it was mostly taken out of things you could see. */
+const ANIMATE_PX = 15, SHADOW_PX = 26;
+const _fp = new THREE.Vector3();
+function detailPass(){
+  const cam = camera.position;
+  /* height in pixels of a 42-unit figure one unit away — divide by
+     distance for its apparent size */
+  const k = 42 * (stageEl.clientHeight || 600) /
+            (2 * Math.tan(camera.fov * Math.PI / 360));
+  const ANIMATE_TO = k / ANIMATE_PX, SHADOW_TO = k / SHADOW_PX;
+  for (const s of students){
+    const g = s.g;
+    if (!g) continue;
+    g.getWorldPosition(_fp);
+    const d = _fp.distanceTo(cam);
+    g.userData.animate = d < ANIMATE_TO;
+    const want = d < SHADOW_TO;
+    if (g.userData.shadow !== want){
+      g.userData.shadow = want;
+      for (const m of g.userData.meshes) m.castShadow = want;
+    }
+  }
+}
 {
+  const first = CAST_FIRST.filter(k => CAST_FILES[k]);
+  const later = Object.keys(CAST_FILES).filter(k => !first.includes(k));
   let castReady = 0;
-  const keys = Object.keys(CAST_FILES);
-  keys.forEach(k => gltf.load(CAST_FILES[k], (g) => {
+  const arrive = (k, g) => {
     castLib[k] = g;
-    if (k === "walker") prepareClips(g.animations);
-    if (++castReady === keys.length) buildCast();
+    /* Measured before they are pinned in place, for every body that
+       walks — the gait count is what both paces playback and tells a
+       walk cycle from a standing loop. */
+    if (ROAMING.includes(k)) prepareClips(g.animations);
+  };
+  /* One missing model used to take the whole cohort with it: the counter
+     never reached the total, buildCast never ran, and the campus had
+     nobody on it at all — with the only clue a 404 in the console. With
+     thirteen bodies that is thirteen ways to empty the quad, so a body
+     that does not arrive is simply one fewer person. */
+  const lost = (k, err) =>
+    console.warn("cast: " + CAST_FILES[k] + " did not load, carrying on without it", err);
+  const done = () => {
+    if (++castReady < first.length) return;
+    if (!loadedRoaming().length && !loadedLoitering().length){
+      console.error("no rigged body loaded — no students");
+      return;
+    }
+    /* Claimed before the campus is built, not after. buildCast ends by
+       offering to fill a ?crowd quad, and if the count were still zero
+       at that moment it would fill from the first wave alone — which is
+       the exact thing deferring the rest was supposed not to cost. */
+    lateOutstanding = later.length;
+    buildCast();
+    /* Now, and not before. Fetching these alongside the campus would put
+       10.8MB of people nobody can meet yet in front of the models the
+       campus is made of. */
+    gltf.__late = true;
+    const settled = () => { if (--lateOutstanding === 0) fillForcedCrowd(); };
+    later.forEach(k => gltf.load(CAST_FILES[k],
+      (g) => { arrive(k, g); settled(); },
+      undefined,
+      (e) => { lost(k, e); settled(); }));
+    gltf.__late = false;
+    if (!later.length) fillForcedCrowd();
+  };
+  first.forEach(k => gltf.load(CAST_FILES[k], (g) => {
+    arrive(k, g);
+    done();
+  }, undefined, (err) => {
+    lost(k, err);
+    done();
   }));
 }
 /* ── dressing one model as a whole cohort ────────────────────────────
@@ -3653,12 +4011,23 @@ function dressFigure(g, seed){
                   shorts: pick(WARDROBE.shorts, 3), sneakers: pick(WARDROBE.sneakers, 4) };
   g.traverse(o => {
     if (!o.isMesh || !o.material) return;
-    const what = /hair/i.test(o.name) ? "hair"
-               : /shirt|top|jacket/i.test(o.name) ? "shirt"
-               : /short|pant|trouser|jean/i.test(o.name) ? "shorts"
-               : /shoe|sneaker|boot/i.test(o.name) ? "sneakers"
-               : /body|skin|head/i.test(o.name) ? "skin" : null;
-    if (!what) return;                     /* the eyelashes are left alone */
+    /* Every body names its parts somewhere, but not in the same place.
+       The Mixamo walker names the nodes (Ch42_Shirt); the Ready Player
+       Me avatar and Oreizo name the materials (Wolf3D_Outfit_Top,
+       Shirt.001) and leave the nodes as Object_11. Read both, or two of
+       the three bodies silently keep their factory outfit — which looks
+       exactly like the wardrobe working, since they are different
+       people to begin with. */
+    const tag = (o.name || "") + " " + (o.material.name || "");
+    /* A beard follows the hair. One of these bodies carries its
+       moustache on its own material, and a blond crop over a black
+       moustache is not a person, it is a bug. */
+    const what = /hair|beard|moustache|mustache|scalp|brow|eyelash/i.test(tag) ? "hair"
+               : /shirt|top|jacket/i.test(tag) ? "shirt"
+               : /short|pant|trouser|jean|bottom|denim/i.test(tag) ? "shorts"
+               : /shoe|sneaker|boot|footwear|canvas/i.test(tag) ? "sneakers"
+               : /body|skin|head/i.test(tag) ? "skin" : null;
+    if (!what) return;                     /* eyes and eyelashes are left alone */
     /* Clone first. SkeletonUtils shares materials between clones, so
        tinting in place would dress the entire cohort identically — and
        the mistake is invisible until the second figure is built. */
@@ -3686,9 +4055,20 @@ const GAITS = ["Standard Walk", "Strut Walking", "Walk Forward"];
    cast and by the crowd behind them, so the two move under identical
    rules — an extra who walks differently from a classmate reads as a
    bug, however well dressed. */
-function makeRoamer(g, startKey, extra){
-  const gait = GAITS[Math.floor(Math.random() * GAITS.length)];
-  if (g.userData.anim){ setClipOn(g, "Idle"); stagger(g, "Idle"); stagger(g, gait); }
+function makeRoamer(g, startKey, extra, forceGait){
+  /* Whatever this body can actually do. The walker has three gaits and
+     an idle; the strider has one walk and nothing else, so it never
+     stands still — which is the truthful thing to do with it, and looks
+     better than freezing someone mid-stride. */
+  const roles = g.userData.anim?.roles || { gaits: GAITS, idle: "Idle", start: null };
+  const pool = roles.gaits.length ? roles.gaits : GAITS;
+  const gait = (forceGait && pool.includes(forceGait)) ? forceGait
+             : pool[Math.floor(Math.random() * pool.length)];
+  if (g.userData.anim){
+    if (roles.idle){ setClipOn(g, roles.idle); stagger(g, roles.idle); }
+    else setClipOn(g, gait);
+    stagger(g, gait);
+  }
   /* Let the clip set the pace rather than stretching it to fit a speed
      picked out of the air. A gait has a natural rate, and a student
      walking faster than their own animation is exactly the sliding-feet
@@ -3704,11 +4084,11 @@ function makeRoamer(g, startKey, extra){
      single file and then overlaps outright — which is precisely what a
      crowd must not do. */
   const lane = [(Math.random() - 0.5) * 24, (Math.random() - 0.5) * 24];
-  const open = startKey[0] === "R";       /* the ring; doors are too tight — see below */
-  const s = { g, node: startKey, lane, speed, target: null, pauseUntil: 0,
+  const open = RING_SET.has(startKey);
+  const s = { g, node: startKey, lane, speed, target: null, pauseUntil: 0, roles,
               pos: [WAYPOINTS[startKey][0] + (open ? lane[0] : 0),
                     WAYPOINTS[startKey][1] + (open ? lane[1] : 0)],
-              anim0: "Idle", idleRate: 0.85 + Math.random() * 0.3,
+              anim0: roles.idle, idleRate: 0.85 + Math.random() * 0.3,
               phase: Math.random() * 9, walkT: 0, gait: 0, gait2: gait };
   if (extra) Object.assign(s, extra);
   students.push(s);
@@ -3723,8 +4103,11 @@ function buildOf(seed){
 function buildCast(){
   STUDENT_ROSTER.forEach((st, i) => {
     const plan = CAST_PLAN[i];
-    const g = prepFigure(plan.k, CAST_HEIGHT[plan.k] * buildOf(i), plan.live, plan.pose || 0);
-    if (plan.k === "walker") dressFigure(g, i);
+    const k = bodyFor(plan.k);
+    if (!k) return;                      /* nothing loaded at all */
+    const g = prepFigure(k, CAST_HEIGHT[k] * buildOf(i), plan.live, plan.pose || 0);
+    if (!g) return;
+    if (ROAMING.includes(k)) dressFigure(g, i);
     const tagEl = document.createElement("div");
     tagEl.className = "stu-tag";
     tagEl.textContent = st.name;
@@ -3747,27 +4130,52 @@ function buildCast(){
                       phase0: i * 1.7, pos: [...plan.at] });
       return;
     }
-    makeRoamer(g, ["R0","R1","R2","R3","R4","R5","R6","R7"][i % 8], { data: st });
+    /* The named ones walk the campus too. Keeping them on the ring put
+       five of the nine fixed figures inside a 182-foot circle that the
+       player stands in the middle of — measured at eight people within
+       220 feet of the fountain, which is a crowd however well the extras
+       are spread. They carry name tags, so meeting Theo on the boulevard
+       finds him just as well as circling the lawn did. */
+    const s = makeRoamer(g, ALL_WAYS[(i * 11 + 5) % ALL_WAYS.length], { data: st },
+                         plan.jog ? "Jogging" : null);
+    if (plan.jog) s.speed *= 1.5;
   });
-  /* an uncommissioned regular: the skater, carving the ring the other way */
-  const sk = prepFigure("skate", 0, true);
-  world.add(sk);
-  students.push({ g: sk, orbit: 175, orbitA: 3.6, orbitW: -0.34, skate: true,
-                  pos: [500 + Math.cos(3.6) * 175, 500 + Math.sin(3.6) * 175] });
+  /* An uncommissioned regular, carving laps — down at the athletics
+     forecourt, where a skateboard belongs and where he is not making up
+     a sixth of everything visible from the fountain. */
+  const sk = castLib.skate ? prepFigure("skate", 0, true) : null;
+  if (sk){
+    world.add(sk);
+    students.push({ g: sk, orbit: 84, orbitA: 3.6, orbitW: -0.6, skate: true,
+                    cx: 500, cy: 1120,
+                    pos: [500 + Math.cos(3.6) * 84, 1120 + Math.sin(3.6) * 84] });
+  }
   /* Three more of the second rigged character — a genuinely different
      body rather than the walker re-dressed, which is worth more than any
      amount of recolouring. Their download carries no gait, so they are
-     put where standing about is what people do: by a door, at the edge
-     of the plaza, under the trees. Each takes a different one of the
-     four clips that came with them. */
-  [[612, 806, -1.1, 1], [418, 372, 2.3, 2], [560, 300, -2.6, 3]].forEach(([x, y, face, pose]) => {
-    const g = prepFigure("stand", CAST_HEIGHT.stand * buildOf(pose * 17 + 5), true, pose);
+     put where standing about is what people do.
+
+     Out at the edges, not on the lawn. Two of them used to stand 152 and
+     209 feet from the fountain, which is to say permanently in shot from
+     the middle of the quad — a figure that never moves costs the view
+     far more than one walking through it. */
+  [[236, 344, -1.4, 1], [520, 962, 2.9, 2], [470, 1150, -2.0, 3]].forEach(([x, y, face, pose], i) => {
+    const pool = loadedLoitering();
+    if (!pool.length) return;
+    const k = pool[i % pool.length];
+    const g = prepFigure(k, CAST_HEIGHT[k] * buildOf(pose * 17 + 5), true, pose);
+    if (!g) return;
     g.position.set(W(x), 0, W(y));
     g.rotation.y = face;
     world.add(g);
   });
   crowdReady = true;
-  if (CROWD_FORCE !== null){ while (crowdN < CROWD_FORCE) addExtra(crowdN++); crowdDone = true; }
+  /* ?crowd is deliberately NOT filled here. buildCast now runs on the
+     first wave of bodies, so forcing a quad at this moment would draw
+     it from seven of the thirteen and show less variety than simply
+     waiting would — on the one flag whose entire purpose is to show the
+     variety. It is filled when the rest have arrived. */
+  fillForcedCrowd();
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -3792,8 +4200,8 @@ function buildCast(){
    holding" is not a feature. A handful always arrive; the ramp only
    decides how far past them to go.
    ══════════════════════════════════════════════════════════════════ */
-const CROWD_MAX = 26;
-const CROWD_MIN = 5;                 /* arrive regardless of what it costs */
+const CROWD_MAX = 10;
+const CROWD_MIN = 3;                 /* arrive regardless of what it costs */
 /* Above any 30Hz display cap and well below 60, so a phone that is
    merely capped is not mistaken for a phone that is struggling — and a
    machine actually labouring in the low thirties stops at the five. */
@@ -3804,15 +4212,43 @@ const CROWD_FLOOR = 33;
    crowd untested on the only machine that tests anything. */
 const CROWD_FORCE = q.has("crowd") ? Math.max(0, Math.min(CROWD_MAX, +q.get("crowd") || 0)) : null;
 let crowdReady = false, crowdN = 0, crowdNext = 0, crowdDone = false, crowdFps = 60;
-const CROWD_START = ["R0","R1","R2","R3","R4","R5","R6","R7",
-                     "libDoor","engDoor","sciDoor","admDoor","gate","chapel","east","west"];
+/* ?crowd fills the quad once every body that is coming has come, so a
+   forced crowd shows the whole cohort rather than whichever half
+   happened to load first. Called both when the campus is built and when
+   the late wave settles, whichever is last — and it is idempotent, so
+   being called twice costs nothing. */
+let lateOutstanding = 0, lateGiveUp = 0;
+function fillForcedCrowd(){
+  if (CROWD_FORCE === null || !crowdReady || crowdN >= CROWD_FORCE) return;
+  if (lateOutstanding > 0){
+    /* Wait for the rest of the cohort — but not indefinitely. Decoding
+       ten megabytes of people takes seconds on a phone and minutes on a
+       software rasterizer, and a body that never arrives at all would
+       otherwise leave ?crowd showing an empty quad forever. Twenty
+       seconds, then fill with whoever is here. */
+    if (!lateGiveUp) lateGiveUp = setTimeout(() => { lateOutstanding = 0; fillForcedCrowd(); }, 20000);
+    return;
+  }
+  clearTimeout(lateGiveUp);
+  while (crowdN < CROWD_FORCE) addExtra(crowdN++);
+  crowdDone = true;
+}
 function addExtra(n){
   const seed = 101 + n * 3;
-  const g = prepFigure("walker", CAST_HEIGHT.walker * buildOf(seed), false);
+  /* Round the bodies rather than at random, so a crowd of three is
+     three different people rather than three rolls of the same die. */
+  const pool = loadedRoaming();
+  if (!pool.length) return;
+  const k = pool[n % pool.length];
+  const g = prepFigure(k, CAST_HEIGHT[k] * buildOf(seed), false);
+  if (!g) return;
   dressFigure(g, seed);
   g.userData.crowd = true;               /* test/debug: not one of the named */
   world.add(g);
-  makeRoamer(g, CROWD_START[n % CROWD_START.length]);
+  /* Started at nodes drawn from across the whole graph rather than in
+     order, so the first arrivals are not all standing on the same walk.
+     The stride is deliberately coprime-ish with the node count. */
+  makeRoamer(g, ALL_WAYS[(n * 7 + 3) % ALL_WAYS.length]);
 }
 function stepCrowd(now, dt){
   /* a slow average, so one stutter — a model finishing its decode, a
@@ -3824,7 +4260,11 @@ function stepCrowd(now, dt){
      renderer never got to draw. Reading that as "this machine is slow"
      would cap the crowd at nobody on exactly the hardware where the
      measurement was supposed to help. */
-  if (!assetLog.length || assetLog.some(a => a.ms == null)) return;
+  /* `late` is excluded on purpose: those are the six bodies fetched only
+     for this crowd, and waiting for them before starting it is a
+     deadlock in slow motion — the campus would hold the ramp for models
+     that exist to feed it. */
+  if (!assetLog.length || assetLog.some(a => a.ms == null && !a.late)) return;
   if (!crowdNext){ crowdNext = now + 2000; crowdFps = 60; return; }   /* settle */
   if (now < crowdNext) return;
   if (crowdN >= CROWD_MIN && crowdFps < CROWD_FLOOR){ crowdDone = true; return; }
@@ -3861,6 +4301,20 @@ function matchSpeed(s, name, speed){
   if (!act) return;
   act.timeScale = (nom > 0.5) ? Math.max(0.55, Math.min(1.9, speed / nom)) : 1;
 }
+/* Would this step put a student inside someone else's space? Only a
+   step that closes an already-short gap counts — otherwise two people
+   who have ended up near each other could never walk apart again. */
+const SPACE = 27;
+function crowded(self, nx, ny){
+  for (const o of students){
+    if (o === self || !o.pos) continue;
+    const d2 = (o.pos[0] - nx) ** 2 + (o.pos[1] - ny) ** 2;
+    if (d2 > SPACE * SPACE) continue;
+    const was = (o.pos[0] - self.pos[0]) ** 2 + (o.pos[1] - self.pos[1]) ** 2;
+    if (d2 < was) return true;
+  }
+  return false;
+}
 function stepStudents(dt, now){
   for (const s of students){
     if (s.static){
@@ -3872,8 +4326,9 @@ function stepStudents(dt, now){
     if (s.orbit){
       /* the jogger and the skater carve steady laps of the oval */
       s.orbitA += dt * s.orbitW;
-      const nx = 500 + Math.cos(s.orbitA) * s.orbit;
-      const ny = 500 + Math.sin(s.orbitA) * s.orbit;
+      const cx = s.cx ?? 500, cy = s.cy ?? 500;
+      const nx = cx + Math.cos(s.orbitA) * s.orbit;
+      const ny = cy + Math.sin(s.orbitA) * s.orbit;
       s.g.rotation.y = Math.atan2(nx - s.pos[0], ny - s.pos[1]);
       s.pos[0] = nx; s.pos[1] = ny;
       /* the jogger's own bob comes from the clip now; only the skater,
@@ -3892,36 +4347,53 @@ function stepStudents(dt, now){
       }
       /* Aim for this student's own lane through the waypoint rather than
          its exact centre — see makeRoamer — but only out on the ring.
-         The door and gate waypoints sit hard against the buildings they
-         serve, close enough that the walkways themselves graze the
-         footprints on the way in; offsetting an approach by a few feet
-         puts a shoulder through a wall. On the open ring there is
-         nothing to walk into and everything to spread out from. */
+         The walks elsewhere are narrow and run close to the buildings
+         they serve; offsetting an approach by a few feet puts a shoulder
+         through a wall. On the open ring there is nothing to walk into
+         and everything to spread out from. */
       const w = WAYPOINTS[s.target];
-      const lane = s.lane && s.target[0] === "R" ? s.lane : null;
+      const lane = s.lane && RING_SET.has(s.target) ? s.lane : null;
       const tx = w[0] + (lane ? lane[0] : 0), ty = w[1] + (lane ? lane[1] : 0);
       const dx = tx - s.pos[0], dy = ty - s.pos[1];
       const dist = Math.hypot(dx, dy);
       if (dist < 2){
         s.node = s.target; s.target = null;
-        if (Math.random() < 0.5) s.pauseUntil = now + 900 + Math.random() * 2600;
+        /* Standing about is most of what people do on a campus, and a
+           student who stops is a student not adding to the queue behind
+           them. Two thirds pause at each waypoint, for longer than they
+           used to. */
+        if (s.roles?.idle && Math.random() < 0.66)
+          s.pauseUntil = now + 1400 + Math.random() * 5200;
       } else {
-        moving = true;
-        s.pos[0] += dx / dist * s.speed * dt;
-        s.pos[1] += dy / dist * s.speed * dt;
-        s.g.rotation.y = Math.atan2(dx, dy);
+        const nx = s.pos[0] + dx / dist * s.speed * dt;
+        const ny = s.pos[1] + dy / dist * s.speed * dt;
+        /* Personal space. Nothing stopped two students standing in the
+           same square foot, and on a shared walk they would converge and
+           then walk as one silhouette — which, with a single character
+           model, reads as the renderer having drawn the same man twice.
+           Never step closer to someone you are already too close to;
+           hang back a moment instead, the way you would. */
+        if (crowded(s, nx, ny)) s.pauseUntil = now + 300 + Math.random() * 700;
+        else {
+          moving = true;
+          s.pos[0] = nx; s.pos[1] = ny;
+          s.g.rotation.y = Math.atan2(dx, dy);
+        }
       }
     }
     if (s.g.userData.anim){
       /* walking or standing about, and the clip supplies every bit of the
          motion — no faked bob, no swaying, no procedural limbs */
+      const R = s.roles || {};
       if (moving){
-        /* Nobody goes from standing to full stride in one frame. There is
-           a clip for exactly this — Start Walking — so use it for the
-           first stride and hand over to the gait once it has played. */
-        if (s.startedAt === undefined && s.anim0 === "Idle"){
+        /* Nobody goes from standing to full stride in one frame. The
+           walker has a clip for exactly this — Start Walking — so it
+           takes the first stride and hands over to the gait. The bodies
+           that came with a single walk cycle have nothing to hand over
+           from, and never stood still to begin with. */
+        if (R.start && s.startedAt === undefined && s.anim0 === R.idle){
           s.startedAt = now;
-          setClip(s, "Start Walking", 0.18);
+          setClip(s, R.start, 0.18);
         }
         if (s.startedAt !== undefined && now - s.startedAt > 620){
           s.startedAt = undefined;
@@ -3930,16 +4402,16 @@ function stepStudents(dt, now){
           setClip(s, s.gait2);
           matchSpeed(s, s.gait2, s.speed);
         } else {
-          matchSpeed(s, "Start Walking", s.speed);
+          matchSpeed(s, R.start, s.speed);
         }
         s.anim0 = "moving";
-      } else {
-        setClip(s, "Idle");
+      } else if (R.idle){
+        setClip(s, R.idle);
         /* standing still is where identical clips are most obvious, so
            give every figure its own slightly different tempo */
-        const idle = s.g.userData.anim.actions["Idle"];
+        const idle = s.g.userData.anim.actions[R.idle];
         if (idle) idle.timeScale = s.idleRate;
-        s.anim0 = "Idle";
+        s.anim0 = R.idle;
         s.startedAt = undefined;
       }
       s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
@@ -4650,6 +5122,7 @@ function refreshQuest(){
 {
   const LS_QUEST = "pembroke.registrar.quest";
   const el = document.getElementById("quest");
+  let questTimer = 0;
   const setFold = (folded, remember) => {
     el.classList.toggle("folded", folded);
     el.setAttribute("aria-expanded", String(!folded));
@@ -4662,7 +5135,12 @@ function refreshQuest(){
       (folded ? ". Activate to expand." : ". Activate to fold away."));
     if (remember) localStorage.setItem(LS_QUEST, folded ? "folded" : "open");
   };
-  setFold(localStorage.getItem(LS_QUEST) === "folded", false);
+  /* Folded unless you have opened it. It was the other way round, and on
+     a phone in walk mode this card is a bar across the width of the
+     screen — the one thing you are looking through. The objective is
+     still on the pip, in the tooltip and on the accessible name, and a
+     new one still announces itself below. */
+  setFold(localStorage.getItem(LS_QUEST) !== "open", false);
   el.addEventListener("click", () => setFold(!el.classList.contains("folded"), true));
   el.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " "){
@@ -4678,9 +5156,23 @@ function refreshQuest(){
     const after = document.getElementById("quest-text").textContent;
     /* either way the name has to follow the objective, or a folded card
        keeps announcing the course you already finished */
-    if (before && before !== after) setFold(false, false);
+    if (before && before !== after){
+      /* A new objective is worth interrupting for — once. It opens,
+         says what changed, and folds itself back away, rather than
+         holding the screen until someone thinks to dismiss it. Not if
+         you had deliberately opened it: that is your choice, not the
+         registrar's. */
+      setFold(false, false);
+      clearTimeout(questTimer);
+      if (localStorage.getItem(LS_QUEST) !== "open")
+        questTimer = setTimeout(() => setFold(true, false), 6500);
+    }
     else setFold(el.classList.contains("folded"), false);
   };
+  /* test/debug hook: the announce-then-fold behaviour only happens when
+     the objective actually changes, and nothing else can provoke that
+     from outside the module */
+  window.__refreshQuest = () => refreshQuest();
 }
 const mm = document.getElementById("minimap");
 function drawMinimap(){
@@ -4748,8 +5240,15 @@ function dbgUpdate(now, dt){
   const fps = dbgAcc > 0 ? dbgFrames / dbgAcc : 0;
   dbgFrames = 0; dbgAcc = 0;
   const inf = renderer.info;
-  const done = assetLog.filter(a => a.ms != null);
-  const pending = assetLog.length - done.length;
+  /* The campus is what "all in" means. The six bodies fetched after it
+     are reported separately, or the headline time would jump backwards
+     the moment the crowd's models start arriving and read as a
+     regression in something that just got faster. */
+  const core = assetLog.filter(a => !a.late);
+  const done = core.filter(a => a.ms != null);
+  const pending = core.length - done.length;
+  const lateIn = assetLog.filter(a => a.late && a.ms != null).length;
+  const lateAll = assetLog.filter(a => a.late).length;
   const bad = done.filter(a => a.err);
   /* failures first: a 404 fails fast, and sorting by duration alone
      would bury it under six slow successes — exactly when it matters */
@@ -4770,8 +5269,10 @@ function dbgUpdate(now, dt){
       (CROWD_FORCE !== null ? "  (forced by ?crowd)" :
        crowdN >= CROWD_MAX ? "  (full)" :
        crowdDone ? "  (capped at " + crowdFps.toFixed(0) + "fps)" : "  (arriving)") + "\n" +
-    "assets " + done.length + "/" + assetLog.length + (bad.length ? "  " + bad.length + " FAILED" : "") +
+    "assets " + done.length + "/" + core.length + (bad.length ? "  " + bad.length + " FAILED" : "") +
       (pending ? "  (" + pending + " loading)" : "  all in " + (last / 1000).toFixed(1) + "s") + "\n" +
+    (lateAll ? "cast   " + lateIn + "/" + lateAll + " later bodies" +
+               (lateIn < lateAll ? "  (arriving)" : "") + "\n" : "") +
     (slow ? "slowest\n" + slow : "");
 }
 
@@ -4798,7 +5299,10 @@ renderer.setAnimationLoop(() => {
     fireflies.position.y = Math.sin(now / 1700) * 4;
   }
   if (fountainWater) fountainWater.rotation.z += dt * 0.4;
-  castMixers.forEach(m => m.update(dt));
+  detailPass();
+  /* a skeleton nobody can see the legs of is a skeleton not worth
+     stepping — see detailPass */
+  castMixers.forEach(x => { if (x.g.userData.animate !== false) x.m.update(dt); });
   {  /* leaves drift down and sideways, respawning at the canopy */
     const lp = leaves.geometry.attributes.position;
     for (let i = 0; i < lp.count; i++){
@@ -5257,7 +5761,7 @@ document.getElementById("daynight").addEventListener("click", () => {
 });
 
 /* ── ignition ────────────────────────────────────────────────────── */
-window.__app = { selectSector, openInterior, camera, controls, world };   /* test/debug hooks */
+window.__app = { selectSector, openInterior, camera, controls, world, THREE };   /* test/debug hooks */
 aerialHome();          /* now that #stage has a real size, frame for it */
 applyMode();
 renderChips();

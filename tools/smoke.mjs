@@ -364,19 +364,23 @@ try {
     .catch(() => {});
   const c = await crowdPage.evaluate(() => {
     const out = { ...window.__crowd(), shirts: new Set(), skins: new Set(),
-                  builds: new Set(), tinted: 0 };
+                  builds: new Set(), bodies: new Set(), tinted: 0 };
     window.__app.world.children.forEach(fig => {
       if (!fig.userData?.anim) return;                /* not one of the walkers */
       out.builds.add(fig.scale.x.toFixed(3));
+      out.bodies.add(fig.userData.figure);
       fig.traverse(o => {
         if (!o.isSkinnedMesh) return;
+        /* the same both-places read the wardrobe does: the walker names
+           its nodes, the other two name their materials */
+        const tag = (o.name || "") + " " + (o.material.name || "");
         const hex = o.material.color.getHexString();
-        if (/shirt/i.test(o.name)){ out.shirts.add(hex); out.tinted++; }
-        if (/body/i.test(o.name)) out.skins.add(hex);
+        if (/shirt|top|jacket/i.test(tag)){ out.shirts.add(hex); out.tinted++; }
+        if (/body|skin/i.test(tag)) out.skins.add(hex);
       });
     });
     return { ...out, shirts: out.shirts.size, skins: out.skins.size,
-             builds: out.builds.size };
+             builds: out.builds.size, bodies: [...out.bodies].sort().join("+") };
   }).catch(() => null);
   step("?crowd fills the quad", !!c && c.people >= 17,
        c ? c.people + " people" : "no crowd hook");
@@ -398,17 +402,52 @@ try {
       for (const to of tos){
         const a = WAYPOINTS[from], b = WAYPOINTS[to];
         if (!a || !b) { bad.push(`${from}->${to} (missing waypoint)`); continue; }
+        /* Only the middle of the leg. A walk that *arrives* at a door
+           legitimately crosses into the footprint at its very end —
+           that is what a door is — so judging the whole leg would
+           either fail every door or need a tolerance loose enough to
+           let a real pass-through slip by. What must never happen is a
+           leg whose middle is indoors. */
         let hits = 0;
-        for (let t = 0; t <= 1; t += 0.004){
+        for (let t = 0.15; t <= 0.85; t += 0.004){
           const x = a[0] + (b[0] - a[0]) * t, y = a[1] + (b[1] - a[1]) * t;
           if (BOX.some(([bx, by, w, d]) => x > bx && x < bx + w && y > by && y < by + d)) hits++;
         }
-        if (hits > 6) bad.push(`${from}->${to} ${Math.round(hits / 251 * 100)}% inside`);
+        if (hits) bad.push(`${from}->${to} ${Math.round(hits / 176 * 100)}% of its middle indoors`);
       }
     }
     return bad;
   }).catch(() => ["could not read the waypoint graph"]);
   step("no student route runs through a building", legs.length === 0, legs.slice(0, 4).join(" | "));
+
+  /* Every node has to lead somewhere, and somewhere has to lead back.
+     The athletics branches were built 24 feet off the boulevard node
+     they visibly leave — two separate walks as far as a graph is
+     concerned — so a student who started on one would have spent the
+     day on a stretch of path with no way back to the campus, which
+     looks exactly like a student who simply wandered off. */
+  const reach = await crowdPage.evaluate(() => {
+    const { WAYPOINTS, EDGES } = window.__ways;
+    const keys = Object.keys(WAYPOINTS);
+    const orphaned = keys.filter(k => !EDGES[k] || !EDGES[k].length);
+    const seen = new Set([keys[0]]), q = [keys[0]];
+    while (q.length){
+      const k = q.pop();
+      for (const e of EDGES[k] || []) if (!seen.has(e)){ seen.add(e); q.push(e); }
+    }
+    return { total: keys.length, reached: seen.size, orphaned: orphaned.length };
+  }).catch(() => null);
+  step("every corner of the campus can be walked to",
+       !!reach && reach.reached === reach.total && !reach.orphaned,
+       reach ? `${reach.reached}/${reach.total} nodes reachable` +
+               (reach.orphaned ? `, ${reach.orphaned} with no way out` : "")
+             : "could not read the waypoint graph");
+  /* Three rigged bodies, not one wearing three shirts. A body that
+     stops being loaded, or a wardrobe regex that stops matching the
+     material names two of them use, leaves a cohort that still passes
+     every colour count while looking like one man in fancy dress. */
+  step("the crowd is drawn from more than one body",
+       !!c && c.bodies.split("+").length >= 3, c ? c.bodies : "could not read the cohort");
   step("the crowd is not one person fourteen times",
        !!c && c.shirts >= 6 && c.skins >= 4 && c.builds >= 8,
        c ? `${c.shirts} shirt colours, ${c.skins} complexions, ${c.builds} builds ` +
