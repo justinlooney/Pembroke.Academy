@@ -3611,7 +3611,14 @@ const castMixers = [];
    whatever the export settings, and clip length alone will not do it —
    some downloads carry two cycles and some one. */
 function gaitCycles(clip){
-  const t = clip.tracks.find(t => /UpLeg\.quaternion$/i.test(t.name));
+  /* Rigs do not agree on what a thigh is called. Mixamo says
+     LeftUpLeg; Character Creator says CC_Base_L_Thigh_04 and hangs
+     ThighTwist bones off it that rotate about the limb rather than
+     swinging it. Matching only UpLeg meant two of the bodies here
+     returned the fallback of one cycle — which makes their playback
+     pace wrong, and on a long clip reads as someone standing still. */
+  const t = clip.tracks.find(t =>
+    /(upleg|thigh|upperleg)[^.]*\.quaternion$/i.test(t.name) && !/twist|share|roll/i.test(t.name));
   if (!t) return 1;
   const v = t.values, n = 4;
   let mean = 0, count = 0;
