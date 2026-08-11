@@ -685,8 +685,14 @@ body.diagnosing #campus-wing-intro{opacity:0;pointer-events:none;}
   .walkmode #quest .q-text{
     margin-top:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
-  /* folded, it is a pip — it must not sit on the panel someone opened
-     ?debug specifically to read */
+  /* Folded has to actually fold. The rule above stretches the card to
+     the width of the screen with `right`, and it outranks the plain
+     .folded rule — so on a phone in walk mode, the one place this
+     matters most, folding it away left a 300px bar sitting exactly
+     where it always was. Measured at 11,316px² folded against 1,583px²
+     on the desktop layout, which is to say: not folded at all. */
+  .walkmode #quest.folded{ right:auto; max-width:2.6rem; width:max-content; }
+  /* and it must not sit on the panel someone opened ?debug to read */
   .diagnosing.walkmode #quest{ top:auto; bottom:1rem; right:auto; width:max-content; }
   .walkmode #minimap{ width:74px; height:74px; }
 }
