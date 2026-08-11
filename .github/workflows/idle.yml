@@ -47,7 +47,7 @@ jobs:
           # Every body that came with one walk cycle. The three Character
           # Creator ones are listed too, on purpose: the tool decides,
           # not this file, and its refusal is logged where it can be read.
-          for name in stu_gent stu_mia stu_teen stu_oreizo stu_strider \
+          for name in stu_gent stu_mia stu_teen stu_oreizo \
                       stu_alina stu_ariel stu_woman stu_nathan; do
             src="assets/$name.glb"
             [ -f "$src" ] || continue
