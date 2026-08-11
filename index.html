@@ -2880,7 +2880,24 @@ BUILDINGS.forEach(spec => {
       await new Promise(r => setTimeout(r, 250));   /* let the GPU breathe */
     }
   }
-  const deferOuter = () => setTimeout(loadOuterWorld, 2200);
+  /* After the cast, not alongside it. Measured: the stadium landed at
+     66 seconds and the residence hall at 97, both while the bodies you
+     actually walk among were still decoding — 11MB of scenery ahead of
+     the thing the visitor is standing in. A two-second delay after
+     `load` was never a queue, it was a head start.
+
+     So it waits for crowdReady, which is the campus being populated,
+     and gives up waiting after a minute in case that never comes. The
+     scenery still arrives; it arrives behind. */
+  const deferOuter = () => {
+    const t0 = performance.now();
+    const wait = () => {
+      const ready = window.__crowd?.().ready;
+      if (ready || performance.now() - t0 > 60000) setTimeout(loadOuterWorld, 600);
+      else setTimeout(wait, 400);
+    };
+    wait();
+  };
   if (document.readyState === "complete") deferOuter();
   else window.addEventListener("load", deferOuter, { once: true });
   /* re-brand the football stadium: navy-and-gold Pembroke boards
@@ -2966,10 +2983,12 @@ BUILDINGS.forEach(spec => {
   gableRoof(amb, { x: 856, y: 240, w: 64, d: 310, z: 70, h: 28, axis: "y" });
   /* the west residence hall: akhazaee's scanned Colgate dorm (CC-BY-4.0),
      clean facade toward the quad, replacing the procedural west range */
-  loadLandmark("assets/reshall.glb", {
+  /* Queued with the rest of the outer world rather than fetched on
+     sight. 2.68MB that used to land at 97 seconds, ahead of people. */
+  OUTER.push(["assets/reshall.glb", {
     plane: [140, 330], height: 96, rotY: 0, maxFoot: [150, 200], sink: 2.4,
     collider: "auto", vista: "Pembroke Residence Hall",
-  });
+  }]);
   /* terracotta refectory */
   stoneBox(amb, { x: 700, y: 330, w: 110, d: 72, h: 46, windows: "lancet", seed: 18, accent: "#f0b47a", noRoof: true });
   gableRoof(amb, { x: 700, y: 330, w: 110, d: 72, z: 46, h: 30, terra: true });
@@ -3556,18 +3575,12 @@ gltf.load("assets/lamp.glb", (g) => {
     world.add(ch);
   });
 }
-/* "Campus Conversation" by restore50 (CC-BY-4.0) — a scanned group of
-   students mid-chat, posed on the lawn just off the fountain plaza */
-gltf.load("assets/students.glb", (g) => {
-  const grp = g.scene;
-  const SCALE = 21;                       /* scan is ~1.9 units tall → people ≈ 40 */
-  grp.scale.setScalar(SCALE);
-  grp.position.set(W(444), 0.95 * SCALE, W(546));
-  grp.rotation.y = -0.7;                  /* facing the fountain */
-  grp.traverse(o => { if (o.isMesh){ o.castShadow = o.receiveShadow = true; } });
-  world.add(grp);
-  COLLIDERS.push({ x: 430, y: 532, w: 28, d: 28 });
-});
+/* "Campus Conversation" by restore50 stood here: a scanned group of
+   students frozen mid-chat on the lawn, 1.55MB and 181,682 triangles.
+   It was here because the campus had nobody on it. It now has fifteen
+   rigged bodies who walk past that spot, stop, and can be spoken to —
+   and a photograph of four people not moving among them reads as
+   exactly what it is. Removed. */
 gltf.load("assets/bench.glb", (g) => {
   for (let k = 0; k < 6; k++){
     const a = (15 + 60 * k) * Math.PI / 180;
@@ -3859,7 +3872,6 @@ const CAST_FILES = {
   nadia:   "assets/stu_nadia.glb",      /* character creator, 46 maps    */
   sophia:  "assets/stu_sophia.glb",     /* 16k tris, 20 seconds of idle  */
   tutor:   "assets/stu_tutor.glb",      /*  6k tris, a 25s standing loop */
-  stand:   "assets/stu_anim.glb",
   skate:   "assets/stu_skater.glb",
 };
 /* ── who has to be here before the doors open ─────────────────────────
@@ -3878,13 +3890,13 @@ const CAST_FILES = {
 
      first   8.3MB   walker gent mia nathan stand skate tutor
      after  10.8MB   teen woman alina ariel oreizo strider          */
-const CAST_FIRST = ["walker", "gent", "mia", "nathan", "stand", "skate", "tutor"];
+const CAST_FIRST = ["walker", "gent", "mia", "nathan", "sophia", "skate", "tutor"];
 /* A teenager is shorter, and the height is doing as much work here as
    any of the colours — see buildOf, which varies each figure another
    ±11% on top of these. */
 const CAST_HEIGHT = { walker: 42, gent: 43, mia: 40, teen: 38, woman: 41,
                       alina: 40, ariel: 40, oreizo: 43, nathan: 43,
-                      strider: 42, tutor: 41, stand: 41, skate: 42,
+                      strider: 42, tutor: 41, skate: 42,
                       kenta: 41, isla: 40, nadia: 41, sophia: 40 };
 /* Which bodies can be given a waypoint and told to walk it, and which
    are only good for standing about. Eight that walk against a crowd
@@ -3897,7 +3909,7 @@ const ROAMING = ["walker", "gent", "mia", "teen", "woman", "alina",
    what she came with: 488 frames of idle and no gait at all. She is
    also 16k triangles against stu_anim's 179,598 for the same job, which
    is the heaviest figure on this campus doing the least. */
-const LOITERING = ["tutor", "stand", "sophia"];
+const LOITERING = ["tutor", "sophia"];
 /* Asked at the moment a figure is built, never pruned. Bodies now
    arrive in two waves, so a list filtered once at startup would be
    permanently missing the six that come in later — and every extra
@@ -3910,7 +3922,7 @@ const loadedLoitering = () => LOITERING.filter(k => castLib[k]);
    changes between visits. */
 const CAST_PLAN = [
   { k: "any" },                                             /* Elowen — roams        */
-  { k: "stand", at: [700, 340], face: -0.9, live: true, pose: 0 }, /* Marcus — Whitmore door */
+  { k: "loiter", at: [700, 340], face: -0.9, live: true, pose: 0 }, /* Marcus — Whitmore door */
   { k: "walker", at: [449, 449], face:  0.8, kind: "chat",  /* Priya  — plaza        */
     clip: "Idle" },
   { k: "walker", at: [543, 449], face: -2.4, kind: "laptop",/* Sofia  — lawn         */
@@ -3918,7 +3930,7 @@ const CAST_PLAN = [
   { k: "any" },                                             /* Theo   — roams        */
   /* Jun stood at 270,700 — which is inside the science hall, invisible
      behind its south wall. Out on the front now, facing the quad. */
-  { k: "stand", at: [286, 838], face:  0.2, live: true, pose: 1 }, /* Jun — Alden front */
+  { k: "loiter", at: [286, 838], face:  0.2, live: true, pose: 1 }, /* Jun — Alden front */
   /* Amara used to lap the ring at 182 — which, with the player standing
      in the middle of it, meant she was on screen permanently. She runs
      the campus now, on the same paths as everyone else, just faster. */
@@ -3999,8 +4011,12 @@ function bodyFor(k){
      they are dealt a different one each visit like the crowd. Priya,
      Sofia and Amara ask by name because they need the original walker's
      clips: Idle, Sitting Talking and Jogging, which no other body has. */
-  if (k === "any"){
-    const pool = loadedRoaming();
+  if (k === "any" || k === "loiter"){
+    /* "loiter" is "any" for the standers. Marcus and Jun used to ask
+       for stu_anim by name — 179,598 triangles to hold still by a door,
+       the heaviest figure on the campus doing the least. Whoever is
+       standing about today does it instead. */
+    const pool = k === "any" ? loadedRoaming() : loadedLoitering();
     return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
   }
   if (castLib[k]) return k;
