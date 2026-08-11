@@ -1,0 +1,90 @@
+name: inspect
+
+# What is actually in that Drive link?
+#
+# The courier builds characters; this only looks at them. It exists
+# because the sandbox where the code gets written cannot reach Drive at
+# all, so the alternative to running this is guessing — and the guess
+# that matters ("is this rig Mixamo-named?") is the one that decides
+# whether a clip lands on a skeleton or silently addresses nothing.
+#
+# Run it from the Actions tab. `files` is the same name=id form the
+# inbox uses, comma separated:
+#
+#     victoria=1b3oRVry...,walk=1C_HrWJB...
+#
+# Nothing is committed. The answer is in the log.
+on:
+  workflow_dispatch:
+    inputs:
+      files:
+        description: 'name=driveFileId, comma separated'
+        required: true
+        type: string
+
+jobs:
+  look:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Blender
+        run: |
+          sudo apt-get update -qq
+          # python3-numpy explicitly: Ubuntu's blender runs on the system
+          # python and its FBX importer imports numpy at module load.
+          sudo apt-get install -y -qq blender python3-numpy >/dev/null
+          blender --version | head -1
+          pip install -q gdown
+
+      - name: Fetch and look
+        run: |
+          set -o pipefail
+          mkdir -p /tmp/look
+          IFS=',' read -ra pairs <<< "${{ inputs.files }}"
+          for pair in "${pairs[@]}"; do
+            name="${pair%%=*}"; id="${pair#*=}"
+            name="$(echo "$name" | tr -d '[:space:]')"
+            id="$(echo "$id" | tr -d '[:space:]')"
+            [ -z "$name" ] && continue
+            echo "::group::$name"
+            if ! gdown -q "https://drive.google.com/uc?id=$id" -O "/tmp/look/$name.bin"; then
+              echo "::error::$name — gdown could not download $id"
+              echo "::endgroup::"; continue
+            fi
+            size=$(du -h "/tmp/look/$name.bin" | cut -f1)
+            magic=$(head -c 4 "/tmp/look/$name.bin")
+            # Magic bytes, not the file name — a Drive link's name is
+            # whatever the dispatch happened to call it.
+            if [ "$(head -c 2 "/tmp/look/$name.bin")" = "PK" ]; then
+              echo "$name: $size zip"
+              rm -rf "/tmp/look/$name.d" && mkdir -p "/tmp/look/$name.d"
+              unzip -q "/tmp/look/$name.bin" -d "/tmp/look/$name.d" || {
+                echo "::error::$name — could not unpack"; echo "::endgroup::"; continue; }
+              echo "  contents:"
+              find "/tmp/look/$name.d" -type f -printf '    %10s  %P\n' | sort -k2 | head -60
+              mapfile -t models < <(find "/tmp/look/$name.d" -type f \
+                \( -iname '*.fbx' -o -iname '*.glb' -o -iname '*.gltf' -o -iname '*.obj' \) | sort)
+              if [ "${#models[@]}" -eq 0 ]; then
+                echo "  no model file in this zip"
+              else
+                blender --background --python tools/inspect-rig.py -- "${models[@]}" \
+                  2>&1 | grep -v "^Blender quit\|^Read prefs\|^Warning:" || true
+              fi
+            elif head -c 20 "/tmp/look/$name.bin" | grep -q "Kaydara"; then
+              echo "$name: $size fbx"
+              mv "/tmp/look/$name.bin" "/tmp/look/$name.fbx"
+              blender --background --python tools/inspect-rig.py -- "/tmp/look/$name.fbx" \
+                2>&1 | grep -v "^Blender quit\|^Read prefs\|^Warning:" || true
+            elif [ "$magic" = "glTF" ]; then
+              echo "$name: $size glb"
+              mv "/tmp/look/$name.bin" "/tmp/look/$name.glb"
+              blender --background --python tools/inspect-rig.py -- "/tmp/look/$name.glb" \
+                2>&1 | grep -v "^Blender quit\|^Read prefs\|^Warning:" || true
+            else
+              echo "::error::$name is neither zip, FBX nor GLB — first bytes: $magic"
+              file "/tmp/look/$name.bin"
+            fi
+            echo "::endgroup::"
+          done
