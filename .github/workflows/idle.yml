@@ -67,7 +67,12 @@ jobs:
               echo "  landed on $name"
               changed=1
             else
-              echo "  $name keeps the held-frame idle"
+              # Two different non-zero exits land here, and the log above
+              # says which: the tool refuses a skeleton the clip cannot
+              # address (2 of 3 bodies), and it declines a body that
+              # already carries the clip. Both mean "leave the file
+              # alone", which is why neither sets changed.
+              echo "  $name unchanged — see the group above for why"
             fi
             echo "::endgroup::"
           done
