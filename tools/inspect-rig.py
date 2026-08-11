@@ -141,6 +141,23 @@ for path in argv:
         scn = bpy.context.scene
         scn.render.engine = "CYCLES"
         scn.cycles.samples = 16
+        """Denoising off. Ubuntu's Blender is built without
+        OpenImageDenoise, and Cycles turns denoising on by default, so
+        every render dies with "Build without OpenImageDenoiser" — an
+        error about the packager's build options that reads like an
+        error about your model. Sixteen samples of a solid figure is
+        grainy and perfectly good enough to see whether the arms are
+        out, which is the only question being asked."""
+        for attr, val in (("use_denoising", False),
+                          ("use_preview_denoising", False)):
+            try:
+                setattr(scn.cycles, attr, val)
+            except Exception:                               # noqa: BLE001
+                pass
+        try:
+            scn.view_layers[0].cycles.denoising_store_passes = False
+        except Exception:                                   # noqa: BLE001
+            pass
         scn.render.resolution_x = scn.render.resolution_y = 640
         scn.render.film_transparent = False
         world = bpy.data.worlds.new("w")
