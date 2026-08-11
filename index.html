@@ -4217,9 +4217,19 @@ let crowdReady = false, crowdN = 0, crowdNext = 0, crowdDone = false, crowdFps =
    happened to load first. Called both when the campus is built and when
    the late wave settles, whichever is last — and it is idempotent, so
    being called twice costs nothing. */
-let lateOutstanding = 0;
+let lateOutstanding = 0, lateGiveUp = 0;
 function fillForcedCrowd(){
-  if (CROWD_FORCE === null || !crowdReady || lateOutstanding > 0) return;
+  if (CROWD_FORCE === null || !crowdReady || crowdN >= CROWD_FORCE) return;
+  if (lateOutstanding > 0){
+    /* Wait for the rest of the cohort — but not indefinitely. Decoding
+       ten megabytes of people takes seconds on a phone and minutes on a
+       software rasterizer, and a body that never arrives at all would
+       otherwise leave ?crowd showing an empty quad forever. Twenty
+       seconds, then fill with whoever is here. */
+    if (!lateGiveUp) lateGiveUp = setTimeout(() => { lateOutstanding = 0; fillForcedCrowd(); }, 20000);
+    return;
+  }
+  clearTimeout(lateGiveUp);
   while (crowdN < CROWD_FORCE) addExtra(crowdN++);
   crowdDone = true;
 }
