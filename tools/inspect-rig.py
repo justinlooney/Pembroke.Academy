@@ -148,6 +148,30 @@ for path in argv:
     print("  materials %d: %s" % (len(mats), ", ".join(mats[:24])))
     print("  images   %d: %s" % (len(bpy.data.images),
                                  ", ".join(sorted(i.name for i in bpy.data.images)[:12])))
+    """Colour, or the lack of it — the reason these inspections are
+    happening at all. A body with no image, no vertex colours and no
+    base tint is geometry, and the campus wardrobe can only paint it one
+    flat tone. That reads as somebody in pale clothes across a lawn and
+    as a mannequin from two feet away."""
+    has_img = len(bpy.data.images) > 0
+    has_vcol = any(len(m.data.color_attributes) for m in meshes
+                   if hasattr(m.data, "color_attributes"))
+    tinted = False
+    for m in meshes:
+        for ms in m.material_slots:
+            mat = ms.material
+            if not mat or not mat.use_nodes:
+                continue
+            for n in mat.node_tree.nodes:
+                base = n.inputs.get("Base Color") if hasattr(n, "inputs") else None
+                if base is not None and not base.is_linked:
+                    if any(c < 0.97 for c in base.default_value[:3]):
+                        tinted = True
+    print("  colour   %s" % (
+        "textures" if has_img else
+        "vertex colours" if has_vcol else
+        "a flat tint, no texture" if tinted else
+        "NONE — geometry only. The wardrobe can only paint this one tone."))
 
     if not rigs:
         print("  NO ARMATURE — this is scenery, not a character. Nothing to")
