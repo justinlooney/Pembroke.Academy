@@ -39,6 +39,19 @@ jobs:
           sudo apt-get install -y -qq blender python3-numpy >/dev/null
           blender --version | head -1
           pip install -q gdown
+          npm install -g --silent @gltf-transform/cli
+
+      # Every model in assets/ is meshopt-compressed — the courier does
+      # it, and it is why the campus downloads in a reasonable time.
+      # Blender's glTF importer cannot read EXT_meshopt_compression at
+      # all: it raises, the import fails, and the donor skeleton this
+      # whole job depends on never arrives. Decode a copy first.
+      - name: Decode the donor for Blender
+        if: steps.plan.outputs.n != '0'
+        run: |
+          mkdir -p /tmp/donor
+          gltf-transform copy assets/stu_walker.glb /tmp/donor/walker.glb
+          ls -l /tmp/donor/walker.glb
 
       - name: Fetch, rig, walk, look
         if: steps.plan.outputs.n != '0'
@@ -78,9 +91,18 @@ jobs:
             echo "  source: $src"
 
             blender --background --python tools/rig-and-walk.py -- \
-              "/tmp/out/$name.glb" "$src" assets/stu_walker.glb \
+              "/tmp/out/$name.glb" "$src" /tmp/donor/walker.glb \
               --tris 60000 --clips "Standard Walk,Idle,Jogging" 2>&1 \
               | grep -vE '^Fra:|^WARNING|^Blender quit|^Read prefs' || true
+
+            # A green run that produced nothing is worse than a red one:
+            # the first thing it did here was swallow "EXT_meshopt_
+            # compression is not available", report success, and upload
+            # no artifacts. Say so.
+            if [ ! -f "/tmp/out/$name.glb" ]; then
+              echo "::error::$name — nothing came out. See the Blender output above."
+              echo "::endgroup::"; exit 1
+            fi
 
             if [ -f "/tmp/out/$name.glb" ]; then
               # The only honest verdict on a rig is a picture of it, so
