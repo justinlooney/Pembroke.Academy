@@ -165,8 +165,18 @@ dst.parent = None
 dst.name = "DST"
 
 clips = [a for a in bpy.data.actions]
+print("[rig] actions in the donor: %s" % (", ".join(a.name for a in clips) or "none"))
 if want_clips:
-    clips = [a for a in clips if a.name in want_clips]
+    """Matched loosely on purpose. Blender renames actions on import —
+    a clip stored as "Standard Walk" can arrive as
+    "Armature|Standard Walk" or "Object_1Action" — and an exact-name
+    filter silently selected nothing, which the script then reported as
+    "no clips in the donor" and cheerfully rigged a statue."""
+    low = [c.lower() for c in want_clips]
+    clips = [a for a in clips if any(c in a.name.lower() for c in low)]
+    if not clips:
+        print("[rig] --clips matched nothing; taking every action instead")
+        clips = [a for a in bpy.data.actions]
 if not clips:
     print("[rig] no clips in", donor_file, "— rigging only")
 print("[rig] skeleton: %d bones, %d clip(s): %s"
@@ -232,22 +242,32 @@ if len(arms) != 2:
           % len(arms))
     theta = 0.0
 else:
-    lo = Vector((1e30, 1e30, 1e30))
-    hi = -lo
-    for b in eb:
-        for p in (b.head, b.tail):
-            lo = Vector(map(min, lo, p))
-            hi = Vector(map(max, hi, p))
-    span0 = (hi.x - lo.x) * k
-    shoulder = abs(arms[0].head.x - arms[1].head.x) * k
-    reach = max(1e-9, (span0 - shoulder) / 2)
-    """Solve for the angle that makes the skeleton as wide as the body.
-    Clamped, because a body narrower than its own shoulders is asking
-    for an angle that does not exist, and acos would throw."""
-    want = max(-1.0, min(1.0, (c_wide - shoulder) / (2 * reach)))
+    """Measured off the arm chains themselves, not off the skeleton's
+    bounding box. The bbox was wrong by two orders of magnitude — it
+    reported a 187-unit span for a 1.9-metre body, because one stray
+    bone anywhere in the rig drags the box with it — and the angle that
+    came out of it was 90 degrees, which put the arm bones straight down
+    through the legs, lost bone-heat weighting, and crashed the
+    exporter. A reach is a distance from a shoulder to a fingertip, so
+    measure exactly that."""
+    def reach_of(root):
+        far = 0.0
+        for b in chain(eb, root):
+            for p in (b.head, b.tail):
+                far = max(far, abs(p.x - root.head.x))
+        return far
+
+    shoulder_l = abs(arms[0].head.x - arms[1].head.x)
+    reach_l = max(1e-9, (reach_of(arms[0]) + reach_of(arms[1])) / 2)
+    """The body's width converted into the skeleton's own units, rather
+    than the skeleton's converted into the body's — k is the scale the
+    object carries, and the edit bones do not know about it."""
+    target_l = c_wide / max(k, 1e-9)
+    want = max(-1.0, min(1.0, (target_l - shoulder_l) / (2 * reach_l)))
     theta = math.acos(want)
-    print("[rig] arms: skeleton spans %.3f, body spans %.3f, shoulders %.3f "
-          "→ rotating down %.1f degrees" % (span0, c_wide, shoulder, math.degrees(theta)))
+    print("[rig] arms: reach %.3f, shoulders %.3f, body wants %.3f "
+          "(all in skeleton units) → rotating down %.1f degrees"
+          % (reach_l, shoulder_l, target_l, math.degrees(theta)))
     for root in arms:
         sign = 1.0 if root.head.x > 0 else -1.0
         pivot = root.head.copy()
@@ -264,6 +284,34 @@ dst.select_set(True)
 bpy.context.view_layer.objects.active = dst
 bpy.ops.object.parent_set(type="ARMATURE_AUTO")
 print("[rig] bound with automatic weights")
+
+"""Bone-heat weighting leaves vertices unweighted when it cannot find a
+solution — inside a closed armpit, between thighs that touch — and says
+so in a warning nobody reads. Two things then happen: those vertices
+stay behind while the rest of the body walks off, and Blender's glTF
+exporter walks into
+
+    add_neutral_bones → n.node.skin.joints.append
+    AttributeError: 'NoneType' object has no attribute 'joints'
+
+and takes the whole export with it. Give the orphans to the root bone.
+A vertex rigidly attached to the hips is wrong in a way you have to
+look for; a vertex attached to nothing is a hole in a person."""
+root_bone = next((b.name for b in dst.data.bones if not b.parent), None)
+if root_bone:
+    grp = mesh.vertex_groups.get(root_bone) or mesh.vertex_groups.new(name=root_bone)
+    known = {g.name for g in mesh.vertex_groups}
+    orphans = []
+    for v in mesh.data.vertices:
+        if not any(g.weight > 0 and mesh.vertex_groups[g.group].name in known
+                   for g in v.groups):
+            orphans.append(v.index)
+    if orphans:
+        grp.add(orphans, 1.0, "REPLACE")
+        print("[rig] %d vertex/vertices had no weight at all — given to %s"
+              % (len(orphans), root_bone))
+    else:
+        print("[rig] every vertex is weighted")
 
 # ── the motion, in world space ───────────────────────────────────────
 if not src.animation_data:
