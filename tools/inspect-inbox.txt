@@ -1,0 +1,23 @@
+# Inspection inbox — what is actually inside a Drive link?
+#
+# THIS IS A DATA FILE, NOT A SCRIPT. Nothing here is typed at a shell.
+#
+# Put "name link" on a line, commit, and .github/workflows/inspect.yml
+# fetches each one and prints what it is: the meshes, the materials, the
+# skeleton, its naming convention, every clip, and — the number that
+# usually settles the argument — how many of each clip's bones exist on
+# the rig in the same file.
+#
+# Nothing is built and nothing is committed. This only looks.
+#
+# Why it exists: a clip is a set of curves addressed by bone name, so it
+# lands on a skeleton that uses those names and lands nowhere at all on
+# one that does not. Mixamo says mixamorig:LeftUpLeg, Character Creator
+# says CC_Base_L_Thigh, Daz says lThigh. Same leg, three languages, and
+# applying the wrong one produces a valid file containing a person
+# standing perfectly still.
+
+# ── can Victoria be given Ch22's walk? ───────────────────────────────
+# The answer is whether these two skeletons speak the same language.
+victoria   https://drive.google.com/file/d/1b3oRVryXWBXq0yGtsBli6sqoVHIvqhQ9/view
+ch22_walk  https://drive.google.com/file/d/1C_HrWJB9WX74PdqDboYM3tWBxJkxerI-/view
