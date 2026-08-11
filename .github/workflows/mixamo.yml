@@ -197,12 +197,21 @@ jobs:
             fi
 
             before=$(stat -c%s "$out")
+            # A character assembled here from Mixamo parts is one of the
+            # named cast, met at conversational distance, and keeps 1024.
+            # Anything arriving finished is crowd or scenery, seen across
+            # a lawn, and 512 is indistinguishable there — a difference
+            # worth 2.5MB across two of them, which this workflow put
+            # back the first time it rebuilt models that had been shrunk
+            # by hand.
+            tex=1024
+            [ -n "$ready" ] && tex=512
             # Textures and vertex data only. Simplification rewrites the
             # mesh and takes the skin weights with it, and joining merges
             # the nodes the skeleton is bound to — either one turns a
             # walking student into a bag of knots.
             gltf-transform optimize "$out" "$out" \
-              --compress meshopt --texture-compress webp --texture-size 1024 \
+              --compress meshopt --texture-compress webp --texture-size "$tex" \
               --simplify false --join false
             stat -c%s "$out" | xargs -I{} echo "$before {}" \
               | awk '{printf "  %.1fMB -> %.1fMB\n", $1/1e6, $2/1e6}'

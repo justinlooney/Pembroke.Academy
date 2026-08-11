@@ -3219,6 +3219,23 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
                [218,808,1],[262,814,0.85],[712,822,1],[758,826,0.85],[434,886,1.1],[566,886,1.1]];
   const FERNS = [[600,548,1],[616,532,0.85],[455,616,1],[472,600,0.85],
                  [384,470,1],[400,452,0.85],[529,384,1],[545,400,0.85],[350,80,1.2],[650,84,1.2]];
+  /* The boulevard is 24 wide and runs 500,985 to 500,1156, so the
+     avenue stands 46 off the centre line — clear of the paving, close
+     enough to walk under. West and east are different species on
+     purpose: an avenue of one clone reads as wallpaper. */
+  const AVEN_W = [[454, 1000, 1], [454, 1058, 0.92], [454, 1116, 1.05],
+                  /* wider apart either side of the gatehouse: the piers
+                     stand at 456 and 518, and a trunk two feet off one
+                     is a tree growing out of the gate */
+                  [428, 916, 0.95], [428, 858, 1.02]];
+  const AVEN_E = [[546, 1000, 0.96], [546, 1058, 1.06], [546, 1116, 0.94],
+                  [572, 916, 1.04], [572, 858, 0.98]];
+  /* Where a tree is the thing you are looking at rather than scenery:
+     either side of the gatehouse, the corners of the forecourt, and two
+     flanking the drive as it turns for the ballpark. */
+  const FEATURE = [[430, 962, 1], [570, 962, 0.94],
+                   [412, 1150, 1.06], [588, 1150, 0.98],
+                   [372, 1136, 0.9], [628, 1136, 0.92]];
   const FLORA = [
     ["assets/plantpack.glb", [["pine1", PINES1, 78, true], ["pine2", PINES2, 66, true],
                               ["bushbig", BUSHA, 10], ["bushmed", BUSHB, 8], ["bushflower", BUSHC, 7]]],
@@ -3238,6 +3255,20 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
        five thousand triangles a tree. */
     ["assets/maple.glb", [["", TREE2S, 54, true, null, true],
                           ["", TSMALL, 40, true, null, true]]],
+    /* And beyond the quad, where the campus was all conifer belts and
+       stylised shapes: an avenue down the boulevard to the athletics
+       district, the approach to the gatehouse, and the edge of the
+       forecourt.
+
+       Chosen by cost, not by looks. Instancing saves draw calls but not
+       triangles — a tree planted ten times is drawn ten times — and
+       this collection runs from 4,958 triangles for EZTree0.Medium011
+       up to 36,489 for EZTree1.Large001. The two mediums do the avenue
+       work; the large one is used six times where it is the thing you
+       are looking at, and Large001 is not used at all. */
+    ["assets/trees.glb", [["tree eztree0.medium011", AVEN_W, 58, true, null, true],
+                          ["tree eztree1.medium002", AVEN_E, 58, true, null, true],
+                          ["tree eztree0.large",     FEATURE, 74, true, null, true]]],
     ["assets/daffodils.glb", [["", DAFF, 3.4, false, "material"]]],
     ["assets/lavender.glb",  [["", LAV, 6]]],
     ["assets/cypress.glb",   [["", CYP, 12]]],
@@ -3903,14 +3934,23 @@ function detailPass(){
       console.error("no rigged body loaded — no students");
       return;
     }
+    /* Claimed before the campus is built, not after. buildCast ends by
+       offering to fill a ?crowd quad, and if the count were still zero
+       at that moment it would fill from the first wave alone — which is
+       the exact thing deferring the rest was supposed not to cost. */
+    lateOutstanding = later.length;
     buildCast();
     /* Now, and not before. Fetching these alongside the campus would put
        10.8MB of people nobody can meet yet in front of the models the
        campus is made of. */
     gltf.__late = true;
+    const settled = () => { if (--lateOutstanding === 0) fillForcedCrowd(); };
     later.forEach(k => gltf.load(CAST_FILES[k],
-      (g) => arrive(k, g), undefined, (e) => lost(k, e)));
+      (g) => { arrive(k, g); settled(); },
+      undefined,
+      (e) => { lost(k, e); settled(); }));
     gltf.__late = false;
+    if (!later.length) fillForcedCrowd();
   };
   first.forEach(k => gltf.load(CAST_FILES[k], (g) => {
     arrive(k, g);
@@ -4130,7 +4170,12 @@ function buildCast(){
     world.add(g);
   });
   crowdReady = true;
-  if (CROWD_FORCE !== null){ while (crowdN < CROWD_FORCE) addExtra(crowdN++); crowdDone = true; }
+  /* ?crowd is deliberately NOT filled here. buildCast now runs on the
+     first wave of bodies, so forcing a quad at this moment would draw
+     it from seven of the thirteen and show less variety than simply
+     waiting would — on the one flag whose entire purpose is to show the
+     variety. It is filled when the rest have arrived. */
+  fillForcedCrowd();
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -4167,6 +4212,17 @@ const CROWD_FLOOR = 33;
    crowd untested on the only machine that tests anything. */
 const CROWD_FORCE = q.has("crowd") ? Math.max(0, Math.min(CROWD_MAX, +q.get("crowd") || 0)) : null;
 let crowdReady = false, crowdN = 0, crowdNext = 0, crowdDone = false, crowdFps = 60;
+/* ?crowd fills the quad once every body that is coming has come, so a
+   forced crowd shows the whole cohort rather than whichever half
+   happened to load first. Called both when the campus is built and when
+   the late wave settles, whichever is last — and it is idempotent, so
+   being called twice costs nothing. */
+let lateOutstanding = 0;
+function fillForcedCrowd(){
+  if (CROWD_FORCE === null || !crowdReady || lateOutstanding > 0) return;
+  while (crowdN < CROWD_FORCE) addExtra(crowdN++);
+  crowdDone = true;
+}
 function addExtra(n){
   const seed = 101 + n * 3;
   /* Round the bodies rather than at random, so a crowd of three is
