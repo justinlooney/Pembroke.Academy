@@ -68,8 +68,14 @@ for raw in open(src, encoding="utf-8"):
 
 live = [b for b in blocks if b["files"]]
 os.makedirs(outdir, exist_ok=True)
+# Only the plan files this script wrote. The caller names the directory,
+# so emptying it wholesale means deleting whatever else was in it — and
+# a stale block- file from a previous run would be built as if it were
+# in the inbox, so leaving them is not an option either.
 for f in os.listdir(outdir):
-    os.remove(os.path.join(outdir, f))
+    p = os.path.join(outdir, f)
+    if f.startswith("block-") and os.path.isfile(p):
+        os.remove(p)
 
 if not live:
     print("[inbox] no links yet — nothing to build. This is not a failure.")

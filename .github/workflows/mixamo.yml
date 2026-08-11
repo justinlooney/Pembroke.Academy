@@ -104,9 +104,32 @@ jobs:
         run: |
           # assets/ changed, so returning visitors would otherwise keep the
           # old campus forever — and the PR guard would fail the build.
-          cur=$(sed -n 's/^const VERSION = "pembroke-v\([0-9]*\)";$/\1/p' sw.js)
-          sed -i "s/^const VERSION = \"pembroke-v$cur\";$/const VERSION = \"pembroke-v$((cur+1))\";/" sw.js
-          grep '^const VERSION' sw.js
+          #
+          # Both halves are checked rather than assumed. sed reports no
+          # error when its pattern matches nothing, so if the shape of
+          # that line in sw.js ever drifts, this step would quietly do
+          # nothing, the courier would commit new models against an
+          # unchanged VERSION, and every returning visitor would keep
+          # serving the old campus out of cache — with the log still
+          # printing a VERSION line and looking fine. Failing here is
+          # loud and costs one rerun; failing silently is invisible and
+          # costs everyone who has already visited.
+          cur=$(sed -n 's/^const VERSION = "pembroke-v\([0-9][0-9]*\)";$/\1/p' sw.js)
+          case "$cur" in
+            '' | *[!0-9]*)
+              echo "::error::cannot read a single cache version from sw.js."
+              echo "expected one line reading: const VERSION = \"pembroke-vN\";"
+              grep -n 'VERSION' sw.js || true
+              exit 1 ;;
+          esac
+          next=$((cur + 1))
+          sed -i "s/^const VERSION = \"pembroke-v$cur\";\$/const VERSION = \"pembroke-v$next\";/" sw.js
+          got=$(sed -n 's/^const VERSION = "pembroke-v\([0-9][0-9]*\)";$/\1/p' sw.js)
+          if [ "$got" != "$next" ]; then
+            echo "::error::VERSION did not bump — still pembroke-v$got, wanted pembroke-v$next"
+            exit 1
+          fi
+          echo "cache version: pembroke-v$cur -> pembroke-v$next"
 
       - name: Commit
         if: steps.plan.outputs.blocks != '0'
@@ -114,7 +137,7 @@ jobs:
           git config user.name "pembroke-asset-courier"
           git config user.email "actions@users.noreply.github.com"
           git add assets sw.js
-          git commit -m "Courier: build $(ls /tmp/plan | wc -l) character(s) from Mixamo" \
+          git commit -m "Courier: build $(ls /tmp/plan | grep -c '^block-') character(s) from Mixamo" \
             || { echo "nothing changed"; exit 0; }
           git push origin HEAD:${{ github.ref_name }}
 
