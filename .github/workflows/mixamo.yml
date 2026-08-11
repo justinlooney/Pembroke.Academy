@@ -108,6 +108,23 @@ jobs:
                 exit 1
               fi
               cp "$ready" "$out"
+              # A character-creator export carries a full anatomy — a
+              # tongue, teeth, fingernails, the wet films over the eyes —
+              # and each one has its own material and so its own draw
+              # call. None of it resolves on a figure crossing a quad.
+              # This must run here rather than by hand afterwards: the
+              # courier rebuilds from Drive, and it has already silently
+              # undone one hand-thinned model (stu_woman, 2.66MB back up
+              # to 4.76MB) by doing exactly that.
+              node tools/thin-character.mjs "$out"
+              # These arrive at 80k triangles and up, several times what
+              # the hand-built characters cost. Simplification is refused
+              # for the Blender path below, where it would rewrite a mesh
+              # that was just assembled from parts; here the character is
+              # finished and meshoptimizer carries the joints and weights
+              # through, which was checked on two of them before this was
+              # turned on.
+              gltf-transform simplify "$out" "$out" --ratio 0.45 --error 0.003
             else
               blender --background --python-exit-code 1 \
                       --python tools/mixamo-to-glb.py -- "$out" $args
