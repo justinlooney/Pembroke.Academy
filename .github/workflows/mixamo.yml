@@ -58,12 +58,13 @@ jobs:
             rm -rf /tmp/fbx && mkdir -p /tmp/fbx
             args=""
             fail=0
+            ready=""
             while IFS=$'\t' read -r name id; do
               [ -z "$name" ] && continue
               # The /uc?id= form is the one every gdown understands. Newer
               # versions dropped --fuzzy (it became the default) and older
               # ones need it, so avoid the flag entirely.
-              if ! gdown -q "https://drive.google.com/uc?id=$id" -O "/tmp/fbx/$name.fbx"; then
+              if ! gdown -q "https://drive.google.com/uc?id=$id" -O "/tmp/fbx/$name.bin"; then
                 echo "::error::$name — gdown could not download $id"
                 fail=1; continue
               fi
@@ -72,19 +73,45 @@ jobs:
               # problem once something has actually been downloaded —
               # blaming sharing for a failed fetch sends people off to
               # re-share files that were never the problem.
-              if head -c 20 "/tmp/fbx/$name.fbx" | grep -q "Kaydara"; then
-                printf '  ok   %-18s %s\n' "$name" "$(du -h "/tmp/fbx/$name.fbx" | cut -f1)"
+              #
+              # Two kinds of file are welcome. Mixamo hands out FBX, which
+              # needs Blender to become a character. But a finished GLB is
+              # already a character, and putting one through Blender only
+              # risks what it already has — so it is passed straight to the
+              # optimizer. Told apart by their magic bytes rather than by
+              # the file name, which on a Drive link is whatever the inbox
+              # happened to call it.
+              magic=$(head -c 4 "/tmp/fbx/$name.bin")
+              size=$(du -h "/tmp/fbx/$name.bin" | cut -f1)
+              if head -c 20 "/tmp/fbx/$name.bin" | grep -q "Kaydara"; then
+                printf '  ok   %-18s %-8s fbx\n' "$name" "$size"
+                mv "/tmp/fbx/$name.bin" "/tmp/fbx/$name.fbx"
                 args="$args /tmp/fbx/$name.fbx"
+              elif [ "$magic" = "glTF" ]; then
+                printf '  ok   %-18s %-8s glb, already built\n' "$name" "$size"
+                ready="/tmp/fbx/$name.bin"
               else
-                echo "::error::$name downloaded but is not an FBX — share it as 'Anyone with the link'"
+                echo "::error::$name downloaded but is neither an FBX nor a GLB —"
+                echo "::error::share it as 'Anyone with the link' and check it is a model"
                 fail=1
               fi
             done < <(tail -n +2 "$block")
             [ "$fail" = 1 ] && exit 1
 
             mkdir -p "$(dirname "$out")"
-            blender --background --python-exit-code 1 \
-                    --python tools/mixamo-to-glb.py -- "$out" $args
+            if [ -n "$ready" ]; then
+              # A finished character: nothing to assemble, only to shrink.
+              if [ -n "$args" ]; then
+                echo "::error::$out mixes a finished GLB with FBX clips, which cannot be"
+                echo "::error::combined here — the GLB carries its own skeleton. Give them"
+                echo "::error::separate '# out:' blocks."
+                exit 1
+              fi
+              cp "$ready" "$out"
+            else
+              blender --background --python-exit-code 1 \
+                      --python tools/mixamo-to-glb.py -- "$out" $args
+            fi
 
             before=$(stat -c%s "$out")
             # Textures and vertex data only. Simplification rewrites the

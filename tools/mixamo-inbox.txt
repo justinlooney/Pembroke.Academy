@@ -34,3 +34,18 @@ Walk_Forward    https://drive.google.com/file/d/1bdGGSIPtRIBZsssxPMuLSHixs781OT1
 Idle            https://drive.google.com/file/d/1aw-oEHfcGVtozFy2JLQXy8NecFK7zaXx/view
 Standard_Walk   https://drive.google.com/file/d/1rJdHfnkXFza8BcSSoweajDVVwYZs4FB-/view
 Sitting_Talking https://drive.google.com/file/d/1LPSnmgWqpgAT1SCbs7wCBH1k2hSgQVtx/view
+
+# ── a finished character ─────────────────────────────────────────────
+# A block can also be a single link to a GLB that is already a rigged,
+# animated character. Those skip Blender entirely: there is nothing to
+# assemble, and putting a finished character through the FBX pipeline
+# can only risk what it already has. It is still shrunk before it lands.
+#
+# FBX and GLB cannot be mixed in one block — a finished GLB brings its
+# own skeleton, so a Mixamo clip has nothing to bind to. Separate them
+# into their own "# out:" blocks.
+#
+# This one is 80MB as downloaded, which is why it comes this way rather
+# than through a browser upload.
+# out: assets/stu_woman.glb
+Realistic_Woman_Walking  https://drive.google.com/file/d/1BoerD9I8YcpZGE7WNvQBCzj-WvRw0-JH/view
