@@ -1,0 +1,156 @@
+name: mixamo
+
+# Turns Drive links into animated characters, on GitHub's servers. Mixamo
+# needs a browser login, so the download cannot be automated — but
+# everything after it can, and doing it here means no Blender, no venv and
+# no laptop in the loop. Edit tools/mixamo-inbox.txt (the web editor on a
+# phone is enough), commit, and collect the models.
+on:
+  push:
+    paths: ['tools/mixamo-inbox.txt']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write        # to ask smoke to run on the commit this makes
+
+concurrency: mixamo
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the inbox
+        id: plan
+        run: |
+          python3 tools/mixamo-plan.py tools/mixamo-inbox.txt /tmp/plan
+          n=$(ls /tmp/plan 2>/dev/null | wc -l)
+          echo "blocks=$n" >> "$GITHUB_OUTPUT"
+
+      - name: Install Blender
+        if: steps.plan.outputs.blocks != '0'
+        run: |
+          sudo apt-get update -qq
+          # python3-numpy explicitly: Ubuntu's blender runs on the system
+          # python and its FBX importer imports numpy at module load, but
+          # the runner image installs without recommended packages, so it
+          # is not pulled in and every import dies before reading a byte.
+          sudo apt-get install -y -qq blender python3-numpy >/dev/null
+          blender --version | head -1
+          blender --background --python-expr "import numpy; print('numpy', numpy.__version__)" 2>&1 | grep numpy
+          npm install -g --silent @gltf-transform/cli
+          # gdown, not curl: every one of these files is well over the 25MB
+          # where Drive stops serving bytes and starts serving a virus-scan
+          # interstitial. curl would fetch that HTML page perfectly happily.
+          pip install -q gdown
+          gdown --version || true
+
+      - name: Fetch and build
+        if: steps.plan.outputs.blocks != '0'
+        run: |
+          set -o pipefail
+          for block in /tmp/plan/block-*; do
+            out=$(head -1 "$block")
+            echo "::group::$out"
+            rm -rf /tmp/fbx && mkdir -p /tmp/fbx
+            args=""
+            fail=0
+            while IFS=$'\t' read -r name id; do
+              [ -z "$name" ] && continue
+              # The /uc?id= form is the one every gdown understands. Newer
+              # versions dropped --fuzzy (it became the default) and older
+              # ones need it, so avoid the flag entirely.
+              if ! gdown -q "https://drive.google.com/uc?id=$id" -O "/tmp/fbx/$name.fbx"; then
+                echo "::error::$name — gdown could not download $id"
+                fail=1; continue
+              fi
+              # Drive answers a login page with HTTP 200, so a file arriving
+              # is not proof it is the right one. Only report a sharing
+              # problem once something has actually been downloaded —
+              # blaming sharing for a failed fetch sends people off to
+              # re-share files that were never the problem.
+              if head -c 20 "/tmp/fbx/$name.fbx" | grep -q "Kaydara"; then
+                printf '  ok   %-18s %s\n' "$name" "$(du -h "/tmp/fbx/$name.fbx" | cut -f1)"
+                args="$args /tmp/fbx/$name.fbx"
+              else
+                echo "::error::$name downloaded but is not an FBX — share it as 'Anyone with the link'"
+                fail=1
+              fi
+            done < <(tail -n +2 "$block")
+            [ "$fail" = 1 ] && exit 1
+
+            mkdir -p "$(dirname "$out")"
+            blender --background --python-exit-code 1 \
+                    --python tools/mixamo-to-glb.py -- "$out" $args
+
+            before=$(stat -c%s "$out")
+            # Textures and vertex data only. Simplification rewrites the
+            # mesh and takes the skin weights with it, and joining merges
+            # the nodes the skeleton is bound to — either one turns a
+            # walking student into a bag of knots.
+            gltf-transform optimize "$out" "$out" \
+              --compress meshopt --texture-compress webp --texture-size 1024 \
+              --simplify false --join false
+            stat -c%s "$out" | xargs -I{} echo "$before {}" \
+              | awk '{printf "  %.1fMB -> %.1fMB\n", $1/1e6, $2/1e6}'
+            echo "::endgroup::"
+          done
+
+      - name: Bump the cache version
+        if: steps.plan.outputs.blocks != '0'
+        run: |
+          # assets/ changed, so returning visitors would otherwise keep the
+          # old campus forever — and the PR guard would fail the build.
+          #
+          # Both halves are checked rather than assumed. sed reports no
+          # error when its pattern matches nothing, so if the shape of
+          # that line in sw.js ever drifts, this step would quietly do
+          # nothing, the courier would commit new models against an
+          # unchanged VERSION, and every returning visitor would keep
+          # serving the old campus out of cache — with the log still
+          # printing a VERSION line and looking fine. Failing here is
+          # loud and costs one rerun; failing silently is invisible and
+          # costs everyone who has already visited.
+          cur=$(sed -n 's/^const VERSION = "pembroke-v\([0-9][0-9]*\)";$/\1/p' sw.js)
+          case "$cur" in
+            '' | *[!0-9]*)
+              echo "::error::cannot read a single cache version from sw.js."
+              echo "expected one line reading: const VERSION = \"pembroke-vN\";"
+              grep -n 'VERSION' sw.js || true
+              exit 1 ;;
+          esac
+          next=$((cur + 1))
+          sed -i "s/^const VERSION = \"pembroke-v$cur\";\$/const VERSION = \"pembroke-v$next\";/" sw.js
+          got=$(sed -n 's/^const VERSION = "pembroke-v\([0-9][0-9]*\)";$/\1/p' sw.js)
+          if [ "$got" != "$next" ]; then
+            echo "::error::VERSION did not bump — still pembroke-v$got, wanted pembroke-v$next"
+            exit 1
+          fi
+          echo "cache version: pembroke-v$cur -> pembroke-v$next"
+
+      - name: Commit
+        if: steps.plan.outputs.blocks != '0'
+        run: |
+          git config user.name "pembroke-asset-courier"
+          git config user.email "actions@users.noreply.github.com"
+          git add assets sw.js
+          git commit -m "Courier: build $(ls /tmp/plan | grep -c '^block-') character(s) from Mixamo" \
+            || { echo "nothing changed"; exit 0; }
+          git push origin HEAD:${{ github.ref_name }}
+
+          # A push made with GITHUB_TOKEN deliberately does not trigger
+          # workflows — GitHub's guard against a workflow re-triggering
+          # itself forever. That means the commit just made, which adds a
+          # model and bumps the cache version, would sit on the branch with
+          # no checks at all and look merely "not yet run" rather than
+          # untested. Ask for the smoke run explicitly; workflow_dispatch
+          # through the API is allowed where a push is not.
+          curl -sS -X POST \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/smoke.yml/dispatches" \
+            -d '{"ref":"${{ github.ref_name }}"}' \
+            && echo "asked smoke to run on ${{ github.ref_name }}"

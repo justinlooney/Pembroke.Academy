@@ -582,17 +582,26 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
   background:rgba(8,12,22,.82);
   box-shadow:0 10px 28px -10px rgba(0,0,0,.8);
 }
+/* The objective is worth stating once and keeping to hand, not worth a
+   permanent slab across the quad. Tap it and it folds down to its target
+   pip; tap that and it opens again. The choice is remembered. */
 #quest{
   position:absolute;left:1.5rem;top:9.2rem;z-index:20;max-width:330px;
-  display:flex;gap:.65rem;align-items:flex-start;
+  display:flex;gap:.65rem;align-items:flex-start;cursor:pointer;
   padding:.6rem .9rem;border-radius:12px;
   background:linear-gradient(160deg, rgba(20,28,46,.92), rgba(10,16,30,.88));
   border:1px solid rgba(212,175,106,.4);
   box-shadow:0 10px 30px -12px rgba(0,0,0,.8), 0 0 20px -10px rgba(212,175,106,.4);
+  transition:max-width .28s ease, padding .28s ease, border-radius .28s ease;
 }
+#quest:hover{border-color:rgba(212,175,106,.75);}
 #quest .q-icon{font-size:17px;margin-top:1px;}
 #quest .q-label{font-size:8.5px;letter-spacing:.26em;text-transform:uppercase;color:var(--brass-dim);}
 #quest .q-text{font-size:12px;color:#e2e8f0;line-height:1.45;margin-top:2px;}
+/* folded: a pip you can find again, and nothing else */
+#quest.folded{max-width:2.6rem;padding:.5rem .55rem;border-radius:999px;gap:0;}
+#quest.folded > div{display:none;}
+#quest.folded .q-icon{margin-top:0;}
 /* only on screen while you are away looking at the scenery */
 #vista-back{
   position:absolute;left:50%;top:1rem;transform:translateX(-50%);z-index:28;
@@ -644,6 +653,8 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
 #scene.walking{margin-top:0;}
 .walkmode .b-label .stem{display:none;}
 .walkmode #campus-wing-intro, .walkmode #campus-legend, .walkmode #campus-hints{opacity:0;pointer-events:none;transition:opacity .4s ease;}
+/* ?debug puts a panel of numbers where the intro sits; show one or the other */
+body.diagnosing #campus-wing-intro{opacity:0;pointer-events:none;}
 #campus-wing-intro, #campus-legend, #campus-hints{transition:opacity .4s ease;}
 /* these overlays sit on bright sky and sunlit grass, which washed the
    type out on a phone — ground them with a shadow rather than a slab */
@@ -657,6 +668,9 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
    Keep the minimap, the pad, and the door prompt; compact the rest. */
 @media (hover:none){
   .walkmode #walkhud{ display:none; }        /* WASD means nothing here */
+  /* nor does a keyboard legend — and on a narrow screen it ran straight
+     through the quad legend on the opposite corner */
+  #hint-keys{ display:none; }
 }
 @media (max-width:640px){
   .walkmode #quest{
@@ -839,7 +853,8 @@ body.day .int-lamp::after{opacity:.45;}
     <canvas id="minimap" width="132" height="132" aria-label="Campus minimap"></canvas>
 
     <!-- quest banner: the current academic objective -->
-    <div id="quest">
+    <div id="quest" role="button" tabindex="0" aria-expanded="true"
+         title="Tap to fold this away">
       <span class="q-icon">🎯</span>
       <div>
         <div class="q-label">Current objective</div>
@@ -872,7 +887,7 @@ body.day .int-lamp::after{opacity:.45;}
       <div class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-sm inline-block" style="background:var(--quad-adm);box-shadow:0 0 8px var(--quad-adm)"></i><span class="text-slate-300">Administration · AI Robotics &amp; Flight</span></div>
     </div>
     <div id="campus-hints" class="absolute right-5 sm:right-8 bottom-5 z-10 text-right pointer-events-none">
-      <div class="text-[10px] uppercase tracking-[.24em] text-slate-500">Keys 1–4 · quads · 0 · syllabus · N · day/night · F · walk mode</div>
+      <div id="hint-keys" class="text-[10px] uppercase tracking-[.24em] text-slate-500">Keys 1–4 · quads · 0 · syllabus · N · day/night · F · walk mode</div>
       <div class="text-[10px] uppercase tracking-[.24em] text-slate-600 mt-1">drag to orbit · scroll to zoom</div>
     </div>
 
@@ -1771,6 +1786,12 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
+/* Count draws across the whole frame, not just the last pass. Left on
+   auto, three resets these on every render call, so reading them after
+   composer.render() reported the final fullscreen output quad — one draw
+   and two triangles — which is why the diagnostics panel insisted the
+   campus was "draws 1 · tris 0.00M". Reset once per frame instead. */
+renderer.info.autoReset = false;
 stageEl.appendChild(renderer.domElement);
 
 const labelRenderer = new CSS2DRenderer();
@@ -1791,9 +1812,16 @@ const camera = new THREE.PerspectiveCamera(46, 1, 2, 6000);
    campus to a smudge — but it shows the cathedral and the district
    edges, and the zoom now reaches the rest. */
 const AERIAL = [-640, 690, 640];
-function aerialPos(){
+const PORTRAIT_K = 1.5;
+/* How far back the aerial view stands. Portrait screens stand back
+   further to fit anything at all — and the fog has to travel with them,
+   or the extra distance just buys haze. */
+function standBack(){
   const tall = (stageEl?.clientWidth || 1200) / (stageEl?.clientHeight || 800) < 0.85;
-  const k = tall ? 1.5 : 1;
+  return tall ? PORTRAIT_K : 1;
+}
+function aerialPos(){
+  const k = standBack();
   return new THREE.Vector3(AERIAL[0] * k, AERIAL[1] * k, AERIAL[2] * k);
 }
 function aerialHome(){ camera.position.copy(aerialPos()); }
@@ -1830,6 +1858,20 @@ function fovFor(aspect){
   const need = 2 * Math.atan(Math.tan(MIN_H_FOV / 2) / Math.max(aspect, 0.3));
   return Math.min(78, Math.max(BASE_FOV, need * 180 / Math.PI));
 }
+/* Fog distances are tuned for how far away the campus actually is. The
+   portrait view stands back by PORTRAIT_K, so the haze moves out by the
+   same factor — otherwise the arrival view on a phone is a pale smear
+   with the quad dissolved into it, which is exactly what it was. */
+let fogDay = true;
+function applyFog(){
+  if (!world?.fog) return;                /* called from resize before the fog exists */
+  /* on foot you are standing in the middle of it, not looking at it from
+     a mile up, so the aerial standoff must not push your horizon out */
+  const k = window.__walker?.on ? 1 : standBack();
+  world.fog.near = (fogDay ? 900 : 500) * k;
+  world.fog.far  = (fogDay ? 3000 : 2400) * k;
+}
+
 function resize(){
   const w = stageEl.clientWidth || 800, h = stageEl.clientHeight || 600;
   renderer.setSize(w, h);
@@ -1841,6 +1883,7 @@ function resize(){
      would be in its dead zone on the first call. */
   if (!window.__walker?.on) camera.fov = fovFor(camera.aspect);
   camera.updateProjectionMatrix();
+  applyFog();                             /* rotating the phone changes the standoff */
 }
 window.addEventListener("resize", resize);
 
@@ -2040,42 +2083,114 @@ world.add(skyline);
 
 const pathMat = new THREE.MeshStandardMaterial({ map: pathTex, bumpMap: pathBump, bumpScale: 0.4,
   roughness: 0.55, metalness: 0.06, envMapIntensity: 0.6 });
-function pathPlane(px, py, w, d, y = 0.25){
-  const v = new THREE.Mesh(new THREE.PlaneGeometry(w + 16, d + 16), vergeMat);
-  v.rotation.x = -Math.PI / 2;
-  v.position.set(W(px + w / 2), 0.12, W(py + d / 2));
+/* ── curved ways ─────────────────────────────────────────────────────
+   Real campuses are not laid out on graph paper. Paths run building to
+   building along the line people actually walk, bending around lawns
+   rather than turning square corners, and the drive curves because the
+   ground does. This lays a ribbon along a Catmull-Rom curve through a
+   list of plane coordinates, so a way can be described by the places it
+   connects instead of by axis-aligned rectangles. */
+function ribbonGeom(pts, width, lift){
+  const curve = new THREE.CatmullRomCurve3(
+    pts.map(([px, py]) => new THREE.Vector3(W(px), lift, W(py))), false, "catmullrom", 0.5);
+  const N = Math.max(24, Math.round(curve.getLength() / 7));
+  const P = curve.getPoints(N);
+  const pos = [], uv = [], idx = [];
+  let run = 0;
+  for (let i = 0; i <= N; i++){
+    const p = P[i];
+    const t = curve.getTangentAt(i / N);
+    /* left normal in the ground plane */
+    let nx = -t.z, nz = t.x;
+    const L = Math.hypot(nx, nz) || 1;
+    nx = nx / L * width / 2; nz = nz / L * width / 2;
+    if (i > 0) run += P[i].distanceTo(P[i - 1]);
+    pos.push(p.x - nx, lift, p.z - nz, p.x + nx, lift, p.z + nz);
+    uv.push(0, run / width, 1, run / width);       /* texture paces the length */
+    if (i < N){ const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+/* the ribbon's own texture is paced by the UVs above, so it must not
+   also be tiled by the material */
+const walkTex = pathTex.clone(); walkTex.repeat.set(1, 1); walkTex.needsUpdate = true;
+const walkBump = pathBump.clone(); walkBump.repeat.set(1, 1); walkBump.needsUpdate = true;
+const walkMat = new THREE.MeshStandardMaterial({ map: walkTex, bumpMap: walkBump,
+  bumpScale: 0.4, roughness: 0.55, metalness: 0.06, envMapIntensity: 0.6 });
+function walkway(pts, width = 26, y = 0.26){
+  /* a mown verge under every way, so it meets the grass instead of
+     being pasted on top of it */
+  const v = new THREE.Mesh(ribbonGeom(pts, width + 14, 0.13), vergeMat);
   world.add(v);
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), pathMat);
-  m.rotation.x = -Math.PI / 2;
-  m.position.set(W(px + w / 2), y, W(py + d / 2));
+  const m = new THREE.Mesh(ribbonGeom(pts, width, y), walkMat);
   m.receiveShadow = true;
+  m.userData.way = true;              /* so a test can check where ways run */
   world.add(m);
   return m;
 }
+
 let fountainWater = null;
 /* the great oval ring + spokes (same plan as before) */
 {
   const ring = new THREE.Mesh(new THREE.RingGeometry(168, 197, 96), pathMat);
   ring.rotation.x = -Math.PI / 2; ring.position.set(0, 0.3, 0); ring.receiveShadow = true;
   world.add(ring);
-  pathPlane(485, 178, 30, 140); pathPlane(485, 668, 30, 282);
-  pathPlane(485, 62, 30, 116);  /* processional walk to the cathedral doors */
-  pathPlane(668, 485, 272, 30); pathPlane(60, 485, 272, 30);
-  pathPlane(485, 332, 30, 106); pathPlane(485, 562, 30, 106);
-  pathPlane(332, 485, 106, 30); pathPlane(562, 485, 106, 30);
-  [[368,368,-135],[631,369,-45],[369,631,135],[631,631,45]].forEach(([px, py, deg]) => {
-    const a = deg * Math.PI / 180;
-    const v = new THREE.Mesh(new THREE.PlaneGeometry(164, 40), vergeMat);
-    v.rotation.x = -Math.PI / 2; v.rotation.z = -a;
-    v.position.set(W(px) + Math.cos(a) * 75, 0.12, W(py) + Math.sin(a) * 75);
-    world.add(v);
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(150, 26), pathMat);
-    m.rotation.x = -Math.PI / 2;
-    m.rotation.z = -a;
-    m.position.set(W(px) + Math.cos(a) * 75, 0.28, W(py) + Math.sin(a) * 75);
-    m.receiveShadow = true;
-    world.add(m);
-  });
+  /* The ways, described by what they join rather than by rectangles.
+     The four hall doors sit at the corners — library NW, engineering NE,
+     science SW, administration SE — the cathedral closes the north axis,
+     and everything meets the ring around the great lawn. Each line bows
+     slightly off true, because nobody lays a walk with a set square. */
+  const RING_N = [500, 320], RING_S = [500, 682], RING_W = [318, 500], RING_E = [682, 500];
+
+  /* the processional: cathedral doors, down the north axis, to the ring */
+  walkway([[500, 60], [500, 150], [497, 236], [500, 300], RING_N], 30);
+  /* the south walk out to the gatehouse and the stadium boulevard */
+  walkway([RING_S, [500, 760], [503, 840], [500, 918], [500, 985]], 30);
+
+  /* Hall door to lawn. Each one goes round its own building rather than
+     through it — the halls are wide (the science hall alone runs 200 by
+     150) and a walk drawn straight from door to lawn buries itself in
+     masonry. These skirt the footprints the way the ground forces. */
+  walkway([[268, 340], [300, 392], [330, 444], RING_W], 22);
+  walkway([[740, 306], [690, 340], [672, 412], [676, 456], RING_E], 22);
+  walkway([[240, 822], [302, 832], [360, 800], [380, 738], [370, 660],
+           [348, 594], RING_W], 22);
+  walkway([[735, 832], [668, 838], [620, 798], [604, 718], [610, 640],
+           [642, 570], RING_E], 22);
+
+  /* hall to hall, skirting the lawn rather than crossing it — the north
+     range keeps south of the library and engineering, the south range
+     keeps clear of the lodge */
+  walkway([[268, 340], [350, 330], [450, 320], [550, 318], [650, 320], [740, 306]], 20);
+  walkway([[240, 822], [296, 844], [356, 898], [440, 922], [560, 912], [660, 872], [735, 832]], 20);
+  /* the west and east ranges, each passing on the open side of the hall
+     that would otherwise block it */
+  walkway([[268, 340], [300, 430], [304, 540], [318, 610], [370, 660]], 20);
+  walkway([[740, 306], [828, 336], [842, 440], [816, 528], [740, 588], [676, 626]], 20);
+
+  /* The residence hall, properly served: a walk the length of its east
+     front, joined south to the library and north to the drive, so people
+     leave it towards the campus instead of appearing beside it. */
+  walkway([[212, 362], [240, 352], [268, 340]], 18);
+  walkway([[214, 226], [210, 300], [212, 362], [210, 420], [214, 466]], 18);
+  walkway([[214, 466], [244, 500], [286, 512], RING_W], 18);
+  walkway([[746, 326], [744, 316], [740, 306]], 18);
+  /* the south lodge, and the walk down to the west car park */
+  walkway([[240, 822], [292, 830], [334, 834]], 18);
+  walkway([[304, 540], [200, 556], [110, 568]], 18);
+
+  /* Out to the athletics district. The gates are the hinge: the south
+     walk arrives there, and from it a promenade runs down the boulevard
+     to the stadium with branches west to the ballpark and east to the
+     tennis club — the same three destinations the roads serve, on foot. */
+  walkway([[500, 985], [500, 1046], [500, 1104], [500, 1156]], 24);
+  walkway([[476, 1112], [330, 1148], [152, 1192], [-40, 1236], [-150, 1280]], 18);
+  walkway([[524, 1112], [678, 1148], [854, 1190], [982, 1236], [1012, 1274]], 18);
   /* mowing stripes on the great oval, faint and angled like the photo */
   const stripeTex = canvasTex(256, (x) => {
     for (let ry = 0; ry < 8; ry++){
@@ -2144,53 +2259,60 @@ function lot(px, py, w, d, stalls){
 }
 lot(900, 310, 84, 300, 6);
 lot(16, 430, 70, 240, 5);
-/* the campus drive: a U of asphalt hugging west, south, and east
-   edges (the cathedral closes the north), with curbs, lane dashes,
-   lot connectors, and a zebra crossing at the gatehouse spur */
+/* the campus drive: one carriage road curving around the grounds, with
+   a shoulder, a dashed centre line, lot spurs, and a crossing where the
+   south walk meets it */
 {
-  const curbMat = new THREE.MeshStandardMaterial({ color: 0xb9b2a2, roughness: 0.9 });
   const dashMat = new THREE.MeshBasicMaterial({ color: 0xd8d4c8 });
-  const road = (px, py, w, d) => {
+
+  /* The drive used to be three straight legs meeting at right angles —
+     a square drawn around the campus. Real ones bend: they follow the
+     ground, swing wide of the buildings they serve, and meet the public
+     road at an angle. This is one continuous carriage drive entering
+     from the south-west, curving north past the residence hall, around
+     the top of the campus and back down the east side to the gates. */
+  const drive = (pts, width = 34) => {
     const t = asphaltTex.clone();
-    t.repeat.set(Math.max(1, w / 34), Math.max(1, d / 34));
-    t.needsUpdate = true;
-    const roadMat = new THREE.MeshStandardMaterial({ map: t, color: 0xb8bcc2, roughness: 1 });
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), roadMat);
-    m.rotation.x = -Math.PI / 2;
-    m.position.set(W(px + w / 2), 0.2, W(py + d / 2));
+    t.repeat.set(1, 1); t.needsUpdate = true;
+    const mat = new THREE.MeshStandardMaterial({ map: t, color: 0xb8bcc2, roughness: 1 });
+    /* a kerb-dark shoulder just proud of the carriageway, since a curved
+       drive cannot take the straight kerb boxes the old legs used */
+    const sh = new THREE.Mesh(ribbonGeom(pts, width + 7, 0.16),
+      new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 1 }));
+    world.add(sh);
+    const m = new THREE.Mesh(ribbonGeom(pts, width, 0.22), mat);
     m.receiveShadow = true;
     world.add(m);
-    const horiz = w > d;
-    for (const side of [-1, 1]){
-      const c = new THREE.Mesh(
-        horiz ? new THREE.BoxGeometry(w + 3, 2, 3) : new THREE.BoxGeometry(3, 2, d + 3), curbMat);
-      c.position.set(W(px + w / 2) + (horiz ? 0 : side * (w / 2 + 1.5)), 1,
-                     W(py + d / 2) + (horiz ? side * (d / 2 + 1.5) : 0));
-      c.receiveShadow = true;
-      world.add(c);
-    }
-    const len = horiz ? w : d, n = Math.floor(len / 46);
-    for (let k = 0; k < n; k++){
-      const dash = new THREE.Mesh(new THREE.PlaneGeometry(horiz ? 18 : 2.2, horiz ? 2.2 : 18), dashMat);
-      dash.rotation.x = -Math.PI / 2;
-      dash.position.set(
-        horiz ? W(px + 24 + k * 46) : W(px + w / 2),
-        0.3,
-        horiz ? W(py + d / 2) : W(py + 24 + k * 46));
-      world.add(dash);
-    }
+    /* centre line, dashed along the curve */
+    const g = ribbonGeom(pts, 2.4, 0.31);
+    const dash = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+      map: (() => { const d = canvasTex(64, (x) => {
+              x.fillStyle = "#000"; x.fillRect(0, 0, 64, 64);
+              x.fillStyle = "#e8e2c8"; x.fillRect(0, 10, 64, 30); }, 1);
+            d.wrapT = THREE.RepeatWrapping; return d; })(),
+      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    world.add(dash);
   };
-  road(-48, 80, 30, 950);          /* west leg  */
-  road(1012, 60, 30, 970);         /* east leg  */
-  road(-48, 1000, 1090, 30);       /* south leg */
-  road(-18, 516, 34, 30);          /* west lot connector */
-  road(984, 430, 28, 30);          /* east lot connector */
-  road(478, 948, 44, 52);          /* gatehouse spur */
-  road(470, 1030, 60, 120);        /* stadium boulevard, south to the gates */
-  for (let k = 0; k < 6; k++){     /* zebra crossing on the south leg */
-    const stripe = new THREE.Mesh(new THREE.PlaneGeometry(30, 3.2), dashMat);
+  drive([[-40, 1080], [40, 980], [70, 880], [64, 700], [50, 560],
+         [70, 400], [140, 250], [300, 150], [500, 110], [700, 140],
+         [880, 240], [960, 400], [980, 600], [966, 800], [930, 950],
+         [880, 1060]]);
+  /* the boulevard south from the gatehouse to the stadium forecourt */
+  drive([[500, 985], [500, 1050], [498, 1105], [500, 1160]], 46);
+  /* and the athletics roads: west along the front of the district to the
+     ballpark, east to the tennis club, so the fields are reached the way
+     a campus reaches them rather than sitting unserved on the horizon */
+  drive([[478, 1088], [330, 1124], [150, 1168], [-40, 1212], [-152, 1256]], 32);
+  drive([[522, 1088], [676, 1124], [852, 1166], [980, 1212], [1014, 1250]], 32);
+  /* service loops to the lots either side */
+  drive([[64, 700], [10, 690], [-40, 700]], 24);
+  drive([[966, 800], [1020, 790], [1070, 800]], 24);
+  /* the residence hall forecourt, off the drive on the west side */
+  drive([[122, 262], [176, 232], [214, 226]], 22);
+  for (let k = 0; k < 6; k++){     /* zebra crossing where the south walk meets the drive */
+    const stripe = new THREE.Mesh(new THREE.PlaneGeometry(34, 3.2), dashMat);
     stripe.rotation.x = -Math.PI / 2;
-    stripe.position.set(W(500), 0.34, W(1003 + 4.8 * k));
+    stripe.position.set(W(500), 0.34, W(996 + 4.8 * k));
     world.add(stripe);
   }
 }
@@ -2639,17 +2761,18 @@ BUILDINGS.forEach(spec => {
        southwest, the Pembroke Tennis Club southeast. A visitor can walk
        to all three, so they arrive before anything merely scenic. */
     ["assets/gridiron.glb", { plane: [500, 1530], height: 110, maxFoot: [720, 700], sink: 3,
-      vista: "Pembroke Stadium",
+      vista: "Pembroke Stadium", collider: "auto",
       rotY: Math.PI,                     /* grand entrance faces the boulevard */
       onLoaded: brandStadium }],
     ["assets/ballpark.glb", { plane: [-380, 1290], height: 62, maxFoot: [430, 440], sink: 2.5,
-      vista: "Pembroke Field" }],
+      vista: "Pembroke Field", collider: "auto" }],
     ["assets/tennis.glb",   { plane: [1270, 1280], height: 60, maxFoot: [500, 390], sink: 2.5,
-      vista: "Pembroke Tennis Club" }],
+      vista: "Pembroke Tennis Club", collider: "auto" }],
     /* the white cathedral (Gnemegorl) joins the horizon, west */
     ["assets/gothic_cathedral.glb", {
       plane: [-560, 380], height: 420, rotY: 1.9, maxFoot: [520, 420],
-      dropMatNames: ["metal"], tint: 0xe8dcc6, vista: "The White Cathedral" }],
+      dropMatNames: ["metal"], tint: 0xe8dcc6, vista: "The White Cathedral",
+      collider: "auto" }],
     /* the city of learning on the horizon: Cologne Cathedral (Shahriar
        Shahrabi, CC-BY-4.0) NW and Moscow State University (Neo_minigan,
        CC-BY-4.0) NE, hazed by distance and fog */
@@ -2660,7 +2783,7 @@ BUILDINGS.forEach(spec => {
        drive toward the horizon */
     ["assets/university.glb", {
       plane: [1620, 760], height: 300, rotY: Math.PI / 2, maxFoot: [900, 1400], sink: 4.5,
-      vista: "The Town Beyond the Drive" }],
+      vista: "The Town Beyond the Drive", collider: "auto" }],
     ["assets/msu.glb", { plane: [1680, -420], height: 780, rotY: -2.4, maxFoot: [1150, 950],
       vista: "The Distant Institute" }],
   ];
@@ -3250,13 +3373,23 @@ for (let k = 0; k < 8; k++) EDGES["R" + k] = ["R" + ((k + 1) % 8), "R" + ((k + 7
 Object.assign(WAYPOINTS, {
   chapel: [500, 218], gate: [500, 905], south: [500, 946], east: [928, 500], west: [72, 500],
   libDoor: [260, 326], engDoor: [740, 306], sciDoor: [240, 822], admDoor: [735, 832],
+  /* The two southern halls stand between their door and the ring, so a
+     straight run at the door goes through the building — sampled at 72%
+     and 85% of the way inside. The library and the engineering quad do
+     not have this problem: their doors face the ring across open lawn.
+     These corners take the walk out and around the front, the way you
+     would actually reach a door you can see but cannot walk through. */
+  sciApp: [402, 838], admApp: [598, 848],
 });
 Object.assign(EDGES, {
   chapel: ["R6"], gate: ["R2", "south"], south: ["gate"], east: ["R0"], west: ["R4"],
-  libDoor: ["R5"], engDoor: ["R7"], sciDoor: ["R3"], admDoor: ["R1"],
+  libDoor: ["R5"], engDoor: ["R7"],
+  sciApp: ["R3", "sciDoor"], sciDoor: ["sciApp"],
+  admApp: ["R1", "admDoor"], admDoor: ["admApp"],
 });
 EDGES.R6.push("chapel"); EDGES.R2.push("gate"); EDGES.R0.push("east"); EDGES.R4.push("west");
-EDGES.R5.push("libDoor"); EDGES.R7.push("engDoor"); EDGES.R3.push("sciDoor"); EDGES.R1.push("admDoor");
+EDGES.R5.push("libDoor"); EDGES.R7.push("engDoor"); EDGES.R3.push("sciApp"); EDGES.R1.push("admApp");
+window.__ways = { WAYPOINTS, EDGES };   /* test/debug hook */
 
 const STUDENT_ROSTER = [
   { name:"Elowen", c:0x34d399, says:["Off to Calc III — gradients await!","The Library dome at dusk… unbeatable.","Stokes' theorem finally clicked!"] },
@@ -3314,22 +3447,64 @@ function mkPerson(jacketColor, seed){
 /* the photoreal cast, ferried in by the registrar: a mid-stride
    walker, a rigged student frozen in a natural stance, a talker
    mid-gesture, and a coder folded up with her laptop */
-const CAST_FILES = { walk: "assets/stu_walk.glb", stand: "assets/stu_anim.glb",
-                     chat: "assets/stu_chat.glb", laptop: "assets/stu_laptop.glb",
-                     jog: "assets/stu_athlete.glb", skate: "assets/stu_skater.glb" };
-const CAST_HEIGHT = { walk: 42, stand: 41, chat: 42, laptop: 25, jog: 43, skate: 42 };
+/* stu_walker.glb is the only figure with a skeleton and real motion —
+   seven mocap clips on one Mixamo rig. The models it replaces (walk,
+   chat, laptop, athlete) carry no skin and no clips at all, which is why
+   those students used to glide across the lawn without moving a leg. */
+const CAST_FILES = { walker: "assets/stu_walker.glb", stand: "assets/stu_anim.glb",
+                     skate: "assets/stu_skater.glb" };
+const CAST_HEIGHT = { walker: 42, stand: 41, skate: 42 };
+/* Where the named eight are and what they are doing. A plan with
+   neither `at` nor `orbit` roams the ring; the gait it roams with is
+   drawn per figure in makeRoamer rather than fixed here, so the mix
+   changes between visits. */
 const CAST_PLAN = [
-  { k: "walk" },                                            /* Elowen — roams        */
-  { k: "stand", at: [700, 340], face: -0.9, live: true },   /* Marcus — Whitmore door */
-  { k: "chat",   at: [449, 449], face:  0.8, kind: "chat" },/* Priya  — plaza        */
-  { k: "laptop", at: [543, 449], face: -2.4, kind: "laptop" }, /* Sofia — lawn       */
-  { k: "walk" },                                            /* Theo   — roams        */
-  { k: "stand", at: [270, 700], face:  0.7, live: true },   /* Jun    — Alden walk   */
-  { k: "jog", orbit: 1 },                                   /* Amara  — laps the oval */
-  { k: "walk" },                                            /* Kenji  — roams        */
+  { k: "walker" },                                          /* Elowen — roams        */
+  { k: "stand", at: [700, 340], face: -0.9, live: true, pose: 0 }, /* Marcus — Whitmore door */
+  { k: "walker", at: [449, 449], face:  0.8, kind: "chat",  /* Priya  — plaza        */
+    clip: "Idle" },
+  { k: "walker", at: [543, 449], face: -2.4, kind: "laptop",/* Sofia  — lawn         */
+    clip: "Sitting Talking" },
+  { k: "walker" },                                          /* Theo   — roams        */
+  /* Jun stood at 270,700 — which is inside the science hall, invisible
+     behind its south wall. Out on the front now, facing the quad. */
+  { k: "stand", at: [286, 838], face:  0.2, live: true, pose: 1 }, /* Jun — Alden front */
+  { k: "walker", orbit: 1, clip: "Jogging" },               /* Amara  — laps the oval */
+  { k: "walker" },                                          /* Kenji  — roams        */
 ];
 const castLib = {};
 const castMixers = [];
+/* How many gait cycles a clip contains, counted from the thigh swinging
+   back and forth. This is what lets playback be matched to how fast a
+   student is really walking — a clip played at a fixed rate while the
+   body travels at some other speed is the skating-feet giveaway, and it
+   is the single most noticeable thing about fake walking.
+
+   Counted rather than taken from the root's travel, because these clips
+   are exported "In Place" and have no travel to read: the hips barely
+   move, and what little they do is sway in bone-local units that do not
+   convert to campus units by any scale we hold. Leg swing is in the data
+   whatever the export settings, and clip length alone will not do it —
+   some downloads carry two cycles and some one. */
+function gaitCycles(clip){
+  const t = clip.tracks.find(t => /UpLeg\.quaternion$/i.test(t.name));
+  if (!t) return 1;
+  const v = t.values, n = 4;
+  let mean = 0, count = 0;
+  for (let i = 0; i < v.length; i += n){ mean += v[i]; count++; }
+  if (!count) return 1;
+  mean /= count;
+  let crossings = 0, prev = 0;
+  for (let i = 0; i < v.length; i += n){
+    const d = v[i] - mean;
+    if (Math.abs(d) < 1e-4) continue;
+    const sign = d > 0 ? 1 : -1;
+    if (prev && sign !== prev) crossings++;
+    prev = sign;
+  }
+  /* a full swing crosses the midpoint twice */
+  return Math.max(0.5, crossings / 2);
+}
 /* mixamo clips carry root travel; pin the XZ so figures animate in place */
 function inPlaceClip(clip){
   clip.tracks.forEach(t => {
@@ -3340,13 +3515,31 @@ function inPlaceClip(clip){
   });
   return clip;
 }
-function prepFigure(k, height, live){
+/* Measure every clip once, then pin it. Order matters: pinning first
+   would leave nothing to measure. */
+function prepareClips(anims){
+  for (const c of anims){
+    /* AnimationClip has no userData of its own — reading through it
+       unguarded throws inside the loader's onLoad, and GLTFLoader reports
+       a callback exception as a load failure, so the model looks broken
+       when the mistake is here. */
+    if (!c.userData) c.userData = {};
+    if (c.userData.cycles === undefined) c.userData.cycles = gaitCycles(c);
+    inPlaceClip(c);
+  }
+}
+function prepFigure(k, height, live, clipIx = 0){
   const src = castLib[k];
-  const skinned = k === "stand" || k === "skate";
-  const root = skinned ? skeletonClone(src.scene) : src.scene.clone(true);
-  if (skinned && src.animations.length){
+  const skinned = true;                  /* every remaining source is rigged */
+  const root = skeletonClone(src.scene);
+  if (k !== "walker" && src.animations.length){
     const mixer = new THREE.AnimationMixer(root);
-    mixer.clipAction(inPlaceClip(src.animations[0])).play();
+    /* This character came down with four clips, and playing the first
+       one every time wasted three of them — four figures standing about
+       in four different ways is most of what "a different person" means
+       at this distance. */
+    const clip = src.animations[clipIx % src.animations.length];
+    mixer.clipAction(inPlaceClip(clip)).play();
     if (live) castMixers.push(mixer);
     else mixer.update(0.7);              /* freeze in a natural stance */
   }
@@ -3356,8 +3549,48 @@ function prepFigure(k, height, live){
   const g2 = new THREE.Group();
   root.scale.setScalar(sc2);
   root.position.set(-(bb.min.x + bb.max.x) / 2 * sc2, -bb.min.y * sc2, -(bb.min.z + bb.max.z) / 2 * sc2);
-  root.traverse(o => { if (o.isMesh){ o.castShadow = true; o.frustumCulled = false; } });
+  root.traverse(o => {
+    if (!o.isMesh) return;
+    o.castShadow = true;
+    /* A skinned mesh's bounds are the bind pose, so a figure whose arms
+       swing wider than that pops out of view at the edge of the screen.
+       The cheap fix is to turn culling off — which is what this used to
+       do, and it meant every student on campus was drawn every frame
+       whether or not they were behind you. Give them a generous sphere
+       instead and the cull comes back: with a crowd on the quad, the
+       ones at your back cost nothing.
+
+       Taken from the geometry rather than SkinnedMesh.computeBoundingSphere,
+       which walks every vertex through the skeleton — 50k of them per
+       figure. The geometry is shared between clones, so this is measured
+       once for the whole cohort. */
+    const gm = o.geometry;
+    if (o.isSkinnedMesh && gm){
+      if (!gm.boundingSphere) gm.computeBoundingSphere();
+      if (gm.boundingSphere){
+        o.boundingSphere = gm.boundingSphere.clone();
+        o.boundingSphere.radius *= 2.2;
+      }
+    }
+  });
   g2.add(root);
+  g2.userData.figure = k;                /* test/debug: this is a person */
+  if (k === "walker"){
+    const mixer = new THREE.AnimationMixer(root);
+    const actions = {}, nominal = {};
+    for (const c of src.animations){
+      actions[c.name] = mixer.clipAction(c);
+      /* The clip's own pace in campus units per second. One gait cycle
+         carries the body two steps, and a step is about three quarters of
+         a leg — so the distance is set by the figure's own height rather
+         than by anything in the file, which is the only thing here whose
+         units are certain. */
+      const perCycle = 0.68 * (height || CAST_HEIGHT[k]);
+      nominal[c.name] = (c.userData.cycles || 1) * perCycle / Math.max(0.05, c.duration);
+    }
+    castMixers.push(mixer);
+    g2.userData.anim = { mixer, actions, nominal, current: null };
+  }
   return g2;
 }
 {
@@ -3365,13 +3598,133 @@ function prepFigure(k, height, live){
   const keys = Object.keys(CAST_FILES);
   keys.forEach(k => gltf.load(CAST_FILES[k], (g) => {
     castLib[k] = g;
+    if (k === "walker") prepareClips(g.animations);
     if (++castReady === keys.length) buildCast();
   }));
+}
+/* ── dressing one model as a whole cohort ────────────────────────────
+   There is exactly one rigged character in this project, and a campus
+   full of one person is worse than a campus full of nobody: identical
+   twins read as a rendering fault, not as a crowd.
+
+   What makes it possible is how Mixamo exported it. The body, hair,
+   shirt, shorts and sneakers are five separate meshes, and although the
+   clothing shares a single texture with the skin, each mesh can carry
+   its own material — so every part can be tinted independently and the
+   face is never dragged along with the shirt.
+
+   Materials multiply their colour into the texture, so this tints what
+   is already there rather than painting over it: the fabric weave, the
+   creases and the shading in the map all survive. */
+const WARDROBE = {
+  /* Complexion is the first thing you read about a person at any
+     distance, so it varies most. These are multipliers against a fair
+     base texture — above 1 lightens, below 1 deepens — written in linear
+     light, which is where the shader does the multiplication. */
+  skin: [[1.06, 1.03, 1.00], [0.97, 0.90, 0.82], [0.86, 0.73, 0.60],
+         [0.71, 0.56, 0.43], [0.56, 0.41, 0.30], [0.43, 0.30, 0.21],
+         [0.33, 0.23, 0.16], [0.92, 0.79, 0.66]],
+  hair:     ["#2b1b12", "#4a2c1a", "#12100f", "#6b4a2a", "#8a6a3a", "#5a5a5a",
+             "#1a1410", "#7a5a30", "#3a2418", "#c9a15a"],
+  shirt:    ["#4a6fa5", "#8c4a4a", "#3f7a5a", "#d8d2c4", "#5a4a7a", "#c88a3a",
+             "#2f3b4a", "#a34f6d", "#6a8a4a", "#b8b0a0", "#3a5a6a", "#7a3a4a",
+             "#e0dcd2", "#334a3a", "#9a5a2a", "#4a4a5a"],
+  shorts:   ["#2f3542", "#4a4438", "#3a4a5a", "#5a4038", "#38424a", "#6a6252",
+             "#22262e", "#7a7264", "#3d3a44"],
+  sneakers: ["#e8e4dc", "#2b2b2b", "#b04a3a", "#4a5a8a", "#8a8a7a", "#c8c2b4"],
+};
+/* Blonde on a deep complexion is a real person, but it is rare enough
+   that a campus generating it one time in ten looks arbitrary rather
+   than diverse. Past this tone, hair comes from the dark end. */
+const DARK_HAIR = 6;
+function dressFigure(g, seed){
+  /* A proper hash, not seed modulo length: with an integer seed and a
+     handful of palettes, arithmetic that simple walks the lists in step
+     and every third student ends up in the same outfit. */
+  const R = (salt) => {
+    const s = Math.sin(seed * 127.1 + salt * 311.7 + 1.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+  const pick = (list, salt) => list[Math.floor(R(salt) * list.length)];
+  const tone = Math.floor(R(0) * WARDROBE.skin.length);
+  const hair = tone >= 4 ? WARDROBE.hair[Math.floor(R(1) * DARK_HAIR)]
+                         : pick(WARDROBE.hair, 1);
+  const dress = { hair, shirt: pick(WARDROBE.shirt, 2),
+                  shorts: pick(WARDROBE.shorts, 3), sneakers: pick(WARDROBE.sneakers, 4) };
+  g.traverse(o => {
+    if (!o.isMesh || !o.material) return;
+    const what = /hair/i.test(o.name) ? "hair"
+               : /shirt|top|jacket/i.test(o.name) ? "shirt"
+               : /short|pant|trouser|jean/i.test(o.name) ? "shorts"
+               : /shoe|sneaker|boot/i.test(o.name) ? "sneakers"
+               : /body|skin|head/i.test(o.name) ? "skin" : null;
+    if (!what) return;                     /* the eyelashes are left alone */
+    /* Clone first. SkeletonUtils shares materials between clones, so
+       tinting in place would dress the entire cohort identically — and
+       the mistake is invisible until the second figure is built. */
+    o.material = o.material.clone();
+    if (what === "skin") o.material.color.setRGB(...WARDROBE.skin[tone]);
+    else o.material.color = new THREE.Color(dress[what]);
+  });
+  /* Breadth as well as height. Stature and build carry a silhouette
+     further than any colour does — at the far side of the quad they are
+     most of what tells two people apart. */
+  g.scale.x = g.scale.z = 0.93 + R(5) * 0.16;
+}
+/* Every figure starts at a different point in its cycle. A crowd on one
+   clip in lockstep is a chorus line, and it is the first thing the eye
+   picks up — before the faces, before the clothes. */
+function stagger(g, nm){
+  const a = g.userData.anim;
+  if (!a || !a.actions[nm]) return;
+  a.actions[nm].time = Math.random() * a.actions[nm].getClip().duration;
+}
+/* Three gaits, drawn per figure rather than assigned, so the mix changes
+   between visits instead of being the same three people every time. */
+const GAITS = ["Standard Walk", "Strut Walking", "Walk Forward"];
+/* Put a figure on the ring and let them walk it. Shared by the named
+   cast and by the crowd behind them, so the two move under identical
+   rules — an extra who walks differently from a classmate reads as a
+   bug, however well dressed. */
+function makeRoamer(g, startKey, extra){
+  const gait = GAITS[Math.floor(Math.random() * GAITS.length)];
+  if (g.userData.anim){ setClipOn(g, "Idle"); stagger(g, "Idle"); stagger(g, gait); }
+  /* Let the clip set the pace rather than stretching it to fit a speed
+     picked out of the air. A gait has a natural rate, and a student
+     walking faster than their own animation is exactly the sliding-feet
+     problem this is all for — so each one travels at their clip's pace,
+     give or take. It spreads the speeds for free, too: the strut is a
+     brisk walk and Walk Forward an amble, so they read as different
+     people rather than one person at different framerates. */
+  const nom = g.userData.anim?.nominal?.[gait];
+  const speed = nom > 4 ? nom * (0.86 + Math.random() * 0.28)
+                        : 26 + Math.random() * 18;
+  /* Nobody walks the exact centre line of a path. Without a lane of
+     their own, everyone heading for the same waypoint converges into a
+     single file and then overlaps outright — which is precisely what a
+     crowd must not do. */
+  const lane = [(Math.random() - 0.5) * 24, (Math.random() - 0.5) * 24];
+  const open = startKey[0] === "R";       /* the ring; doors are too tight — see below */
+  const s = { g, node: startKey, lane, speed, target: null, pauseUntil: 0,
+              pos: [WAYPOINTS[startKey][0] + (open ? lane[0] : 0),
+                    WAYPOINTS[startKey][1] + (open ? lane[1] : 0)],
+              anim0: "Idle", idleRate: 0.85 + Math.random() * 0.3,
+              phase: Math.random() * 9, walkT: 0, gait: 0, gait2: gait };
+  if (extra) Object.assign(s, extra);
+  students.push(s);
+  return s;
+}
+/* Stature varies more between people than anything else you can read
+   across a lawn, so it is the first thing the seed decides. */
+function buildOf(seed){
+  const s = Math.sin(seed * 74.3 + 9.1) * 43758.5453;
+  return 0.89 + (s - Math.floor(s)) * 0.22;           /* ±11% of height */
 }
 function buildCast(){
   STUDENT_ROSTER.forEach((st, i) => {
     const plan = CAST_PLAN[i];
-    const g = prepFigure(plan.k, 0, plan.live);
+    const g = prepFigure(plan.k, CAST_HEIGHT[plan.k] * buildOf(i), plan.live, plan.pose || 0);
+    if (plan.k === "walker") dressFigure(g, i);
     const tagEl = document.createElement("div");
     tagEl.className = "stu-tag";
     tagEl.textContent = st.name;
@@ -3381,27 +3734,132 @@ function buildCast(){
     world.add(g);
     if (plan.orbit){
       const a0 = i * 0.9;
-      students.push({ g, data: st, orbit: 182.5, orbitA: a0, orbitW: 0.16,
+      if (plan.clip){ setClipOn(g, plan.clip); stagger(g, plan.clip); }
+      students.push({ g, data: st, orbit: 182.5, orbitA: a0, orbitW: 0.16, clip: plan.clip,
                       pos: [500 + Math.cos(a0) * 182.5, 500 + Math.sin(a0) * 182.5] });
       return;
     }
     if (plan.at){
       g.position.set(W(plan.at[0]), 0, W(plan.at[1]));
       g.rotation.y = plan.face || 0;
+      if (plan.clip){ setClipOn(g, plan.clip); stagger(g, plan.clip); }
       students.push({ g, data: st, static: true, kind: plan.kind, baseYaw: plan.face || 0,
                       phase0: i * 1.7, pos: [...plan.at] });
       return;
     }
-    const startKey = ["R0","R1","R2","R3","R4","R5","R6","R7"][i % 8];
-    students.push({ g, data: st, node: startKey, pos: [...WAYPOINTS[startKey]],
-                    target: null, speed: 26 + Math.random() * 18, pauseUntil: 0,
-                    phase: Math.random() * 9, walkT: 0, gait: 0 });
+    makeRoamer(g, ["R0","R1","R2","R3","R4","R5","R6","R7"][i % 8], { data: st });
   });
   /* an uncommissioned regular: the skater, carving the ring the other way */
   const sk = prepFigure("skate", 0, true);
   world.add(sk);
   students.push({ g: sk, orbit: 175, orbitA: 3.6, orbitW: -0.34, skate: true,
                   pos: [500 + Math.cos(3.6) * 175, 500 + Math.sin(3.6) * 175] });
+  /* Three more of the second rigged character — a genuinely different
+     body rather than the walker re-dressed, which is worth more than any
+     amount of recolouring. Their download carries no gait, so they are
+     put where standing about is what people do: by a door, at the edge
+     of the plaza, under the trees. Each takes a different one of the
+     four clips that came with them. */
+  [[612, 806, -1.1, 1], [418, 372, 2.3, 2], [560, 300, -2.6, 3]].forEach(([x, y, face, pose]) => {
+    const g = prepFigure("stand", CAST_HEIGHT.stand * buildOf(pose * 17 + 5), true, pose);
+    g.position.set(W(x), 0, W(y));
+    g.rotation.y = face;
+    world.add(g);
+  });
+  crowdReady = true;
+  if (CROWD_FORCE !== null){ while (crowdN < CROWD_FORCE) addExtra(crowdN++); crowdDone = true; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   THE CROWD — everyone who is not in the credits.
+
+   Nine people on a campus reads as a film set after the extras have
+   gone home. These carry no name, no tag and no dialogue; they exist so
+   that the quad looks lived in, and every one is dressed, built, paced
+   and staggered off its own seed.
+
+   How many the machine can carry is not knowable up front. A phone was
+   measured here at 29fps drawing the campus alone, and the same page on
+   a desktop has headroom for three times this crowd — so guessing from
+   the user agent either wastes the desktop or melts the phone. Instead:
+   add one every so often while the frame rate holds, and stop for good
+   the first time it does not. It only ever adds. A crowd that thins out
+   while you watch is worse than a small one that doesn't.
+
+   The first few are not up for negotiation. That same phone sits just
+   under any frame-rate bar worth setting, so a pure ramp would hand it
+   nobody at all — and "the crowd is disabled on the device you are
+   holding" is not a feature. A handful always arrive; the ramp only
+   decides how far past them to go.
+   ══════════════════════════════════════════════════════════════════ */
+const CROWD_MAX = 26;
+const CROWD_MIN = 5;                 /* arrive regardless of what it costs */
+/* Above any 30Hz display cap and well below 60, so a phone that is
+   merely capped is not mistaken for a phone that is struggling — and a
+   machine actually labouring in the low thirties stops at the five. */
+const CROWD_FLOOR = 33;
+/* ?crowd=N fills the quad immediately and ignores the frame rate. CI
+   renders on a software rasterizer at single-digit fps, so the ramp
+   correctly declines to add anybody there — which would leave the whole
+   crowd untested on the only machine that tests anything. */
+const CROWD_FORCE = q.has("crowd") ? Math.max(0, Math.min(CROWD_MAX, +q.get("crowd") || 0)) : null;
+let crowdReady = false, crowdN = 0, crowdNext = 0, crowdDone = false, crowdFps = 60;
+const CROWD_START = ["R0","R1","R2","R3","R4","R5","R6","R7",
+                     "libDoor","engDoor","sciDoor","admDoor","gate","chapel","east","west"];
+function addExtra(n){
+  const seed = 101 + n * 3;
+  const g = prepFigure("walker", CAST_HEIGHT.walker * buildOf(seed), false);
+  dressFigure(g, seed);
+  g.userData.crowd = true;               /* test/debug: not one of the named */
+  world.add(g);
+  makeRoamer(g, CROWD_START[n % CROWD_START.length]);
+}
+function stepCrowd(now, dt){
+  /* a slow average, so one stutter — a model finishing its decode, a
+     texture uploading — does not permanently cap the campus */
+  crowdFps += (1 / Math.max(dt, 1e-4) - crowdFps) * Math.min(1, dt * 1.5);
+  if (crowdDone || !crowdReady || crowdN >= CROWD_MAX) return;
+  /* Not while the campus is still arriving. 39MB of models decode on
+     the main thread, and on a phone that is half a minute of frames the
+     renderer never got to draw. Reading that as "this machine is slow"
+     would cap the crowd at nobody on exactly the hardware where the
+     measurement was supposed to help. */
+  if (!assetLog.length || assetLog.some(a => a.ms == null)) return;
+  if (!crowdNext){ crowdNext = now + 2000; crowdFps = 60; return; }   /* settle */
+  if (now < crowdNext) return;
+  if (crowdN >= CROWD_MIN && crowdFps < CROWD_FLOOR){ crowdDone = true; return; }
+  crowdNext = now + 500;
+  addExtra(crowdN++);
+}
+/* test/debug hook: how many people are on campus, whether more are
+   coming, and what they cost to draw */
+window.__crowd = () => ({ n: crowdN, done: crowdDone, fps: crowdFps,
+  people: students.length, draws: renderer.info.render.calls,
+  tris: renderer.info.render.triangles });
+/* Crossfade rather than cut. A student who reaches a door and snaps from
+   mid-stride to standing reads as a glitch; a quarter-second blend reads
+   as someone arriving. */
+function setClipOn(g, name, fade = 0.25){
+  return setClip({ g }, name, fade);
+}
+function setClip(s, name, fade = 0.25){
+  const a = s.g?.userData?.anim;
+  if (!a || !a.actions[name] || a.current === name) return;
+  const next = a.actions[name];
+  next.reset().setEffectiveWeight(1).fadeIn(fade).play();
+  if (a.current && a.actions[a.current]) a.actions[a.current].fadeOut(fade);
+  a.current = name;
+}
+/* Play the clip at the pace the body is actually travelling. Clamped
+   because a student hurrying at double speed should look hurried, not
+   like a film run fast. */
+function matchSpeed(s, name, speed){
+  const a = s.g?.userData?.anim;
+  if (!a) return;
+  const nom = a.nominal[name];
+  const act = a.actions[name];
+  if (!act) return;
+  act.timeScale = (nom > 0.5) ? Math.max(0.55, Math.min(1.9, speed / nom)) : 1;
 }
 function stepStudents(dt, now){
   for (const s of students){
@@ -3418,7 +3876,10 @@ function stepStudents(dt, now){
       const ny = 500 + Math.sin(s.orbitA) * s.orbit;
       s.g.rotation.y = Math.atan2(nx - s.pos[0], ny - s.pos[1]);
       s.pos[0] = nx; s.pos[1] = ny;
-      const bob = s.skate ? 0 : Math.abs(Math.sin(now / 95)) * 1.3;
+      /* the jogger's own bob comes from the clip now; only the skater,
+         who has no run cycle, still needs one faked */
+      const bob = s.g.userData.anim ? 0 : (s.skate ? 0 : Math.abs(Math.sin(now / 95)) * 1.3);
+      if (s.clip) matchSpeed(s, s.clip, Math.abs(s.orbit * s.orbitW));
       s.g.position.set(W(nx), bob, W(ny));
       continue;
     }
@@ -3429,7 +3890,16 @@ function stepStudents(dt, now){
         const opts = EDGES[s.node];
         s.target = opts[Math.floor(Math.random() * opts.length)];
       }
-      const [tx, ty] = WAYPOINTS[s.target];
+      /* Aim for this student's own lane through the waypoint rather than
+         its exact centre — see makeRoamer — but only out on the ring.
+         The door and gate waypoints sit hard against the buildings they
+         serve, close enough that the walkways themselves graze the
+         footprints on the way in; offsetting an approach by a few feet
+         puts a shoulder through a wall. On the open ring there is
+         nothing to walk into and everything to spread out from. */
+      const w = WAYPOINTS[s.target];
+      const lane = s.lane && s.target[0] === "R" ? s.lane : null;
+      const tx = w[0] + (lane ? lane[0] : 0), ty = w[1] + (lane ? lane[1] : 0);
       const dx = tx - s.pos[0], dy = ty - s.pos[1];
       const dist = Math.hypot(dx, dy);
       if (dist < 2){
@@ -3442,20 +3912,46 @@ function stepStudents(dt, now){
         s.g.rotation.y = Math.atan2(dx, dy);
       }
     }
-    /* eased gait drives a soft step-bob; the scans carry their own pose */
-    s.gait += ((moving ? 1 : 0) - s.gait) * Math.min(1, dt * 6);
-    if (s.gait > 0.01) s.walkT += dt * (4.2 + s.speed * 0.09);
-    if (s.limbs){
-      const sw = Math.sin(s.walkT) * 0.52 * s.gait;
-      s.limbs.legL.rotation.x = sw;
-      s.limbs.legR.rotation.x = -sw;
-      s.limbs.armL.rotation.x = -sw * 0.75;
-      s.limbs.armR.rotation.x = sw * 0.75;
+    if (s.g.userData.anim){
+      /* walking or standing about, and the clip supplies every bit of the
+         motion — no faked bob, no swaying, no procedural limbs */
+      if (moving){
+        /* Nobody goes from standing to full stride in one frame. There is
+           a clip for exactly this — Start Walking — so use it for the
+           first stride and hand over to the gait once it has played. */
+        if (s.startedAt === undefined && s.anim0 === "Idle"){
+          s.startedAt = now;
+          setClip(s, "Start Walking", 0.18);
+        }
+        if (s.startedAt !== undefined && now - s.startedAt > 620){
+          s.startedAt = undefined;
+        }
+        if (s.startedAt === undefined){
+          setClip(s, s.gait2);
+          matchSpeed(s, s.gait2, s.speed);
+        } else {
+          matchSpeed(s, "Start Walking", s.speed);
+        }
+        s.anim0 = "moving";
+      } else {
+        setClip(s, "Idle");
+        /* standing still is where identical clips are most obvious, so
+           give every figure its own slightly different tempo */
+        const idle = s.g.userData.anim.actions["Idle"];
+        if (idle) idle.timeScale = s.idleRate;
+        s.anim0 = "Idle";
+        s.startedAt = undefined;
+      }
+      s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+    } else {
+      /* eased gait drives a soft step-bob; the scans carry their own pose */
+      s.gait += ((moving ? 1 : 0) - s.gait) * Math.min(1, dt * 6);
+      if (s.gait > 0.01) s.walkT += dt * (4.2 + s.speed * 0.09);
+      const bounce = Math.abs(Math.cos(s.walkT)) * 0.6 * s.gait;
+      const idleSway = (1 - s.gait) * Math.sin(now / 900 + s.phase) * 0.02;
+      s.g.rotation.z = idleSway;
+      s.g.position.set(W(s.pos[0]), bounce, W(s.pos[1]));
     }
-    const bounce = Math.abs(Math.cos(s.walkT)) * 0.6 * s.gait;
-    const idleSway = (1 - s.gait) * Math.sin(now / 900 + s.phase) * 0.02;
-    s.g.rotation.z = idleSway;
-    s.g.position.set(W(s.pos[0]), bounce, W(s.pos[1]));
   }
 }
 
@@ -3834,8 +4330,8 @@ function setVisualBinary(v){
   window.__visual = v;
   const day = v === "day";
   document.body.classList.toggle("day", day);
-  world.fog.near = day ? 900 : 500;
-  world.fog.far = day ? 3000 : 2400;
+  fogDay = day;
+  applyFog();
   stars.visible = !day;
   fireflies.visible = !day;
   lampLights.forEach(l => l.intensity = day ? 0 : 1400);
@@ -3993,6 +4489,7 @@ function enterWalk(){
   controls.maxDistance = 2600;
   document.getElementById("vista-back")?.classList.remove("show");
   applyWalkZoom();
+  applyFog();                           /* ground-level horizon, not the aerial one */
   wing.classList.add("walkmode");
   document.getElementById("walkbtn").textContent = "🚁";
   toast("Boots on the quad", "WASD to walk · ◀ ▶ to look · scroll or pinch to zoom · E to enter the hall in front of you · F to fly back up.", "#38bdf8", 6500);
@@ -4006,6 +4503,7 @@ function exitWalk(){
   camera.rotation.set(0, 0, 0);
   camera.fov = fovFor(camera.aspect);       /* hand the fov back to the aerial view */
   camera.updateProjectionMatrix();
+  applyFog();
   wing.classList.remove("walkmode");
   document.getElementById("walkbtn").textContent = "🎮";
   document.getElementById("doorprompt").classList.remove("show");
@@ -4057,7 +4555,12 @@ function collide(nx, ny){
      and at r=9 that left barely a body's clearance either side — enough
      to catch on constantly while moving. */
   const r = 6;
-  if (nx < 30 || nx > 970 || ny < 30 || ny > 970) return true;
+  /* The old fence stopped at the campus edge, which was fine while the
+     ways did too. Now that roads and walks run out to the stadium, the
+     ballpark and the tennis club, the walker has to be allowed to follow
+     them — a path to an invisible wall is worse than no path. Still
+     bounded, and every landmark out there is solid. */
+  if (nx < -640 || nx > 1560 || ny < 20 || ny > 1520) return true;
   for (const c of COLLIDERS){
     if (nx > c.x - r && nx < c.x + c.w + r && ny > c.y - r && ny < c.y + c.d + r) return true;
   }
@@ -4139,6 +4642,46 @@ function questInfo(){
 function refreshQuest(){
   document.getElementById("quest-text").textContent = questInfo().text;
 }
+
+/* Folding the objective away. It is one sentence that rarely changes, so
+   leaving it open across the whole campus costs more than it tells —
+   folded it keeps its pip, and the title carries the sentence for anyone
+   who wants a reminder without unfolding. */
+{
+  const LS_QUEST = "pembroke.registrar.quest";
+  const el = document.getElementById("quest");
+  const setFold = (folded, remember) => {
+    el.classList.toggle("folded", folded);
+    el.setAttribute("aria-expanded", String(!folded));
+    el.title = folded ? questInfo().text : "Tap to fold this away";
+    /* Folded, the text is display:none and the accessible name collapses
+       to a target emoji. A title is a tooltip, not a name — screen
+       readers may never announce it — so the objective is carried here
+       where it is always read, folded or not. */
+    el.setAttribute("aria-label", "Current objective: " + questInfo().text +
+      (folded ? ". Activate to expand." : ". Activate to fold away."));
+    if (remember) localStorage.setItem(LS_QUEST, folded ? "folded" : "open");
+  };
+  setFold(localStorage.getItem(LS_QUEST) === "folded", false);
+  el.addEventListener("click", () => setFold(!el.classList.contains("folded"), true));
+  el.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " "){
+      e.preventDefault();
+      setFold(!el.classList.contains("folded"), true);
+    }
+  });
+  /* a new objective is worth surfacing even if the card was folded away */
+  const raw = refreshQuest;
+  refreshQuest = function(){
+    const before = document.getElementById("quest-text").textContent;
+    raw();
+    const after = document.getElementById("quest-text").textContent;
+    /* either way the name has to follow the objective, or a folded card
+       keeps announcing the course you already finished */
+    if (before && before !== after) setFold(false, false);
+    else setFold(el.classList.contains("folded"), false);
+  };
+}
 const mm = document.getElementById("minimap");
 function drawMinimap(){
   const ctx = mm.getContext("2d");
@@ -4159,7 +4702,14 @@ function drawMinimap(){
   }
   if (walker.on){
     ctx.save();
-    ctx.translate(walker.x * k, walker.y * k);
+    /* the minimap frames the campus, but you can now walk past its edge
+       on the way to the fields — pin the marker to the rim rather than
+       letting it slide off and leave you with no arrow at all */
+    const edge = 6 / k;
+    const mx = Math.min(1000 - edge, Math.max(edge, walker.x));
+    const my = Math.min(1000 - edge, Math.max(edge, walker.y));
+    ctx.globalAlpha = (mx !== walker.x || my !== walker.y) ? 0.55 : 1;
+    ctx.translate(mx * k, my * k);
     ctx.rotate(walker.h * Math.PI / 180);
     ctx.fillStyle = "#ffffff";
     ctx.shadowColor = "#38bdf8"; ctx.shadowBlur = 6;
@@ -4175,6 +4725,10 @@ let lastT = performance.now();
 const DEBUG = q.has("debug");
 let dbgEl = null, dbgFrames = 0, dbgAcc = 0, dbgMin = 1e9, dbgNext = 0, dbgFirst = 0;
 if (DEBUG){
+  /* The panel lands squarely on the wing intro, and two blocks of text
+     over one another are worth neither. Anyone who has typed ?debug
+     wants the numbers, not the prose. */
+  document.body.classList.add("diagnosing");
   dbgEl = document.createElement("div");
   dbgEl.style.cssText =
     "position:absolute;left:1rem;top:1rem;z-index:200;white-space:pre;pointer-events:none;" +
@@ -4212,15 +4766,21 @@ function dbgUpdate(now, dt){
     "tex    " + inf.memory.textures + "   geo " + inf.memory.geometries + "\n" +
     "view   " + (interiorView ? "interior" : walker.on ? "walk" : "aerial") +
       " · " + (window.__visual || "?") + "\n" +
+    "crowd  " + students.length + " people" +
+      (CROWD_FORCE !== null ? "  (forced by ?crowd)" :
+       crowdN >= CROWD_MAX ? "  (full)" :
+       crowdDone ? "  (capped at " + crowdFps.toFixed(0) + "fps)" : "  (arriving)") + "\n" +
     "assets " + done.length + "/" + assetLog.length + (bad.length ? "  " + bad.length + " FAILED" : "") +
       (pending ? "  (" + pending + " loading)" : "  all in " + (last / 1000).toFixed(1) + "s") + "\n" +
     (slow ? "slowest\n" + slow : "");
 }
 
 renderer.setAnimationLoop(() => {
+  renderer.info.reset();                  /* totals accumulate across every pass below */
   const now = performance.now();
   const dt = Math.min(0.05, (now - lastT) / 1000);
   lastT = now;
+  stepCrowd(now, dt);
   stepStudents(dt, now);
   if (walker.on) walkUpdate(dt);
   else { stepFlight(now); controls.update(); }

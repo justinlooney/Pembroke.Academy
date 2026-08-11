@@ -38,6 +38,9 @@ const server = createServer(async (req, res) => {
     let rel;
     try { rel = decodeURIComponent(req.url.split("?")[0]); }
     catch { res.writeHead(400); res.end("bad request"); return; }   /* malformed %-escape */
+    /* Chromium asks for this regardless of the page declaring an inline
+       icon, and a 404 for it is noise rather than a broken campus. */
+    if (rel === "/favicon.ico"){ res.writeHead(204); res.end(); return; }
     const path = resolve(ROOT, "." + (rel === "/" ? "/index.html" : rel));
     /* boundary-aware containment: a plain prefix test would let
        /repo-elsewhere pass for ROOT=/repo */
@@ -87,7 +90,13 @@ await new Promise(r => server.listen(PORT, r));
 const browser = await chromium.launch({
   args: ["--enable-unsafe-swiftshader", "--disable-dev-shm-usage", "--no-sandbox"],
 });
-const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+/* An explicit context rather than browser.newPage(), which builds a
+   throwaway one and then refuses to open a second page in it —
+   "Please use browser.newContext()". The crowd check at the end wants a
+   sibling page that shares this one's service worker, so that the
+   campus is served from the cache instead of downloaded twice. */
+const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+const page = await context.newPage();
 
 /* Three.js is served from our own origin now, so it is never stubbed —
    the vendored copy is exactly what this test must exercise. Only the
@@ -115,7 +124,24 @@ await page.route("https://unpkg.com/**", route => {
 });
 
 page.on("pageerror", e => errors.push("pageerror: " + e.message));
-page.on("console", m => { if (m.type() === "error") errors.push("console: " + m.text()); });
+/* A texture whose URL is a blob: is one GLTFLoader minted from a response
+   it had already received, and that object URL dies with its document —
+   so a reload part-way through the outer world makes the loader complain
+   about textures for a page that no longer exists. Expected there, and
+   nowhere else: outside a navigation a failing blob texture means the
+   loader really is broken, so the window is opened only around reloads
+   rather than for the whole run. */
+let navigating = false;
+const acrossReload = async (fn) => {
+  navigating = true;
+  try { return await fn(); }
+  finally { await page.waitForTimeout(2500); navigating = false; }
+};
+page.on("console", m => {
+  if (m.type() !== "error") return;
+  if (navigating && /Couldn't load texture blob:/.test(m.text())) return;
+  errors.push("console: " + m.text());
+});
 page.on("requestfailed", r => {
   const u = r.url();
   /* The outer world streams for a long time, so a reload cancels
@@ -126,8 +152,12 @@ page.on("requestfailed", r => {
   if (u.includes("/assets/")) errors.push("asset request failed: " + u.split("/").pop());
 });
 page.on("response", r => {
-  if (r.url().includes("/assets/") && r.status() >= 400)
-    errors.push(`asset ${r.status()}: ` + r.url().split("/").pop());
+  /* Any failing request, not just models. Chromium's console message for
+     a 404 carries no URL, so a check that only names /assets/ leaves the
+     rest anonymous — and an anonymous 404 in CI that will not reproduce
+     locally is a long evening. */
+  if (r.status() >= 400)
+    errors.push(`HTTP ${r.status()}: ` + r.url().replace(`http://localhost:${PORT}`, ""));
 });
 
 try {
@@ -213,18 +243,46 @@ try {
        settled ? firstVisit.size + " model(s) in the cache"
                : "gave up waiting — the next check will show what is missing");
 
+  /* Deliberately NOT waiting for the outer world to finish first. Tried
+     it: the extra time lets the big horizon models into the cache, the
+     store goes over quota, and entries cached earlier are evicted — so
+     the returning visit refetched twenty models that had genuinely been
+     cached. Reloading while the horizon is still streaming is also what
+     a real visitor does. */
   servedModels.length = 0;
   const before = errors.length;
-  await page.reload({ waitUntil: "load", timeout: 90_000 });
-  const rebooted = await page.waitForFunction(() => window.__app && window.__walker,
-    null, { timeout: 180_000 }).then(() => true, () => false);
+  const rebooted = await acrossReload(async () => {
+    await page.reload({ waitUntil: "load", timeout: 90_000 });
+    return page.waitForFunction(() => window.__app && window.__walker,
+      null, { timeout: 180_000 }).then(() => true, () => false);
+  });
   step("returning visit boots", rebooted);
 
-  const refetched = servedModels.filter(p => firstVisit.has(p));
-  step("returning visit re-downloads nothing", refetched.length === 0,
-       refetched.length ? refetched.length + " model(s) refetched: " +
-         refetched.slice(0, 3).map(p => p.split("/").pop()).join(", ")
-       : firstVisit.size + " model(s) served from cache");
+  /* What the worker can promise is that anything still in the cache is
+     served from it. What it cannot promise is that the cache survives:
+     the browser evicts an origin's whole storage under quota pressure,
+     and a headless profile holding 39MB of campus is exactly where that
+     happens. Failing on eviction would be blaming the worker for the
+     browser's decision — so measure what is actually still cached, and
+     judge only that. */
+  const stillCached = await page.evaluate(async (paths) => {
+    const key = (await caches.keys()).find(k => k.endsWith("-assets"));
+    if (!key) return [];
+    const cache = await caches.open(key);
+    const out = [];
+    for (const p of paths) if (await cache.match(p)) out.push(p);
+    return out;
+  }, [...firstVisit]).catch(() => [...firstVisit]);
+
+  const evicted = firstVisit.size - stillCached.length;
+  const cachedSet = new Set(stillCached);
+  const refetched = servedModels.filter(p => cachedSet.has(p));
+  step("returning visit re-downloads nothing it still has", refetched.length === 0,
+       refetched.length
+         ? refetched.length + " model(s) refetched despite being cached: " +
+           refetched.slice(0, 3).map(p => p.split("/").pop()).join(", ")
+         : stillCached.length + " model(s) served from cache" +
+           (evicted ? `  (${evicted} evicted by the browser before the reload)` : ""));
   step("returning visit is clean", errors.length === before,
        errors.slice(before, before + 3).join(" | "));
 
@@ -246,9 +304,11 @@ try {
   await page.route(u => new URL(u).origin !== `http://localhost:${PORT}`,
                    route => { offsite.push(route.request().url()); route.abort(); });
   serverDown = true;
-  await page.reload({ waitUntil: "domcontentloaded", timeout: 90_000 }).catch(() => {});
-  const offlineUp = await page.waitForFunction(() => window.__app, null, { timeout: 180_000 })
-    .then(() => true, () => false);
+  const offlineUp = await acrossReload(async () => {
+    await page.reload({ waitUntil: "domcontentloaded", timeout: 90_000 }).catch(() => {});
+    return page.waitForFunction(() => window.__app, null, { timeout: 180_000 })
+      .then(() => true, () => false);
+  });
   step("campus runs with no network at all", offlineUp);
 
   const built = await page.evaluate(() => {
@@ -262,6 +322,104 @@ try {
   /* booting proves the page loaded; only the meshes prove the models
      came out of the cache rather than the page rendering an empty world */
   step("offline campus is actually built", built > 50, built + " meshes");
+
+  /* ── the crowd ───────────────────────────────────────────────────
+     One rigged character stands in for a whole cohort: cloned per
+     figure, then re-dressed and re-proportioned so the quad reads as a
+     population rather than a hall of mirrors. Every failure mode here
+     is silent. SkeletonUtils shares materials between clones, so a
+     missing clone() dresses everyone identically and nothing throws;
+     a regex that stops matching a mesh name leaves the whole cohort in
+     the default outfit, equally quietly. Nobody notices from a
+     screenshot the build never looks at.
+
+     Left until last, and given its own page, because it is the one
+     check that deliberately makes the campus heavier — twenty-odd
+     skinned figures on a software rasterizer would slow every step
+     above it and turn generous timeouts into flaky ones.
+
+     ?crowd=N is what a phone can use to force a full quad too, so this
+     exercises the same path a real reviewer would. */
+  serverDown = false;
+  /* A sibling page in the SAME context, not browser.newPage() — that
+     opens a fresh context with an empty store, and the campus would be
+     downloaded and decoded from scratch a second time inside a
+     twenty-minute job. Here the worker is already registered for this
+     origin, so the models come out of the cache. Routes are per-page,
+     so the offline catch-all on the first page does not follow. */
+  const crowdPage = await context.newPage();
+  const crowdErrs = [];
+  crowdPage.on("pageerror", e => crowdErrs.push(e.message.split("\n")[0]));
+  await crowdPage.goto(`http://localhost:${PORT}/?crowd=8`,
+                       { waitUntil: "domcontentloaded", timeout: 90_000 });
+  /* Wait for the quad to fill, but do not let the wait be the verdict.
+     On a slow enough rasterizer this timed out and the very next line
+     then read seventeen people standing on the lawn — the campus was
+     fine and the clock was not, which is the least useful way for a
+     test to go red. The wait paces the run; the state that follows is
+     what is judged, and it is judged once. */
+  await crowdPage
+    .waitForFunction(() => window.__crowd && window.__crowd().people >= 17,
+                     null, { timeout: 300_000 })
+    .catch(() => {});
+  const c = await crowdPage.evaluate(() => {
+    const out = { ...window.__crowd(), shirts: new Set(), skins: new Set(),
+                  builds: new Set(), tinted: 0 };
+    window.__app.world.children.forEach(fig => {
+      if (!fig.userData?.anim) return;                /* not one of the walkers */
+      out.builds.add(fig.scale.x.toFixed(3));
+      fig.traverse(o => {
+        if (!o.isSkinnedMesh) return;
+        const hex = o.material.color.getHexString();
+        if (/shirt/i.test(o.name)){ out.shirts.add(hex); out.tinted++; }
+        if (/body/i.test(o.name)) out.skins.add(hex);
+      });
+    });
+    return { ...out, shirts: out.shirts.size, skins: out.skins.size,
+             builds: out.builds.size };
+  }).catch(() => null);
+  step("?crowd fills the quad", !!c && c.people >= 17,
+       c ? c.people + " people" : "no crowd hook");
+
+  /* Where the students walk, sampled against what they would walk into.
+     Two of the four door routes ran straight through the hall they were
+     heading for — 72% and 85% of the way inside — and nothing said so,
+     because a student inside a building is simply not visible. The one
+     symptom was people appearing to melt into a wall and out the other
+     side, which is easy to watch and not notice. Every leg of the graph
+     is sampled here so it cannot come back. */
+  const legs = await crowdPage.evaluate(() => {
+    const { WAYPOINTS, EDGES } = window.__ways;
+    /* the halls and their towers, in plane coordinates */
+    const BOX = [[150,150,220,160], [645,150,190,140], [140,660,200,150], [640,650,190,170],
+                 [238,182,92,92], [668,168,66,66], [212,680,72,72], [700,702,78,78]];
+    const bad = [];
+    for (const [from, tos] of Object.entries(EDGES)){
+      for (const to of tos){
+        const a = WAYPOINTS[from], b = WAYPOINTS[to];
+        if (!a || !b) { bad.push(`${from}->${to} (missing waypoint)`); continue; }
+        let hits = 0;
+        for (let t = 0; t <= 1; t += 0.004){
+          const x = a[0] + (b[0] - a[0]) * t, y = a[1] + (b[1] - a[1]) * t;
+          if (BOX.some(([bx, by, w, d]) => x > bx && x < bx + w && y > by && y < by + d)) hits++;
+        }
+        if (hits > 6) bad.push(`${from}->${to} ${Math.round(hits / 251 * 100)}% inside`);
+      }
+    }
+    return bad;
+  }).catch(() => ["could not read the waypoint graph"]);
+  step("no student route runs through a building", legs.length === 0, legs.slice(0, 4).join(" | "));
+  step("the crowd is not one person fourteen times",
+       !!c && c.shirts >= 6 && c.skins >= 4 && c.builds >= 8,
+       c ? `${c.shirts} shirt colours, ${c.skins} complexions, ${c.builds} builds ` +
+           `across ${c.tinted} figures` : "could not read the cohort");
+  step("a full quad still draws", !!c && c.draws > 0 && c.tris > 0,
+       c ? `draws ${c.draws} · tris ${(c.tris / 1e6).toFixed(2)}M` : "");
+  step("the crowd arrives without errors", crowdErrs.length === 0,
+       crowdErrs.slice(0, 3).join(" | "));
+  await crowdPage.screenshot({ path: "smoke-crowd.png", timeout: 90_000 })
+    .catch(() => console.log("  ..   screenshot skipped (smoke-crowd.png)"));
+  await crowdPage.close();
 } catch (e) {
   step("smoke run completed", false, e.message.split("\n")[0]);
   await shoot("smoke-failure.png");

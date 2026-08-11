@@ -1,0 +1,36 @@
+# Mixamo inbox — paste Drive links here, commit, and the workflow does the rest.
+#
+# Edit this file (GitHub's web editor on a phone is fine), commit it, and
+# .github/workflows/mixamo.yml fetches every link, builds the characters,
+# shrinks them, and commits the result to assets/.
+#
+# THIS IS A DATA FILE, NOT A SCRIPT. Nothing here is typed at a shell.
+#
+# Each block starts with "# out:" naming what to build, and lists the
+# downloads that go into it. THE FIRST ENTRY IN A BLOCK CARRIES THE MESH;
+# every entry after it contributes only its motion, and its own mesh is
+# discarded. That is what keeps four 50MB characters from becoming four
+# near-identical students at four times the weight.
+#
+# The name becomes the clip name; underscores become spaces.
+# Share every file as "Anyone with the link" or the fetch will say so.
+# Tick "In Place" on Mixamo where it is offered: the campus drives
+# playback from how fast a student is really walking, so a clip that also
+# carries travel fights it and the feet skate.
+
+# ── the walking student ──────────────────────────────────────────────
+# Four Mixamo downloads, all of them "with skin" (28–60MB each, where an
+# animation-only file is under a megabyte). Strut Walking brings the body;
+# the other three lend their motion and leave their meshes behind.
+# out: assets/stu_walker.glb
+Strut_Walking   https://drive.google.com/file/d/1x8owCwUUbV5V93FqTmOyHsZjzhGy4_2u/view
+Jogging         https://drive.google.com/file/d/1rmy0p7tQJ6viFVL5QBkQ1KCkqYIrG8bF/view
+Start_Walking   https://drive.google.com/file/d/1qBwL5SqfvNm-F0IKx-vNpK_esieMpTgS/view
+Walk_Forward    https://drive.google.com/file/d/1bdGGSIPtRIBZsssxPMuLSHixs781OT1B/view
+# and three more, downloaded WITHOUT skin — which is why these are
+# kilobytes where the four above are tens of megabytes. Idle is the one
+# that matters most: without it a student who reaches a door has to keep
+# striding, because the only alternative is freezing mid-step.
+Idle            https://drive.google.com/file/d/1aw-oEHfcGVtozFy2JLQXy8NecFK7zaXx/view
+Standard_Walk   https://drive.google.com/file/d/1rJdHfnkXFza8BcSSoweajDVVwYZs4FB-/view
+Sitting_Talking https://drive.google.com/file/d/1LPSnmgWqpgAT1SCbs7wCBH1k2hSgQVtx/view
