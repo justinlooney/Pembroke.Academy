@@ -1,0 +1,108 @@
+name: rig
+
+# Rig an unrigged character and make it walk, with no Mixamo account
+# and no browser in the loop.
+#
+# The skeleton and the motion both come out of a model the campus
+# already ships — assets/stu_walker.glb carries a 52-bone mixamorig and
+# seven mocap clips — so the only thing that has to arrive from
+# elsewhere is the body.
+#
+# Put a link in tools/rig-inbox.txt, push, and collect the GLB and the
+# preview renders from the run's artifacts. Nothing is committed: what
+# comes out has to be looked at before it goes anywhere near the quad.
+on:
+  push:
+    paths: ['tools/rig-inbox.txt', 'tools/rig-and-walk.py', '.github/workflows/rig.yml']
+  workflow_dispatch:
+
+jobs:
+  rig:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Anything to rig?
+        id: plan
+        run: |
+          n=$(grep -cE '^[[:space:]]*[^#[:space:]]+[[:space:]]+\S+' tools/rig-inbox.txt || true)
+          echo "n=$n" >> "$GITHUB_OUTPUT"
+          echo "$n character(s) listed"
+
+      - name: Install Blender
+        if: steps.plan.outputs.n != '0'
+        run: |
+          sudo apt-get update -qq
+          # python3-numpy explicitly: Ubuntu's blender runs on the system
+          # python and its FBX importer imports numpy at module load.
+          sudo apt-get install -y -qq blender python3-numpy >/dev/null
+          blender --version | head -1
+          pip install -q gdown
+
+      - name: Fetch, rig, walk, look
+        if: steps.plan.outputs.n != '0'
+        run: |
+          set -o pipefail
+          mkdir -p /tmp/rig /tmp/out
+          grep -E '^[[:space:]]*[^#[:space:]]+[[:space:]]+\S+' tools/rig-inbox.txt \
+          | while read -r name url rest; do
+            id=$(printf '%s' "$url" | sed -n -e 's|.*/d/\([^/]*\).*|\1|p' -e 's|.*[?&]id=\([^&]*\).*|\1|p' | head -1)
+            [ -z "$id" ] && id="$url"
+            echo "::group::$name"
+            if ! gdown -q "https://drive.google.com/uc?id=$id" -O "/tmp/rig/$name.bin"; then
+              echo "::error::$name — gdown could not download $id"
+              echo "::endgroup::"; continue
+            fi
+            # Magic bytes, not the file name. PK is a zip, glTF a GLB,
+            # Kaydara an FBX.
+            src=""
+            if [ "$(head -c 2 "/tmp/rig/$name.bin")" = "PK" ]; then
+              rm -rf "/tmp/rig/$name.d" && mkdir -p "/tmp/rig/$name.d"
+              unzip -q "/tmp/rig/$name.bin" -d "/tmp/rig/$name.d" || {
+                echo "::error::$name — could not unpack"; echo "::endgroup::"; continue; }
+              # Read it where it was unpacked: a Sketchfab zip is
+              # scene.gltf beside its .bin and a textures directory, and
+              # the relative paths inside are how it finds its skin.
+              src=$(find "/tmp/rig/$name.d" -type f \( -iname '*.gltf' -o -iname '*.glb' \
+                    -o -iname '*.fbx' -o -iname '*.obj' \) | sort | head -1)
+            elif head -c 20 "/tmp/rig/$name.bin" | grep -q "Kaydara"; then
+              mv "/tmp/rig/$name.bin" "/tmp/rig/$name.fbx"; src="/tmp/rig/$name.fbx"
+            elif [ "$(head -c 4 "/tmp/rig/$name.bin")" = "glTF" ]; then
+              mv "/tmp/rig/$name.bin" "/tmp/rig/$name.glb"; src="/tmp/rig/$name.glb"
+            fi
+            if [ -z "$src" ]; then
+              echo "::error::$name — no model found in the download"
+              echo "::endgroup::"; continue
+            fi
+            echo "  source: $src"
+
+            blender --background --python tools/rig-and-walk.py -- \
+              "/tmp/out/$name.glb" "$src" assets/stu_walker.glb \
+              --tris 60000 --clips "Standard Walk,Idle,Jogging" 2>&1 \
+              | grep -vE '^Fra:|^WARNING|^Blender quit|^Read prefs' || true
+
+            if [ -f "/tmp/out/$name.glb" ]; then
+              # The only honest verdict on a rig is a picture of it, so
+              # the run produces one. A clip that binds to nothing still
+              # exports cleanly, and a shoulder that tears still exports
+              # cleanly, and neither is visible in a log line.
+              blender --background --python tools/inspect-rig.py -- \
+                --render /tmp/out/shots "/tmp/out/$name.glb" 2>&1 \
+                | grep -vE '^Fra:|^WARNING|^Blender quit|^Read prefs' || true
+            fi
+            echo "::endgroup::"
+          done
+
+      - name: Keep what came out
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: rigged
+          path: |
+            /tmp/out/*.glb
+            /tmp/out/*.blend
+            /tmp/out/shots/*.png
+          if-no-files-found: ignore
+          retention-days: 14
