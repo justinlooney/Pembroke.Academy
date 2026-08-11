@@ -4202,7 +4202,12 @@ function attendance(){
      attendance would make that flag mean something different every run,
      which is the one thing a diagnostic must not do. */
   if (CROWD_FORCE !== null) return STUDENT_ROSTER.map(() => true);
-  let who = STUDENT_ROSTER.map(() => Math.random() < 0.40);
+  /* Measured, then corrected. Two in five put the average at 1.20
+     people in view across 192 viewpoints and left 39% of them empty —
+     the floor of "one to three", not the middle of it, and rather more
+     than the "moments at a time" an empty quad was meant to be. Eleven
+     in twenty. */
+  let who = STUDENT_ROSTER.map(() => Math.random() < 0.55);
   let out = who.filter(Boolean).length;
   /* two is the floor: below that the campus reads as closed rather than
      quiet, and the tagged students are the ones you came to meet */
@@ -4334,15 +4339,21 @@ function buildCast(){
    one to three people in sight, sometimes nobody, occasionally a rush.
    That is a statement about the view, not the population — students are
    spread over sixty-eight waypoints and pause at two thirds of them, so
-   only a fraction are ever in front of you. Measured at roughly one in
-   three: nine on the campus reads as three in view.
+   only a fraction are ever in front of you.
 
-   Weighted low on purpose. Squaring a uniform draw makes the small
-   crowds common and the large ones rare, which is what "sometimes more,
-   sometimes fewer" means — an average with a long tail, rather than a
-   coin flip between empty and packed. */
+   The fraction was guessed at one in three and then measured, by
+   standing at 192 waypoints across eight visits and counting who was
+   in the frustum, close enough to read as a person, and not behind a
+   building. It is closer to one in six: seven on the campus read as
+   1.20 in view, with 39% of viewpoints empty. So the first draw was
+   too thin — the floor of "one to three" rather than the middle of it.
+
+   Weighted low on purpose, still. Squaring a uniform draw makes the
+   small crowds common and the large ones rare, which is what
+   "sometimes more, sometimes fewer" means: an average with a long
+   tail, rather than a coin flip between empty and packed. */
 const CROWD_MAX = 10;
-const CROWD_TARGET = 1 + Math.floor(Math.random() * Math.random() * 6);
+const CROWD_TARGET = 2 + Math.floor(Math.random() * Math.random() * 7);
 const CROWD_MIN = Math.min(1, CROWD_TARGET);   /* arrives regardless of cost */
 /* Above any 30Hz display cap and well below 60, so a phone that is
    merely capped is not mistaken for a phone that is struggling — and a
