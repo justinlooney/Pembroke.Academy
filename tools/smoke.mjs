@@ -228,7 +228,7 @@ try {
      if it silently drops back to the stylised set the campus still
      builds, still passes, and still looks like it did before anyone
      asked for real trees. */
-  const flora = await page.evaluate(() => {
+  const countFlora = () => {
     let inst = 0, tris = 0;
     window.__app?.world?.traverse?.(o => {
       if (!o.isInstancedMesh) return;
@@ -237,7 +237,16 @@ try {
                                 : o.geometry.attributes.position.count / 3) * o.count;
     });
     return { inst, tris: Math.round(tris) };
-  }).catch(() => ({ inst: 0, tris: 0 }));
+  };
+  /* Waited for, not sampled: trees.glb is 2.5MB and this runs early, so
+     an instantaneous read would fail on a slow runner for the one
+     reason that has nothing to do with the thing being tested. */
+  await page.waitForFunction(
+    () => { let t = 0; window.__app?.world?.traverse?.(o => {
+      if (o.isInstancedMesh) t += (o.geometry.index ? o.geometry.index.count / 3
+        : o.geometry.attributes.position.count / 3) * o.count; }); return t > 600_000; },
+    null, { timeout: 120_000 }).catch(() => {});
+  const flora = await page.evaluate(countFlora).catch(() => ({ inst: 0, tris: 0 }));
   step("the photographed trees are actually planted", flora.tris > 600_000,
        `${flora.inst} instanced meshes, ${(flora.tris / 1e6).toFixed(2)}M triangles of flora`);
 
