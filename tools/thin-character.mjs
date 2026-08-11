@@ -40,7 +40,11 @@ const json = JSON.parse(buf.slice(20, 20 + jsonLen).toString("utf8"));
 const rest = buf.slice(20 + jsonLen);          /* the BIN chunk, untouched */
 
 const nameOf = (prim) => (json.materials?.[prim.material]?.name) || "";
-let dropped = [], kept = 0;
+/* Counted in primitives, not meshes. A draw call is a primitive, and a
+   mesh can carry several — reporting the number of meshes as "draw
+   calls dropped" understates the saving whenever one does, which is
+   the number anyone reads this output for. */
+let dropped = [], calls = 0, kept = 0;
 
 for (const node of json.nodes || []){
   if (node.mesh === undefined) continue;
@@ -49,12 +53,13 @@ for (const node of json.nodes || []){
      mixes a face with its teeth must stay whole */
   if (prims.length && prims.every(p => DROP.test(nameOf(p)))){
     dropped.push(prims.map(nameOf).join(","));
+    calls += prims.length;
     delete node.mesh;
     delete node.skin;
   } else kept += prims.length;
 }
 
-if (!dropped.length){
+if (!calls){
   console.log(`[thin] ${file}: nothing to drop, ${kept} draw call(s)`);
   process.exit(0);
 }
@@ -73,6 +78,7 @@ jsonHeader.writeUInt32LE(0x4e4f534a, 4);       /* 'JSON' */
 
 const before = statSync(file).size;
 writeFileSync(file, Buffer.concat([header, jsonHeader, jsonPadded, rest]));
-console.log(`[thin] ${file}: dropped ${dropped.length} draw call(s) — ${dropped.join(", ")}`);
+console.log(`[thin] ${file}: dropped ${calls} draw call(s) across ${dropped.length} ` +
+            `mesh(es) — ${dropped.join(", ")}`);
 console.log(`[thin] ${kept} draw call(s) left; run gltf-transform to reclaim the bytes ` +
             `(${(before / 1e6).toFixed(2)}MB so far)`);

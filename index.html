@@ -3576,6 +3576,11 @@ const CAST_HEIGHT = { walker: 42, gent: 43, mia: 40, teen: 38, woman: 41,
 let ROAMING = ["walker", "gent", "mia", "teen", "woman", "alina",
                "oreizo", "nathan", "ariel", "strider"];
 let LOITERING = ["tutor", "stand"];
+/* The intended lists, kept whole. ROAMING and LOITERING are pruned to
+   whatever actually loaded, so after that they can no longer answer
+   "was this body supposed to walk?" — which is exactly what choosing a
+   stand-in for a missing one needs to know. */
+const ROAM_ALL = ROAMING.slice();
 /* Where the named eight are and what they are doing. A plan with
    neither `at` nor `orbit` roams the ring; the gait it roams with is
    drawn per figure in makeRoamer rather than fixed here, so the mix
@@ -3660,9 +3665,26 @@ function prepareClips(anims){
     inPlaceClip(c);
   }
 }
+/* Which body to actually build, given one that was asked for. The
+   crowd draws from a list already filtered to what loaded, but the
+   named cast asks by name — Elowen is the gent — and CAST_PLAN cannot
+   know that the gent's model 404'd. Standing in for them is a smaller
+   loss than losing the student. */
+function bodyFor(k){
+  if (castLib[k]) return k;
+  const pool = ROAM_ALL.includes(k) ? ROAMING : LOITERING;
+  const alt = pool.find(x => castLib[x]) || ROAMING[0] || LOITERING[0] || null;
+  console.warn("cast: " + k + " is missing" +
+               (alt ? ", standing in " + alt : ", and nothing can stand in"));
+  return alt;
+}
 function prepFigure(k, height, live, clipIx = 0){
   const src = castLib[k];
-  const skinned = true;                  /* every remaining source is rigged */
+  /* Belt as well as braces. Every caller goes through bodyFor now, but
+     this is the line that used to throw — skeletonClone(undefined.scene)
+     — and throwing here kills buildCast and empties the entire campus,
+     which is the failure the loader was made resilient to avoid. */
+  if (!src) return null;
   const root = skeletonClone(src.scene);
   let standMixer = null;
   if (k !== "walker" && src.animations.length){
@@ -3984,8 +4006,11 @@ function buildOf(seed){
 function buildCast(){
   STUDENT_ROSTER.forEach((st, i) => {
     const plan = CAST_PLAN[i];
-    const g = prepFigure(plan.k, CAST_HEIGHT[plan.k] * buildOf(i), plan.live, plan.pose || 0);
-    if (ROAMING.includes(plan.k)) dressFigure(g, i);
+    const k = bodyFor(plan.k);
+    if (!k) return;                      /* nothing loaded at all */
+    const g = prepFigure(k, CAST_HEIGHT[k] * buildOf(i), plan.live, plan.pose || 0);
+    if (!g) return;
+    if (ROAMING.includes(k)) dressFigure(g, i);
     const tagEl = document.createElement("div");
     tagEl.className = "stu-tag";
     tagEl.textContent = st.name;
@@ -4021,11 +4046,13 @@ function buildCast(){
   /* An uncommissioned regular, carving laps — down at the athletics
      forecourt, where a skateboard belongs and where he is not making up
      a sixth of everything visible from the fountain. */
-  const sk = prepFigure("skate", 0, true);
-  world.add(sk);
-  students.push({ g: sk, orbit: 84, orbitA: 3.6, orbitW: -0.6, skate: true,
-                  cx: 500, cy: 1120,
-                  pos: [500 + Math.cos(3.6) * 84, 1120 + Math.sin(3.6) * 84] });
+  const sk = castLib.skate ? prepFigure("skate", 0, true) : null;
+  if (sk){
+    world.add(sk);
+    students.push({ g: sk, orbit: 84, orbitA: 3.6, orbitW: -0.6, skate: true,
+                    cx: 500, cy: 1120,
+                    pos: [500 + Math.cos(3.6) * 84, 1120 + Math.sin(3.6) * 84] });
+  }
   /* Three more of the second rigged character — a genuinely different
      body rather than the walker re-dressed, which is worth more than any
      amount of recolouring. Their download carries no gait, so they are
@@ -4036,8 +4063,10 @@ function buildCast(){
      the middle of the quad — a figure that never moves costs the view
      far more than one walking through it. */
   [[236, 344, -1.4, 1], [520, 962, 2.9, 2], [470, 1150, -2.0, 3]].forEach(([x, y, face, pose], i) => {
+    if (!LOITERING.length) return;
     const k = LOITERING[i % LOITERING.length];
     const g = prepFigure(k, CAST_HEIGHT[k] * buildOf(pose * 17 + 5), true, pose);
+    if (!g) return;
     g.position.set(W(x), 0, W(y));
     g.rotation.y = face;
     world.add(g);
@@ -4084,8 +4113,10 @@ function addExtra(n){
   const seed = 101 + n * 3;
   /* Round the bodies rather than at random, so a crowd of three is
      three different people rather than three rolls of the same die. */
+  if (!ROAMING.length) return;
   const k = ROAMING[n % ROAMING.length];
   const g = prepFigure(k, CAST_HEIGHT[k] * buildOf(seed), false);
+  if (!g) return;
   dressFigure(g, seed);
   g.userData.crowd = true;               /* test/debug: not one of the named */
   world.add(g);

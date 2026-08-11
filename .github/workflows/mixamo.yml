@@ -88,6 +88,15 @@ jobs:
                 mv "/tmp/fbx/$name.bin" "/tmp/fbx/$name.fbx"
                 args="$args /tmp/fbx/$name.fbx"
               elif [ "$magic" = "glTF" ]; then
+                # Two finished characters in one block cannot both become
+                # one file. Keeping the last silently would build the
+                # wrong person and pass, which is worse than stopping.
+                if [ -n "$ready" ]; then
+                  echo "::error::$out lists more than one finished GLB. Each is already a"
+                  echo "::error::whole character, so they cannot be combined — give them"
+                  echo "::error::separate '# out:' blocks."
+                  fail=1; continue
+                fi
                 printf '  ok   %-18s %-8s glb, already built\n' "$name" "$size"
                 ready="/tmp/fbx/$name.bin"
               else
