@@ -2,7 +2,15 @@
 Pembroke Academy — give an unrigged character a Mixamo skeleton, locally.
 
     blender --background --python tools/rig-from-donor.py -- \\
-        out.glb  character.glb  donor_with_mixamo_rig.fbx  [--tris 60000]
+        out.glb  character.glb  donor_with_mixamo_rig.fbx \\
+        [--tris 60000] [--clips Walking.fbx Idle.fbx ...]
+
+The donor supplies the SKELETON. The clips supply the MOTION, and they
+are not the same file: a Mixamo character download carries a one-frame
+bind pose and no movement at all, which is worth knowing before you
+wonder why your character is standing there. Grab the clips from
+Mixamo's animation library — "without skin", so they are kilobytes
+rather than tens of megabytes — and tick In Place.
 
 WHY THIS EXISTS
 
@@ -48,18 +56,51 @@ bones a clip would land on.
 """
 import bpy
 import os
+import re
 import sys
 from mathutils import Vector
+
+NS = re.compile(r"^(mixamorig\d*):")
+
+
+def namespace_of(rig):
+    """Whatever prefix this skeleton's bones carry. Mixamo hands out
+    mixamorig:, mixamorig2:, mixamorig3: depending on the download, and
+    a clip written for one will not bind to another."""
+    for b in rig.data.bones:
+        m = NS.match(b.name)
+        if m:
+            return m.group(1) + ":"
+    return ""
+
+
+def clip_name(path):
+    """Mixamo names every action "mixamo.com", so they all collide. The
+    file name is the only thing that says what the motion is."""
+    stem = os.path.splitext(os.path.basename(path))[0]
+    stem = re.sub(r"[_\-]+", " ", stem)
+    stem = re.sub(r"\s*\(\d+\)$", "", stem)
+    return re.sub(r"\s+", " ", stem).strip() or "clip"
 
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 if len(argv) < 3:
     print(__doc__)
     sys.exit(1)
 
-dst, char_file, donor_file = argv[0], argv[1], argv[2]
+clip_files = []
+if "--clips" in argv:
+    i = argv.index("--clips")
+    clip_files = argv[i + 1:]
+    argv = argv[:i]
 budget = 60000
 if "--tris" in argv:
-    budget = int(argv[argv.index("--tris") + 1])
+    i = argv.index("--tris")
+    budget = int(argv[i + 1])
+    argv = argv[:i] + argv[i + 2:]
+if len(argv) < 3:
+    print(__doc__)
+    sys.exit(1)
+dst, char_file, donor_file = argv[0], argv[1], argv[2]
 for f in (char_file, donor_file):
     if not os.path.isfile(f):
         print("[rig] not found:", f)
@@ -175,15 +216,97 @@ bpy.context.view_layer.objects.active = rig
 bpy.ops.object.parent_set(type="ARMATURE_AUTO")
 print("[rig] parented with automatic weights")
 
-# ── 6. out ──────────────────────────────────────────────────────────
+# ── 6. the motion ───────────────────────────────────────────────────
+ns = namespace_of(rig)
+clips = []
+if rig.animation_data and rig.animation_data.action:
+    """The donor's own action, if it has one. Kept only when it moves:
+    a Mixamo character download carries a one-frame bind pose, and
+    exporting that as a clip gives you a person who insists they are
+    animated and never moves a muscle."""
+    a = rig.animation_data.action
+    moving = any(len({round(kp.co[1], 5) for kp in fc.keyframe_points}) > 1
+                 for fc in a.fcurves)
+    if moving:
+        a.name = clip_name(donor_file)
+        a.use_fake_user = True
+        clips.append(a)
+    else:
+        print("[rig] the donor's own action never moves — a bind pose, dropped")
+        rig.animation_data.action = None
+
+for path in clip_files:
+    if not os.path.isfile(path):
+        print("[rig] clip not found, skipped:", path)
+        continue
+    before = set(bpy.context.scene.objects)
+    bpy.ops.import_scene.fbx(filepath=path, ignore_leaf_bones=True,
+                             automatic_bone_orientation=True)
+    added = [o for o in bpy.context.scene.objects if o not in before]
+    action = next((o.animation_data.action for o in added
+                   if o.type == "ARMATURE" and o.animation_data and o.animation_data.action), None)
+    if action is None:
+        print("[rig]  ", os.path.basename(path), "has no animation in it, skipped")
+        for o in added:
+            bpy.data.objects.remove(o, do_unlink=True)
+        continue
+    action.name = clip_name(path)
+    action.use_fake_user = True
+    """Mixamo numbers its namespace per download — one file comes back as
+    mixamorig:Hips and the next as mixamorig2:Hips. The skeletons are
+    otherwise identical, so a clip from one will not bind to the other,
+    and Blender bakes the rest pose instead: a full set of channels that
+    never change. That exports cleanly and produces someone standing
+    perfectly still while insisting they are walking."""
+    moved = 0
+    for fc in action.fcurves:
+        m = re.match(r'(pose\.bones\[")([^"]+)("\].*)', fc.data_path)
+        if not m:
+            continue
+        head, bone, tail = m.groups()
+        want = ns + NS.sub("", bone)
+        if want != bone:
+            fc.data_path = head + want + tail
+            moved += 1
+    targets = {m.group(1) for fc in action.fcurves
+               for m in [re.match(r'pose\.bones\["([^"]+)"\]', fc.data_path)] if m}
+    unknown = targets - {b.name for b in rig.data.bones}
+    if unknown:
+        print("[rig]   %s: %d of %d bones are not on this skeleton — e.g. %s"
+              % (action.name, len(unknown), len(targets), sorted(unknown)[:4]))
+        print("[rig]   it would export as motionless channels, so it is dropped")
+        for o in added:
+            bpy.data.objects.remove(o, do_unlink=True)
+        continue
+    print("[rig]   %s: %d curves onto %s, %d bones" % (action.name, moved, ns or "(none)", len(targets)))
+    clips.append(action)
+    for o in added:
+        bpy.data.objects.remove(o, do_unlink=True)
+
+if clips:
+    if not rig.animation_data:
+        rig.animation_data_create()
+    rig.animation_data.action = clips[0]
+elif clip_files:
+    print("[rig] no clip survived — the character is rigged but does not move")
+
+# ── 7. out ──────────────────────────────────────────────────────────
 bpy.ops.object.select_all(action="DESELECT")
 mesh.select_set(True)
 rig.select_set(True)
 os.makedirs(os.path.dirname(os.path.abspath(dst)) or ".", exist_ok=True)
-bpy.ops.export_scene.gltf(filepath=dst, export_format="GLB",
-                          use_selection=True, export_animations=True,
-                          export_skins=True, export_apply=True)
-print("[rig] wrote", dst, "%.2fMB" % (os.path.getsize(dst) / 1e6))
+export = dict(filepath=dst, export_format="GLB", use_selection=True,
+              export_yup=True, export_animations=True,
+              export_animation_mode="ACTIONS", export_skins=True,
+              export_apply=False)   # never apply modifiers to a rigged mesh
+try:
+    bpy.ops.export_scene.gltf(**export)
+except TypeError:
+    for k in ("export_animation_mode", "export_apply"):
+        export.pop(k, None)
+    bpy.ops.export_scene.gltf(**export)
+print("[rig] wrote %s — %d bones, %d clip(s), %.2fMB"
+      % (dst, len(rig.data.bones), len(clips), os.path.getsize(dst) / 1e6))
 blend = os.path.splitext(dst)[0] + ".blend"
 bpy.ops.wm.save_as_mainfile(filepath=os.path.abspath(blend))
 print("[rig] and", blend, "— open this one to check the arms before you trust it")
