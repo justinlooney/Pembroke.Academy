@@ -4619,8 +4619,15 @@ function passingTime(g){
   if (!act){ return (PASS_CACHE[key] = null); }
   const feet = [];
   g.traverse(o => { if (o.isBone && /foot/i.test(o.name)) feet.push(o); });
-  const L = feet.find(b => /(^|[^a-z])(l|left)([^a-z]|$)/i.test(b.name));
-  const R = feet.find(b => b !== L && /(^|[^a-z])(r|right)([^a-z]|$)/i.test(b.name));
+  /* Two shapes of name, and the first version only caught one of them.
+     "CC_Base_L_Foot" has its side as a lone letter between separators;
+     "mixamorig:LeftFoot" spells it out and runs straight into the next
+     word, so a test that demanded a non-letter afterwards missed every
+     Mixamo body on the campus — which is most of them. */
+  const side = (b, word, letter) =>
+    word.test(b.name) || new RegExp("(^|[^a-z])" + letter + "([^a-z]|$)", "i").test(b.name);
+  const L = feet.find(b => side(b, /left/i, "l"));
+  const R = feet.find(b => b !== L && side(b, /right/i, "r"));
   if (!L || !R){ return (PASS_CACHE[key] = null); }
   const was = act.time, wasPaused = act.paused;
   const p = new THREE.Vector3(), q = new THREE.Vector3();
