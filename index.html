@@ -6166,6 +6166,7 @@ const interiorEl = document.getElementById("interior");
    still visibly standing on the quad instead of in a void. */
 let convoView = null;                  /* the student record, or null */
 let convoScene = null, convoCam = null, convoRT = null, convoHome = null, convoBase = null;
+let convoHomeCull = [];
 const convoEl = document.getElementById("convo");
 
 function convoSetup(){
@@ -6205,6 +6206,22 @@ function convoOpen(s){
                 vis: g.visible, animate: g.userData.animate };
   g.visible = true;
   g.userData.animate = true;                /* whatever the detail pass decided */
+  /* Frustum culling off, for this one figure, while we are in here.
+     three.js culls a SkinnedMesh on its GEOMETRY's bounding sphere
+     transformed by the MESH's world matrix — and the mesh's matrix
+     knows nothing about the bones, which are what place and scale a
+     glTF body. Measured on this cast: a sphere of radius 1.1 around a
+     figure 45.9 units tall. On the campus it survives, because a camera
+     that far back has everything in frustum anyway; from two feet away
+     aimed at her face, that sphere is off screen and every mesh is
+     culled. The view then renders exactly one draw call — the backdrop,
+     with nobody in front of it, which is precisely what it did.
+
+     Culling one figure saves nothing, so it simply stops. */
+  convoHomeCull = [];
+  g.traverse(o => {
+    if (o.isMesh){ convoHomeCull.push([o, o.frustumCulled]); o.frustumCulled = false; }
+  });
   convoScene.add(g);
   g.position.set(0, 0, 0);
   g.rotation.y = 0;                         /* a figure's forward is +Z here */
@@ -6252,6 +6269,8 @@ function convoClose(){
   g.rotation.y = convoHome.rot;
   g.visible = convoHome.vis;
   g.userData.animate = convoHome.animate;
+  convoHomeCull.forEach(([o, was]) => { o.frustumCulled = was; });
+  convoHomeCull = [];
   convoView = null; convoHome = null;
   convoEl.classList.remove("open");
   convoEl.setAttribute("aria-hidden", "true");

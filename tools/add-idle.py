@@ -101,7 +101,24 @@ mixamorig:, mixamorig2:, no prefix at all, and an Armature| pathname,
 and it still refuses CC_Base_L_Upperarm — because that genuinely is a
 different bone name, not a different way of writing the same one."""
 def stem(n):
-    return NS.sub("", n).split("|")[-1].split(":")[-1].lower()
+    """Reduce a bone name to the part every convention agrees on.
+
+    The names in these models are not what anyone wrote. A Mixamo FBX
+    says "mixamorig2:LeftFoot"; after a trip through Blender and glTF
+    the same bone in assets/ is called "mixamorigLeftFoot_064" — the
+    colon dropped by name sanitising, and a numeric suffix added to keep
+    it unique. Splitting on ":" alone matches neither, which is why a
+    first attempt at suffix matching still refused every body on the
+    campus.
+
+    So: drop any pathname, drop a namespace with or without its colon,
+    drop a trailing uniquifier. What is left is LeftFoot, from either
+    side, and CC_Base_L_Foot stays itself — which is correct, because
+    that really is a different bone name."""
+    n = n.split("|")[-1].split(":")[-1]
+    n = re.sub(r"^mixamorig\d*", "", n, flags=re.I)
+    n = re.sub(r"[._]\d+$", "", n)
+    return n.lower()
 
 
 lookup = {}
