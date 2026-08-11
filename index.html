@@ -4361,10 +4361,32 @@ function stepCrowd(now, dt){
   addExtra(crowdN++);
 }
 /* test/debug hook: how many people are on campus, whether more are
-   coming, and what they cost to draw */
+   coming, and what they cost to draw. `target` is what this visit drew
+   for itself — without it, "n: 3" cannot be told from "n: 3, capped". */
 window.__crowd = () => ({ n: crowdN, done: crowdDone, fps: crowdFps,
+  target: CROWD_TARGET, ready: crowdReady,
+  pending: assetLog.filter(a => a.ms == null && !a.late).length,
   people: students.length, draws: renderer.info.render.calls,
   tris: renderer.info.render.triangles });
+/* test/debug hook: put this visit's whole crowd out at once.
+ *
+ * Measuring what a visitor sees is impossible through the ramp, because
+ * the ramp is deliberately hostile to the machine doing the measuring:
+ * it waits for every core asset, and a headless software rasterizer
+ * takes minutes over those, and then the fps floor caps the crowd at
+ * one on the grounds that anything drawing at 3fps cannot afford
+ * people. Both are right on a phone and both make the harness report a
+ * campus that no real visitor gets — the first run of this measurement
+ * sampled the named cast alone and called it the crowd.
+ *
+ * So this skips the ramp and not the numbers: same CROWD_TARGET, same
+ * bodies, same deck. What arrives is what a machine that could keep up
+ * would have shown, all at once instead of over a few seconds. */
+window.__crowdFill = () => {
+  while (crowdN < CROWD_TARGET) addExtra(crowdN++);
+  crowdDone = true;
+  return crowdN;
+};
 /* Crossfade rather than cut. A student who reaches a door and snaps from
    mid-stride to standing reads as a glitch; a quarter-second blend reads
    as someone arriving. */
