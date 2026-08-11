@@ -6482,8 +6482,20 @@ function convoSetup(){
    kind of uncanny. Returns null on any body without a head bone, and
    the caller does nothing at all in that case — an unturned head is a
    great deal better than a wrung neck. */
-const LOOK_FREE = 0.21;                 /* ~12°, left alone */
-const LOOK_PULL = 0.65;                 /* how much of the excess to take back */
+/* Tolerances per axis, in radians, and they are small. The first pass
+   allowed twelve degrees of yaw and took back 65% of the rest, which on
+   a clip that swings forty leaves about twenty-two — still visibly
+   turned away, which is what got reported. Five degrees and 85% leaves
+   about eight, which reads as a person whose attention is on you rather
+   than one who keeps glancing off.
+
+   Roll is given more room than the other two: a head tilted a little to
+   one side is listening, where a head yawed the same amount is
+   distracted. */
+const LOOK_FREE_YAW = 0.09;             /* ~5° left/right */
+const LOOK_FREE_PITCH = 0.09;           /* ~5° up/down    */
+const LOOK_FREE_ROLL = 0.16;            /* ~9° tilt       */
+const LOOK_PULL = 0.85;                 /* how much of the excess to take back */
 function headNeutral(g){
   let head = null;
   g.traverse(o => { if (!head && o.isBone && /head$/.test(boneKey(o.name))) head = o; });
@@ -6516,28 +6528,49 @@ function headNeutral(g){
   return { head, neutral: rels[order[Math.floor(order.length / 2)][1]] };
 }
 /* Applied after the mixer has written the pose and after breathe(), for
-   the same reason breathe() is: anything earlier is simply overwritten. */
-const _lookUp = new THREE.Vector3(0, 1, 0);
+   the same reason breathe() is: anything earlier is simply overwritten.
+ *
+ * Works entirely in BODY space, which is what lets it correct every
+ * axis rather than only the one the world happens to agree on. The
+ * first version rotated about world Y and so could straighten a head
+ * that was turned aside but did nothing whatever about one tipped
+ * forward — and a student looking at your shoes reads exactly as badly
+ * as one looking at the hedge.
+ *
+ *   rel     the head's orientation relative to its own body
+ *   dev     how far that has strayed from this body's measured neutral
+ *   target  the same deviation with each axis clamped, eased towards
+ *
+ * The correction is then whatever world-space turn carries the head
+ * from where it is to there, conjugated by the parent's world rotation
+ * so it lands correctly however the bone was authored. */
+const _lookE = new THREE.Euler();
 function lookAtViewer(g, look){
   if (!look || !look.head) return;
   const bodyQ = new THREE.Quaternion(), headQ = new THREE.Quaternion();
   const parentQ = new THREE.Quaternion();
   g.getWorldQuaternion(bodyQ);
   look.head.getWorldQuaternion(headQ);
-  const rel = bodyQ.invert().multiply(headQ);
-  const dev = rel.multiply(look.neutral.clone().invert());
-  const e = new THREE.Euler().setFromQuaternion(dev, "YXZ");
-  const want = THREE.MathUtils.clamp(e.y, -LOOK_FREE, LOOK_FREE);
-  const corr = (want - e.y) * LOOK_PULL;
-  if (Math.abs(corr) < 1e-4) return;
-  /* A world-space turn applied to a local quaternion: conjugate it by
-     the parent's world rotation, so this works whichever way the bone
-     was authored. Bodies here stand upright, so world Y is the neck's
-     yaw axis whatever the rig calls it. */
+  const rel = bodyQ.clone().invert().multiply(headQ);
+  const dev = rel.clone().multiply(look.neutral.clone().invert());
+  _lookE.setFromQuaternion(dev, "YXZ");
+  const ease = (v, free) =>
+    v + (THREE.MathUtils.clamp(v, -free, free) - v) * LOOK_PULL;
+  const ty = ease(_lookE.y, LOOK_FREE_YAW);
+  const tx = ease(_lookE.x, LOOK_FREE_PITCH);
+  const tz = ease(_lookE.z, LOOK_FREE_ROLL);
+  if (Math.abs(ty - _lookE.y) < 1e-4 &&
+      Math.abs(tx - _lookE.x) < 1e-4 &&
+      Math.abs(tz - _lookE.z) < 1e-4) return;
+  const devT = new THREE.Quaternion().setFromEuler(
+    _lookE.set(tx, ty, tz, "YXZ"));
+  const relT = devT.multiply(look.neutral);
+  /* world turn C such that C * headWorld = bodyQ * relT */
+  const C = bodyQ.clone().multiply(relT)
+              .multiply(headQ.clone().invert());
   look.head.parent.getWorldQuaternion(parentQ);
-  const d = new THREE.Quaternion().setFromAxisAngle(_lookUp, corr);
   look.head.quaternion.premultiply(
-    parentQ.clone().invert().multiply(d).multiply(parentQ));
+    parentQ.clone().invert().multiply(C).multiply(parentQ));
   look.head.updateMatrixWorld(true);
 }
 /* Which way is this body facing? Read off the skeleton rather than
