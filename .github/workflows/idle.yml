@@ -113,6 +113,18 @@ jobs:
           sed -i "s/^const VERSION = \"pembroke-v$cur\";\$/const VERSION = \"pembroke-v$next\";/" sw.js
           got=$(sed -n 's/^const VERSION = "pembroke-v\([0-9][0-9]*\)";$/\1/p' sw.js)
           [ "$got" = "$next" ] || { echo "::error::VERSION did not bump"; exit 1; }
+          # index.html carries the same string as BUILD, printed in the
+          # ?debug panel and compared against what the worker reports so
+          # a stale cache can be told apart from an unfixed bug. Bumping
+          # one without the other makes every page claim to be stale, and
+          # check-sw-version.sh fails the next PR for the drift. Checked,
+          # not assumed, for the same reason the line above is.
+          sed -i "s/^const BUILD = \"pembroke-v$cur\";$/const BUILD = \"pembroke-v$next\";/" index.html
+          build=$(sed -n 's/^const BUILD = "pembroke-v\([0-9][0-9]*\)";$/\1/p' index.html)
+          if [ "$build" != "$next" ]; then
+            echo "::error::index.html BUILD did not bump — still pembroke-v$build, wanted pembroke-v$next"
+            exit 1
+          fi
           echo "cache version: pembroke-v$cur -> pembroke-v$next"
 
       - name: Commit
@@ -120,7 +132,7 @@ jobs:
         run: |
           git config user.name "pembroke-asset-courier"
           git config user.email "actions@users.noreply.github.com"
-          git add assets sw.js
+          git add assets sw.js index.html
           git commit -m "Courier: land a standing idle on the bodies that can take it" \
             || { echo "nothing changed"; exit 0; }
           git push origin HEAD:${{ github.ref_name }}

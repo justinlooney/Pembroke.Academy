@@ -42,13 +42,15 @@ if not os.path.isfile(src):
     sys.exit(1)
 
 blocks, cur = [], None
-for raw in open(src, encoding="utf-8"):
+for lineno, raw in enumerate(open(src, encoding="utf-8"), 1):
     line = raw.rstrip("\n")
     out = re.match(r"^\s*#\s*out:\s*(\S+)", line)
     if out:
-        cur = {"out": out.group(1), "files": []}
+        cur = {"out": out.group(1), "files": [], "from": lineno, "to": lineno}
         blocks.append(cur)
         continue
+    if cur is not None:
+        cur["to"] = lineno
     if re.match(r"^\s*(#|$)", line):
         continue
     parts = line.split()
@@ -58,7 +60,7 @@ for raw in open(src, encoding="utf-8"):
     name, url = parts[0], parts[1]
     if cur is None:
         # links before any "# out:" still deserve somewhere to go
-        cur = {"out": "assets/stu_walker.glb", "files": []}
+        cur = {"out": "assets/stu_walker.glb", "files": [], "from": lineno, "to": lineno}
         blocks.append(cur)
     fid = re.search(r"/d/([^/]+)", url) or re.search(r"[?&]id=([^&]+)", url)
     if not fid:
@@ -67,6 +69,47 @@ for raw in open(src, encoding="utf-8"):
     cur["files"].append((name, fid.group(1)))
 
 live = [b for b in blocks if b["files"]]
+
+# ── build only what changed ──────────────────────────────────────────
+# Every block in this file used to be rebuilt on every run, because a
+# push to the inbox was taken to mean "build the inbox". It does not: it
+# means "build the thing I just edited". Rebuilding the rest re-downloads
+# each character from Drive and overwrites whatever has happened to it
+# since — the metalrough conversion that recovered colour on two bodies,
+# the idle clips landed by the other courier, any thinning. This
+# repository has already had a workflow quietly undo its own work twice,
+# and both times the log looked fine.
+#
+# So: with --since REF, keep only the blocks whose lines this commit
+# touched. If the diff cannot be taken the fallback is to build
+# everything, which is the old behaviour and is announced rather than
+# assumed, because silently building nine characters when one was asked
+# for is the failure this exists to prevent.
+since = None
+if "--since" in sys.argv:
+    since = sys.argv[sys.argv.index("--since") + 1]
+if since:
+    import subprocess
+    try:
+        diff = subprocess.run(["git", "diff", "-U0", since, "--", src],
+                              capture_output=True, text=True, check=True).stdout
+        touched = set()
+        for h in re.finditer(r"^@@ -\S+ \+(\d+)(?:,(\d+))? @@", diff, re.M):
+            start = int(h.group(1))
+            count = int(h.group(2) or 1)
+            touched.update(range(start, start + count))
+        if not touched:
+            print(f"[inbox] nothing in {src} changed since {since} — nothing to build.")
+            live = []
+        else:
+            picked = [b for b in live if any(b["from"] <= n <= b["to"] for n in touched)]
+            skipped = [b["out"] for b in live if b not in picked]
+            for out in skipped:
+                print(f"[inbox] unchanged, leaving alone: {out}")
+            live = picked
+    except Exception as e:
+        print(f"[inbox] could not diff against {since} ({e}).")
+        print("[inbox] BUILDING EVERY BLOCK — this overwrites every character in the file.")
 os.makedirs(outdir, exist_ok=True)
 # Only the plan files this script wrote. The caller names the directory,
 # so emptying it wholesale means deleting whatever else was in it — and
