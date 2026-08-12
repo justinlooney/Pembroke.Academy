@@ -1861,7 +1861,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v46";
+const BUILD = "pembroke-v47";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -1898,10 +1898,10 @@ const camera = new THREE.PerspectiveCamera(46, 1, 2, 6000);
 /* Stand back further on a tall screen. Even at the widened fov, portrait
    leaves only ~40° across, so the arrival view on a phone was a keyhole
    onto the quad with the whole outer world outside it. This does not fit
-   the athletics district on arrival — the gridiron alone is 720 units
-   wide and would want ~3300 units of standoff, which would shrink the
-   campus to a smudge — but it shows the cathedral and the district
-   edges, and the zoom now reaches the rest. */
+   the athletics district on arrival — the ballpark and the tennis club
+   sit a long way south and would want thousands of units of standoff,
+   which would shrink the campus to a smudge — but it shows the north
+   quad and the district edges, and the zoom now reaches the rest. */
 const AERIAL = [-640, 690, 640];
 const PORTRAIT_K = 1.5;
 /* How far back the aerial view stands. Portrait screens stand back
@@ -2239,7 +2239,11 @@ let fountainWater = null;
   const RING_N = [500, 320], RING_S = [500, 682], RING_W = [318, 500], RING_E = [682, 500];
 
   /* the processional: cathedral doors, down the north axis, to the ring */
-  walkway([[500, 60], [500, 150], [497, 236], [500, 300], RING_N], 30);
+  /* The processional, and from here on the walk BETWEEN the two quads:
+     44 wide rather than 30, so it reads as the spine of the campus and
+     two people can pass a third on it without anybody stepping onto
+     the grass. */
+  walkway([[500, 60], [500, 150], [497, 236], [500, 300], RING_N], 44);
   /* the south walk out to the gatehouse and the stadium boulevard */
   walkway([RING_S, [500, 760], [503, 840], [500, 918], [500, 985]], 30);
 
@@ -2247,12 +2251,12 @@ let fountainWater = null;
      through it — the halls are wide (the science hall alone runs 200 by
      150) and a walk drawn straight from door to lawn buries itself in
      masonry. These skirt the footprints the way the ground forces. */
-  walkway([[268, 340], [300, 392], [330, 444], RING_W], 22);
-  walkway([[740, 306], [690, 340], [672, 412], [676, 456], RING_E], 22);
+  walkway([[268, 340], [300, 392], [330, 444], RING_W], 28);
+  walkway([[740, 306], [690, 340], [672, 412], [676, 456], RING_E], 28);
   walkway([[240, 822], [302, 832], [360, 800], [380, 738], [370, 660],
-           [348, 594], RING_W], 22);
+           [348, 594], RING_W], 28);
   walkway([[735, 832], [668, 838], [620, 798], [604, 718], [610, 640],
-           [642, 570], RING_E], 22);
+           [642, 570], RING_E], 28);
 
   /* hall to hall, skirting the lawn rather than crossing it — the north
      range keeps south of the library and engineering, the south range
@@ -2856,10 +2860,12 @@ BUILDINGS.forEach(spec => {
        Stadium dead ahead down the boulevard, Pembroke Field to the
        southwest, the Pembroke Tennis Club southeast. A visitor can walk
        to all three, so they arrive before anything merely scenic. */
-    ["assets/gridiron.glb", { plane: [500, 1530], height: 110, maxFoot: [720, 700], sink: 3,
-      vista: "Pembroke Stadium", collider: "auto",
-      rotY: Math.PI,                     /* grand entrance faces the boulevard */
-      onLoaded: brandStadium }],
+    /* Pembroke Stadium stood here, dead ahead down the boulevard —
+       720 x 700 units and 3.1MB of it, the single largest thing on the
+       map. Removed along with the Moscow institute and, once the north
+       quad can take over its duties, the cathedral. The promenade south
+       still runs, because it always served three destinations and two
+       of them are still there. */
     ["assets/ballpark.glb", { plane: [-380, 1290], height: 62, maxFoot: [430, 440], sink: 2.5,
       vista: "Pembroke Field", collider: "auto" }],
     ["assets/tennis.glb",   { plane: [1270, 1280], height: 60, maxFoot: [500, 390], sink: 2.5,
@@ -2880,8 +2886,6 @@ BUILDINGS.forEach(spec => {
     ["assets/university.glb", {
       plane: [1620, 760], height: 300, rotY: Math.PI / 2, maxFoot: [900, 1400], sink: 4.5,
       vista: "The Town Beyond the Drive", collider: "auto" }],
-    ["assets/msu.glb", { plane: [1680, -420], height: 780, rotY: -2.4, maxFoot: [1150, 950],
-      vista: "The Distant Institute" }],
   ];
   /* One at a time, not all at once. Seven large models landing together
      put ~37MB of decode and texture upload on a phone simultaneously,
@@ -2920,46 +2924,6 @@ BUILDINGS.forEach(spec => {
   /* re-brand the football stadium: navy-and-gold Pembroke boards
      mounted over the scan's baked lettering (rotunda banners and the
      fascia band), placed at ray-probed model-local coordinates */
-  function brandStadium(root){
-    root.updateMatrixWorld(true);
-    const mkBoard = (w2, h2, draw) => {
-      const c = document.createElement("canvas");
-      c.width = 512; c.height = Math.max(64, Math.round(512 * h2 / w2));
-      const x = c.getContext("2d");
-      x.fillStyle = "#0f1b2d"; x.fillRect(0, 0, c.width, c.height);
-      x.strokeStyle = "#d4af6a"; x.lineWidth = Math.max(6, c.height * 0.045);
-      x.strokeRect(x.lineWidth / 2 + 2, x.lineWidth / 2 + 2, c.width - x.lineWidth - 4, c.height - x.lineWidth - 4);
-      draw(x, c.width, c.height);
-      const t = new THREE.CanvasTexture(c);
-      t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
-      return new THREE.Mesh(new THREE.PlaneGeometry(w2, h2),
-        new THREE.MeshStandardMaterial({ map: t, roughness: 0.55 }));
-    };
-    const mount = (board, px, py, pz, nx, ny, nz) => {
-      board.position.set(px + nx * 3.2, py + ny * 3.2, pz + nz * 3.2);
-      root.add(board);
-      root.updateMatrixWorld(true);
-      board.lookAt(root.localToWorld(new THREE.Vector3(px + nx * 40, py + ny * 40, pz + nz * 40)));
-    };
-    /* rotunda banners: gold P over PEMBROKE */
-    [[-45.3, -19.7, 169.6, 0.45, 0.03, 0.89], [89.7, -21.5, 107.5, 0.45, -0.02, 0.89]].forEach(p => {
-      const b = mkBoard(16, 21, (x, w2, h2) => {
-        x.fillStyle = "#d4af6a"; x.textAlign = "center";
-        x.font = "bold " + Math.round(h2 * 0.52) + "px Georgia"; x.textBaseline = "middle";
-        x.fillText("P", w2 / 2, h2 * 0.38);
-        x.font = "bold " + Math.round(h2 * 0.11) + "px Georgia";
-        x.fillText("PEMBROKE", w2 / 2, h2 * 0.78);
-      });
-      mount(b, ...p);
-    });
-    /* the fascia band: PEMBROKE STADIUM across the gate */
-    const band = mkBoard(68, 8.5, (x, w2, h2) => {
-      x.fillStyle = "#d4af6a"; x.textAlign = "center"; x.textBaseline = "middle";
-      x.font = "bold " + Math.round(h2 * 0.62) + "px Georgia";
-      x.fillText("PEMBROKE STADIUM", w2 / 2, h2 * 0.54);
-    });
-    mount(band, 18.9, -18, 130.7, 0.71, 0.09, 0.7);
-  }
   /* monument gateway signs — every venue reads Pembroke */
   const stadiumSign = (px, py, text, w2) => {
     const c = document.createElement("canvas"); c.width = 1024; c.height = 192;
@@ -3067,15 +3031,23 @@ BUILDINGS.forEach(spec => {
       pos.setXYZ(i, pos.getX(i) * j, pos.getY(i) * j * 0.88, pos.getZ(i) * j);
     }
     geo.computeVertexNormals();
+    /* Planted BESIDE the walking, never across it. Reported from the
+       live campus: "too cluttered with bushes in the walking areas...
+       take a few steps and walk into something."
+     *
+       The worst of it was a ring of ten shrub balls at radius 88 —
+       drawn around the fountain plaza, which is to say drawn around the
+       one part of the lawn everybody crosses. Gone entirely. The
+       fountain does not need a hedge around it to read as a fountain.
+
+       The door shrubs stay, because a doorway wants something either
+       side of it, but they move outward: the hall walks are 28 wide
+       now, so a shrub at 22 from the centreline stood IN one. */
     const SHRUBS = [];
     [[260,326],[740,306],[240,822],[735,832]].forEach(([dx2, dy2]) => {
-      SHRUBS.push([dx2 - 22, dy2 + 6, 7.5], [dx2 + 22, dy2 + 6, 6.5],
-                  [dx2 - 34, dy2 + 10, 5], [dx2 + 34, dy2 + 10, 5.5]);
+      SHRUBS.push([dx2 - 34, dy2 + 6, 7.5], [dx2 + 34, dy2 + 6, 6.5],
+                  [dx2 - 48, dy2 + 12, 5], [dx2 + 48, dy2 + 12, 5.5]);
     });
-    for (let k = 0; k < 10; k++){
-      const a = (k / 10) * Math.PI * 2 + 0.31;
-      SHRUBS.push([500 + 88 * Math.cos(a), 500 + 88 * Math.sin(a), 4.5 + (k % 3)]);
-    }
     const inst = new THREE.InstancedMesh(geo, hedgeMat, SHRUBS.length);
     inst.castShadow = true;
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
@@ -3167,8 +3139,14 @@ const EZ_SETS = { m011: [], m002: [], m010: [], l009: [] };
     const rad = a * Math.PI / 180;
     T[i % 3 === 2 ? "elm" : "maple"].push([500 + r * Math.cos(rad), 500 + r * Math.sin(rad), 0.95 + (a % 7) / 16]);
   });
-  /* four specimen maples on the great lawn (collidable) */
-  [[608,539],[463,608],[392,461],[537,392]].forEach(([px, py], i) => {
+  /* Four specimen maples, at the lawn's edge rather than in the middle
+     of it. They stood at radius 115 — out on the open grass between the
+     plaza and the ring, at angles that put them across the diagonal
+     desire lines — and they are the only collidable things on the lawn,
+     so crossing it meant walking into a tree. At 150 they sit just
+     inside the ring walk and frame the lawn instead of blocking it, and
+     the whole middle of the quad is walkable. */
+  [[606,606],[394,606],[394,394],[606,394]].forEach(([px, py], i) => {
     T.maple.push([px, py, 1.1 + (i % 3) * 0.06]);
     COLLIDERS.push({ x: px - 5, y: py - 5, w: 10, d: 10 });
   });
