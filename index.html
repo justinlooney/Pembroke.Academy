@@ -4514,7 +4514,25 @@ function makeRoamer(g, startKey, extra, forceGait){
      better than freezing someone mid-stride. */
   const roles = g.userData.anim?.roles || { gaits: GAITS, idle: "Idle", start: null };
   const pool = roles.gaits.length ? roles.gaits : GAITS;
-  const gait = (forceGait && pool.includes(forceGait)) ? forceGait
+  /* A forced gait is honoured if the BODY has the clip, not if the
+     body's role list happens to mention it. Those are different
+     questions and the difference cost Amara her run: she is the one
+     student written to run the campus, CAST_PLAN asks for "Jogging" by
+     name, and walker's gait list is the three WALKS — so
+     pool.includes("Jogging") was false, the request was dropped
+     without a word, and she was dealt a random walk instead. Her speed
+     was still multiplied by 1.5, so what shipped was a woman walking at
+     half again the pace her clip carries her, with matchSpeed pinned
+     against its own clamp trying to keep her feet on the ground. That
+     is the exact sliding-feet failure the nominal-speed machinery
+     exists to prevent.
+
+     Jogging stays out of the gait pool on purpose. It should be
+     reachable by name and never dealt at random, or the quad fills with
+     joggers. */
+  const acts = g.userData.anim?.actions;
+  const gait = (forceGait && (pool.includes(forceGait) || acts?.[forceGait]))
+             ? forceGait
              : pool[Math.floor(Math.random() * pool.length)];
   if (g.userData.anim){
     if (roles.idle){ setClipOn(g, roles.idle); stagger(g, roles.idle); }
@@ -4640,7 +4658,20 @@ function buildCast(){
        finds him just as well as circling the lawn did. */
     const s = makeRoamer(g, ALL_WAYS[Math.floor(Math.random() * ALL_WAYS.length)], { data: st },
                          plan.jog ? "Jogging" : null);
-    if (plan.jog) s.speed *= 1.5;
+    /* The multiplier existed because she was not actually jogging: the
+       forced gait was being dropped, so half again the pace was the
+       only thing making the runner read as a runner. Now that she gets
+       the jog clip, its own nominal already carries her past everybody
+       else — 34 units a second against a walker's 11 to 24 — and
+       multiplying on top of that played the clip at 1.7x, which is a
+       sprint cadence on a jog. Let the clip set the pace, which is what
+       makeRoamer says it is for.
+
+       Kept for the case where she does NOT get it: if the walker body
+       failed to load she stands in on something with only a walk, and
+       then the multiplier is again the only thing that makes her
+       quick. */
+    if (plan.jog && s.gait2 !== "Jogging") s.speed *= 1.5;
   });
   /* An uncommissioned regular, carving laps — down at the athletics
      forecourt, where a skateboard belongs and where he is not making up
@@ -5105,7 +5136,18 @@ function stepStudents(dt, now){
            takes the first stride and hands over to the gait. The bodies
            that came with a single walk cycle have nothing to hand over
            from, and never stood still to begin with. */
-        if (R.start && s.startedAt === undefined && s.anim0 === R.idle){
+        /* ...and only when the transition can keep up. matchSpeed scales
+           a clip to the speed the body is actually travelling, and its
+           clamp at 1.9 is the point where it gives up — past that the
+           clip is as fast as it will go and the feet slide anyway.
+           Amara runs, and "Start Walking" is a clip of somebody
+           beginning to WALK, so her first stride sat pinned against that
+           clamp with her shoes skating. Better to have no transition
+           than a transition that slides: she goes straight into her
+           jog, which is what a runner setting off looks like. */
+        const startFit = s.g.userData.anim?.nominal?.[R.start] || 0;
+        if (R.start && s.startedAt === undefined && s.anim0 === R.idle &&
+            startFit * 1.7 > s.speed){
           s.startedAt = now;
           setClip(s, R.start, 0.18);
         }
