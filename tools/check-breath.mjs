@@ -172,11 +172,26 @@ await page.waitForFunction(() => !!window.__breath, { timeout: 15000 });
 console.log(`a held figure breathing at ${FPS}fps for ${SECONDS}s — ` +
             `how far the head travels\n`);
 const bad = [];
+/* A body this could not measure is not a body that passed. Logging the
+   failure and carrying on would let the suite go green having checked
+   nothing — the exact shape of the bug this file exists to catch, where
+   a figure looked fine to every number anyone had thought to print. */
+const unmeasured = [];
 for (const f of bodies){
   const name = f.replace(/^stu_|\.glb$/g, "");
-  const r = await page.evaluate(([u, fps, s]) => window.__breath(u, fps, s),
-                                [`/assets/${f}`, FPS, SECONDS]);
-  if (r.err){ console.log(name.padEnd(10) + "FAILED: " + r.err); continue; }
+  let r;
+  try {
+    r = await page.evaluate(([u, fps, s]) => window.__breath(u, fps, s),
+                            [`/assets/${f}`, FPS, SECONDS]);
+  } catch (e){
+    r = { err: String(e).split("\n")[0].slice(0, 120) };
+  }
+  if (r.err || !r.clips?.length){
+    const why = r.err || "the file carries no clips to hold";
+    console.log(name.padEnd(10) + "NOT MEASURED: " + why);
+    unmeasured.push(`${name}: ${why}`);
+    continue;
+  }
   const worst = Math.max(...r.clips.map(c => c.peak));
   const over = r.clips.filter(c => c.peak > LIMIT);
   console.log(`${name.padEnd(10)} worst ${String(worst).padStart(6)}deg over ` +
@@ -191,8 +206,14 @@ console.log("\n" + "─".repeat(66));
 if (bad.length){
   console.log(`breathing is compounding instead of settling — a held head\n` +
               `should move a couple of degrees, not:\n  ` + bad.join("\n  "));
-} else {
-  console.log(`every held head stays within ${LIMIT}deg — breathing settles`);
+}
+if (unmeasured.length){
+  console.log(`${unmeasured.length} of ${bodies.length} bodies could not be ` +
+              `measured, so nothing here vouches for them:\n  ` + unmeasured.join("\n  "));
+}
+if (!bad.length && !unmeasured.length){
+  console.log(`all ${bodies.length} bodies held for ${SECONDS}s — ` +
+              `every head stays within ${LIMIT}deg, breathing settles`);
 }
 await browser.close(); server.close();
-process.exit(bad.length ? 1 : 0);
+process.exit(bad.length || unmeasured.length ? 1 : 0);
