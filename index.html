@@ -2000,6 +2000,53 @@ Object.assign(sun.shadow.camera, { left: -760, right: 760, top: 760, bottom: -76
 sun.shadow.bias = -0.0006;
 world.add(sun, sun.target);
 const lampLights = [];
+/* ── dynamic lamp shadows, on a budget ────────────────────────────────
+   "Can the street lamps put off more light and have dynamic shadows?"
+   More light is cheap. Shadows are not: a PointLight shadow is six
+   renders of the scene per lamp per frame, and there are eighteen
+   lamps — over a hundred shadow passes on a phone that just reached
+   60fps. Nobody can see eighteen lamps at once, though. So two
+   shadow-casting spotlights ROAM: each frame they park on the two
+   lamps nearest the camera, throwing real moving shadows exactly where
+   you are looking, while every other lamp keeps its cheap glow. 512
+   maps, night only, and never on the software rasterizer CI runs. */
+const lampSpots = [];
+function makeLampSpots(){
+  for (let i = 0; i < 2; i++){
+    const sp = new THREE.SpotLight(0xffb45e, 0, 260, 0.98, 0.55, 1.5);
+    sp.castShadow = !softGL;
+    sp.shadow.mapSize.set(512, 512);
+    sp.shadow.camera.near = 6;
+    sp.shadow.camera.far = 260;
+    sp.shadow.bias = -0.0006;
+    sp.visible = false;
+    world.add(sp); world.add(sp.target);
+    lampSpots.push(sp);
+  }
+}
+makeLampSpots();
+function stepLampSpots(){
+  if (!lampSpots.length || !lampLights.length) return;
+  const night = window.__visual === "night";
+  if (!night){ lampSpots.forEach(sp => sp.visible = false); return; }
+  /* the two lamps nearest the camera get the real shadows */
+  const cx = camera.position.x, cz = camera.position.z;
+  let a = null, b = null, da = Infinity, db = Infinity;
+  for (const l of lampLights){
+    const d = (l.position.x - cx) ** 2 + (l.position.z - cz) ** 2;
+    if (d < da){ b = a; db = da; a = l; da = d; }
+    else if (d < db){ b = l; db = d; }
+  }
+  [a, b].forEach((l, i) => {
+    const sp = lampSpots[i];
+    if (!l){ sp.visible = false; return; }
+    sp.visible = true;
+    sp.intensity = 2400;
+    sp.position.copy(l.position);
+    sp.target.position.set(l.position.x, 0, l.position.z);
+    sp.target.updateMatrixWorld();
+  });
+}
 
 /* ── canvas texture helpers ──────────────────────────────────────── */
 function canvasTex(px, draw, repeat){
@@ -3439,6 +3486,12 @@ for (let k = 0; k < 8; k++){
   const a = (22.5 + 45 * k) * Math.PI / 180;
   LAMPS.push([500 + 210 * Math.cos(a), 500 + 210 * Math.sin(a)]);
 }
+/* the North Quad gets its own four — it had none, which at night made
+   the new quad a hole in the campus */
+for (let k = 0; k < 4; k++){
+  const a = (45 + 90 * k) * Math.PI / 180;
+  LAMPS.push([500 + 152 * Math.cos(a), -180 + 152 * Math.sin(a)]);
+}
 const lampGlowMats = [];
 /* college pennants hung from every lamp post */
 const bannerTex = canvasTex(64, (x) => {
@@ -3472,7 +3525,8 @@ gltf.load("assets/lamp.glb", (g) => {
     banner.position.set(W(px) + Math.sin(ba) * 5.6, 31.4, W(py) + Math.cos(ba) * 5.6);
     banner.rotation.y = ba + Math.PI / 2;
     world.add(banner);
-    const pl = new THREE.PointLight(0xffb45e, 0, 130, 1.8);
+    /* wider pool, gentler falloff — "at night is too dark" */
+    const pl = new THREE.PointLight(0xffb45e, 0, 200, 1.7);
     pl.position.set(W(px), 44, W(py));
     world.add(pl);
     lampLights.push(pl);
@@ -3618,7 +3672,47 @@ const fireflies = pointsCloud(60, 900, 6, 60, 4, 0xffe9a8);
 fireflies.visible = false;
 world.add(fireflies);
 /* drifting leaves over the quad, all seasons, all hours */
-const leaves = pointsCloud(90, 760, 4, 85, 3.2, 0xc98a3e);
+/* Falling leaves that are SHAPED like leaves. These were pointsCloud
+   squares — additive-blended, so they glowed — and "the leaves falling
+   just look like squares" is exactly what an untextured gl point is. A
+   pointed-oval sprite with a midrib and stem, alpha-tested so the
+   corners of the quad vanish, normal blending so they read as matter
+   rather than light, and per-leaf autumn tones via vertex colours. */
+const leafSprite = canvasTex(64, (x) => {
+  x.clearRect(0, 0, 64, 64);
+  x.fillStyle = "#ffffff";
+  x.beginPath();
+  x.moveTo(32, 4);
+  x.bezierCurveTo(52, 18, 54, 40, 33, 52);
+  x.bezierCurveTo(12, 40, 12, 18, 32, 4);
+  x.closePath();
+  x.fill();
+  x.strokeStyle = "rgba(120,60,20,0.85)";
+  x.lineWidth = 2.4;
+  x.beginPath(); x.moveTo(32, 8); x.lineTo(32, 50); x.stroke();
+  x.lineWidth = 3.2;
+  x.beginPath(); x.moveTo(32, 50); x.lineTo(30, 60); x.stroke();
+});
+leafSprite.wrapS = leafSprite.wrapT = THREE.ClampToEdgeWrapping;
+const leaves = (() => {
+  const n = 110, spread = 760;
+  const pos = new Float32Array(n * 3), col = new Float32Array(n * 3);
+  const tones = [0xc98a3e, 0xb5651d, 0xd4a017, 0x8f4a2b, 0xa96a2f];
+  const c = new THREE.Color();
+  for (let i = 0; i < n; i++){
+    pos[i*3] = (Math.random() - 0.5) * spread;
+    pos[i*3+1] = 4 + Math.random() * 81;
+    pos[i*3+2] = (Math.random() - 0.5) * spread;
+    c.set(tones[i % tones.length]);
+    col[i*3] = c.r; col[i*3+1] = c.g; col[i*3+2] = c.b;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  return new THREE.Points(geo, new THREE.PointsMaterial({
+    map: leafSprite, size: 4.4, sizeAttenuation: true, vertexColors: true,
+    transparent: true, alphaTest: 0.3, depthWrite: false }));
+})();
 leaves.material.blending = THREE.NormalBlending;
 leaves.material.opacity = 0.75;
 world.add(leaves);
@@ -6254,15 +6348,15 @@ function engineSetLit(key, isLit){ isLit ? litSectors.add(key) : litSectors.dele
 /* ── the day cycle: dawn to dusk, a real sun on a real arc ───────── */
 /*            t   sky-top    horizon    sun-color  sunI  hemiI  envI  */
 const PHASES = [
-  [0.000, "#05060e", "#131c33", "#8fa8d8", 0.00, 0.30, 0.05],
-  [0.210, "#070a18", "#241f3d", "#c88a6a", 0.00, 0.32, 0.05],
+  [0.000, "#05060e", "#131c33", "#8fa8d8", 0.00, 0.44, 0.10],
+  [0.210, "#070a18", "#241f3d", "#c88a6a", 0.00, 0.46, 0.10],
   [0.265, "#20305e", "#e08a5a", "#ffb27a", 0.90, 0.45, 0.20],
   [0.330, "#3f78c0", "#d8e6f0", "#ffe6c0", 1.90, 0.70, 0.40],
   [0.500, "#4f93d8", "#e6f0f8", "#fff0d2", 2.60, 0.85, 0.55],
   [0.670, "#4a7fc4", "#e8ddc8", "#ffd9a0", 1.90, 0.72, 0.42],
   [0.735, "#2d2c58", "#f0955c", "#ff9a5e", 0.95, 0.45, 0.20],
-  [0.790, "#0a0d20", "#3d2540", "#b07a6a", 0.00, 0.32, 0.06],
-  [1.000, "#05060e", "#131c33", "#8fa8d8", 0.00, 0.30, 0.05],
+  [0.790, "#0a0d20", "#3d2540", "#b07a6a", 0.00, 0.46, 0.10],
+  [1.000, "#05060e", "#131c33", "#8fa8d8", 0.00, 0.44, 0.10],
 ];
 const _cA = new THREE.Color(), _cB = new THREE.Color();
 function setTimeOfDay(t){
@@ -6287,14 +6381,17 @@ function setTimeOfDay(t){
     sun.intensity = sunI;
   } else {
     sun.position.set(420, 620, -300);               /* moonlight */
-    sun.intensity = 0.5;
+    /* 0.9, from 0.5 — the moon is also the night's only shadow caster,
+       and at 0.5 its shadows were barely distinguishable from the
+       unlit ground they fell on */
+    sun.intensity = 0.9;
   }
   hemi.intensity = lerpN(5);
   hemi.color.copy(lerpC(1)).lerp(_cB.set(0xffffff), 0.45);
   hemi.groundColor.set(night ? 0x0b140d : 0x4a5b3a);
   world.environmentIntensity = lerpN(6);
-  world.fog.color.copy(lerpC(2)).multiplyScalar(night ? 0.55 : 0.92);
-  renderer.toneMappingExposure = night ? 0.95 : 1.02;
+  world.fog.color.copy(lerpC(2)).multiplyScalar(night ? 0.62 : 0.92);
+  renderer.toneMappingExposure = night ? 1.06 : 1.02;
   bloom.strength = night ? 0.6 : 0.24;
   setVisualBinary(night ? "night" : "day");
 }
@@ -6309,8 +6406,8 @@ function setVisualBinary(v){
   applyFog();
   stars.visible = !day;
   fireflies.visible = !day;
-  lampLights.forEach(l => l.intensity = day ? 0 : 1400);
-  lampGlowMats.forEach(mm => mm.emissiveIntensity = day ? 0.05 : 1.9);
+  lampLights.forEach(l => l.intensity = day ? 0 : 3000);
+  lampGlowMats.forEach(mm => mm.emissiveIntensity = day ? 0.05 : 2.5);
   glassGlowMats.forEach(mm => mm.emissiveIntensity = day ? 0 : 2.4);
   skylineMat.map = day ? skylinePair.day : skylinePair.night;
   skinSwaps.forEach(({ mat, day: dTex, night: nTex }) => {
@@ -6851,6 +6948,7 @@ renderer.setAnimationLoop(() => {
     lastClock = now;
     setTimeOfDay(clockT());
   }
+  stepLampSpots();
   if (fireflies.visible){
     fireflies.rotation.y += dt * 0.02;
     fireflies.position.y = Math.sin(now / 1700) * 4;
