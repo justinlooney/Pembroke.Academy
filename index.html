@@ -3617,7 +3617,14 @@ gltf.load("assets/lamp.glb", (g) => {
 const DOOR_RANGE = 900;           /* far enough that a lecture is worth the walk */
 const INSIDE_MS = [70000, 280000];        /* a class, or an hour with a book */
 const DOOR_COOL = 200000;         /* nobody attends four lectures in a row */
-const P_DOOR = 0.3;
+const P_DOOR = 0.22;
+/* How much of the cast may be indoors at once. Without a ceiling they
+   all go: a probe run had every one of the eight roamers inside a
+   building simultaneously at t+150s, which is not a quiet campus, it is
+   an empty one — and a visitor who arrives during that sees nobody at
+   all and concludes the crowd is broken. A third is enough to make the
+   quad feel like it has somewhere else to be. */
+const INSIDE_SHARE = 1 / 3;
 const SEATS = [];
 const SIT_RANGE = 420;            /* how far someone will go for a seat */
 /* Two figures, because a sit is only as good as what plays during it.
@@ -5557,7 +5564,18 @@ function playOnce(s, name, reverse){
    are actually near rather than marching across campus past three
    others. Ties broken by distance alone — a preference for one hall
    over another would show up as everyone attending the same lecture. */
+function indoorsNow(){
+  let n = 0, roamers = 0;
+  for (const o of students){
+    if (o.static || o.orbit) continue;
+    roamers++;
+    if (o.inside) n++;
+  }
+  return { n, cap: Math.max(1, Math.floor(roamers * INSIDE_SHARE)) };
+}
 function nearestDoor(s){
+  const { n, cap } = indoorsNow();
+  if (n >= cap) return null;             /* enough of the campus is away */
   let best = null, bestD = DOOR_RANGE;
   for (const d of DOORS){
     const dist = Math.hypot(d.x - s.pos[0], d.y - s.pos[1]);
