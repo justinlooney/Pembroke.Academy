@@ -3938,7 +3938,88 @@ const CAST_FILES = {
    be dressed, but she is a fourth roaming body, and three would leave
    the cohort one removal away from failing the check that it is drawn
    from more than one person at all.                                    */
-const CAST_FIRST = ["walker", "ariel", "kenta", "nathan", "sophia", "skate", "tutor"];
+/* ── who arrives first is drawn, not written down ─────────────────────
+   A fixed first wave means the same seven bodies every visit, and the
+   four that load late — isla, woman, alina, nadia — are the ones a
+   visitor rarely meets at all. The crowd was already randomised in
+   every other respect: clothes, build, start point, which body a named
+   student wears. The one thing still fixed was which bodies were in the
+   room to be dealt from.
+
+   It cannot be a plain shuffle, for two reasons that pull against each
+   other. The first wave IS the critical path, so a free draw could put
+   nadia's 4.22MB in front of the campus a visitor is waiting to walk
+   on. And it has to contain somebody the wardrobe can dress, or the
+   opening crowd is mannequins again — which is exactly the fault that
+   put ariel here in the first place.
+
+   So: a fixed core, then a draw under a byte budget with a dressability
+   guarantee.
+
+     core        walker, and the three who are not roamers
+     budget      2.6MB of roaming bodies beyond the core, which is what
+                 the written list cost (ariel, kenta, nathan = 2.24MB)
+                 plus room for one more small one
+     guarantee   at least one dressable body in the draw
+
+   walker is in the core because three named students ask for him BY
+   NAME — Priya, Sofia and Amara need Idle, Sitting Talking and Jogging,
+   and no other body has them. The loiterers and the skater are there
+   because nothing else can stand in for what they do. */
+const CAST_MB = { walker: 1.84, ariel: 1.66, kenta: 0.24, nathan: 0.34,
+                  isla: 0.88, woman: 2.64, alina: 3.04, nadia: 4.22,
+                  sophia: 0.33, skate: 1.27, tutor: 0.32 };
+/* Measured, not guessed: these are the six bodies with a shirt mesh the
+   wardrobe can find. See the note above about the ten that have none. */
+const CAST_DRESSABLE = ["walker", "ariel", "woman", "nadia"];
+const CAST_BUDGET = 3.0;
+function drawFirstWave(){
+  const core = ["walker", "sophia", "skate", "tutor"].filter(k => CAST_FILES[k]);
+  const pool = ROAMING.filter(k => k !== "walker" && CAST_FILES[k]);
+  for (let i = pool.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  /* A dressable body first, so the budget can never be spent before a
+     shirt has been bought. walker is dressable and always in the core,
+     but one is not enough: measured, a quad drawn from walker alone
+     yields five shirt colours where six are wanted, and walker plus one
+     more yields eight.
+
+     Drawn at RANDOM from those that fit, not cheapest-first. Cheapest
+     is deterministic, and it showed: eight visits produced two distinct
+     waves, six of them identical, because ariel is always the cheapest
+     dressable that fits. nadia at 4.22MB never fits and stays late. */
+  const picks = [];
+  let spent = 0;
+  const dressable = pool.filter(k => CAST_DRESSABLE.includes(k) &&
+                                     (CAST_MB[k] || 9) <= CAST_BUDGET);
+  if (dressable.length){
+    const pick = dressable[Math.floor(Math.random() * dressable.length)];
+    picks.push(pick);
+    spent += CAST_MB[pick] || 0;
+  }
+  for (const k of pool){
+    if (picks.includes(k)) continue;
+    const mb = CAST_MB[k] || 0;
+    if (spent + mb > CAST_BUDGET) continue;
+    picks.push(k);
+    spent += mb;
+  }
+  /* Three roaming bodies is the floor: the cohort has to read as more
+     than one person even before the late wave lands. Taking the
+     CHEAPEST remaining rather than the next shuffled one, because this
+     is the one step allowed to exceed the budget and the overshoot
+     should be a quarter of a megabyte rather than three. A draw that
+     ignored this put alina in the first wave and took it to 9.34MB. */
+  const rest = pool.filter(k => !picks.includes(k))
+                   .sort((a, b) => (CAST_MB[a] || 9) - (CAST_MB[b] || 9));
+  for (const k of rest){
+    if (picks.length >= 3) break;
+    picks.push(k);
+  }
+  return core.concat(picks);
+}
 /* A teenager is shorter, and the height is doing as much work here as
    any of the colours — see buildOf, which varies each figure another
    ±11% on top of these. */
@@ -3952,6 +4033,11 @@ const CAST_HEIGHT = { walker: 42, woman: 41,
    ninth, and by then they are scattered over sixty-eight waypoints. */
 const ROAMING = ["walker", "woman", "alina", "nathan", "ariel",
                  "kenta", "isla", "nadia"];
+/* Drawn here rather than beside drawFirstWave, because it reads ROAMING
+   and a const cannot be read before it is declared — putting the call
+   next to the function threw on load, which is a blank campus. */
+const CAST_FIRST = drawFirstWave();
+console.info("cast: first wave this visit — " + CAST_FIRST.join(", "));
 /* sophia joins the standers rather than the walkers, because that is
    what she came with: 488 frames of idle and no gait at all. She is
    also 16k triangles against stu_anim's 179,598 for the same job, which
@@ -4381,7 +4467,7 @@ function detailPass(){
        10.8MB of people nobody can meet yet in front of the models the
        campus is made of. */
     gltf.__late = true;
-    const settled = () => { if (--lateOutstanding === 0) fillForcedCrowd(); };
+    const settled = () => { if (--lateOutstanding === 0) topUpForcedCrowd(); };
     later.forEach(k => gltf.load(CAST_FILES[k],
       (g) => { arrive(k, g); settled(); },
       undefined,
@@ -4819,6 +4905,37 @@ function fillForcedCrowd(){
   clearTimeout(lateGiveUp);
   while (crowdN < CROWD_FORCE) addExtra(crowdN++);
   crowdDone = true;
+}
+/* ── and when the stragglers finally arrive ───────────────────────────
+   The comment above says ?crowd "fills the quad once every body that is
+   coming has come, so a forced crowd shows the whole cohort rather than
+   whichever half happened to load first". On a cold visit it did the
+   opposite, and the give-up is why: forty-five seconds is not enough to
+   fetch and decode the late half on a slow machine, so the timer fires,
+   the quad fills from the first wave, crowdDone goes up — and every
+   body that lands afterwards is then locked out for the rest of the
+   visit. The flag written to show the whole cast reliably showed half
+   of it, and four bodies could not be reviewed on the quad at all.
+
+   So the late wave settling is no longer just "fill if you have not
+   already". If a forced quad was already dealt without them, the
+   bodies nobody is wearing are added on the end — one extra each,
+   which is the smallest change that makes the flag tell the truth. */
+function topUpForcedCrowd(){
+  if (CROWD_FORCE === null){ fillForcedCrowd(); return; }
+  if (!crowdDone){ fillForcedCrowd(); return; }
+  const worn = new Set();
+  world.children.forEach(o => { if (o.userData?.figure) worn.add(o.userData.figure); });
+  const missing = loadedRoaming().filter(k => !worn.has(k));
+  if (!missing.length) return;
+  console.info("crowd: " + missing.join(", ") + " arrived after the quad was dealt — adding them");
+  for (const k of missing){
+    /* dealt through the same deck the rest came from, so build,
+       clothes and start point are drawn exactly as everyone else's */
+    castDeck = [k];
+    addExtra(crowdN++);
+  }
+  castDeck = [];
 }
 /* Nobody should be where they were yesterday. Every seed below hangs
    off this, so a visit gets its own people in its own clothes starting
