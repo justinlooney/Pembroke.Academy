@@ -48,6 +48,18 @@ if ("serviceWorker" in navigator){
   } else {
     sessionStorage.removeItem("nosw");
     navigator.serviceWorker.register("sw.js").catch(() => {});
+    /* Ask whichever worker is controlling this page what version it is.
+       If it answers with something other than the BUILD below, this page
+       came out of an old cache and a second reload will fix it — which
+       is worth saying out loud, because from a screenshot that state is
+       indistinguishable from a bug that was never fixed. */
+    navigator.serviceWorker.addEventListener("message", (e) => {
+      if (e.data?.type === "version") window.__swVersion = e.data.version;
+    });
+    const askSW = () => navigator.serviceWorker.controller
+      ?.postMessage({ type: "version" });
+    askSW();
+    navigator.serviceWorker.ready.then(askSW).catch(() => {});
   }
 }
 </script>
@@ -1845,6 +1857,11 @@ import { SSAOPass } from "three/addons/postprocessing/SSAOPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { SMAAPass } from "three/addons/postprocessing/SMAAPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+
+/* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
+   build if they drift. Shown in ?debug so a report from a phone can be
+   tied to the code that produced it. */
+const BUILD = "pembroke-v43";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -6258,8 +6275,17 @@ function dbgUpdate(now, dt){
     .map(a => "  " + (a.name + "                    ").slice(0, 19) + " " +
               (a.ms / 1000).toFixed(1) + "s" + (a.err ? "  " + a.why : "")).join("\n");
   const last = done.length ? Math.max(...done.map(a => a.t0 + a.ms)) : 0;
+  /* The worker answers with its own VERSION; a mismatch means this page
+     was served out of an older cache and one more reload will replace
+     it. Said plainly, because a stale build and an unfixed bug look
+     identical in a photograph of a phone. */
+  const sw = window.__swVersion;
+  const build = "build  " + BUILD +
+    (!sw ? "   (no worker yet)"
+         : sw === BUILD ? ""
+         : "   STALE: worker is serving " + sw + " — reload again") + "\n";
   dbgEl.textContent =
-    "PEMBROKE · DIAGNOSTICS\n" +
+    "PEMBROKE · DIAGNOSTICS\n" + build +
     "fps    " + fps.toFixed(0) + "   worst " + (dbgMin < 1e8 ? dbgMin.toFixed(0) : "–") + "\n" +
     "gpu    " + ((glInfo || "unknown").slice(0, 30)) + "\n" +
     "post   " + (softGL ? "reduced (soft GL)" : "ssao+bloom+smaa") + "\n" +
