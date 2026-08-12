@@ -937,7 +937,7 @@ body.day .int-lamp::after{opacity:.45;}
     </div>
 
     <!-- walk-mode HUD -->
-    <div id="walkhud">W A S D move &nbsp;·&nbsp; Shift hurry &nbsp;·&nbsp; ◀ ▶ turn &nbsp;·&nbsp; scroll zoom &nbsp;·&nbsp; E enter hall &nbsp;·&nbsp; F leave walk</div>
+    <div id="walkhud">W A S D move &nbsp;·&nbsp; drag to look &nbsp;·&nbsp; Shift hurry &nbsp;·&nbsp; ◀ ▶ turn &nbsp;·&nbsp; scroll zoom &nbsp;·&nbsp; E enter hall &nbsp;·&nbsp; F leave walk</div>
     <div id="zoomlvl" aria-hidden="true"></div>
     <button id="vista-back" type="button">← back to the quad</button>
     <div id="doorprompt"><b>E</b> — <span id="doorprompt-name"></span></div>
@@ -6568,7 +6568,11 @@ function enterWalk(){
   walker.on = true;
   walker.x = 500; walker.y = 802; walker.h = 0;
   walker.zoom = 1;
+  walker.pitch = 0;
   controls.enabled = false;
+  /* one-finger drags are ours now — without this the page grabs them
+     as scrolling and the look stops mid-swipe */
+  renderer.domElement.style.touchAction = "none";
   /* drop any fly-over outright rather than starting a return trip that
      would only play out behind the walker's back */
   flight = null;
@@ -6585,6 +6589,7 @@ function exitWalk(){
   if (!walker.on) return;
   walker.on = false;
   controls.enabled = true;
+  renderer.domElement.style.touchAction = "";
   aerialHome();
   controls.target.set(0, 30, 0);
   camera.rotation.set(0, 0, 0);
@@ -6619,6 +6624,42 @@ renderer.domElement.addEventListener("wheel", (e) => {
   e.preventDefault();                      /* OrbitControls is off; this is ours */
   walkZoom(e.deltaY < 0 ? 1.12 : 1 / 1.12);
 }, { passive: false });
+
+/* ── drag to look ─────────────────────────────────────────────────────
+   "you can zoom in and out but can't look left and right." The arrow
+   keys and the ◀ ▶ pads always turned, but a swipe on the world did
+   nothing — and on a phone the world is the only control that feels
+   like looking. One finger (or a held mouse button) drags the view:
+   sideways turns, up and down pitches within a clamp that keeps feet
+   and sky both reachable and the horizon findable again.
+
+   A SECOND finger cancels the drag outright — two fingers are the
+   pinch zoom below, and a pinch that also steered would corkscrew. A
+   tap still talks to people: the tap handler ignores anything that
+   moved more than six pixels, and a look is exactly a move. */
+let lookPtr = null, lookLast = null, lookDown = 0;
+renderer.domElement.addEventListener("pointerdown", (e) => {
+  lookDown++;
+  if (!walker.on) return;
+  if (lookDown === 1){ lookPtr = e.pointerId; lookLast = [e.clientX, e.clientY]; }
+  else { lookPtr = null; lookLast = null; }
+});
+renderer.domElement.addEventListener("pointermove", (e) => {
+  if (!walker.on || e.pointerId !== lookPtr || !lookLast) return;
+  const dx = e.clientX - lookLast[0], dy = e.clientY - lookLast[1];
+  lookLast = [e.clientX, e.clientY];
+  /* finer when zoomed, same as the turn keys */
+  const k = 1 / Math.sqrt(walker.zoom);
+  walker.h += dx * 0.26 * k;
+  walker.pitch = Math.max(-0.55, Math.min(0.6,
+    (walker.pitch || 0) - dy * 0.0042 * k));
+});
+const lookEnd = (e) => {
+  lookDown = Math.max(0, lookDown - 1);
+  if (e.pointerId === lookPtr){ lookPtr = null; lookLast = null; }
+};
+renderer.domElement.addEventListener("pointerup", lookEnd);
+renderer.domElement.addEventListener("pointercancel", lookEnd);
 
 /* pinch: track the two-finger span and scale the zoom by how it changes */
 let pinchSpan = 0;
@@ -6682,7 +6723,7 @@ function walkUpdate(dt){
   camera.position.set(W(walker.x), walker.eye + bob, W(walker.y));
   camera.rotation.order = "YXZ";
   camera.rotation.y = -hr;
-  camera.rotation.x = -0.045;
+  camera.rotation.x = -0.045 + (walker.pitch || 0);
   camera.rotation.z = 0;
   walker.door = null;
   for (const d of DOORS){
