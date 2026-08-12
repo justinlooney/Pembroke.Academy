@@ -211,7 +211,8 @@ try {
   /* walk mode: stand at the cathedral doors and expect the prompt */
   step("walk mode engages", await pressUntil("f", () => window.__walker.on === true));
 
-  await page.evaluate(() => { const w = window.__walker; w.x = 500; w.y = 132; w.h = 0; });
+  /* the chapel lives on the North Quad now — same sector key, new door */
+  await page.evaluate(() => { const w = window.__walker; w.x = 500; w.y = -292; w.h = 0; });
   const doored = await page
     .waitForFunction(() => window.__walker.door === "cathedral", null, { timeout: 180_000 })
     .then(() => true, () => false);
@@ -493,7 +494,9 @@ try {
     const { WAYPOINTS, EDGES } = window.__ways;
     /* the halls and their towers, in plane coordinates */
     const BOX = [[150,150,220,160], [645,150,190,140], [140,660,200,150], [640,650,190,170],
-                 [238,182,92,92], [668,168,66,66], [212,680,72,72], [700,702,78,78]];
+                 [238,182,92,92], [668,168,66,66], [212,680,72,72], [700,702,78,78],
+                 /* the North Quad: chapel + its tower, west hall, east hall */
+                 [410,-420,180,100], [472,-452,56,56], [262,-256,104,152], [634,-256,104,152]];
     const bad = [];
     for (const [from, tos] of Object.entries(EDGES)){
       for (const to of tos){

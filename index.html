@@ -1129,7 +1129,7 @@ const SECTORS = {
                 "· trust the filter, verify the sensor",
                 "· flight test — quad lawn, friday 0900"],
          blurb:"Behind the imperial-purple spire sits the Autonomy Wing — capstone territory. State estimation, control loops, and flight planners that let machines navigate the world alone." },
-  cathedral: { key:"cathedral", hall:"The Pembroke Cathedral", track:"The University Chapel",
+  cathedral: { key:"cathedral", hall:"The Pembroke Chapel", track:"The University Chapel",
          color:"#d4af6a", soft:"rgba(212,175,106,", icon:"✦",
          motto:"Lux perpetua luceat studiis.",
          room:"The Nave — Lux Perpetua",
@@ -2231,6 +2231,12 @@ let fountainWater = null;
   const ring = new THREE.Mesh(new THREE.RingGeometry(168, 197, 96), pathMat);
   ring.rotation.x = -Math.PI / 2; ring.position.set(0, 0.3, 0); ring.receiveShadow = true;
   world.add(ring);
+  /* the North Quad's own ring, tighter than the great oval, its lawn
+     left empty on purpose — the whole point of the second quad is
+     ground you can cross without walking into anything */
+  const nring = new THREE.Mesh(new THREE.RingGeometry(106, 134, 96), pathMat);
+  nring.rotation.x = -Math.PI / 2; nring.position.set(0, 0.3, -680); nring.receiveShadow = true;
+  world.add(nring);
   /* The ways, described by what they join rather than by rectangles.
      The four hall doors sit at the corners — library NW, engineering NE,
      science SW, administration SE — the cathedral closes the north axis,
@@ -2244,6 +2250,10 @@ let fountainWater = null;
      two people can pass a third on it without anybody stepping onto
      the grass. */
   walkway([[500, 60], [500, 150], [497, 236], [500, 300], RING_N], 44);
+  /* ...and on north, between the quads: one unbroken 44-wide spine from
+     ring to ring, plus the stub up to the chapel doors */
+  walkway([[500, 64], [500, 0], [500, -62]], 44);
+  walkway([[500, -296], [500, -322]], 26);
   /* the south walk out to the gatehouse and the stadium boulevard */
   walkway([RING_S, [500, 760], [503, 840], [500, 918], [500, 985]], 30);
 
@@ -2537,87 +2547,6 @@ function loadLandmark(url, opts){
 /* the cathedral's crown: the scan ends in bare white ceiling slabs
    and a towerless front, so a slate nave roof, aisle strips, and twin
    spires with crosses complete the silhouette (see Villanova chapel) */
-function buildCathedralCrown(rootObj){
-  const bb = new THREE.Box3().setFromObject(rootObj);
-  const size = new THREE.Vector3(); bb.getSize(size);
-  const cx = (bb.min.x + bb.max.x) / 2, cz = (bb.min.z + bb.max.z) / 2;
-  const topY = bb.max.y;
-  /* nave gable running the length of the church */
-  gableRoof(world, { x: cx + 500 - size.x * 0.29, y: cz + 500 - (size.z - 8) / 2,
-                     w: size.x * 0.58, d: size.z - 8, z: topY - 3, h: 44, axis: "y" });
-  /* low slate strips over the aisle slabs */
-  const slateFlat = new THREE.MeshStandardMaterial({ map: shingleTex, roughness: 0.92 });
-  [-1, 1].forEach(sx => {
-    const strip = new THREE.Mesh(new THREE.BoxGeometry(size.x * 0.24, 3.2, size.z - 8), slateFlat);
-    strip.position.set(cx + sx * size.x * 0.37, topY - 1.2, cz);
-    strip.castShadow = strip.receiveShadow = true;
-    world.add(strip);
-  });
-  /* twin spires flanking the west front */
-  const drumMat = new THREE.MeshStandardMaterial({ color: 0xb5a68c, roughness: 0.95 });
-  const spireMat = new THREE.MeshStandardMaterial({ map: shingleTex, roughness: 0.85 });
-  const crossMat = new THREE.MeshStandardMaterial({ color: 0xd4af6a, metalness: 0.75, roughness: 0.3 });
-  [-1, 1].forEach(sx => {
-    const x = cx + sx * (size.x / 2 - 26), z = bb.max.z - 20;
-    const drum = new THREE.Mesh(new THREE.CylinderGeometry(15, 16.5, 26, 8), drumMat);
-    drum.position.set(x, topY + 13, z);
-    const spire = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 14, 80, 8), spireMat);
-    spire.position.set(x, topY + 26 + 40, z);
-    const crossV = new THREE.Mesh(new THREE.BoxGeometry(1.6, 14, 1.6), crossMat);
-    crossV.position.set(x, topY + 26 + 80 + 6, z);
-    const crossH = new THREE.Mesh(new THREE.BoxGeometry(8, 1.6, 1.6), crossMat);
-    crossH.position.set(x, topY + 26 + 80 + 8.5, z);
-    [drum, spire, crossV, crossH].forEach(m => { m.castShadow = true; world.add(m); });
-  });
-}
-function buildCathedralPortal(rootObj){
-  const probe = new THREE.Raycaster(new THREE.Vector3(0, 40, W(220)), new THREE.Vector3(0, 0, -1));
-  const hit = probe.intersectObject(rootObj, true)[0];
-  const wallZ = hit ? hit.point.z
-    : new THREE.Box3().setFromObject(rootObj).max.z - 6;
-  gltf.load("assets/portal.glb", (g) => {
-    const porch = g.scene;
-    porch.rotation.y = Math.PI / 2;          /* the scan's face looks -x; turn it south */
-    porch.updateMatrixWorld(true);
-    let bb = new THREE.Box3().setFromObject(porch);
-    const size = new THREE.Vector3(); bb.getSize(size);
-    porch.scale.setScalar(100 / size.y);
-    porch.updateMatrixWorld(true);
-    bb = new THREE.Box3().setFromObject(porch);
-    const ctr = new THREE.Vector3(); bb.getCenter(ctr);
-    porch.position.x += -ctr.x;
-    porch.position.y += -bb.min.y;
-    porch.position.z += (wallZ - 17) - bb.min.z;   /* backing band sinks into the facade */
-    porch.updateMatrixWorld(true);
-    /* the flanking band skews the bbox, so find the true arch axis by
-       probing where rays pass through the opening to the facade behind */
-    const rc = new THREE.Raycaster();
-    const openXs = [];
-    for (let px = -34; px <= 34; px += 1){
-      rc.set(new THREE.Vector3(px, 26, wallZ + 60), new THREE.Vector3(0, 0, -1));
-      const h = rc.intersectObject(porch, true)[0];
-      if (!h || h.point.z < wallZ + 6) openXs.push(px);
-    }
-    if (openXs.length > 4) porch.position.x -= (openXs[0] + openXs[openXs.length - 1]) / 2;
-    porch.traverse(o => {
-      if (o.isMesh){
-        o.castShadow = o.receiveShadow = true;
-        o.material = new THREE.MeshStandardMaterial({
-          vertexColors: true, color: 0xe8ddc8,     /* warm the scan toward the facade brick */
-          roughness: 0.93, envMapIntensity: 0.7 });
-      }
-    });
-    world.add(porch);
-    COLLIDERS.push({ x: 455, y: 58, w: 90, d: 34 });
-    /* dark oak doors deep in the recess, where the scan's archway
-       would otherwise open onto bare facade brick */
-    const doors = new THREE.Mesh(new THREE.BoxGeometry(21, 36, 2),
-      new THREE.MeshStandardMaterial({ color: 0x3e2a18, roughness: 0.82, metalness: 0.05 }));
-    doors.position.set(0, 18, wallZ + 1.2);
-    doors.receiveShadow = true;
-    world.add(doors);
-  });
-}
 
 /* derive normal + roughness/metalness maps from the height mask so
    glass turns mirror-smooth (sky reflections) and stone stays matte,
@@ -2843,15 +2772,53 @@ BUILDINGS.forEach(spec => {
 {
   const amb = new THREE.Group();
   world.add(amb);
-  /* the Pembroke Cathedral — "Cathedral" by tabitown (CC-BY-4.0),
-     enterable, crowning the north axis; its stained glass burns
-     from within after dark */
-  loadLandmark("assets/cathedral2.glb", {
-    plane: [500, -160], height: 340, rotY: Math.PI, maxFoot: [400, 440],
-    glassNames: ["glass"],
-    collider: "auto",
-    onLoaded: (r) => { cathedralRoot = r; buildCathedralPortal(r); buildCathedralCrown(r); },
-  });
+  /* ── the North Quad ─────────────────────────────────────────────
+     The Pembroke Cathedral stood here — a 4MB scan closing the north
+     axis. Its EXTERIOR is gone; the nave survives, because the chapel
+     interior always loaded its own copy of the model lazily on entry,
+     so pulling the building off the skyline cost the inside nothing.
+     What was housed in the cathedral is housed in the chapel that
+     crowns this quad instead, under the same sector key, so the door
+     prompt, the interior, the quests and the smoke checks all follow
+     it here rather than breaking.
+
+     Laid out like the main quad but opener: a ring walk at r=120
+     around a lawn with nothing standing on it, three halls around the
+     rim, and the south side left open where the widened processional
+     arrives from the main quad. */
+  {
+    const S = SECTORS.cathedral;
+    const grp = new THREE.Group();
+    world.add(grp);
+    cathedralRoot = grp;               /* aerial click-to-enter follows the chapel */
+
+    /* the chapel, closing the axis the cathedral used to close */
+    stoneBox(grp, { x: 410, y: -420, w: 180, d: 100, h: 64, parapet: 6,
+                    windows: "lancet", ivy: true, noRoof: true,
+                    accent: S.color, seed: 7 });
+    gableRoof(grp, { x: 410, y: -420, w: 180, d: 100, z: 64, h: 40 });
+    stoneBox(grp, { x: 472, y: -452, w: 56, d: 56, h: 98, parapet: 5,
+                    windows: "grand", accent: S.color, seed: 9 });
+    spire(grp, 500, 98, -424, 56, 64);
+
+    /* flanking halls, west and east — scenery with the same masonry */
+    stoneBox(amb, { x: 262, y: -256, w: 104, d: 152, h: 56, parapet: 6,
+                    windows: "lancet", ivy: true, noRoof: true, seed: 8 });
+    gableRoof(amb, { x: 262, y: -256, w: 104, d: 152, z: 56, h: 30 });
+    stoneBox(amb, { x: 634, y: -256, w: 104, d: 152, h: 56, parapet: 6,
+                    windows: "lancet", ivy: true, noRoof: true, seed: 11 });
+    gableRoof(amb, { x: 634, y: -256, w: 104, d: 152, z: 56, h: 30 });
+
+    /* nameplate, in the chapel's gold */
+    const el = document.createElement("div");
+    el.className = "hall-tag";
+    el.style.setProperty("--glow", S.color);
+    el.innerHTML = `<div class="t1"><span class="flag"></span>${S.hall}</div>
+      <div class="t2">${S.track}</div>`;
+    const tag = new CSS2DObject(el);
+    tag.position.set(W(500), 150, W(-360));
+    world.add(tag);
+  }
   /* ── the outer world loads lazily: the core campus paints first,
         then the horizon landmarks and districts stream in (~40MB)
         without contending for first-load bandwidth ─────────────────── */
@@ -3190,7 +3157,7 @@ const EZ_SETS = { m011: [], m002: [], m010: [], l009: [] };
     const a = (i / 90) * Math.PI * 2 + (i % 7) * 0.09;
     const r = 700 + ((i * 149) % 520);
     const px = 500 + Math.cos(a) * r, py = 500 + Math.sin(a) * r;
-    if (px > 290 && px < 710 && py > -400 && py < 100) continue;   /* cathedral close */
+    if (px > 240 && px < 760 && py > -460 && py < 100) continue;   /* the North Quad */
     if (px > 1400 || (px < -300 && py < -200)) continue;            /* MSU, Cologne */
     if (px < -350 && py > 200 && py < 560) continue;                /* white cathedral */
     if (py > 1040 && px > -650 && px < 1550) continue;              /* athletics district */
@@ -3640,6 +3607,17 @@ gltf.load("assets/bench.glb", (g) => {
     SEATS.push({ x: Math.cos(a) * 118 + 500, y: Math.sin(a) * 118 + 500,
                  face: bench.rotation.y, taken: null });
   }
+  /* four more around the North Quad's lawn, same pattern, same deal */
+  for (let k = 0; k < 4; k++){
+    const a = (45 + 90 * k) * Math.PI / 180;
+    const bench = g.scene.clone(true);
+    bench.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    bench.position.set(Math.cos(a) * 88, 0, -680 + Math.sin(a) * 88);
+    bench.rotation.y = -a + Math.PI / 2;
+    world.add(bench);
+    SEATS.push({ x: Math.cos(a) * 88 + 500, y: Math.sin(a) * 88 - 180,
+                 face: bench.rotation.y, taken: null });
+  }
 });
 
 /* ── stars + fireflies (night) ───────────────────────────────────── */
@@ -3745,6 +3723,13 @@ const EDGES = {};
      no way back to campus. */
   walk([[500, 1104], [330, 1148], [152, 1192], [-40, 1236]]);     /* west to the ballpark */
   walk([[500, 1104], [678, 1148], [854, 1190], [982, 1236]]);     /* east to the tennis   */
+  /* the North Quad: its own ring, joined to the processional at
+     [500,150] so the two quads are one graph and students drift
+     between them the way you do */
+  const nring2 = (k) =>
+    [500 + 120 * Math.cos(k * Math.PI / 4), -180 + 120 * Math.sin(k * Math.PI / 4)];
+  walk([0, 1, 2, 3, 4, 5, 6, 7].map(nring2), true);
+  walk([[500, 150], [500, 60], [500, 0], nring2(2)]);             /* the connector */
 }
 /* Somewhere to start that is not where everyone else started. Spread
    across the whole graph rather than taken in order, so the extras open
@@ -6495,7 +6480,7 @@ const wing = wingEl;
 const DOORS = [
   { sector:"lib", x:260, y:326 }, { sector:"eng", x:740, y:306 },
   { sector:"sci", x:240, y:822 }, { sector:"adm", x:735, y:832 },
-  { sector:"cathedral", x:500, y:118 },
+  { sector:"cathedral", x:500, y:-300 },   /* the chapel, on the North Quad */
 ];
 const walker = { on:false, x:500, y:802, h:0, eye:34, bobT:0, door:null, keys:{}, zoom:1 };
 const WALK_FOV = 62;                  /* wide enough to see your feet and the path */
