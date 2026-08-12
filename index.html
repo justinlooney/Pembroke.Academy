@@ -4422,7 +4422,7 @@ const ROLE_CACHE = {};
 const SEATED_AT = 0.62;
 const _seatV = new THREE.Vector3(), _seatW = new THREE.Vector3();
 function seatRoles(src){
-  const out = { seat: null, rise: null, seated: new Set() };
+  const out = { seat: null, rise: null, seated: new Set(), riseFrom: 1 };
   if (!src.animations?.length) return out;
 
   /* Evaluate the pose. Two cheaper readings were tried and both were
@@ -4489,7 +4489,23 @@ function seatRoles(src){
       if (r.dur > bestSeat){ bestSeat = r.dur; out.seat = r.name; }
     } else if (lo0 && !lo1){
       out.rise = r.name;                /* low to high: standing up */
+      out.riseFrom = r.y0 / stand;      /* ...from how far down? */
     }
+  }
+  /* Where the rise STARTS decides where the student has to be sitting,
+     and the two clips have to agree or the hips jump between them.
+     Walker's pair does not: Standing Up begins at 0.01 of standing
+     height — flat on the floor — and Sitting Talking sits at 0.48,
+     which is a chair. Chaining those snaps the hips half a body.
+     
+     So a rise from the floor means sitting ON THE GROUND, and the
+     seated pose is the last frame of the sit-down held, which is by
+     construction exactly where the rise begins. A rise from chair
+     height can use the seated loop, because then they agree. */
+  if (out.rise && out.seat){
+    const seatRow = rows.find(r => r.name === out.seat);
+    const seatY = seatRow ? seatRow.mid / stand : 0;
+    if (Math.abs(seatY - out.riseFrom) > 0.15) out.seat = null;
   }
   return out;
 }
@@ -5599,7 +5615,12 @@ function stepStudents(dt, now){
       if (s.mode === "sitdown"){
         s.mode = "seated";
         s.until = now + SEATED_MS[0] + Math.random() * (SEATED_MS[1] - SEATED_MS[0]);
-        const act = s.g.userData.anim?.actions[s.roles.seat];
+        /* No loop that meets the sit-down? Then the pose it finished on
+           IS the seated pose — clampWhenFinished is already holding it,
+           and breathe() gives it a chest. Nothing to cross-fade to, and
+           nothing to jump. */
+        const act = s.roles.seat ? s.g.userData.anim?.actions[s.roles.seat] : null;
+        if (!act) s.held = true;
         if (act){
           act.reset();
           act.setLoop(THREE.LoopRepeat, Infinity);
@@ -5617,6 +5638,7 @@ function stepStudents(dt, now){
       } else {
         s.mode = "walk";
         s.sitAt = now;                /* not again for a while */
+        s.held = false;
         leaveSeat(s);
         s.target = null;
         s.pauseUntil = now + 200 + Math.random() * 600;
@@ -5717,12 +5739,21 @@ function stepStudents(dt, now){
            got up. Sitting is the longer, more legible thing to do; a
            student who would otherwise stand about for four seconds is
            better spent walking to a bench. */
-        const seat = (s.roles?.seat && s.roles?.rise &&
-                      now - (s.sitAt || -1e9) > SIT_COOL &&
-                      Math.random() < P_SIT) ? freeSeat(s) : null;
+        const canSit = s.roles?.rise && now - (s.sitAt || -1e9) > SIT_COOL &&
+                       Math.random() < P_SIT;
+        /* On the ground where they stand, or on a bench — decided by
+           where this body's rise clip begins, not by preference. */
+        const onGround = canSit && (s.roles.riseFrom ?? 1) < 0.25;
+        const seat = (canSit && !onGround && s.roles.seat) ? freeSeat(s) : null;
         if (seat){
           seat.taken = s;             /* claimed on the way, not on arrival */
           s.seat = seat; s.mode = "toseat"; s.target = null;
+          s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+          continue;
+        }
+        if (onGround){
+          s.mode = "sitdown"; s.target = null;
+          s.until = now + (playOnce(s, s.roles.rise, true) || 1200);
           s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
           continue;
         }
