@@ -645,6 +645,7 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
 #doorprompt{
   position:absolute;left:50%;bottom:4.4rem;transform:translateX(-50%);z-index:26;
   display:none;white-space:nowrap;
+  cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;
   padding:.55rem 1.3rem;border-radius:12px;
   font-size:13px;color:var(--parchment);
   background:rgba(10,16,30,.92);border:1.5px solid var(--brass);
@@ -653,6 +654,7 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
 }
 #doorprompt b{display:inline-block;padding:0 .45rem;margin-right:.2rem;border:1.5px solid var(--brass);border-radius:6px;color:var(--brass);}
 #doorprompt.show{display:block;}
+#doorprompt:active{transform:translateX(-50%) scale(.96);}
 #touchpad{position:absolute;left:50%;bottom:7.4rem;transform:translateX(-50%);z-index:26;display:none;gap:1rem;}
 #touchpad button{
   width:56px;height:56px;border-radius:50%;font-size:20px;color:#e2e8f0;
@@ -940,7 +942,7 @@ body.day .int-lamp::after{opacity:.45;}
     <div id="walkhud">W A S D move &nbsp;·&nbsp; drag to look &nbsp;·&nbsp; Shift hurry &nbsp;·&nbsp; ◀ ▶ turn &nbsp;·&nbsp; scroll zoom &nbsp;·&nbsp; E enter hall &nbsp;·&nbsp; F leave walk</div>
     <div id="zoomlvl" aria-hidden="true"></div>
     <button id="vista-back" type="button">← back to the quad</button>
-    <div id="doorprompt"><b>E</b> — <span id="doorprompt-name"></span></div>
+    <div id="doorprompt"><b>E</b> — <span id="doorprompt-name"></span> <span style="opacity:.65">· tap to enter</span></div>
     <div id="touchpad">
       <button data-t="left">◀</button><button data-t="fwd">▲</button><button data-t="right">▶</button>
     </div>
@@ -6739,19 +6741,26 @@ window.addEventListener("keydown", e => {
   if (!walker.on) return;
   walker.keys[e.code] = true;
   if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
-  if (e.code === "KeyE" && walker.door){
-    const key = walker.door;
-    if (key === "cathedral"){
-      openInterior("cathedral");
-      toast("🕯️ A candle for the term", "The nave is quiet. Stained glass burns overhead, and somewhere a page turns.", "#d4af6a", 5000);
-    } else {
-      selectSector(key, false);
-      openInterior(key);
-      const q = questInfo();
-      if (q.sector === key) toast("📚 Class attended", "You made it to lecture. Seal the course in the ledger once you've mastered it.", SECTORS[key].color, 5500);
-    }
-  }
+  if (e.code === "KeyE") enterDoor();
 });
+/* One path in, shared by the E key and a tap on the prompt itself. On a
+   phone there is no keyboard, so "E — Enter" was a button that could
+   not be pressed: the prompt showed the way in and provided no way to
+   take it. The prompt IS the button now. */
+function enterDoor(){
+  if (!walker.on || !walker.door) return;
+  const key = walker.door;
+  if (key === "cathedral"){
+    openInterior("cathedral");
+    toast("🕯️ A candle for the term", "The nave is quiet. Stained glass burns overhead, and somewhere a page turns.", "#d4af6a", 5000);
+  } else {
+    selectSector(key, false);
+    openInterior(key);
+    const q = questInfo();
+    if (q.sector === key) toast("📚 Class attended", "You made it to lecture. Seal the course in the ledger once you've mastered it.", SECTORS[key].color, 5500);
+  }
+}
+document.getElementById("doorprompt").addEventListener("click", enterDoor);
 window.addEventListener("keyup", e => { walker.keys[e.code] = false; });
 document.querySelectorAll("#touchpad button").forEach(b => {
   const on  = ev => { ev.preventDefault(); walker.keys["t" + b.dataset.t] = true; };
