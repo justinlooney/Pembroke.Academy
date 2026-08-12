@@ -40,20 +40,24 @@ Sitting_Talking https://drive.google.com/file/d/1LPSnmgWqpgAT1SCbs7wCBH1k2hSgQVt
 # download rather than three.
 #
 Standing_Up     https://drive.google.com/file/d/101SKrfyvhBdwGS4ngvrEx-xKJ3qmipdA/view
-# Snatch.fbx, brought in to be MEASURED rather than judged by its name.
-# It was dismissed here as a weightlifting snatch on the strength of the
-# filename alone — in a file whose own header says the name is not
-# evidence, three lines after a checker was written for exactly that
-# mistake. Whoever downloaded it says it looks like a sit and a stand,
-# and there is no way to tell from here: Drive's bytes cannot reach this
-# environment, and the only FBX reader is on the runner.
+# Snatch.fbx was landed here and then removed, having been rendered:
 #
-# So it lands, gets read by tools/check-sitting.mjs, and stays or goes
-# on what the hips say. If it is a sit AND a stand in one clip it is
-# worth more than either half separately — both directions with heights
-# that match by construction, which is the exact problem Standing Up
-# has with Sitting Talking.
-Snatch          https://drive.google.com/file/d/1bkA5l2L7FwY6H97mrxWI303qD98lQMoX/view
+#   0.00s  deep crouch      0.48s  rising, bent forward
+#   0.96s  standing         1.20s  crouch again — the LOOP, not the motion
+#
+# One direction, crouch to standing in about a second. It reads as a sit
+# and a stand in Mixamo's preview because that preview loops: crouch,
+# stand, snap back, over and over. Not a pair of clips, and not usable
+# as one — reversed it is a 1.2 second drop into a squat, which is too
+# fast to read as sitting and ends in a squat rather than a seat.
+#
+# Standing Up beats it for the ground sit on both counts: it begins at
+# floor level rather than mid-squat, and takes 6.1 seconds, which is
+# what a person lowering themselves actually looks like.
+#
+# Worth keeping the shape of that check: the name said weightlifting,
+# the hips said standing-up, and only the render said which second of it
+# was which.
 
 # ── a finished character ─────────────────────────────────────────────
 # A block can also be a single link to a GLB that is already a rigged,

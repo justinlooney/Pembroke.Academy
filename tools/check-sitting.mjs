@@ -84,7 +84,13 @@ window.__sit = (url) => new Promise((done) => {
       const STEPS = 60;
       const hipAt = [], travel = [];
       for (let i = 0; i <= STEPS; i++){
-        const t = clip.duration * i / STEPS;
+        /* Just short of the end, never AT it. mixer.setTime(duration)
+           on a looping action wraps to frame 0, so the last sample was
+           the FIRST pose wearing the last sample's name — which on a
+           clip that starts crouched and ends standing drags the closing
+           average back down towards the crouch. Caught by rendering the
+           frames and finding t=duration identical to t=0. */
+        const t = Math.min(clip.duration * i / STEPS, clip.duration - 1e-3);
         act.time = t; mixer.setTime(t);
         root.updateMatrixWorld(true);
         hips.getWorldPosition(p); foot.getWorldPosition(q);
