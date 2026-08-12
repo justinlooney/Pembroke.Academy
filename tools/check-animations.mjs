@@ -80,7 +80,15 @@ const roles = await page.evaluate((body) => {
   return { clips: Object.keys(a.actions), roles: a.roles, nominal: a.nominal };
 }, BODY);
 if (!roles || roles.none){
-  console.log(`no ${BODY} on campus this visit`);
+  /* The cast key is not always the file name: stu_skater.glb is known
+     to the roster as "skate", so asking for "skater" searched for
+     somebody who does not exist and reported eight empty visits as if
+     the campus were at fault. List who IS out, so the next person spends
+     a second on it rather than eight page loads. */
+  const seen = await page.evaluate(() => [...new Set((window.__students || [])
+    .map(x => x.g?.userData?.figure).filter(Boolean))].sort());
+  console.log(`no "${BODY}" on campus. Cast keys present this visit: ${seen.join(", ")}`);
+  console.log(`(the roster key can differ from the file name — stu_skater.glb is "skate")`);
   await browser.close(); server.close(); process.exit(0);
 }
 if (roles.standAlone){

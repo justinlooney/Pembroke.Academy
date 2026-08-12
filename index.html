@@ -4980,7 +4980,8 @@ function passingTime(g){
        fell back to feet alone, which is precisely the case the comment
        below warns about, because a bind pose has its feet together
        too. */
-    if (o.isBone && /(hand|wrist)(l|r)?$/.test(boneKey(o.name))) hands.push(o);
+    if (o.isBone && /hand|wrist/.test(boneKey(o.name)) &&
+        !/thumb|index|middle|ring|pinky|finger/.test(boneKey(o.name))) hands.push(o);
   });
   /* The body's own centre line, read per frame off the hips, because
      the hips swing sideways through a stride and a fixed origin would
@@ -6651,7 +6652,12 @@ const LOOK_FREE_ROLL = 0.16;            /* ~9° tilt       */
 const LOOK_PULL = 0.85;                 /* how much of the excess to take back */
 function headNeutral(g){
   let head = null;
-  g.traverse(o => { if (!head && o.isBone && /head$/.test(boneKey(o.name))) head = o; });
+  g.traverse(o => {
+    if (head || !o.isBone) return;
+    const k = boneKey(o.name);
+    /* the head, not the marker at the top of it */
+    if (/head/.test(k) && !/top|end/.test(k)) head = o;
+  });
   if (!head || !head.parent) return null;
   const a = g.userData.anim;
   const act = a && a.actions[a.current];
@@ -6750,10 +6756,16 @@ function facingOf(g){
      bodies a visitor stands closest to.
      "footend" is excluded so this takes the ankle and not the toe tip,
      which is the joint the toe is measured FROM. */
+  /* FOUR spellings of the same joint have turned up in eleven bodies:
+     LeftFoot, CC_Base_L_Foot, foot_l, foot_l_human. Each time an
+     anchored pattern was widened by one more suffix, and each time the
+     next body brought another. So stop anchoring: match the word and
+     say what it must NOT be. The tip of the chain — foot_end, toe — is
+     excluded because this wants the ankle, which is the joint the toe
+     is measured from. */
+  const ankle = (k) => /foot/.test(k) && !/end|toe/.test(k);
   const feet = [];
-  g.traverse(o => {
-    if (o.isBone && /(?<!end)foot(l|r)?$/.test(boneKey(o.name))) feet.push(o);
-  });
+  g.traverse(o => { if (o.isBone && ankle(boneKey(o.name))) feet.push(o); });
   if (!feet.length) return null;
   const a = new THREE.Vector3(), b = new THREE.Vector3();
   let sx = 0, sz = 0, n = 0;

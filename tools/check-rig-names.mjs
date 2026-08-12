@@ -142,11 +142,12 @@ window.__names = (url) => new Promise((done) => {
        the fact that nathan satisfied one and not the other. */
     const findable = [
       ["hips/pelvis",        count(/hip|pelvis/) >= 1],
-      ["head (look-at)",     count(/head$/) >= 1],
+      ["head (look-at)",     keys.filter(k => /head/.test(k) && !/top|end/.test(k)).length >= 1],
       ["feet x2 (stand)",    count(/foot/) >= 2],
-      ["ankles x2 (facing)", count(/(?<!end)foot(l|r)?$/) >= 2],
+      ["ankles x2 (facing)", keys.filter(k => /foot/.test(k) && !/end|toe/.test(k)).length >= 2],
       ["toe (facing)",       count(/toe|footend/) >= 1],
-      ["hands x2 (stand)",   count(/(hand|wrist)(l|r)?$/) >= 2],
+      ["hands x2 (stand)",   keys.filter(k => /hand|wrist/.test(k) &&
+                               !/thumb|index|middle|ring|pinky|finger/.test(k)).length >= 2],
       ["spine (breathe)",    count(/spine|chest/) >= 1],
     ];
 
