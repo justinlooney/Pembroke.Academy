@@ -3019,8 +3019,9 @@ BUILDINGS.forEach(spec => {
   COLLIDERS.push({ x: 456, y: 880, w: 26, d: 46 }, { x: 518, y: 880, w: 26, d: 46 });
   stoneBox(amb, { x: 257, y: 874, w: 27, d: 36, h: 96, parapet: 6, windows: "slits", seed: 8, accent: "#d4af6a" });
   stoneBox(amb, { x: 536, y: 874, w: 27, d: 36, h: 96, parapet: 6, windows: "slits", seed: 9, accent: "#d4af6a" });
-  /* landscaping: clipped hedges with real foliage texture and rounded
-     profiles, shrub balls at the hall doors, flower beds at the spokes */
+  /* landscaping: shrub balls flanking the hall doors — all that
+     remains of a scheme that once hedged and flower-bedded the lawn
+     crossings, and was cleared for standing in the way */
   const leafTex = canvasTex(128, (x, px) => {
     x.fillStyle = "#24512e"; x.fillRect(0, 0, px, px);
     speck(x, px, 3400, ["#1b3f24", "#2f6039", "#38704a", "#173420", "#407950"], 0.9);
@@ -3094,8 +3095,9 @@ BUILDINGS.forEach(spec => {
 
 /* ── glTF 2.0 prop library (assets/*.glb) ────────────────────────── */
 /* Placed like a groundskeeper would: an allée up the processional walk,
-   specimen maples on the lawn, groves flanking the diagonal spokes,
-   shade belts at the campus edges, and a forest rolling to the horizon.
+   specimen maples framing the lawn from its edges, shade belts at the
+   campus edges, and a forest rolling to the horizon. (The groves that
+   used to flank the diagonal spokes stood in the walks and are gone.)
  *
  * Two libraries, split by how close you get. Everything on the campus
  * plate — anything you can walk up to — is a photographed tree. The
