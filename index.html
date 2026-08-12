@@ -3592,6 +3592,21 @@ gltf.load("assets/lamp.glb", (g) => {
     world.add(ch);
   });
 }
+/* ── somewhere to sit ─────────────────────────────────────────────────
+   Filled by the bench loader, so the seats are wherever the benches
+   actually went. A campus with sit clips and nowhere to sit puts people
+   on the grass with their hips at chair height, floating.
+
+   The caps are the ones asked for: sitting up to twenty minutes,
+   standing idle up to five, walking up to five. The DRAWN times are far
+   shorter than the ceilings, because a visit lasts a minute or two and
+   a student who sits for twenty of them is scenery, not behaviour. */
+const SEATS = [];
+const SIT_RANGE = 420;            /* how far someone will go for a seat */
+const SEATED_MS = [45000, 240000];        /* ceiling 20 min */
+const SIT_COOL = 180000;          /* before the same student sits again */
+const P_SIT = 0.35;
+
 /* "Campus Conversation" by restore50 stood here: a scanned group of
    students frozen mid-chat on the lawn, 1.55MB and 181,682 triangles.
    It was here because the campus had nobody on it. It now has fifteen
@@ -3606,6 +3621,14 @@ gltf.load("assets/bench.glb", (g) => {
     bench.position.set(Math.cos(a) * 118, 0, Math.sin(a) * 118);
     bench.rotation.y = -a + Math.PI / 2;
     world.add(bench);
+    /* Somewhere to sit, taken from the bench as it is placed rather
+       than written out again beside it — a second copy of these six
+       angles would be a second thing to keep in step, and a student
+       sitting a metre in front of a bench is worse than one who never
+       sits at all. Plane coordinates, because that is what a student's
+       pos is in: W maps plane to world by subtracting 500. */
+    SEATS.push({ x: Math.cos(a) * 118 + 500, y: Math.sin(a) * 118 + 500,
+                 face: bench.rotation.y, taken: null });
   }
 });
 
@@ -4379,19 +4402,117 @@ function prepFigure(k, height, live, clipIx = 0){
    The original walker is the exception and keeps its hand-named clips,
    because it has seven of them and they are known good. */
 const ROLE_CACHE = {};
+/* ── which clip is a person sitting down? ─────────────────────────────
+   Read off the hips, not the name. A clip arrives called whatever the
+   download was called, and three files offered as sitting animations
+   turned out to be a weightlifting snatch, a stand-up and someone
+   picking things off the floor. Names are not evidence.
+
+   The hips are. Every Mixamo clip animates hips POSITION, so the height
+   is in the track data — no mixer, no clone, no pose to put back:
+
+     both ends low     a seated loop
+     low -> high       standing up
+     both ends high    standing, and none of our business
+
+   0.62 of the bind-pose hip height is the line, which tools/check-sitting.mjs
+   arrived at the hard way: at 0.72 it called a jog a sit-down, because a
+   jog drops the hips to 0.68 at the bottom of a stride. Walker's real
+   seated pose sits at 0.48. */
+const SEATED_AT = 0.62;
+const _seatV = new THREE.Vector3(), _seatW = new THREE.Vector3();
+function seatRoles(src){
+  const out = { seat: null, rise: null, seated: new Set() };
+  if (!src.animations?.length) return out;
+
+  /* Evaluate the pose. Two cheaper readings were tried and both were
+     wrong, in the same way: they trusted a number without checking what
+     frame it was in.
+     
+     Dividing the hips track by the rest translation called walker's
+     Strut Walking a seated loop. Calibrating each clip against the
+     median of the others did no better. The dump says why — these
+     clips came from separate Mixamo downloads and their hips tracks do
+     not share a scale or an origin at all:
+     
+       Idle          mean 2.62      Sitting Talking  mean 1.56
+       Standard Walk mean 4.36      Strut Walking    mean 1.21
+       Start Walking mean 139.75 (root travel baked into the track)
+     
+     There is nothing to compare across those. So drive the mixer and
+     measure the hips against the FEET, which is a distance inside one
+     pose and cannot be in the wrong frame. On a clone, so no pose has
+     to be put back afterwards; once per body, cached with the roles. */
+  const probe = skeletonClone(src.scene);
+  let hips = null, foot = null;
+  probe.traverse(o => {
+    if (!o.isBone) return;
+    const k = boneKey(o.name);
+    if (!hips && /hip|pelvis/.test(k)) hips = o;
+    if (!foot && /foot/.test(k) && !/end|toe/.test(k)) foot = o;
+  });
+  if (!hips || !foot) return out;
+
+  const mixer = new THREE.AnimationMixer(probe);
+  const at = (act, t) => {
+    act.time = t;
+    mixer.setTime(t);
+    probe.updateMatrixWorld(true);
+    hips.getWorldPosition(_seatV); foot.getWorldPosition(_seatW);
+    return _seatV.y - _seatW.y;
+  };
+  const rows = [];
+  for (const c of src.animations){
+    const act = mixer.clipAction(c);
+    act.reset(); act.play(); act.setEffectiveWeight(1);
+    /* a little inside each end, so a single odd keyframe at t=0 does
+       not decide it */
+    const y0 = at(act, Math.min(0.05, c.duration * 0.02));
+    const y1 = at(act, Math.max(0, c.duration - Math.min(0.05, c.duration * 0.02)));
+    const mid = at(act, c.duration * 0.5);
+    act.stop(); mixer.uncacheAction(c);
+    rows.push({ name: c.name, dur: c.duration, y0, y1, mid });
+  }
+  mixer.uncacheRoot(probe);
+  if (!rows.length) return out;
+  /* standing height: the tallest reading anywhere in the cast of clips */
+  const stand = Math.max(...rows.map(r => Math.max(r.y0, r.y1, r.mid)));
+  if (!(stand > 1e-6)) return out;
+  const line = SEATED_AT * stand;
+  let bestSeat = -1;
+  for (const r of rows){
+    const lo0 = r.y0 <= line, lo1 = r.y1 <= line;
+    if (lo0 && lo1){
+      out.seated.add(r.name);
+      /* the longest seated loop, so a student settles rather than
+         cycling through a two-second one over and over */
+      if (r.dur > bestSeat){ bestSeat = r.dur; out.seat = r.name; }
+    } else if (lo0 && !lo1){
+      out.rise = r.name;                /* low to high: standing up */
+    }
+  }
+  return out;
+}
 function rolesOf(k, src){
   if (ROLE_CACHE[k]) return ROLE_CACHE[k];
+  const sit = seatRoles(src);
   if (k === "walker")
-    return (ROLE_CACHE[k] = { gaits: GAITS, idle: "Idle", start: "Start Walking" });
+    return (ROLE_CACHE[k] = { gaits: GAITS, idle: "Idle", start: "Start Walking",
+                              seat: sit.seat, rise: sit.rise });
   const scored = src.animations
     .filter(c => c.duration > 0.2)                 /* an eye-blink is not a clip */
     .map(c => ({ name: c.name, cadence: (c.userData?.cycles || 0) / c.duration }));
   const gaits = scored.filter(c => c.cadence > 0.45).map(c => c.name);
-  const still = scored.filter(c => c.cadence <= 0.45).map(c => c.name);
+  /* A seated clip barely swings a thigh, so it scores as "still" and
+     would otherwise be handed straight to idle — leaving a student
+     sitting in mid-air every time they stopped walking. */
+  const still = scored.filter(c => c.cadence <= 0.45 && !sit.seated.has(c.name) &&
+                                   c.name !== sit.rise).map(c => c.name);
   /* No idle is not a fault, it is a fact about the download: a body
      with nothing to do when standing simply never stops walking. That
      reads far better than freezing someone mid-stride. */
-  const roles = { gaits, idle: still[0] || null, start: null };
+  const roles = { gaits, idle: still[0] || null, start: null,
+                  seat: sit.seat, rise: sit.rise };
   ROLE_CACHE[k] = roles;
   return roles;
 }
@@ -5345,7 +5466,7 @@ const SPACE = 27;
    The cooldown stops the same two falling into conversation again the
    moment they part. */
 function freeToTalk(s, now){
-  return !s.static && !s.orbit && s.pos &&
+  return !s.static && !s.orbit && s.pos && !s.seat &&
          (s.mode === "walk" || s.mode === undefined) &&
          now - (s.socialAt || -1e9) > SOCIAL_COOL;
 }
@@ -5367,6 +5488,42 @@ function findPartner(self, now){
     if (d < bestD && d > TALK_GAP){ bestD = d; best = o; }
   }
   return best;
+}
+/* Play a clip once, forwards or backwards, and say how long it runs.
+   Backwards is how a student sits down: there is a Standing Up clip and
+   no sitting-down clip anywhere on Mixamo that matched this skeleton,
+   and a stand-up reversed is a controlled lowering into a seat. Not
+   setClip, which crossfades and returns early when the clip is already
+   current — this needs the playhead put back to a specific end. */
+function playOnce(s, name, reverse){
+  const a = s.g.userData?.anim;
+  const act = a?.actions[name];
+  if (!act) return 0;
+  if (s.held) release(s);
+  const prev = a.current && a.actions[a.current];
+  if (prev && prev !== act) prev.fadeOut(0.2);
+  act.reset();
+  act.setLoop(THREE.LoopOnce, 1);
+  act.clampWhenFinished = true;      /* hold the last pose, do not snap back */
+  act.timeScale = reverse ? -1 : 1;
+  act.time = reverse ? act.getClip().duration : 0;
+  act.setEffectiveWeight(1).fadeIn(0.2).play();
+  a.current = name;
+  s.anim0 = name;
+  return act.getClip().duration * 1000;
+}
+function freeSeat(from){
+  let best = null, bestD = SIT_RANGE;
+  for (const seat of SEATS){
+    if (seat.taken) continue;
+    const d = Math.hypot(seat.x - from.pos[0], seat.y - from.pos[1]);
+    if (d < bestD){ bestD = d; best = seat; }
+  }
+  return best;
+}
+function leaveSeat(s){
+  if (s.seat && s.seat.taken === s) s.seat.taken = null;
+  s.seat = null;
 }
 function crowded(self, nx, ny){
   for (const o of students){
@@ -5402,6 +5559,71 @@ function stepStudents(dt, now){
       continue;
     }
     let moving = false;
+    /* ── sitting down, sitting, standing up ──────────────────────────
+       One cycle, in one direction, and never straight back into
+       another: sit down, stay a while, stand up, walk away. A student
+       who sits and stands and sits again on the same bench is the thing
+       that most gives away a machine, so standing up starts a cooldown
+       rather than a fresh roll.
+
+       The seat is claimed on the way there, not on arrival. Two
+       students converging on one bench and both sitting in it is worse
+       than one of them walking a little further. */
+    if (s.mode === "toseat"){
+      const seat = s.seat;
+      if (!seat){ s.mode = "walk"; }
+      else {
+        const dx = seat.x - s.pos[0], dy = seat.y - s.pos[1];
+        const d = Math.hypot(dx, dy);
+        if (d < 3){
+          s.mode = "sitdown";
+          s.g.rotation.y = seat.face;
+          s.pos[0] = seat.x; s.pos[1] = seat.y;
+          s.until = now + (playOnce(s, s.roles.rise, true) || 1200);
+          s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+          continue;
+        }
+        s.pos[0] += dx / d * s.speed * dt;
+        s.pos[1] += dy / d * s.speed * dt;
+        s.g.rotation.y = Math.atan2(dx, dy);
+        s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+        stepMotion(s, true, now, dt);
+        continue;
+      }
+    }
+    if (s.mode === "sitdown" || s.mode === "seated" || s.mode === "standup"){
+      if (now < s.until){
+        s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+        continue;                     /* the clip has the whole body */
+      }
+      if (s.mode === "sitdown"){
+        s.mode = "seated";
+        s.until = now + SEATED_MS[0] + Math.random() * (SEATED_MS[1] - SEATED_MS[0]);
+        const act = s.g.userData.anim?.actions[s.roles.seat];
+        if (act){
+          act.reset();
+          act.setLoop(THREE.LoopRepeat, Infinity);
+          act.clampWhenFinished = false;
+          act.timeScale = s.idleRate;
+          act.setEffectiveWeight(1).fadeIn(0.3).play();
+          const prev = s.g.userData.anim.current;
+          if (prev && prev !== s.roles.seat) s.g.userData.anim.actions[prev]?.fadeOut(0.3);
+          s.g.userData.anim.current = s.roles.seat;
+          s.anim0 = s.roles.seat;
+        }
+      } else if (s.mode === "seated"){
+        s.mode = "standup";
+        s.until = now + (playOnce(s, s.roles.rise, false) || 1200);
+      } else {
+        s.mode = "walk";
+        s.sitAt = now;                /* not again for a while */
+        leaveSeat(s);
+        s.target = null;
+        s.pauseUntil = now + 200 + Math.random() * 600;
+      }
+      s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+      continue;
+    }
     /* ── standing and talking ────────────────────────────────────────
        Two students who have decided to talk walk to TALK_GAP of each
        other, turn to face, and stand there for a while. Nothing else
@@ -5460,6 +5682,7 @@ function stepStudents(dt, now){
     if (now < s.pauseUntil){ /* standing */ }
     else {
       if (s.mode === "linger") s.mode = "walk";
+      if (s.seat && s.mode === "walk") leaveSeat(s);
       if (!s.target){
         const opts = EDGES[s.node];
         s.target = opts[Math.floor(Math.random() * opts.length)];
@@ -5490,6 +5713,19 @@ function stepStudents(dt, now){
          * for a third as long. */
         /* Arrived. Three things a person does here: go and talk to
            somebody, stand a moment, or carry on. */
+        /* A seat first, if this body can sit at all and has not just
+           got up. Sitting is the longer, more legible thing to do; a
+           student who would otherwise stand about for four seconds is
+           better spent walking to a bench. */
+        const seat = (s.roles?.seat && s.roles?.rise &&
+                      now - (s.sitAt || -1e9) > SIT_COOL &&
+                      Math.random() < P_SIT) ? freeSeat(s) : null;
+        if (seat){
+          seat.taken = s;             /* claimed on the way, not on arrival */
+          s.seat = seat; s.mode = "toseat"; s.target = null;
+          s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+          continue;
+        }
         const other = (now - (s.socialAt || -1e9) > SOCIAL_COOL && Math.random() < P_MEET)
           ? findPartner(s, now) : null;
         if (other){
