@@ -204,9 +204,24 @@ window.__sheet = (url) => new Promise((done) => {
       sc.remove(root);
     }
 
-    /* how far the skin strays from the spine, the one number that
-       would have caught the wings */
-    const v = new THREE.Vector3();
+    /* How far the skin strays from the SPINE — measured from the hips
+       where there are hips, not from the centre of the rest-pose box.
+       The box centre is fixed in space, so a clip carrying root motion
+       walks the whole figure away from it and every vertex is charged
+       for the distance travelled: kenta read 1.01 against a sound range
+       of 0.02-0.80 purely for stepping forward, with nothing wrong in
+       any of his pictures. The campus strips root motion before playing
+       anything (inPlaceClip); this tool does not, so it has to measure
+       from something that travels with him. Exactly the fault
+       passingTime had in its centre line — made twice, in two files, by
+       the same hand. */
+    const v = new THREE.Vector3(), hipPos = new THREE.Vector3();
+    let hip = null;
+    root.traverse(o => {
+      if (!hip && o.isBone && /hip|pelvis/i.test(
+            (o.name || "").replace(/[^a-z0-9]/gi, "").toLowerCase())) hip = o;
+    });
+    (hip || root).getWorldPosition(hipPos);
     root.traverse(o => {
       if (!o.isSkinnedMesh) return;
       const pos = o.geometry.attributes.position;
@@ -216,7 +231,7 @@ window.__sheet = (url) => new Promise((done) => {
         o.applyBoneTransform(i, v);
         v.applyMatrix4(o.matrixWorld);
         if (!Number.isFinite(v.x)) { spike = Infinity; break; }
-        spike = Math.max(spike, Math.hypot(v.x - ctr.x, v.z - ctr.z) / Math.max(size.y, 1e-6));
+        spike = Math.max(spike, Math.hypot(v.x - hipPos.x, v.z - hipPos.z) / Math.max(size.y, 1e-6));
       }
     });
 
@@ -238,8 +253,9 @@ window.__sheet = (url) => new Promise((done) => {
       + " roughness floored at 0.5, specular to 0.12, ior to 1.3.)\\n" +
       "\\nskin reaches " + (spike === Infinity ? "NaN — BROKEN" : spike.toFixed(2)) +
       " figure-heights from the spine" +
-      "\\n   calibrated on this cast: sound bodies measure 0.02-0.80 (arms out" +
-      "\\n   mid-stride); the one whose mesh tore into wings measured 7.15.";
+      "\\n   measured from the hips. Sound bodies on this cast read 0.18-0.35;" +
+      "\\n   the one whose mesh tore into wings read 7.15 by a looser version of" +
+      "\\n   this that also charged root motion, so the gap is orders either way.";
     done(true);
   }, undefined, (e) => { document.getElementById("facts").textContent =
     "FAILED TO LOAD: " + e; done(false); });
