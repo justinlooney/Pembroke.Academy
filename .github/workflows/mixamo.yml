@@ -43,7 +43,8 @@ jobs:
               echo "no previous commit to diff against — building every block"
               python3 tools/mixamo-plan.py tools/mixamo-inbox.txt /tmp/plan ;;
             *)
-              python3 tools/mixamo-plan.py tools/mixamo-inbox.txt /tmp/plan --since "$before" ;;
+              python3 tools/mixamo-plan.py tools/mixamo-inbox.txt /tmp/plan --since "$before"
+              echo "edited=yes" >> "$GITHUB_OUTPUT" ;;
           esac
           n=$(ls /tmp/plan 2>/dev/null | wc -l)
           echo "blocks=$n" >> "$GITHUB_OUTPUT"
@@ -68,6 +69,15 @@ jobs:
 
       - name: Fetch and build
         if: steps.plan.outputs.blocks != '0'
+        env:
+          # A block only reaches the plan if this push edited it, so the
+          # "already built" skip below has nothing left to protect: it is
+          # there to stop a run re-fetching characters nobody asked
+          # about, and with --since nobody else is in the plan. Without
+          # this, editing a block was a no-op — which is exactly what
+          # happened when three clips were added to walker and the run
+          # reported success having built nothing.
+          REBUILD_ALL: ${{ steps.plan.outputs.edited == 'yes' && '1' || '' }}
         run: |
           set -o pipefail
           failed_any=0

@@ -34,18 +34,18 @@ Walk_Forward    https://drive.google.com/file/d/1bdGGSIPtRIBZsssxPMuLSHixs781OT1
 Idle            https://drive.google.com/file/d/1aw-oEHfcGVtozFy2JLQXy8NecFK7zaXx/view
 Standard_Walk   https://drive.google.com/file/d/1rJdHfnkXFza8BcSSoweajDVVwYZs4FB-/view
 Sitting_Talking https://drive.google.com/file/d/1LPSnmgWqpgAT1SCbs7wCBH1k2hSgQVtx/view
-# Three more for the sitting half of a student's day. Named Seat_A/B/C
-# rather than Sitting and Stand_Up because nobody here has opened them:
-# Drive is unreachable from the environment these are being added in, so
-# what each one contains is a guess until it is measured. Renamed once
-# tools/check-sitting.mjs has read the hip height at the start and end
-# of each — low throughout is a seated loop, low to high is standing up,
-# high to low is sitting down. Guessing at the names first would put the
-# wrong clip on the wrong state machine branch and look like a bug in
-# the branch.
-Seat_A          https://drive.google.com/file/d/1bkA5l2L7FwY6H97mrxWI303qD98lQMoX/view
-Seat_B          https://drive.google.com/file/d/101SKrfyvhBdwGS4ngvrEx-xKJ3qmipdA/view
-Seat_C          https://drive.google.com/file/d/1hAD49LkKngNBMdUbhrDPsyHqsszjLayf/view
+# Standing up, which with Sitting_Talking above completes the whole
+# seated cycle: sit down is this clip played backwards (timeScale -1),
+# the seated loop is Sitting_Talking, and standing up is this. One
+# download rather than three.
+#
+# Two others were offered alongside it and are deliberately NOT here.
+# They were named Snatch.fbx and Gathering_Objects.fbx — a weightlifting
+# snatch and picking things up off the floor. Neither is sitting, and
+# neither reversed is sitting either. A student doing a barbell snatch
+# on the quad is not the campus we are building, and every clip landed
+# costs bytes on a phone that is already short of them.
+Standing_Up     https://drive.google.com/file/d/101SKrfyvhBdwGS4ngvrEx-xKJ3qmipdA/view
 
 # ── a finished character ─────────────────────────────────────────────
 # A block can also be a single link to a GLB that is already a rigged,
