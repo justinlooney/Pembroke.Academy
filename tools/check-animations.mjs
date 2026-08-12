@@ -49,9 +49,19 @@ const browser = await chromium.launch({
   args: ["--enable-unsafe-swiftshader", "--disable-dev-shm-usage", "--no-sandbox"] });
 const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
 page.on("pageerror", e => console.log("  [pageerror] " + e.message.split("\n")[0]));
-await page.goto(`http://127.0.0.1:${PORT}/?crowd=12`, { waitUntil: "domcontentloaded" });
-await page.waitForFunction(() => window.__convo && window.__convo.named().length,
-                           null, { timeout: 300_000 });
+/* Bodies are dealt at random each visit, so the one asked for may
+   simply not be out. Reload until it is, rather than reporting "no
+   ariel on campus" and leaving the reader to wonder whether that is a
+   fault in the roster or a coin toss. */
+let present = false;
+for (let attempt = 1; attempt <= 8 && !present; attempt++){
+  await page.goto(`http://127.0.0.1:${PORT}/?crowd=12`, { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__convo && window.__convo.named().length,
+                             null, { timeout: 300_000 });
+  present = await page.evaluate((body) => (window.__students || [])
+    .some(x => x.g?.userData?.figure === body && x.g.userData.anim), BODY);
+  if (!present) console.log(`visit ${attempt}: no ${BODY} dealt, trying again`);
+}
 
 const roles = await page.evaluate((body) => {
   const s = (window.__students || []).find(x => x.g?.userData?.figure === body);
@@ -120,6 +130,60 @@ else {
                 (advanced && r.moved > 4 ? "ok" : "DEAD — plays nothing"));
   }
   await page.evaluate(() => window.__convo.close());
+}
+
+/* ── if this body has no idle, its standing pose IS one frame ──────
+   Eight of eleven bodies here arrived with a walk and nothing else, and
+   for those the campus holds the walk at the frame where the feet pass
+   and the hands hang nearest the centre line. That single frame is the
+   whole of how they look standing at a door, on the plaza, and in
+   conversation — so it is worth knowing whether the search found a good
+   one or merely the least bad of a poor set. The score below is
+   passingTime's own: feet apart, plus how far the hands sit out from
+   the spine. Lower is a stiller stance. */
+if (!roles.roles.idle){
+  const held = await page.evaluate((body) => {
+    const s = (window.__students || []).find(x => x.g?.userData?.figure === body);
+    const a = s.g.userData.anim, act = a.actions[s.gait2 || a.current];
+    if (!act) return null;
+    const key = (n) => { n=(n||"").split("|").pop().split(":").pop();
+      n=n.replace(/^mixamorig\d*/i,"").replace(/[._]\d+$/,"");
+      return n.replace(/[^a-z0-9]/gi,"").toLowerCase(); };
+    const feet = [], hands = []; let hip = null;
+    s.g.traverse(o => { if (!o.isBone) return;
+      if (/foot$/.test(key(o.name))) feet.push(o);
+      if (/(hand|wrist)$/.test(key(o.name))) hands.push(o);
+      if (!hip && /hip|pelvis/.test(key(o.name))) hip = o; });
+    if (feet.length < 2) return { err: "fewer than two feet found" };
+    const wp = (o) => ({ x:o.matrixWorld.elements[12], z:o.matrixWorld.elements[14] });
+    const was = act.time, wasPaused = act.paused;
+    const dur = act.getClip().duration, scores = [];
+    for (let i = 0; i < 24; i++){
+      act.time = (i / 24) * dur; act.paused = false;
+      a.mixer.update(0); s.g.updateMatrixWorld(true);
+      const p = wp(feet[0]), q = wp(feet[1]);
+      let d = Math.hypot(p.x - q.x, p.z - q.z);
+      /* across the body, per frame — the same reading passingTime makes */
+      const c = wp(hip || s.g);
+      for (const h of hands){ const w = wp(h);
+        d += Math.hypot(w.x - c.x, w.z - c.z) * 0.6; }
+      scores.push(+d.toFixed(2));
+    }
+    act.time = was; act.paused = wasPaused; a.mixer.update(0);
+    const best = scores.indexOf(Math.min(...scores));
+    return { scores, best, bestT: +((best / 24) * dur).toFixed(2),
+             holdAt: s.holdAt == null ? null : +s.holdAt.toFixed(2),
+             lo: Math.min(...scores), hi: Math.max(...scores), dur: +dur.toFixed(2) };
+  }, BODY);
+  console.log(`\n── no idle: the held frame is the whole standing pose ──`);
+  if (!held || held.err) console.log("  " + (held?.err || "could not read it"));
+  else {
+    console.log(`  clip is ${held.dur}s; stillness score ranges ${held.lo} (best) to ${held.hi} (worst)`);
+    console.log(`  best frame at ${held.bestT}s;  campus is holding ${held.holdAt === null ? "(not yet held)" : held.holdAt + "s"}`);
+    const spread = held.hi - held.lo;
+    console.log(`  the search has ${spread < 1 ? "little to choose between frames — any is as still as any other"
+                                              : "a real best: " + (100 * (held.hi - held.lo) / held.hi).toFixed(0) + "% stiller than the worst frame"}`);
+  }
 }
 
 /* ── which ones does the campus ever choose? ───────────────────────

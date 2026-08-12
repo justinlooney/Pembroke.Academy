@@ -4951,11 +4951,29 @@ function passingTime(g){
     /* the hand itself, not its fingers: LeftHand yes, LeftHandIndex1 no */
     if (o.isBone && /(hand|wrist)$/.test(boneKey(o.name))) hands.push(o);
   });
+  /* The body's own centre line, read per frame off the hips, because
+     the hips swing sideways through a stride and a fixed origin would
+     charge that swing to the arms. */
+  let hip = null;
+  g.traverse(o => {
+    if (!hip && o.isBone && /hip|pelvis/.test(boneKey(o.name))) hip = o;
+  });
+  /* Sampled at FULL WEIGHT, and this is the whole of why the search
+     worked at all before.
+     holdStill calls setClip first, which starts the clip fading in from
+     zero, and then calls this immediately. An action at zero effective
+     weight contributes nothing to the mixer — so stepping its clock
+     moved no bones, all twenty-four frames scored exactly the same, and
+     the search returned frame zero every time for every body. Not
+     because frame zero was still: because nothing was being measured.
+     Caught by a scan reporting best and worst as the same number to two
+     decimal places, which no real walk cycle does. */
   const was = act.time, wasPaused = act.paused;
+  const wasWeight = act.getEffectiveWeight(), wasEnabled = act.enabled;
+  act.enabled = true;
+  act.setEffectiveWeight(1);
   const p = new THREE.Vector3(), q = new THREE.Vector3();
-  const root = new THREE.Vector3();
-  g.getWorldPosition(root);
-  const mid = root.x;
+  const mid = new THREE.Vector3();
   let best = null, bestD = Infinity;
   const dur = act.getClip().duration;
   for (let i = 0; i < 24; i++){
@@ -4972,13 +4990,26 @@ function passingTime(g){
        the arms as well: how far the hands sit from the body's centre
        line. A passing stride keeps them near the hips; a T-pose does
        not, and now loses. */
+    /* Measured ACROSS the body, not along the world X axis. The first
+       version charged |hand.x - centre.x|, which is only the whole of
+       "how far out are the arms" for a figure that happens to face
+       along Z: one facing along X carries its arms apart in Z and was
+       charged nothing at all. So which frame became a body's entire
+       standing pose depended on which way they were pointing when the
+       search ran — arbitrary, and it showed: ariel was held at 0s where
+       the stillest frame in her clip is 0.32s and 81% stiller.
+       Horizontal distance from the hips is the same number whichever
+       way she faces. */
+    (hip || g).getWorldPosition(mid);
     for (const h of hands){
       h.getWorldPosition(p);
-      d += Math.abs(p.x - mid) * 0.6;
+      d += Math.hypot(p.x - mid.x, p.z - mid.z) * 0.6;
     }
     if (d < bestD){ bestD = d; best = t; }
   }
   act.time = was; act.paused = wasPaused;
+  act.enabled = wasEnabled;
+  act.setEffectiveWeight(wasWeight);
   a.mixer.update(0);
   return (PASS_CACHE[key] = best);
 }
