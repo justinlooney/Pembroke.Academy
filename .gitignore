@@ -5,3 +5,7 @@ smoke-*.png
 # manifest of its own — there is nothing to build here.
 package.json
 package-lock.json
+__pycache__/
+
+# Character sheets and probe renders — regenerate with tools/character-sheet.mjs
+.shots/

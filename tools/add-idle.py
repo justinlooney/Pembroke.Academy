@@ -74,6 +74,21 @@ kept = list(bpy.data.actions)
 print("[idle] %s: %d bones, namespace %s, %d existing clip(s)"
       % (os.path.basename(body_file), len(have), ns or "(none)", len(kept)))
 
+# Landing the same clip twice is not harmless. Blender does not refuse a
+# duplicate name, it renames it — so a second run produces Idle.001, a
+# third Idle.002, and the body carries three copies of one animation.
+# That is exactly what happened here: three runs took stu_gent from
+# 432KB to 584KB, roughly fifty kilobytes of the same standing loop each
+# time, and the campus then picks whichever copy sorts first.
+#
+# The workflow fires on any push that touches this file or the workflow,
+# so re-runs are normal and must be free. Landed already means done.
+already = re.compile(re.escape(clip_name) + r"(\.\d+)?$")
+if any(already.match(a.name) for a in kept):
+    print("[idle] %s already carries '%s' — nothing to do"
+          % (os.path.basename(body_file), clip_name))
+    sys.exit(2)
+
 # ── the clip ─────────────────────────────────────────────────────────
 before = set(bpy.context.scene.objects)
 bpy.ops.import_scene.fbx(filepath=clip_file, ignore_leaf_bones=True,

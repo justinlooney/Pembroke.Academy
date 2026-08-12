@@ -51,6 +51,16 @@ jobs:
           npm install --no-save --no-audit --no-fund playwright@1.56.1
           npx playwright install --with-deps chromium
 
+      # A minute, against a twenty-minute suite, for the one failure the
+      # suite cannot see. An animation track addresses a node by name; if
+      # the name is wrong it binds to nothing, the file loads without a
+      # word of complaint, and the figure stands perfectly still. This
+      # repository has already shipped that statue once and diagnosed it
+      # in a browser. Names are also what the wardrobe dresses by, so the
+      # same read reports which bodies can be re-dressed at all.
+      - name: Do the names in the character files line up?
+        run: node tools/check-rig-names.mjs
+
       - name: Drive the campus
         run: node tools/smoke.mjs
 

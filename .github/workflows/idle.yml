@@ -13,9 +13,21 @@ name: idle
 # nothing, so add-idle.py refuses them and they keep the held frame.
 # That refusal is the point: a clip that binds to nothing exports
 # perfectly and ships a statue.
+#
+# Run by hand only. This fired on any push touching the tool or this
+# file, which meant editing either one re-landed the clip on four
+# bodies and pushed the result to main unreviewed. It did that three
+# times in one afternoon, and what landed was not three copies of one
+# animation but three DIFFERENT truncations of it — 6.02s, then 0.37s,
+# then 0.95s, all named Idle — with index.html picking whichever sorted
+# first. A third of a second of a standing loop, played on repeat, is
+# what "everyone is swaying around" looks like.
+#
+# A workflow that writes character assets straight to the branch needs
+# somebody to look at the result before it ships. Nothing here can tell
+# a good landing from a bad one, and the bad ones were visible from the
+# first frame and invisible in every log.
 on:
-  push:
-    paths: ['tools/add-idle.py', '.github/workflows/idle.yml', 'tools/clips/**']
   workflow_dispatch:
 
 permissions:
@@ -44,11 +56,13 @@ jobs:
           set -o pipefail
           CLIP=tools/clips/Standing_Idle.fbx
           changed=0
-          # Every body that came with one walk cycle. The three Character
-          # Creator ones are listed too, on purpose: the tool decides,
-          # not this file, and its refusal is logged where it can be read.
-          for name in stu_gent stu_mia stu_teen stu_oreizo \
-                      stu_alina stu_ariel stu_woman stu_nathan; do
+          # Every body that came with one walk cycle. Character Creator
+          # ones are listed too, on purpose: the tool decides, not this
+          # file, and its refusal is logged where it can be read.
+          # gent, mia and teen are gone from the campus entirely — they
+          # carried no colour of any kind — and oreizo with them, for a
+          # mesh that tears.
+          for name in stu_alina stu_ariel stu_woman stu_nathan; do
             src="assets/$name.glb"
             [ -f "$src" ] || continue
             echo "::group::$name"
@@ -67,7 +81,12 @@ jobs:
               echo "  landed on $name"
               changed=1
             else
-              echo "  $name keeps the held-frame idle"
+              # Two different non-zero exits land here, and the log above
+              # says which: the tool refuses a skeleton the clip cannot
+              # address (2 of 3 bodies), and it declines a body that
+              # already carries the clip. Both mean "leave the file
+              # alone", which is why neither sets changed.
+              echo "  $name unchanged — see the group above for why"
             fi
             echo "::endgroup::"
           done

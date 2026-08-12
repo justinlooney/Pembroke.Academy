@@ -1,0 +1,315 @@
+#!/usr/bin/env node
+/**
+ * Pembroke Academy — do the animations work, and does anyone use them?
+ *
+ *     node tools/check-animations.mjs [walker]
+ *
+ * Two different questions, and a clip can fail either one on its own.
+ *
+ * DOES IT PLAY. An action can be selected and frozen: a paused action
+ * still writes its pose every frame, so a frozen student looks exactly
+ * like a student standing still, and the only tell is whether the
+ * action's clock advances. Nothing was reading that clock, and two of
+ * the eight named students turned out to have been stuck at frame zero
+ * of an idle they owned and never played.
+ *
+ * DOES ANYTHING SELECT IT. A body can carry seven clips and reach
+ * three. rolesOf decides what a body may do; CAST_PLAN reaches past it
+ * by name for a couple of specials. A clip nobody ever asks for is
+ * weight in the download and nothing on the screen — worth knowing
+ * about, and not necessarily worth fixing.
+ *
+ * So: exercise every clip directly, then watch the campus for a while
+ * and see which ones it actually chooses.
+ */
+import { chromium } from "playwright";
+import { createServer } from "node:http";
+import { readFile } from "node:fs/promises";
+import { existsSync, statSync } from "node:fs";
+import { resolve, extname, sep } from "node:path";
+
+const ROOT = resolve(new URL("..", import.meta.url).pathname);
+const PORT = 8351;
+const WATCH = (+process.argv.find(a => /^\d+$/.test(a)) || 60) * 1000;
+const BODY = process.argv.slice(2).find(a => !/^\d+$/.test(a)) || "walker";
+const MIME = { ".html":"text/html", ".js":"text/javascript", ".css":"text/css",
+  ".glb":"model/gltf-binary", ".png":"image/png", ".jpg":"image/jpeg",
+  ".svg":"image/svg+xml", ".json":"application/json", ".webp":"image/webp" };
+const server = createServer(async (req, res) => {
+  const rel = decodeURIComponent(req.url.split("?")[0]);
+  const p = resolve(ROOT, "." + (rel === "/" ? "/index.html" : rel));
+  if (p !== ROOT && !p.startsWith(ROOT + sep)){ res.writeHead(403); res.end(); return; }
+  if (!existsSync(p) || statSync(p).isDirectory()){ res.writeHead(404); res.end("nope"); return; }
+  res.writeHead(200, { "content-type": MIME[extname(p)] || "application/octet-stream" });
+  res.end(await readFile(p));
+});
+await new Promise(r => server.listen(PORT, r));
+
+const browser = await chromium.launch({
+  args: ["--enable-unsafe-swiftshader", "--disable-dev-shm-usage", "--no-sandbox"] });
+const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
+page.on("pageerror", e => console.log("  [pageerror] " + e.message.split("\n")[0]));
+/* Bodies are dealt at random each visit, so the one asked for may
+   simply not be out. Reload until it is, rather than reporting "no
+   ariel on campus" and leaving the reader to wonder whether that is a
+   fault in the roster or a coin toss. */
+let present = false;
+/* One warm-up visit first, purely to fill the cache.
+ *
+ * Half the roster arrives AFTER the campus is walkable — isla, nadia,
+ * woman and alina are all late — and a forced quad gives up waiting for
+ * them after 45 seconds and deals from whoever is out. On a cold visit
+ * that is the first seven bodies, every time, so asking for a late body
+ * reported eight empty visits and a cast list that was first wave only.
+ * Waiting on __crowd().done does not help: the give-up is what raises
+ * it.
+ *
+ * So: load once and wait for every stu_ file to actually arrive, then
+ * reload. Second time round they come from cache in a moment and the
+ * quad is dealt from the whole roster. */
+await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "domcontentloaded" });
+await page.waitForFunction(() => window.__app && window.__assets, null, { timeout: 300_000 });
+await page.waitForFunction(() => {
+  const s = (window.__assets || []).filter(a => /^stu_/.test(a.name));
+  return s.length >= 10 && s.every(a => a.ms != null);
+}, null, { timeout: 500_000 })
+  .then(() => console.log("cache warm — every body has arrived"),
+        () => console.log("(not every body arrived; judging what did)"));
+
+for (let attempt = 1; attempt <= 8 && !present; attempt++){
+  await page.goto(`http://127.0.0.1:${PORT}/?crowd=12`, { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__convo && window.__convo.named().length,
+                             null, { timeout: 300_000 });
+  present = await page.evaluate((body) => (window.__students || [])
+    .some(x => x.g?.userData?.figure === body &&
+               (x.g.userData.anim || x.g.userData.stand)), BODY);
+  if (!present) console.log(`visit ${attempt}: no ${BODY} dealt, trying again`);
+}
+
+const roles = await page.evaluate((body) => {
+  const s = (window.__students || []).find(x => x.g?.userData?.figure === body);
+  if (!s) return null;
+  const a = s.g.userData.anim;
+  /* The loiterers do not have an `anim` at all — they run one clip
+     through a standMixer set up in prepFigure. That is not a fault, it
+     is a second and simpler path, and it is the path the two students
+     standing at the doors take. Report it as what it is. */
+  if (!a){
+    const st = s.g.userData.stand;
+    if (!st) return { none: true };
+    return { standAlone: true, clip: st.clip, dur: st.dur, live: st.live };
+  }
+  return { clips: Object.keys(a.actions), roles: a.roles, nominal: a.nominal };
+}, BODY);
+if (!roles || roles.none){
+  /* The cast key is not always the file name: stu_skater.glb is known
+     to the roster as "skate", so asking for "skater" searched for
+     somebody who does not exist and reported eight empty visits as if
+     the campus were at fault. List who IS out, so the next person spends
+     a second on it rather than eight page loads. */
+  const seen = await page.evaluate(() => [...new Set((window.__students || [])
+    .map(x => x.g?.userData?.figure).filter(Boolean))].sort());
+  console.log(`no "${BODY}" on campus. Cast keys present this visit: ${seen.join(", ")}`);
+  console.log(`(the roster key can differ from the file name — stu_skater.glb is "skate")`);
+  await browser.close(); server.close(); process.exit(0);
+}
+if (roles.standAlone){
+  /* One clip on a standMixer: no roles, no gait selection, nothing to
+     choose. The only questions worth asking are whether it is running
+     and whether it moves anything. */
+  console.log(`${BODY}: a loitering body — one clip on its own mixer, no roles`);
+  console.log(`  clip "${roles.clip}"  ${roles.dur.toFixed(2)}s  live=${roles.live}` +
+              (roles.live ? "" : "   (frozen at 0.7s on purpose — this one only stands)"));
+  const moved = await page.evaluate(async (body) => {
+    const s = (window.__students || []).find(x => x.g?.userData?.figure === body);
+    const st = s.g.userData.stand;
+    const pose = () => { s.g.updateMatrixWorld(true); const p = [];
+      s.g.traverse(o => { if (o.isBone) p.push(o.matrixWorld.elements[12],
+        o.matrixWorld.elements[13], o.matrixWorld.elements[14]); }); return p; };
+    const t0 = st.action.time, p0 = pose();
+    await new Promise(r => setTimeout(r, 2500));
+    const t1 = st.action.time, p1 = pose();
+    let n = 0;
+    for (let i = 0; i < p0.length; i += 3)
+      if (Math.hypot(p0[i]-p1[i], p0[i+1]-p1[i+1], p0[i+2]-p1[i+2]) > 0.05) n++;
+    return { t0: +t0.toFixed(2), t1: +t1.toFixed(2), n, bones: p0.length / 3,
+             paused: st.action.paused, weight: +st.action.getEffectiveWeight().toFixed(2) };
+  }, BODY);
+  console.log(`  clock ${moved.t0} -> ${moved.t1} over 2.5s   paused=${moved.paused}  weight=${moved.weight}`);
+  console.log(`  ${moved.n}/${moved.bones} bones moved   ` +
+              (moved.n > 4 ? "ok — this body is animating"
+                           : roles.live ? "STUCK — live, but nothing is moving"
+                                        : "still, as intended"));
+  await browser.close(); server.close(); process.exit(0);
+}
+
+console.log(`${BODY}: ${roles.clips.length} clips`);
+console.log(`  gaits : ${roles.roles.gaits.join(", ") || "(none)"}`);
+console.log(`  idle  : ${roles.roles.idle || "(none)"}`);
+console.log(`  start : ${roles.roles.start || "(none)"}`);
+const reachable = new Set([...roles.roles.gaits,
+                           roles.roles.idle, roles.roles.start].filter(Boolean));
+const orphan = roles.clips.filter(c => !reachable.has(c));
+console.log(`  reachable through roles: ${[...reachable].join(", ")}`);
+console.log(`  NOT in roles           : ${orphan.join(", ") || "(none)"}` +
+            (orphan.length ? "   <- only CAST_PLAN can ask for these by name" : ""));
+
+/* ── does each clip actually play? ───────────────────────────────────
+   Driven inside the conversation view, because that is the one place
+   the render loop does NOT run stepStudents — so a clip set here is not
+   overwritten by the state machine a frame later. */
+console.log("\n── every clip, played on purpose ──");
+await page.evaluate((body) => {
+  const s = (window.__convo.named() || []).find(x => x.g?.userData?.figure === body)
+         || (window.__students || []).find(x => x.g?.userData?.figure === body && x.data);
+  window.__testTarget = s;
+  if (s) window.__convo.open(s);
+}, BODY);
+await page.waitForTimeout(1500);
+
+const opened = await page.evaluate(() => window.__convo.on());
+if (!opened) console.log("  (could not open the conversation view — skipping)");
+else {
+  for (const name of roles.clips){
+    const r = await page.evaluate(async (clip) => {
+      const s = window.__testTarget;
+      const a = s.g.userData.anim, act = a.actions[clip];
+      if (!act) return { err: "no action" };
+      Object.values(a.actions).forEach(x => x.stop());
+      act.reset().setEffectiveWeight(1).play();
+      act.paused = false;
+      a.current = clip;
+      const pose = () => { s.g.updateMatrixWorld(true);
+        const p = []; s.g.traverse(o => { if (o.isBone)
+          p.push(o.matrixWorld.elements[12], o.matrixWorld.elements[13], o.matrixWorld.elements[14]); });
+        return p; };
+      const t0 = act.time, p0 = pose();
+      await new Promise(res => setTimeout(res, 900));
+      const t1 = act.time, p1 = pose();
+      let moved = 0;
+      for (let i = 0; i < p0.length; i += 3)
+        if (Math.hypot(p0[i]-p1[i], p0[i+1]-p1[i+1], p0[i+2]-p1[i+2]) > 0.05) moved++;
+      return { t0: +t0.toFixed(2), t1: +t1.toFixed(2), moved, bones: p0.length / 3,
+               dur: +act.getClip().duration.toFixed(2), scale: +act.timeScale.toFixed(2) };
+    }, name);
+    if (r.err){ console.log(`  ${name.padEnd(18)} ${r.err}`); continue; }
+    const advanced = r.t1 > r.t0 || r.t1 < r.t0;   /* wraps on a short loop */
+    console.log(`  ${name.padEnd(18)}${String(r.dur).padStart(6)}s   ` +
+                `clock ${String(r.t0).padStart(5)} -> ${String(r.t1).padStart(5)}   ` +
+                `${String(r.moved).padStart(3)}/${r.bones} bones moved   ` +
+                (advanced && r.moved > 4 ? "ok" : "DEAD — plays nothing"));
+  }
+  await page.evaluate(() => window.__convo.close());
+}
+
+/* ── if this body has no idle, its standing pose IS one frame ──────
+   Eight of eleven bodies here arrived with a walk and nothing else, and
+   for those the campus holds the walk at the frame where the feet pass
+   and the hands hang nearest the centre line. That single frame is the
+   whole of how they look standing at a door, on the plaza, and in
+   conversation — so it is worth knowing whether the search found a good
+   one or merely the least bad of a poor set. The score below is
+   passingTime's own: feet apart, plus how far the hands sit out from
+   the spine. Lower is a stiller stance. */
+if (!roles.roles.idle){
+  const held = await page.evaluate((body) => {
+    const s = (window.__students || []).find(x => x.g?.userData?.figure === body);
+    const a = s.g.userData.anim, act = a.actions[s.gait2 || a.current];
+    if (!act) return null;
+    const key = (n) => { n=(n||"").split("|").pop().split(":").pop();
+      n=n.replace(/^mixamorig\d*/i,"").replace(/[._]\d+$/,"");
+      return n.replace(/[^a-z0-9]/gi,"").toLowerCase(); };
+    const feet = [], hands = []; let hip = null;
+    s.g.traverse(o => { if (!o.isBone) return;
+      /* /foot/, not /foot$/ — the same loose read passingTime makes,
+         because Renderpeople spells it foot_l and an anchored pattern
+         reports "fewer than two feet found" on a body the campus is
+         standing quite happily. */
+      if (/foot/.test(key(o.name))) feet.push(o);
+      if (/(hand|wrist)(l|r)?$/.test(key(o.name))) hands.push(o);
+      if (!hip && /hip|pelvis/.test(key(o.name))) hip = o; });
+    /* A left and a RIGHT, chosen the way passingTime chooses them.
+       Taking feet[0] and feet[1] off a loose /foot/ match picked
+       nathan's left ankle and his left toe — the length of one foot,
+       which barely changes through a stride — and the tool then
+       disagreed with the campus and looked like it had found a bug.
+       The side is spelled out on some rigs and carried as a lone letter
+       between separators on others, so both are read. */
+    const side = (b, word, letter) =>
+      key(b.name).includes(word) ||
+      new RegExp("(^|[^a-z])" + letter + "([^a-z]|$)", "i").test(b.name);
+    const L = feet.find(b => side(b, "left", "l"));
+    const R = feet.find(b => b !== L && side(b, "right", "r"));
+    if (!L || !R) return { err: "no left/right foot pair found" };
+    const wp = (o) => ({ x:o.matrixWorld.elements[12], z:o.matrixWorld.elements[14] });
+    const was = act.time, wasPaused = act.paused;
+    const dur = act.getClip().duration, scores = [];
+    for (let i = 0; i < 24; i++){
+      act.time = (i / 24) * dur; act.paused = false;
+      a.mixer.update(0); s.g.updateMatrixWorld(true);
+      const p = wp(L), q = wp(R);
+      let d = Math.hypot(p.x - q.x, p.z - q.z);
+      /* across the body, per frame — the same reading passingTime makes */
+      const c = wp(hip || s.g);
+      for (const h of hands){ const w = wp(h);
+        d += Math.hypot(w.x - c.x, w.z - c.z) * 0.6; }
+      scores.push(+d.toFixed(2));
+    }
+    act.time = was; act.paused = wasPaused; a.mixer.update(0);
+    const best = scores.indexOf(Math.min(...scores));
+    return { scores, best, bestT: +((best / 24) * dur).toFixed(2),
+             holdAt: s.holdAt == null ? null : +s.holdAt.toFixed(2),
+             lo: Math.min(...scores), hi: Math.max(...scores), dur: +dur.toFixed(2) };
+  }, BODY);
+  console.log(`\n── no idle: the held frame is the whole standing pose ──`);
+  if (!held || held.err) console.log("  " + (held?.err || "could not read it"));
+  else {
+    console.log(`  clip is ${held.dur}s; stillness score ranges ${held.lo} (best) to ${held.hi} (worst)`);
+    console.log(`  best frame at ${held.bestT}s;  campus is holding ${held.holdAt === null ? "(not yet held)" : held.holdAt + "s"}`);
+    const spread = held.hi - held.lo;
+    console.log(`  the search has ${spread < 1 ? "little to choose between frames — any is as still as any other"
+                                              : "a real best: " + (100 * (held.hi - held.lo) / held.hi).toFixed(0) + "% stiller than the worst frame"}`);
+  }
+}
+
+/* ── which ones does the campus ever choose? ───────────────────────
+   Read this half as evidence, never as a verdict. The render loop
+   clamps dt to 0.05s, so on a software rasterizer at a few frames a
+   second the campus experiences roughly an eighth of the wall clock
+   that passes here — a minute of watching is seconds of campus time,
+   and a clip that only plays during a transition can easily not come
+   round. "Never selected" here means "not seen", and only the
+   play-on-purpose half above can say a clip is dead. */
+console.log(`\n── what the campus selects, watched for ${WATCH / 1000}s ──`);
+console.log(`   (dt is clamped, so this is roughly ${Math.round(WATCH / 8000)}s of campus time —` +
+            ` a clip missed here is not a clip that cannot play)`);
+const seen = new Map();
+const t0 = Date.now();
+while (Date.now() - t0 < WATCH){
+  const rows = await page.evaluate((body) => (window.__students || [])
+    .filter(x => x.g?.userData?.figure === body && x.g.userData.anim)
+    .map(x => {
+      const a = x.g.userData.anim, act = a.actions[a.current];
+      return { clip: a.current, held: !!x.held,
+               scale: act ? +act.timeScale.toFixed(2) : null,
+               t: act ? +act.time.toFixed(3) : null };
+    }), BODY);
+  for (const r of rows){
+    if (!r.clip) continue;
+    const e = seen.get(r.clip) || { n: 0, moved: 0, scales: [], last: new Map() };
+    e.n++;
+    if (r.scale != null) e.scales.push(r.scale);
+    seen.set(r.clip, e);
+  }
+  await page.waitForTimeout(700);
+}
+for (const c of roles.clips){
+  const e = seen.get(c);
+  if (!e){ console.log(`  ${c.padEnd(18)} never selected`); continue; }
+  const lo = Math.min(...e.scales), hi = Math.max(...e.scales);
+  const pinned = lo <= 0.56 || hi >= 1.89;
+  console.log(`  ${c.padEnd(18)} chosen ${String(e.n).padStart(4)} times   ` +
+              `timeScale ${lo.toFixed(2)}-${hi.toFixed(2)}` +
+              (pinned ? "   <- at the clamp: the clip and the walking speed disagree" : ""));
+}
+await browser.close(); server.close();

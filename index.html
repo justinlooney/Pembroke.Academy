@@ -3840,23 +3840,15 @@ function mkPerson(jacketColor, seed){
      start   the first stride out of a standstill, if it has one
 
    Models by their authors under CC-BY-4.0:
-     stu_oreizo   "Oreizo" by T-Art (person-x)
      stu_tutor    "Animated Instructor Avatar" by sagefreeman
-     stu_gent     "Mr Man Walking" by Instinto Ideal Studio (instideal2019)
-     stu_mia      "Mia Walking"    by Instinto Ideal Studio (instideal2019)
      stu_ariel    "walking test"   by Oussama.Lamrani
-     stu_teen     a teenage walker of the same family as the two above
    stu_nathan is a scanned figure supplied by the site owner, who holds
    the rights to it.                                                    */
 const CAST_FILES = {
   walker:  "assets/stu_walker.glb",     /* 50k tris, 7 mocap clips      */
-  gent:    "assets/stu_gent.glb",       /* 41k tris, one walk cycle     */
-  mia:     "assets/stu_mia.glb",        /* 36k tris, one walk cycle     */
-  teen:    "assets/stu_teen.glb",       /* 35k tris, one walk cycle     */
   ariel:   "assets/stu_ariel.glb",      /* 35k tris, one walk cycle     */
   woman:   "assets/stu_woman.glb",      /* ferried in by the courier    */
   alina:   "assets/stu_alina.glb",      /* ferried in by the courier    */
-  oreizo:  "assets/stu_oreizo.glb",     /* 33k tris, one walk cycle     */
   nathan:  "assets/stu_nathan.glb",     /* 22k tris, a scan, one walk   */
   /* Brought in together to be judged on the quad rather than in a log.
      kenta is the cheapest body here by a distance and the only newcomer
@@ -3865,6 +3857,16 @@ const CAST_FILES = {
      simplifier; nadia is a full Character Creator anatomy and the one
      to watch on weight. sophia is not a roamer at all — her bones are
      named ..._idling_... and her clip runs 488 frames. */
+  /* kenta reads paler than the rest of the cast, and that is his
+     texture rather than anything the renderer is doing: measured, his
+     base map averages rgb 174,159,154 at a saturation of 0.15 where
+     every other body sits near 0.42, and he is the only one carrying no
+     normal map — so there is no surface shading to give him form
+     either. His colour space is correct. Easing envMapIntensity on
+     flat-textured bodies was tried and gave almost nothing for a
+     campus-wide change, so it was taken back out. Left as he is on
+     purpose: pale and soft-lit is variety in a crowd, and he is 22k
+     triangles for 0.24MB. Fixing it means a better texture, not code. */
   kenta:   "assets/stu_kenta.glb",      /* 22k tris, mixamo-named, walks */
   isla:    "assets/stu_isla.glb",       /* walks; heavy until simplified */
   nadia:   "assets/stu_nadia.glb",      /* character creator, 46 maps    */
@@ -3886,22 +3888,32 @@ const CAST_FILES = {
    seconds after you do is a student walking in, which is what this
    looks like anyway.
 
-     first   8.3MB   walker gent mia nathan stand skate tutor
-     after  10.8MB   teen woman alina ariel oreizo
+     first           walker ariel kenta nathan sophia skate tutor
+     after           woman alina isla nadia
 
    Which bodies come first is a question about variety, not only about
    megabytes, and the first list got it wrong. Of the four ROAMING
-   bodies in it, three could not be dressed at all: gent and mia carry
-   no colour data and are painted one flat skin tone, and nathan is a
+   bodies in it, three could not be dressed at all: gent and mia carried
+   no colour data and were painted one flat skin tone, and nathan is a
    scan whose body and clothes are a single mesh on a single material.
    So the crowd for the first minute or two of a visit — and the whole
    crowd on any machine slow enough for the give-up to fire — was one
    dressable person and a set of mannequins.
 
+   gent, mia and teen are gone entirely now. They carried no colour of
+   any kind — no texture, no vertex colours, not even a base colour
+   factor, just one material named Bodymat — so the wardrobe could only
+   paint each of them a single flat tone, which reads as a mannequin
+   from any distance you can make out a person at. They had been left in
+   the roster pending a re-source that has not come, and mia had been
+   promoted into the opening wave for a body count, which guaranteed a
+   mannequin among the first people a visitor meets. Eight roaming
+   bodies remain, all of which carry their own colour.
+
    Measured across all sixteen bodies, exactly six had a shirt mesh the
    wardrobe could find: walker, strider, oreizo, ariel, woman, nadia.
    strider and oreizo were the two cheapest, so they took the places
-   gent and mia held.
+   gent and mia held. Both then turned out to be broken files.
 
    strider then turned out to be the giant. Three of its eight meshes
    carry 65 of 66 NaN inverse bind matrices, so every vertex weighted
@@ -3911,26 +3923,121 @@ const CAST_FILES = {
    roster entirely, and prepFigure now refuses any body it cannot
    measure rather than scaling by NaN.
 
-   That leaves walker and oreizo dressable in the opening wave against
-   gent and mia's one. mia stays for 0.37MB — she cannot be dressed, but
-   she is a fourth roaming body, and three would leave the cohort one
-   removal away from failing the check that it is drawn from more than
-   one person at all.                                                   */
-const CAST_FIRST = ["walker", "oreizo", "mia", "nathan", "sophia", "skate", "tutor"];
+   oreizo went the same way as strider and for a worse reason: its mesh
+   tears. Walked through applyBoneTransform, its skin reaches SEVEN
+   figure-heights from its own spine — arms drawn out into spikes past
+   the feet, with a fan of torn geometry behind — on every clip it has,
+   including its own walk. Every other body in the cohort measures
+   between 0.02 and 0.63 by the same reading. No bone is out of place,
+   which is why three separate probes that measured bones called it
+   healthy; only walking the skinned vertices found it.
+
+   ariel takes the place, at 1.66MB against oreizo's 0.75MB. That is the
+   whole cost of this, and it buys the only other dressable body cheap
+   enough to sit in the opening wave. mia stays for 0.37MB — she cannot
+   be dressed, but she is a fourth roaming body, and three would leave
+   the cohort one removal away from failing the check that it is drawn
+   from more than one person at all.                                    */
+/* ── who arrives first is drawn, not written down ─────────────────────
+   A fixed first wave means the same seven bodies every visit, and the
+   four that load late — isla, woman, alina, nadia — are the ones a
+   visitor rarely meets at all. The crowd was already randomised in
+   every other respect: clothes, build, start point, which body a named
+   student wears. The one thing still fixed was which bodies were in the
+   room to be dealt from.
+
+   It cannot be a plain shuffle, for two reasons that pull against each
+   other. The first wave IS the critical path, so a free draw could put
+   nadia's 4.22MB in front of the campus a visitor is waiting to walk
+   on. And it has to contain somebody the wardrobe can dress, or the
+   opening crowd is mannequins again — which is exactly the fault that
+   put ariel here in the first place.
+
+   So: a fixed core, then a draw under a byte budget with a dressability
+   guarantee.
+
+     core        walker, and the three who are not roamers
+     budget      2.6MB of roaming bodies beyond the core, which is what
+                 the written list cost (ariel, kenta, nathan = 2.24MB)
+                 plus room for one more small one
+     guarantee   at least one dressable body in the draw
+
+   walker is in the core because three named students ask for him BY
+   NAME — Priya, Sofia and Amara need Idle, Sitting Talking and Jogging,
+   and no other body has them. The loiterers and the skater are there
+   because nothing else can stand in for what they do. */
+const CAST_MB = { walker: 1.84, ariel: 1.66, kenta: 0.24, nathan: 0.34,
+                  isla: 0.88, woman: 2.64, alina: 3.04, nadia: 4.22,
+                  sophia: 0.33, skate: 1.27, tutor: 0.32 };
+/* Measured, not guessed: these are the six bodies with a shirt mesh the
+   wardrobe can find. See the note above about the ten that have none. */
+const CAST_DRESSABLE = ["walker", "ariel", "woman", "nadia"];
+const CAST_BUDGET = 3.0;
+function drawFirstWave(){
+  const core = ["walker", "sophia", "skate", "tutor"].filter(k => CAST_FILES[k]);
+  const pool = ROAMING.filter(k => k !== "walker" && CAST_FILES[k]);
+  for (let i = pool.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  /* A dressable body first, so the budget can never be spent before a
+     shirt has been bought. walker is dressable and always in the core,
+     but one is not enough: measured, a quad drawn from walker alone
+     yields five shirt colours where six are wanted, and walker plus one
+     more yields eight.
+
+     Drawn at RANDOM from those that fit, not cheapest-first. Cheapest
+     is deterministic, and it showed: eight visits produced two distinct
+     waves, six of them identical, because ariel is always the cheapest
+     dressable that fits. nadia at 4.22MB never fits and stays late. */
+  const picks = [];
+  let spent = 0;
+  const dressable = pool.filter(k => CAST_DRESSABLE.includes(k) &&
+                                     (CAST_MB[k] || 9) <= CAST_BUDGET);
+  if (dressable.length){
+    const pick = dressable[Math.floor(Math.random() * dressable.length)];
+    picks.push(pick);
+    spent += CAST_MB[pick] || 0;
+  }
+  for (const k of pool){
+    if (picks.includes(k)) continue;
+    const mb = CAST_MB[k] || 0;
+    if (spent + mb > CAST_BUDGET) continue;
+    picks.push(k);
+    spent += mb;
+  }
+  /* Three roaming bodies is the floor: the cohort has to read as more
+     than one person even before the late wave lands. Taking the
+     CHEAPEST remaining rather than the next shuffled one, because this
+     is the one step allowed to exceed the budget and the overshoot
+     should be a quarter of a megabyte rather than three. A draw that
+     ignored this put alina in the first wave and took it to 9.34MB. */
+  const rest = pool.filter(k => !picks.includes(k))
+                   .sort((a, b) => (CAST_MB[a] || 9) - (CAST_MB[b] || 9));
+  for (const k of rest){
+    if (picks.length >= 3) break;
+    picks.push(k);
+  }
+  return core.concat(picks);
+}
 /* A teenager is shorter, and the height is doing as much work here as
    any of the colours — see buildOf, which varies each figure another
    ±11% on top of these. */
-const CAST_HEIGHT = { walker: 42, gent: 43, mia: 40, teen: 38, woman: 41,
-                      alina: 40, ariel: 40, oreizo: 43, nathan: 43,
+const CAST_HEIGHT = { walker: 42, woman: 41,
+                      alina: 40, ariel: 40, nathan: 43,
                       tutor: 41, skate: 42,
                       kenta: 41, isla: 40, nadia: 41, sophia: 40 };
 /* Which bodies can be given a waypoint and told to walk it, and which
    are only good for standing about. Eight that walk against a crowd
    that caps at ten: the round robin runs out of new people only on the
    ninth, and by then they are scattered over sixty-eight waypoints. */
-const ROAMING = ["walker", "gent", "mia", "teen", "woman", "alina",
-                 "oreizo", "nathan", "ariel",
+const ROAMING = ["walker", "woman", "alina", "nathan", "ariel",
                  "kenta", "isla", "nadia"];
+/* Drawn here rather than beside drawFirstWave, because it reads ROAMING
+   and a const cannot be read before it is declared — putting the call
+   next to the function threw on load, which is a blank campus. */
+const CAST_FIRST = drawFirstWave();
+console.info("cast: first wave this visit — " + CAST_FIRST.join(", "));
 /* sophia joins the standers rather than the walkers, because that is
    what she came with: 488 frames of idle and no gait at all. She is
    also 16k triangles against stu_anim's 179,598 for the same job, which
@@ -4028,9 +4135,9 @@ function prepareClips(anims){
 }
 /* Which body to actually build, given one that was asked for. The
    crowd draws from a list already filtered to what loaded, but the
-   named cast asks by name — Elowen is the gent — and CAST_PLAN cannot
-   know that the gent's model 404'd. Standing in for them is a smaller
-   loss than losing the student. */
+   named cast asks by name, and CAST_PLAN cannot know that a body has
+   left the roster or that its model 404'd. Standing in for them is a
+   smaller loss than losing the student. */
 function bodyFor(k){
   /* "any" means this student has no particular body — Elowen, Theo and
      Kenji roam and nothing about them depends on which one they are, so
@@ -4052,6 +4159,94 @@ function bodyFor(k){
                (alt ? ", standing in " + alt : ", and nothing can stand in"));
   return alt;
 }
+/* ── nobody is made of metal ──────────────────────────────────────────
+   Reported as "walker is too shiny", and it is: a wet, plastic sheen
+   across the shirt and shorts, and hair with a highlight like a
+   varnished helmet.
+
+   It is one asset, not the lighting. Read across the whole cast, every
+   other person carries metalness 0; the walker alone carries 0.5 on
+   both its materials, and its hair sits at roughness 0.12 where the
+   next shiniest surface on any person is 0.45. Half-metal skin is an
+   export artifact — glTF defaults metallicFactor to 1 and an exporter
+   that writes 0.5 has simply not thought about it.
+
+   Corrected here rather than in the file, because the same artifact
+   will arrive again with the next body somebody drops in, and because
+   re-encoding a meshopt-compressed asset to change two numbers risks
+   more than it fixes.
+
+   Only parts the wardrobe recognises as belonging to a PERSON are
+   touched. The skater rides a board whose truck is metalness 0.98, and
+   that one is right — it is a metal truck. */
+function deshine(root){
+  root.traverse(o => {
+    if (!o.isMesh || !o.material) return;
+    const tag = canon(o.name) + " " + canon(o.material.name);
+    if (!/body|skin|head|hair|shirt|top|jacket|suit|short|pant|trouser|jean|shoe|sneaker|boot|eyelash|brow|scalp|avatar|mat$/i
+          .test(tag)) return;
+    const m = o.material;
+    if (typeof m.metalness === "number" && m.metalness > 0) m.metalness = 0;
+    /* A floor, not a fixed value: most of this cast sits at 0.68-1.0
+       already and there is no reason to flatten a deliberate sheen. */
+    if (typeof m.roughness === "number" && m.roughness < 0.5) m.roughness = 0.6;
+    /* And the one that actually made the shorts look wet. KHR_materials_specular
+       arrives as specularIntensity on a MeshPhysicalMaterial and lays a
+       highlight over a surface whose roughness is ALREADY 1 — so denim
+       shines with nothing wrong in either of the two numbers anyone
+       thinks to check. Full strength on cloth is a raincoat. Damped,
+       not removed: skin and cotton both catch some light. */
+    /* 0.12, not the 0.35 this started at. On a lawn 0.35 passed; in the
+       conversation view, where the key is 1.35 and there is a rim
+       light, the red shirt still read as latex. Cloth keeps a trace of
+       specular and no more. */
+    if (typeof m.specularIntensity === "number" && m.specularIntensity > 0.15)
+      m.specularIntensity = 0.12;
+    /* And the index of refraction with it. 1.45 is glass and lacquer;
+       it is what puts the bright rim along a shoulder and reads as wet
+       even after the highlight itself is damped. Cloth and skin sit
+       nearer 1.3. */
+    if (typeof m.ior === "number" && m.ior > 1.35) m.ior = 1.3;
+  });
+}
+/* ── two things a close-up shows and a lawn hides ─────────────────────
+ *
+ * ANISOTROPY. Every texture on every body arrives at anisotropy 1,
+ * which is the default and which is the setting that blurs a surface
+ * the moment you see it at an angle. On a shirt that is every fold; on
+ * shorts and sneakers it is most of the garment. The GPU has the
+ * filtering already — it is one property and no extra memory, and it
+ * is the single cheapest improvement available to a figure that fills
+ * the screen. Capped at 8: past that the returns stop and some mobile
+ * drivers charge for it.
+ *
+ * HAIR was also tried here and taken back out. Mixamo hair arrives as
+ * blended transparency with depthWrite off, so its cards draw in
+ * arbitrary order and strands show through each other; converting it to
+ * an alpha cutout fixed that and looked better on the walker. It looked
+ * WORSE on every Character Creator body, whose hair is drawn with a far
+ * softer alpha ramp and sits over a skin-coloured scalp cap authored to
+ * blend away beneath it. Cut out, the cap's hard edge appears through
+ * the strands as a pale band across the crown; cut more gently, the
+ * crown erodes instead. Thresholds of 0.45, 0.28 and 0.12 were each
+ * rendered and each was wrong, so the idea is gone rather than tuned:
+ * four bodies here use that hair against one that wanted the cutout.
+ *
+ * Left as a note because it will look like an obvious improvement to
+ * the next person who reads the material flags, as it did to me.
+ */
+function sharpen(root){
+  const aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy() || 1);
+  root.traverse(o => {
+    if (!o.isMesh || !o.material) return;
+    const m = o.material;
+    for (const k of ["map", "normalMap", "roughnessMap", "metalnessMap",
+                     "specularIntensityMap", "emissiveMap", "aoMap"]){
+      const t = m[k];
+      if (t && t.anisotropy !== aniso){ t.anisotropy = aniso; t.needsUpdate = true; }
+    }
+  });
+}
 function prepFigure(k, height, live, clipIx = 0){
   const src = castLib[k];
   /* Belt as well as braces. Every caller goes through bodyFor now, but
@@ -4060,7 +4255,7 @@ function prepFigure(k, height, live, clipIx = 0){
      which is the failure the loader was made resilient to avoid. */
   if (!src) return null;
   const root = skeletonClone(src.scene);
-  let standMixer = null;
+  let standMixer = null, standRec = null;
   if (k !== "walker" && src.animations.length){
     const mixer = new THREE.AnimationMixer(root);
     /* This character came down with four clips, and playing the first
@@ -4068,7 +4263,19 @@ function prepFigure(k, height, live, clipIx = 0){
        in four different ways is most of what "a different person" means
        at this distance. */
     const clip = src.animations[clipIx % src.animations.length];
-    mixer.clipAction(inPlaceClip(clip)).play();
+    const action = mixer.clipAction(inPlaceClip(clip));
+    action.play();
+    /* Written down where something outside can read it. The loitering
+       bodies drive themselves through this mixer rather than through
+       userData.anim, which the roamers get — so for a long while
+       nothing could tell whether tutor and sophia were animating,
+       frozen, or bound to nothing at all. They stand at the doors,
+       which is where a visitor walks straight up to somebody, and they
+       were the two figures on this campus no check could see.
+       A record, not a second system: the mixer and action are the ones
+       already in use. */
+    standRec = { mixer, action, clip: clip.name,
+                 dur: clip.duration, live: !!live };
     if (live) standMixer = mixer;
     else mixer.update(0.7);              /* freeze in a natural stance */
   }
@@ -4124,6 +4331,7 @@ function prepFigure(k, height, live, clipIx = 0){
   g2.userData.figure = k;                /* test/debug: this is a person */
   g2.userData.meshes = meshes;
   g2.userData.shadow = true;
+  if (standRec) g2.userData.stand = standRec;
   if (standMixer) castMixers.push({ m: standMixer, g: g2 });
   if (ROAMING.includes(k)){
     const mixer = new THREE.AnimationMixer(root);
@@ -4229,6 +4437,8 @@ function detailPass(){
   let castReady = 0;
   const arrive = (k, g) => {
     castLib[k] = g;
+    deshine(g.scene);
+    sharpen(g.scene);
     /* Measured before they are pinned in place, for every body that
        walks — the gait count is what both paces playback and tells a
        walk cycle from a standing loop. */
@@ -4257,7 +4467,7 @@ function detailPass(){
        10.8MB of people nobody can meet yet in front of the models the
        campus is made of. */
     gltf.__late = true;
-    const settled = () => { if (--lateOutstanding === 0) fillForcedCrowd(); };
+    const settled = () => { if (--lateOutstanding === 0) topUpForcedCrowd(); };
     later.forEach(k => gltf.load(CAST_FILES[k],
       (g) => { arrive(k, g); settled(); },
       undefined,
@@ -4406,7 +4616,25 @@ function makeRoamer(g, startKey, extra, forceGait){
      better than freezing someone mid-stride. */
   const roles = g.userData.anim?.roles || { gaits: GAITS, idle: "Idle", start: null };
   const pool = roles.gaits.length ? roles.gaits : GAITS;
-  const gait = (forceGait && pool.includes(forceGait)) ? forceGait
+  /* A forced gait is honoured if the BODY has the clip, not if the
+     body's role list happens to mention it. Those are different
+     questions and the difference cost Amara her run: she is the one
+     student written to run the campus, CAST_PLAN asks for "Jogging" by
+     name, and walker's gait list is the three WALKS — so
+     pool.includes("Jogging") was false, the request was dropped
+     without a word, and she was dealt a random walk instead. Her speed
+     was still multiplied by 1.5, so what shipped was a woman walking at
+     half again the pace her clip carries her, with matchSpeed pinned
+     against its own clamp trying to keep her feet on the ground. That
+     is the exact sliding-feet failure the nominal-speed machinery
+     exists to prevent.
+
+     Jogging stays out of the gait pool on purpose. It should be
+     reachable by name and never dealt at random, or the quad fills with
+     joggers. */
+  const acts = g.userData.anim?.actions;
+  const gait = (forceGait && (pool.includes(forceGait) || acts?.[forceGait]))
+             ? forceGait
              : pool[Math.floor(Math.random() * pool.length)];
   if (g.userData.anim){
     if (roles.idle){ setClipOn(g, roles.idle); stagger(g, roles.idle); }
@@ -4503,6 +4731,7 @@ function buildCast(){
       const a0 = i * 0.9;
       if (plan.clip){ setClipOn(g, plan.clip); stagger(g, plan.clip); }
       students.push({ g, data: st, orbit: 182.5, orbitA: a0, orbitW: 0.16, clip: plan.clip,
+                      roles: g.userData.anim?.roles,
                       pos: [500 + Math.cos(a0) * 182.5, 500 + Math.sin(a0) * 182.5] });
       return;
     }
@@ -4510,7 +4739,16 @@ function buildCast(){
       g.position.set(W(plan.at[0]), 0, W(plan.at[1]));
       g.rotation.y = plan.face || 0;
       if (plan.clip){ setClipOn(g, plan.clip); stagger(g, plan.clip); }
+      /* Their roles, same as a roamer gets. Without this line every
+         student who stands still — the ones at the doors, the ones on
+         the plaza, the ones you are most likely to walk up to and
+         talk to — arrives with s.roles undefined. stepStudents then
+         reads R.idle as absent and calls holdStill, which PAUSES the
+         idle at a single frame. So a body carrying a perfectly good
+         standing animation was frozen mid-breath, on the lawn and in
+         conversation both, and the clip it owned never played once. */
       students.push({ g, data: st, static: true, kind: plan.kind, baseYaw: plan.face || 0,
+                      roles: g.userData.anim?.roles,
                       phase0: i * 1.7, pos: [...plan.at] });
       return;
     }
@@ -4522,7 +4760,20 @@ function buildCast(){
        finds him just as well as circling the lawn did. */
     const s = makeRoamer(g, ALL_WAYS[Math.floor(Math.random() * ALL_WAYS.length)], { data: st },
                          plan.jog ? "Jogging" : null);
-    if (plan.jog) s.speed *= 1.5;
+    /* The multiplier existed because she was not actually jogging: the
+       forced gait was being dropped, so half again the pace was the
+       only thing making the runner read as a runner. Now that she gets
+       the jog clip, its own nominal already carries her past everybody
+       else — 34 units a second against a walker's 11 to 24 — and
+       multiplying on top of that played the clip at 1.7x, which is a
+       sprint cadence on a jog. Let the clip set the pace, which is what
+       makeRoamer says it is for.
+
+       Kept for the case where she does NOT get it: if the walker body
+       failed to load she stands in on something with only a walk, and
+       then the multiplier is again the only thing that makes her
+       quick. */
+    if (plan.jog && s.gait2 !== "Jogging") s.speed *= 1.5;
   });
   /* An uncommissioned regular, carving laps — down at the athletics
      forecourt, where a skateboard belongs and where he is not making up
@@ -4534,7 +4785,7 @@ function buildCast(){
   if (sk){
     world.add(sk);
     students.push({ g: sk, orbit: 84, orbitA: 3.6, orbitW: -0.6, skate: true,
-                    cx: 500, cy: 1120,
+                    roles: sk.userData.anim?.roles, cx: 500, cy: 1120,
                     pos: [500 + Math.cos(3.6) * 84, 1120 + Math.sin(3.6) * 84] });
   }
   /* Three more of the second rigged character — a genuinely different
@@ -4654,6 +4905,37 @@ function fillForcedCrowd(){
   clearTimeout(lateGiveUp);
   while (crowdN < CROWD_FORCE) addExtra(crowdN++);
   crowdDone = true;
+}
+/* ── and when the stragglers finally arrive ───────────────────────────
+   The comment above says ?crowd "fills the quad once every body that is
+   coming has come, so a forced crowd shows the whole cohort rather than
+   whichever half happened to load first". On a cold visit it did the
+   opposite, and the give-up is why: forty-five seconds is not enough to
+   fetch and decode the late half on a slow machine, so the timer fires,
+   the quad fills from the first wave, crowdDone goes up — and every
+   body that lands afterwards is then locked out for the rest of the
+   visit. The flag written to show the whole cast reliably showed half
+   of it, and four bodies could not be reviewed on the quad at all.
+
+   So the late wave settling is no longer just "fill if you have not
+   already". If a forced quad was already dealt without them, the
+   bodies nobody is wearing are added on the end — one extra each,
+   which is the smallest change that makes the flag tell the truth. */
+function topUpForcedCrowd(){
+  if (CROWD_FORCE === null){ fillForcedCrowd(); return; }
+  if (!crowdDone){ fillForcedCrowd(); return; }
+  const worn = new Set();
+  world.children.forEach(o => { if (o.userData?.figure) worn.add(o.userData.figure); });
+  const missing = loadedRoaming().filter(k => !worn.has(k));
+  if (!missing.length) return;
+  console.info("crowd: " + missing.join(", ") + " arrived after the quad was dealt — adding them");
+  for (const k of missing){
+    /* dealt through the same deck the rest came from, so build,
+       clothes and start point are drawn exactly as everyone else's */
+    castDeck = [k];
+    addExtra(crowdN++);
+  }
+  castDeck = [];
 }
 /* Nobody should be where they were yesterday. Every seed below hangs
    off this, so a visit gets its own people in its own clothes starting
@@ -4807,13 +5089,40 @@ function passingTime(g){
   const hands = [];
   g.traverse(o => {
     /* the hand itself, not its fingers: LeftHand yes, LeftHandIndex1 no */
-    if (o.isBone && /(hand|wrist)$/.test(boneKey(o.name))) hands.push(o);
+    /* ...and the side may be spelled at either end. Mixamo writes
+       LeftHand, Character Creator CC_Base_L_Hand, Renderpeople
+       hand_l — and the last of those keys to "handl", which an
+       anchored /hand$/ misses completely. nathan and sophia are both
+       Renderpeople, so their arms were never scored at all: the search
+       fell back to feet alone, which is precisely the case the comment
+       below warns about, because a bind pose has its feet together
+       too. */
+    if (o.isBone && /hand|wrist/.test(boneKey(o.name)) &&
+        !/thumb|index|middle|ring|pinky|finger/.test(boneKey(o.name))) hands.push(o);
   });
+  /* The body's own centre line, read per frame off the hips, because
+     the hips swing sideways through a stride and a fixed origin would
+     charge that swing to the arms. */
+  let hip = null;
+  g.traverse(o => {
+    if (!hip && o.isBone && /hip|pelvis/.test(boneKey(o.name))) hip = o;
+  });
+  /* Sampled at FULL WEIGHT, and this is the whole of why the search
+     worked at all before.
+     holdStill calls setClip first, which starts the clip fading in from
+     zero, and then calls this immediately. An action at zero effective
+     weight contributes nothing to the mixer — so stepping its clock
+     moved no bones, all twenty-four frames scored exactly the same, and
+     the search returned frame zero every time for every body. Not
+     because frame zero was still: because nothing was being measured.
+     Caught by a scan reporting best and worst as the same number to two
+     decimal places, which no real walk cycle does. */
   const was = act.time, wasPaused = act.paused;
+  const wasWeight = act.getEffectiveWeight(), wasEnabled = act.enabled;
+  act.enabled = true;
+  act.setEffectiveWeight(1);
   const p = new THREE.Vector3(), q = new THREE.Vector3();
-  const root = new THREE.Vector3();
-  g.getWorldPosition(root);
-  const mid = root.x;
+  const mid = new THREE.Vector3();
   let best = null, bestD = Infinity;
   const dur = act.getClip().duration;
   for (let i = 0; i < 24; i++){
@@ -4830,13 +5139,26 @@ function passingTime(g){
        the arms as well: how far the hands sit from the body's centre
        line. A passing stride keeps them near the hips; a T-pose does
        not, and now loses. */
+    /* Measured ACROSS the body, not along the world X axis. The first
+       version charged |hand.x - centre.x|, which is only the whole of
+       "how far out are the arms" for a figure that happens to face
+       along Z: one facing along X carries its arms apart in Z and was
+       charged nothing at all. So which frame became a body's entire
+       standing pose depended on which way they were pointing when the
+       search ran — arbitrary, and it showed: ariel was held at 0s where
+       the stillest frame in her clip is 0.32s and 81% stiller.
+       Horizontal distance from the hips is the same number whichever
+       way she faces. */
+    (hip || g).getWorldPosition(mid);
     for (const h of hands){
       h.getWorldPosition(p);
-      d += Math.abs(p.x - mid) * 0.6;
+      d += Math.hypot(p.x - mid.x, p.z - mid.z) * 0.6;
     }
     if (d < bestD){ bestD = d; best = t; }
   }
   act.time = was; act.paused = wasPaused;
+  act.enabled = wasEnabled;
+  act.setEffectiveWeight(wasWeight);
   a.mixer.update(0);
   return (PASS_CACHE[key] = best);
 }
@@ -4987,7 +5309,18 @@ function stepStudents(dt, now){
            takes the first stride and hands over to the gait. The bodies
            that came with a single walk cycle have nothing to hand over
            from, and never stood still to begin with. */
-        if (R.start && s.startedAt === undefined && s.anim0 === R.idle){
+        /* ...and only when the transition can keep up. matchSpeed scales
+           a clip to the speed the body is actually travelling, and its
+           clamp at 1.9 is the point where it gives up — past that the
+           clip is as fast as it will go and the feet slide anyway.
+           Amara runs, and "Start Walking" is a clip of somebody
+           beginning to WALK, so her first stride sat pinned against that
+           clamp with her shoes skating. Better to have no transition
+           than a transition that slides: she goes straight into her
+           jog, which is what a runner setting off looks like. */
+        const startFit = s.g.userData.anim?.nominal?.[R.start] || 0;
+        if (R.start && s.startedAt === undefined && s.anim0 === R.idle &&
+            startFit * 1.7 > s.speed){
           s.startedAt = now;
           setClip(s, R.start, 0.18);
         }
@@ -6359,6 +6692,7 @@ const interiorEl = document.getElementById("interior");
    filter and no second pass. It costs one texture and it means you are
    still visibly standing on the quad instead of in a void. */
 let convoView = null;                  /* the student record, or null */
+let convoLook = null;                  /* the head bone and its neutral, or null */
 let convoScene = null, convoCam = null, convoRT = null, convoHome = null, convoBase = null;
 let convoHomeCull = [];
 const convoEl = document.getElementById("convo");
@@ -6379,12 +6713,142 @@ function convoSetup(){
   key.position.set(-40, 70, 60);
   const fill = new THREE.DirectionalLight(0xbcd3ff, 0.35);
   fill.position.set(55, 20, 35);
-  const rim = new THREE.DirectionalLight(0xffe9c9, 0.7);
+  /* 0.6. This went to 0.4 alongside the specular fix and that was one
+     change too many: the wet line down a shoulder and the edge that
+     lifts a head off a near-black backdrop are the same highlight, and
+     with the material corrected the rim was no longer the thing making
+     him shine — it was the only thing making him visible. Backed off a
+     little from 0.7, not gutted. */
+  const rim = new THREE.DirectionalLight(0xffe9c9, 0.6);
   rim.position.set(20, 45, -70);
   convoScene.add(key, fill, rim, new THREE.AmbientLight(0xffffff, 0.18));
   convoCam = new THREE.PerspectiveCamera(38, 1, 0.5, 400);
 }
 
+/* ── keeping his eyes on you ──────────────────────────────────────────
+   A standing idle turns the head. The walker's is four seconds long and
+   swings through about forty degrees, so whichever moment you happen to
+   open a conversation on, there is a good chance you are talking to
+   somebody looking off at the hedge. That reads as being ignored, and
+   it is the difference between a person and a shop mannequin.
+
+   The obvious fix — point the head at the camera — is the one that
+   produces an owl. A head bone's local axes differ between the three
+   naming conventions on this campus and are not documented by any of
+   them; there is no "forward" to rotate towards without knowing which
+   way the bone was authored, and guessing wrong twists a neck through
+   ninety degrees.
+
+   So nothing here is assumed. The body has ALREADY been turned to face
+   the camera by facingOf, which means "looking at you" is the same
+   thing as "head neutral with respect to the body" — no axis needed,
+   only the head's rest relationship to the chest, and that can be
+   measured. A head that turns left and right is near neutral more of
+   the time than it is anywhere else, so the median of its orientation
+   across the clip IS neutral. Measure that once, then each frame pull
+   anything past a small tolerance back towards it.
+
+   Damped rather than pinned, and clamped rather than zeroed: twelve
+   degrees of drift stays, because a head locked dead level is its own
+   kind of uncanny. Returns null on any body without a head bone, and
+   the caller does nothing at all in that case — an unturned head is a
+   great deal better than a wrung neck. */
+/* Tolerances per axis, in radians, and they are small. The first pass
+   allowed twelve degrees of yaw and took back 65% of the rest, which on
+   a clip that swings forty leaves about twenty-two — still visibly
+   turned away, which is what got reported. Five degrees and 85% leaves
+   about eight, which reads as a person whose attention is on you rather
+   than one who keeps glancing off.
+
+   Roll is given more room than the other two: a head tilted a little to
+   one side is listening, where a head yawed the same amount is
+   distracted. */
+const LOOK_FREE_YAW = 0.09;             /* ~5° left/right */
+const LOOK_FREE_PITCH = 0.09;           /* ~5° up/down    */
+const LOOK_FREE_ROLL = 0.16;            /* ~9° tilt       */
+const LOOK_PULL = 0.85;                 /* how much of the excess to take back */
+function headNeutral(g){
+  let head = null;
+  g.traverse(o => {
+    if (head || !o.isBone) return;
+    const k = boneKey(o.name);
+    /* the head, not the marker at the top of it */
+    if (/head/.test(k) && !/top|end/.test(k)) head = o;
+  });
+  if (!head || !head.parent) return null;
+  const a = g.userData.anim;
+  const act = a && a.actions[a.current];
+  const bodyQ = new THREE.Quaternion(), headQ = new THREE.Quaternion();
+  const rels = [];
+  const relAt = () => {
+    g.updateMatrixWorld(true);
+    g.getWorldQuaternion(bodyQ); head.getWorldQuaternion(headQ);
+    return bodyQ.clone().invert().multiply(headQ);
+  };
+  if (!act) return { head, neutral: relAt() };   /* nothing playing: now is neutral */
+  const was = act.time, wasPaused = act.paused;
+  const dur = act.getClip().duration || 1;
+  for (let i = 0; i < 20; i++){
+    act.time = (i / 20) * dur;
+    a.mixer.update(0);
+    rels.push(relAt());
+  }
+  act.time = was; act.paused = wasPaused;
+  a.mixer.update(0);
+  /* The median by yaw, measured against the first sample — not the
+     mean, which a single big turn would drag off centre. */
+  const e = new THREE.Euler();
+  const base = rels[0].clone().invert();
+  const yaws = rels.map(r => { e.setFromQuaternion(r.clone().multiply(base), "YXZ"); return e.y; });
+  const order = yaws.map((y, i) => [y, i]).sort((p, q) => p[0] - q[0]);
+  return { head, neutral: rels[order[Math.floor(order.length / 2)][1]] };
+}
+/* Applied after the mixer has written the pose and after breathe(), for
+   the same reason breathe() is: anything earlier is simply overwritten.
+ *
+ * Works entirely in BODY space, which is what lets it correct every
+ * axis rather than only the one the world happens to agree on. The
+ * first version rotated about world Y and so could straighten a head
+ * that was turned aside but did nothing whatever about one tipped
+ * forward — and a student looking at your shoes reads exactly as badly
+ * as one looking at the hedge.
+ *
+ *   rel     the head's orientation relative to its own body
+ *   dev     how far that has strayed from this body's measured neutral
+ *   target  the same deviation with each axis clamped, eased towards
+ *
+ * The correction is then whatever world-space turn carries the head
+ * from where it is to there, conjugated by the parent's world rotation
+ * so it lands correctly however the bone was authored. */
+const _lookE = new THREE.Euler();
+function lookAtViewer(g, look){
+  if (!look || !look.head) return;
+  const bodyQ = new THREE.Quaternion(), headQ = new THREE.Quaternion();
+  const parentQ = new THREE.Quaternion();
+  g.getWorldQuaternion(bodyQ);
+  look.head.getWorldQuaternion(headQ);
+  const rel = bodyQ.clone().invert().multiply(headQ);
+  const dev = rel.clone().multiply(look.neutral.clone().invert());
+  _lookE.setFromQuaternion(dev, "YXZ");
+  const ease = (v, free) =>
+    v + (THREE.MathUtils.clamp(v, -free, free) - v) * LOOK_PULL;
+  const ty = ease(_lookE.y, LOOK_FREE_YAW);
+  const tx = ease(_lookE.x, LOOK_FREE_PITCH);
+  const tz = ease(_lookE.z, LOOK_FREE_ROLL);
+  if (Math.abs(ty - _lookE.y) < 1e-4 &&
+      Math.abs(tx - _lookE.x) < 1e-4 &&
+      Math.abs(tz - _lookE.z) < 1e-4) return;
+  const devT = new THREE.Quaternion().setFromEuler(
+    _lookE.set(tx, ty, tz, "YXZ"));
+  const relT = devT.multiply(look.neutral);
+  /* world turn C such that C * headWorld = bodyQ * relT */
+  const C = bodyQ.clone().multiply(relT)
+              .multiply(headQ.clone().invert());
+  look.head.parent.getWorldQuaternion(parentQ);
+  look.head.quaternion.premultiply(
+    parentQ.clone().invert().multiply(C).multiply(parentQ));
+  look.head.updateMatrixWorld(true);
+}
 /* Which way is this body facing? Read off the skeleton rather than
    assumed from a convention the models do not share — one arrived
    facing away at a rotation of zero and another at π. A toe sits
@@ -6392,17 +6856,55 @@ function convoSetup(){
    the ankle-to-toe vector, flattened, is the facing. Returns the world
    heading in radians, or null if this body has no toes to ask. */
 function facingOf(g){
-  let foot = null;
-  g.traverse(o => { if (!foot && o.isBone && /foot$/.test(boneKey(o.name))) foot = o; });
-  if (!foot) return null;
-  let toe = null;
-  foot.traverse(o => { if (!toe && o !== foot && o.isBone && /toe/.test(boneKey(o.name))) toe = o; });
-  if (!toe) return null;
+  /* BOTH feet, averaged. Reading one was right enough mid-stride, where
+     the feet are roughly parallel, and wrong the moment he stands still
+     — because a relaxed stance splays the toes outward, fifteen or
+     twenty degrees each way, and one foot's vector then carries that
+     splay as if it were the direction he faces. He arrived standing at
+     an angle to the person talking to him, and the more accurately the
+     standing pose was measured the further round he turned.
+     Two vectors summed cancel a symmetric splay; one cannot. */
+  /* Three spellings of the same joint, and the trailing-side one is the
+     reason this is written out: Mixamo writes LeftFoot, Character
+     Creator CC_Base_L_Foot, and Renderpeople foot_l — which keys to
+     "footl" and slips straight past an anchored /foot$/. nathan and
+     sophia are both Renderpeople, so this returned null for them and
+     the caller fell back to turning the body by pi. A guess, on the two
+     bodies a visitor stands closest to.
+     "footend" is excluded so this takes the ankle and not the toe tip,
+     which is the joint the toe is measured FROM. */
+  /* FOUR spellings of the same joint have turned up in eleven bodies:
+     LeftFoot, CC_Base_L_Foot, foot_l, foot_l_human. Each time an
+     anchored pattern was widened by one more suffix, and each time the
+     next body brought another. So stop anchoring: match the word and
+     say what it must NOT be. The tip of the chain — foot_end, toe — is
+     excluded because this wants the ankle, which is the joint the toe
+     is measured from. */
+  const ankle = (k) => /foot/.test(k) && !/end|toe/.test(k);
+  const feet = [];
+  g.traverse(o => { if (o.isBone && ankle(boneKey(o.name))) feet.push(o); });
+  if (!feet.length) return null;
   const a = new THREE.Vector3(), b = new THREE.Vector3();
-  foot.getWorldPosition(a); toe.getWorldPosition(b);
-  const dx = b.x - a.x, dz = b.z - a.z;
-  if (Math.hypot(dx, dz) < 1e-5) return null;      /* toes straight down */
-  return Math.atan2(dx, dz);
+  let sx = 0, sz = 0, n = 0;
+  for (const foot of feet){
+    let toe = null;
+    foot.traverse(o => {
+      /* Renderpeople has no toe bone at all: the tip of the foot chain
+         is foot_end_l. It is the same joint for this purpose — forward
+         of the ankle, which is the whole of what is being measured. */
+      if (!toe && o !== foot && o.isBone &&
+          /toe|footend/.test(boneKey(o.name))) toe = o;
+    });
+    if (!toe) continue;
+    foot.getWorldPosition(a); toe.getWorldPosition(b);
+    const dx = b.x - a.x, dz = b.z - a.z;
+    const len = Math.hypot(dx, dz);
+    if (len < 1e-5) continue;                      /* toes straight down */
+    /* normalised, so a longer foot bone does not outvote a shorter one */
+    sx += dx / len; sz += dz / len; n++;
+  }
+  if (!n || Math.hypot(sx, sz) < 1e-5) return null;
+  return Math.atan2(sx, sz);
 }
 function convoOpen(s){
   if (!s || !s.data || convoView || interiorView) return;
@@ -6450,17 +6952,39 @@ function convoOpen(s){
      of them and there is no reason to guess, because the skeleton
      knows. Toes are forward of ankles on every humanoid ever rigged,
      so the ankle-to-toe vector IS the facing. */
+  /* Standing rather than mid-stride, where the body has anything to
+     stand with. Most of the cohort arrived with a single walk cycle and
+     nothing else — for those, walking on the spot reads better than a
+     freeze, which is the same judgement makeRoamer already makes.
+
+     Chosen BEFORE the facing is measured, which is the other way round
+     from how this used to run. facingOf reads the ankle-to-toe vector,
+     and a standing loop plants the feet differently from whatever
+     stride he was caught in out on the lawn — so measuring first and
+     posing afterwards turned him to suit a stance he was about to
+     leave, and left him standing at an angle to the person he is
+     talking to. */
+  if (s.roles && s.roles.idle){
+    setClipOn(g, s.roles.idle, 0.3);
+    /* setClip returns early when the clip is already current, and a
+       student standing on the lawn is already in hers. If anything ever
+       paused it she would arrive frozen at one frame — which is the one
+       thing a conversation must not be. The walking branch has known
+       this trap for a while ("setClip alone will not unpause it"); the
+       conversation did not. */
+    release(s);
+  }
+  else holdStill(s);                  /* the eight with only a walk cycle */
+  /* Now settle the pose the clip actually asks for, then turn him to
+     face the camera by it. */
+  g.userData.anim?.mixer?.update(0);
   g.rotation.y = 0;
   g.updateMatrixWorld(true);
   const face = facingOf(g);
   g.rotation.y = face === null ? Math.PI : -face;
-
-  /* Standing rather than mid-stride, where the body has anything to
-     stand with. Most of the cohort arrived with a single walk cycle and
-     nothing else — for those, walking on the spot reads better than a
-     freeze, which is the same judgement makeRoamer already makes. */
-  if (s.roles && s.roles.idle) setClipOn(g, s.roles.idle, 0.3);
-  else holdStill(s);                  /* the eight with only a walk cycle */
+  /* Measured after the clip is chosen, because neutral is a property of
+     the clip that will actually play. */
+  convoLook = headNeutral(g);
 
   /* Framed off this body, not off a number: the cast runs from 38 to 43
      units and a fixed camera would crop one and strand another.
@@ -6472,14 +6996,34 @@ function convoOpen(s){
   g.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(g);
   const tall = Math.max(1, box.max.y - box.min.y);
-  const eye = box.min.y + tall * 0.88;
-  const fit = tall * 0.46;                  /* head and shoulders, a little air */
+  /* Head to feet, not head and shoulders. This was framed at 0.46 of
+     the figure's height around eye level, which is a portrait — and a
+     portrait throws away the idle, since a standing loop does most of
+     its work in the weight shift, the hands and the stance. You cannot
+     see someone shift their weight if you cannot see their feet.
+
+     0.72 is the whole figure with air around it: the visible half-
+     height at this distance is 0.63 of his height, so he fills about
+     four fifths of the frame — enough to read a face on, with air left
+     at the top rather than dead space. */
+  const fit = tall * 0.63;
   const dist = fit / Math.tan((convoCam.fov * Math.PI / 180) / 2);
+  /* Aimed BELOW his middle on purpose. Whatever the camera looks at
+     lands at the centre of the screen, and the dialogue panel owns the
+     bottom of it — so aiming at his waist would bury his shoes behind
+     the text. Looking a little lower lifts the whole figure up the
+     frame and leaves the panel sitting under him rather than over him.
+
+     The camera itself stays near chest height: from a standing eye
+     level it would be looking down at him, which foreshortens the legs
+     and is exactly the angle that makes a full-body shot look like a
+     security camera. */
+  const eye = box.min.y + tall * 0.52;
   /* Kept, because the frame drifts around it. convoFrame used to ease
      the camera towards the sway value itself rather than towards this
      plus the sway, which quietly walked the shot back to dead centre
      over the first few seconds and undid the framing. */
-  convoBase = { x: tall * 0.10, lookY: eye - tall * 0.06 };
+  convoBase = { x: tall * 0.12, lookY: box.min.y + tall * 0.38 };
   convoCam.position.set(convoBase.x, eye, dist);
   convoCam.lookAt(0, convoBase.lookY, 0);
 
@@ -6505,6 +7049,10 @@ function convoClose(){
   g.userData.animate = convoHome.animate;
   convoHomeCull.forEach(([o, was]) => { o.frustumCulled = was; });
   convoHomeCull = [];
+  /* Dropped with the view. Holding a bone reference from a figure that
+     has gone back to the lawn would keep correcting a head nobody is
+     looking at, and keep the body alive after it should be collectable. */
+  convoLook = null;
   convoView = null; convoHome = null;
   convoEl.classList.remove("open");
   convoEl.setAttribute("aria-hidden", "true");
@@ -6564,6 +7112,7 @@ function convoFrame(dt){
   const m = castMixers.find(x => x.g === convoView.g);
   if (m) m.m.update(dt);
   if (convoView.held) breathe(convoView.g, convoT, convoView.phase || 0);
+  lookAtViewer(convoView.g, convoLook);
   /* Sway about the framing, not towards it — and look where convoOpen
      decided, rather than at a fixed offset below the lens that happens
      to be near it for one body height and wrong for the rest. */

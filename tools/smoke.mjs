@@ -156,8 +156,22 @@ page.on("response", r => {
      a 404 carries no URL, so a check that only names /assets/ leaves the
      rest anonymous — and an anonymous 404 in CI that will not reproduce
      locally is a long evening. */
-  if (r.status() >= 400)
-    errors.push(`HTTP ${r.status()}: ` + r.url().replace(`http://localhost:${PORT}`, ""));
+  if (r.status() < 400) return;
+  const u = r.url();
+  /* ...but only for things this repository serves. A run went red on
+     HTTP 404 from fonts.gstatic.com — Google's font CDN, briefly not
+     serving a woff2 — while the identical commit passed in the run
+     beside it. The campus is not broken when somebody else's CDN
+     hiccups, and a suite that says otherwise teaches everyone to ignore
+     it. The site already treats these fonts as optional: the offline
+     check watches two cross-origin requests get refused and the campus
+     build anyway. Failures we serve ourselves still count, and so does
+     unpkg, which has its own trap set above. */
+  if (!u.startsWith(`http://localhost:${PORT}`)){
+    console.log(`  ..   ignoring HTTP ${r.status()} from ${new URL(u).host} (not ours)`);
+    return;
+  }
+  errors.push(`HTTP ${r.status()}: ` + u.replace(`http://localhost:${PORT}`, ""));
 });
 
 try {
