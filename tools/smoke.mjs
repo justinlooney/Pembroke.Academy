@@ -140,6 +140,25 @@ const acrossReload = async (fn) => {
 page.on("console", m => {
   if (m.type() !== "error") return;
   if (navigating && /Couldn't load texture blob:/.test(m.text())) return;
+  /* "Failed to load resource: the server responded with a status of 404"
+     is Chromium echoing a request that the response handler below has
+     already seen — WITH its URL, which this message does not carry. So
+     this one is a duplicate that cannot say what it is about, and it
+     went red on a fonts.gstatic.com hiccup that the response handler
+     had already, correctly, decided was not ours. Twice: the first fix
+     taught the response handler about other people's CDNs and left this
+     one still shouting anonymously.
+
+     Dropping it loses no coverage. Anything this repository serves
+     arrives at page.on("response") with a URL and is counted there, and
+     a request that never got a response at all lands in requestfailed. */
+  if (/Failed to load resource/i.test(m.text())){
+    const where = m.location?.().url || "";
+    console.log("  ..   ignoring an anonymous load failure" +
+                (where ? " from " + where.replace(/^(\w+:\/\/[^/]+).*/, "$1") : "") +
+                " — the response handler has the real one");
+    return;
+  }
   errors.push("console: " + m.text());
 });
 page.on("requestfailed", r => {

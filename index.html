@@ -3601,6 +3601,23 @@ gltf.load("assets/lamp.glb", (g) => {
    standing idle up to five, walking up to five. The DRAWN times are far
    shorter than the ceilings, because a visit lasts a minute or two and
    a student who sits for twenty of them is scenery, not behaviour. */
+/* ── somewhere to be ──────────────────────────────────────────────────
+   A campus is not people circulating between junctions. They are going
+   INTO buildings: a lecture, an hour in the library, back to a room.
+   Asked for as "walk to a building for a lecture, go inside for awhile
+   for a class, then they come out and go to a library or housing".
+
+   None of it needs an animation. Inside is not drawn — the student is
+   hidden at the door and put back there later — so this costs nothing
+   to render and it TAKES people off the quad rather than adding them,
+   which is the opposite of everything else in this file.
+
+   Doors come from the DOORS table the player's own prompt uses, so a
+   student walks to the same doorway you do. */
+const DOOR_RANGE = 900;           /* far enough that a lecture is worth the walk */
+const INSIDE_MS = [70000, 280000];        /* a class, or an hour with a book */
+const DOOR_COOL = 200000;         /* nobody attends four lectures in a row */
+const P_DOOR = 0.3;
 const SEATS = [];
 const SIT_RANGE = 420;            /* how far someone will go for a seat */
 /* Two figures, because a sit is only as good as what plays during it.
@@ -5490,7 +5507,7 @@ const SPACE = 27;
    The cooldown stops the same two falling into conversation again the
    moment they part. */
 function freeToTalk(s, now){
-  return !s.static && !s.orbit && s.pos && !s.seat &&
+  return !s.static && !s.orbit && s.pos && !s.seat && !s.inside &&
          (s.mode === "walk" || s.mode === undefined) &&
          now - (s.socialAt || -1e9) > SOCIAL_COOL;
 }
@@ -5536,6 +5553,31 @@ function playOnce(s, name, reverse){
   s.anim0 = name;
   return act.getClip().duration * 1000;
 }
+/* The nearest door within reach, so a student goes to the building they
+   are actually near rather than marching across campus past three
+   others. Ties broken by distance alone — a preference for one hall
+   over another would show up as everyone attending the same lecture. */
+function nearestDoor(s){
+  let best = null, bestD = DOOR_RANGE;
+  for (const d of DOORS){
+    const dist = Math.hypot(d.x - s.pos[0], d.y - s.pos[1]);
+    if (dist < bestD){ bestD = dist; best = d; }
+  }
+  return best;
+}
+/* Where does the waypoint graph pick up again? A student who comes out
+   of a door is standing at a doorway, not at a junction, and walking
+   on from whichever node they last remembered would send them back
+   across the campus in a straight line through a building. */
+function nearestWaypoint(pos){
+  let best = null, bestD = Infinity;
+  for (const k in WAYPOINTS){
+    const w = WAYPOINTS[k];
+    const d = Math.hypot(w[0] - pos[0], w[1] - pos[1]);
+    if (d < bestD){ bestD = d; best = k; }
+  }
+  return best;
+}
 function freeSeat(from){
   let best = null, bestD = SIT_RANGE;
   for (const seat of SEATS){
@@ -5551,7 +5593,7 @@ function leaveSeat(s){
 }
 function crowded(self, nx, ny){
   for (const o of students){
-    if (o === self || !o.pos) continue;
+    if (o === self || !o.pos || o.inside) continue;
     const d2 = (o.pos[0] - nx) ** 2 + (o.pos[1] - ny) ** 2;
     if (d2 > SPACE * SPACE) continue;
     const was = (o.pos[0] - self.pos[0]) ** 2 + (o.pos[1] - self.pos[1]) ** 2;
@@ -5583,6 +5625,48 @@ function stepStudents(dt, now){
       continue;
     }
     let moving = false;
+    /* ── going inside, and coming back out ───────────────────────────
+       Walk to a door, vanish through it, and reappear there later.
+       Hidden rather than removed: the student keeps their place in
+       students[], their clothes, their body and their history, so the
+       person who comes out is the person who went in — which is what
+       makes seeing them again somewhere else read as recognition
+       rather than as a new spawn. */
+    if (s.mode === "todoor"){
+      const d = s.door;
+      if (!d){ s.mode = "walk"; }
+      else {
+        const dx = d.x - s.pos[0], dy = d.y - s.pos[1];
+        const gap = Math.hypot(dx, dy);
+        if (gap < 10){
+          s.mode = "inside";
+          s.inside = true;
+          s.until = now + INSIDE_MS[0] + Math.random() * (INSIDE_MS[1] - INSIDE_MS[0]);
+          s.g.visible = false;
+          continue;
+        }
+        s.pos[0] += dx / gap * s.speed * dt;
+        s.pos[1] += dy / gap * s.speed * dt;
+        s.g.rotation.y = Math.atan2(dx, dy);
+        s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+        stepMotion(s, true, now, dt);
+        continue;
+      }
+    }
+    if (s.mode === "inside"){
+      if (now < s.until) continue;      /* not drawn, not stepped, not there */
+      s.mode = "walk";
+      s.inside = false;
+      s.g.visible = true;
+      s.doorAt = now;
+      /* out of the same doorway, facing the campus rather than the wall */
+      s.pos[0] = s.door.x; s.pos[1] = s.door.y;
+      s.g.rotation.y = Math.atan2(500 - s.pos[0], 500 - s.pos[1]);
+      s.door = null;
+      s.target = null;
+      s.node = nearestWaypoint(s.pos) ?? s.node;
+      s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+    }
     /* ── sitting down, sitting, standing up ──────────────────────────
        One cycle, in one direction, and never straight back into
        another: sit down, stay a while, stand up, walk away. A student
@@ -5744,7 +5828,16 @@ function stepStudents(dt, now){
          * for a third as long. */
         /* Arrived. Three things a person does here: go and talk to
            somebody, stand a moment, or carry on. */
-        /* A seat first, if this body can sit at all and has not just
+        /* Somewhere to be, first of all. A student with a lecture to get
+           to does not stop to sit down on the way. */
+        const door = (now - (s.doorAt || -1e9) > DOOR_COOL && Math.random() < P_DOOR)
+          ? nearestDoor(s) : null;
+        if (door){
+          s.door = door; s.mode = "todoor"; s.target = null;
+          s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+          continue;
+        }
+        /* A seat next, if this body can sit at all and has not just
            got up. Sitting is the longer, more legible thing to do; a
            student who would otherwise stand about for four seconds is
            better spent walking to a bench. */
