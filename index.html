@@ -4169,7 +4169,7 @@ function prepFigure(k, height, live, clipIx = 0){
      which is the failure the loader was made resilient to avoid. */
   if (!src) return null;
   const root = skeletonClone(src.scene);
-  let standMixer = null;
+  let standMixer = null, standRec = null;
   if (k !== "walker" && src.animations.length){
     const mixer = new THREE.AnimationMixer(root);
     /* This character came down with four clips, and playing the first
@@ -4177,7 +4177,19 @@ function prepFigure(k, height, live, clipIx = 0){
        in four different ways is most of what "a different person" means
        at this distance. */
     const clip = src.animations[clipIx % src.animations.length];
-    mixer.clipAction(inPlaceClip(clip)).play();
+    const action = mixer.clipAction(inPlaceClip(clip));
+    action.play();
+    /* Written down where something outside can read it. The loitering
+       bodies drive themselves through this mixer rather than through
+       userData.anim, which the roamers get — so for a long while
+       nothing could tell whether tutor and sophia were animating,
+       frozen, or bound to nothing at all. They stand at the doors,
+       which is where a visitor walks straight up to somebody, and they
+       were the two figures on this campus no check could see.
+       A record, not a second system: the mixer and action are the ones
+       already in use. */
+    standRec = { mixer, action, clip: clip.name,
+                 dur: clip.duration, live: !!live };
     if (live) standMixer = mixer;
     else mixer.update(0.7);              /* freeze in a natural stance */
   }
@@ -4233,6 +4245,7 @@ function prepFigure(k, height, live, clipIx = 0){
   g2.userData.figure = k;                /* test/debug: this is a person */
   g2.userData.meshes = meshes;
   g2.userData.shadow = true;
+  if (standRec) g2.userData.stand = standRec;
   if (standMixer) castMixers.push({ m: standMixer, g: g2 });
   if (ROAMING.includes(k)){
     const mixer = new THREE.AnimationMixer(root);

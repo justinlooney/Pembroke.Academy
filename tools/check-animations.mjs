@@ -59,7 +59,8 @@ for (let attempt = 1; attempt <= 8 && !present; attempt++){
   await page.waitForFunction(() => window.__convo && window.__convo.named().length,
                              null, { timeout: 300_000 });
   present = await page.evaluate((body) => (window.__students || [])
-    .some(x => x.g?.userData?.figure === body && x.g.userData.anim), BODY);
+    .some(x => x.g?.userData?.figure === body &&
+               (x.g.userData.anim || x.g.userData.stand)), BODY);
   if (!present) console.log(`visit ${attempt}: no ${BODY} dealt, trying again`);
 }
 
@@ -67,11 +68,50 @@ const roles = await page.evaluate((body) => {
   const s = (window.__students || []).find(x => x.g?.userData?.figure === body);
   if (!s) return null;
   const a = s.g.userData.anim;
-  return { clips: Object.keys(a.actions),
-           roles: a.roles,
-           nominal: a.nominal };
+  /* The loiterers do not have an `anim` at all — they run one clip
+     through a standMixer set up in prepFigure. That is not a fault, it
+     is a second and simpler path, and it is the path the two students
+     standing at the doors take. Report it as what it is. */
+  if (!a){
+    const st = s.g.userData.stand;
+    if (!st) return { none: true };
+    return { standAlone: true, clip: st.clip, dur: st.dur, live: st.live };
+  }
+  return { clips: Object.keys(a.actions), roles: a.roles, nominal: a.nominal };
 }, BODY);
-if (!roles){ console.log(`no ${BODY} on campus this visit`); await browser.close(); server.close(); process.exit(0); }
+if (!roles || roles.none){
+  console.log(`no ${BODY} on campus this visit`);
+  await browser.close(); server.close(); process.exit(0);
+}
+if (roles.standAlone){
+  /* One clip on a standMixer: no roles, no gait selection, nothing to
+     choose. The only questions worth asking are whether it is running
+     and whether it moves anything. */
+  console.log(`${BODY}: a loitering body — one clip on its own mixer, no roles`);
+  console.log(`  clip "${roles.clip}"  ${roles.dur.toFixed(2)}s  live=${roles.live}` +
+              (roles.live ? "" : "   (frozen at 0.7s on purpose — this one only stands)"));
+  const moved = await page.evaluate(async (body) => {
+    const s = (window.__students || []).find(x => x.g?.userData?.figure === body);
+    const st = s.g.userData.stand;
+    const pose = () => { s.g.updateMatrixWorld(true); const p = [];
+      s.g.traverse(o => { if (o.isBone) p.push(o.matrixWorld.elements[12],
+        o.matrixWorld.elements[13], o.matrixWorld.elements[14]); }); return p; };
+    const t0 = st.action.time, p0 = pose();
+    await new Promise(r => setTimeout(r, 2500));
+    const t1 = st.action.time, p1 = pose();
+    let n = 0;
+    for (let i = 0; i < p0.length; i += 3)
+      if (Math.hypot(p0[i]-p1[i], p0[i+1]-p1[i+1], p0[i+2]-p1[i+2]) > 0.05) n++;
+    return { t0: +t0.toFixed(2), t1: +t1.toFixed(2), n, bones: p0.length / 3,
+             paused: st.action.paused, weight: +st.action.getEffectiveWeight().toFixed(2) };
+  }, BODY);
+  console.log(`  clock ${moved.t0} -> ${moved.t1} over 2.5s   paused=${moved.paused}  weight=${moved.weight}`);
+  console.log(`  ${moved.n}/${moved.bones} bones moved   ` +
+              (moved.n > 4 ? "ok — this body is animating"
+                           : roles.live ? "STUCK — live, but nothing is moving"
+                                        : "still, as intended"));
+  await browser.close(); server.close(); process.exit(0);
+}
 
 console.log(`${BODY}: ${roles.clips.length} clips`);
 console.log(`  gaits : ${roles.roles.gaits.join(", ") || "(none)"}`);
