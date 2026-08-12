@@ -122,12 +122,27 @@ window.__names = (url) => new Promise((done) => {
                missed: [...missed] };
     });
 
-    /* which anatomy the campus looks for by name, and whether it is
-       findable on this skeleton */
-    const wants = ["hips", "head", "leftfoot", "rightfoot",
-                   "lefthand", "righthand", "spine"];
-    const keys = new Set(bones.map(boneKey));
-    const findable = wants.map(w => [w, [...keys].some(k => k.includes(w))]);
+    /* The anatomy the campus looks up by name — asked with the SAME
+       patterns index.html uses, which is the only version of this
+       question worth answering. The first draft asked for "leftfoot"
+       and "hips", which are Mixamo spellings, and so reported every
+       Character Creator body as having no feet, no hands and no hips
+       while the campus was finding all of them perfectly well. A check
+       that fails on a healthy file is worse than no check.
+
+       Counts matter as much as presence: facingOf now averages BOTH
+       feet, and passingTime needs a left and a right to measure a
+       stride, so one foot is not enough. */
+    const keys = bones.map(boneKey);
+    const count = (rx) => keys.filter(k => rx.test(k)).length;
+    const findable = [
+      ["hips/pelvis", count(/hip|pelvis/) >= 1],
+      ["head",        count(/head$/) >= 1],
+      ["feet (2)",    count(/foot$/) >= 2],
+      ["toes",        count(/toe/) >= 1],
+      ["hands (2)",   count(/(hand|wrist)$/) >= 2],
+      ["spine",       count(/spine|chest/) >= 1],
+    ];
 
     const tagOf = (m) => {
       const tag = canon(m.node) + " " + canon(m.mat);

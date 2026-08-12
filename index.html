@@ -4124,14 +4124,21 @@ function deshine(root){
  * the screen. Capped at 8: past that the returns stop and some mobile
  * drivers charge for it.
  *
- * HAIR SORTING. Mixamo hair arrives as blended transparency with
- * alphaTest 0 and depthWrite off — so the cards are drawn in whatever
- * order they happen to be in and strands show through each other. It
- * reads as a clump of dark jelly rather than hair, most visibly from
- * the front, which is exactly where a conversation puts you. Cutout
- * instead: a threshold, depth written, sorted correctly by the depth
- * buffer like any solid thing. Eyelashes get a gentler threshold than
- * the hair, because they are thin enough that a hard cut erases them. */
+ * HAIR was also tried here and taken back out. Mixamo hair arrives as
+ * blended transparency with depthWrite off, so its cards draw in
+ * arbitrary order and strands show through each other; converting it to
+ * an alpha cutout fixed that and looked better on the walker. It looked
+ * WORSE on every Character Creator body, whose hair is drawn with a far
+ * softer alpha ramp and sits over a skin-coloured scalp cap authored to
+ * blend away beneath it. Cut out, the cap's hard edge appears through
+ * the strands as a pale band across the crown; cut more gently, the
+ * crown erodes instead. Thresholds of 0.45, 0.28 and 0.12 were each
+ * rendered and each was wrong, so the idea is gone rather than tuned:
+ * four bodies here use that hair against one that wanted the cutout.
+ *
+ * Left as a note because it will look like an obvious improvement to
+ * the next person who reads the material flags, as it did to me.
+ */
 function sharpen(root){
   const aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy() || 1);
   root.traverse(o => {
@@ -4142,20 +4149,6 @@ function sharpen(root){
       const t = m[k];
       if (t && t.anisotropy !== aniso){ t.anisotropy = aniso; t.needsUpdate = true; }
     }
-    const tag = canon(o.name) + " " + canon(m.name);
-    if (!/hair|eyelash|brow|scalp|beard/i.test(tag)) return;
-    if (!m.transparent || m.alphaTest > 0) return;   /* already handled */
-    /* 0.28, not the 0.45 this started at. Cutout fixes the sorting
-       either way, but a high threshold eats the soft edge a hair card
-       is drawn with and leaves a spiky fringe — which trades dark jelly
-       for a bad haircut. Low enough to keep the silhouette, high enough
-       that the transparent margin around each card stops writing depth.
-       Eyelashes get less still: they are thin enough that any hard cut
-       erases them. */
-    m.alphaTest = /eyelash|brow/i.test(tag) ? 0.15 : 0.28;
-    m.transparent = false;
-    m.depthWrite = true;
-    m.needsUpdate = true;
   });
 }
 function prepFigure(k, height, live, clipIx = 0){

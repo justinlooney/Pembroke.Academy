@@ -137,9 +137,12 @@ window.__sheet = (url) => new Promise((done) => {
       const m = o.material;
       if (typeof m.metalness === "number" && m.metalness > 0) m.metalness = 0;
       if (typeof m.roughness === "number" && m.roughness < 0.5) m.roughness = 0.6;
-      if (typeof m.specularIntensity === "number" && m.specularIntensity > 0.4)
-        m.specularIntensity = 0.35;
+      if (typeof m.specularIntensity === "number" && m.specularIntensity > 0.15)
+        m.specularIntensity = 0.12;
+      if (typeof m.ior === "number" && m.ior > 1.35) m.ior = 1.3;
     });
+    /* No hair handling here either — see sharpen() in index.html for why
+       the alpha cutout was tried and taken back out. */
 
     const mixer = new THREE.AnimationMixer(root);
     /* rest pose first, then moments spread through the clips */
@@ -232,7 +235,7 @@ window.__sheet = (url) => new Promise((done) => {
                   (f.ior == null ? "" : "  ior " + f.ior)).join("\\n        ") +
       "\\n   (raw file values. The pictures above have the campus"
       + " correction applied:\\n   on person parts, metalness -> 0,"
-      + " roughness floored at 0.5, specular damped to 0.35.)\\n" +
+      + " roughness floored at 0.5, specular to 0.12, ior to 1.3.)\\n" +
       "\\nskin reaches " + (spike === Infinity ? "NaN — BROKEN" : spike.toFixed(2)) +
       " figure-heights from the spine" +
       "\\n   calibrated on this cast: sound bodies measure 0.02-0.80 (arms out" +
