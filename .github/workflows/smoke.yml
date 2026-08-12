@@ -61,6 +61,18 @@ jobs:
       - name: Do the names in the character files line up?
         run: node tools/check-rig-names.mjs
 
+      # Students with no idle clip stand by holding one frame of their
+      # walk, with breathe() adding a rise and a sway on top. That offset
+      # used to accumulate — every body in the cast rotated its head a
+      # full 180° inside a minute, which reached the live site as heads
+      # rolling round and round. The suite below cannot see it: it runs a
+      # few seconds against a software rasterizer, and the fault grew
+      # with frame rate, so it was faintest exactly where we were
+      # looking. This drives a held figure for a simulated minute at
+      # 60fps instead.
+      - name: Does a standing figure stay where it was put?
+        run: node tools/check-breath.mjs
+
       - name: Drive the campus
         run: node tools/smoke.mjs
 

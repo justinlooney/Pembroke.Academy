@@ -5186,26 +5186,74 @@ function release(s){
 /* Nobody stands like a statue. A held frame plus a slow rise and fall
    through the spine, a little sway, and a head that is not quite level
    reads as a person waiting; the same frame without it reads as a bug.
-   Applied AFTER the mixer has written the pose, every frame, because
-   the mixer would otherwise overwrite it. */
+   Applied AFTER the mixer has written the pose, every frame.
+ *
+ * This is an ABSOLUTE offset from a remembered base, and it has to be.
+ * The first version added to the bone in place — rotation.x += — on the
+ * stated belief that "the mixer keeps writing the same pose every
+ * update, which is what lets breathe() add to it and not fight it".
+ * That belief is wrong, and it is wrong for exactly the figures this
+ * runs on. PropertyMixer.apply ends with
+ *
+ *     for ( let i = stride, e = stride + stride; i !== e; ++ i )
+ *       if ( buffer[ i ] !== buffer[ i + stride ] ) {
+ *         // value has changed -> update scene graph
+ *         binding.setValue( buffer, offset );
+ *
+ * — the scene graph is touched only when the accumulated value CHANGES.
+ * A held figure is a paused action re-seeking the same frame, so from
+ * the second update onward nothing changes and three.js stops writing
+ * the bone altogether. The += then landed on its own previous result
+ * and compounded: measured at 180° of travel on every body and every
+ * clip in the cast, a head rotating slowly and continuously through the
+ * full circle. That is the "swaying head around and around", the head
+ * thrown back, and the figure with no head visible at all.
+ *
+ * So: remember what the mixer left, and write base × offset. If the
+ * mixer starts writing again — the figure is released, or the clip
+ * plays on — the bone will differ from what we left there last frame,
+ * and that new value becomes the base. Correct whether or not anything
+ * else is driving the bone, and independent of frame rate, which the
+ * old one was not: the drift scaled with fps. */
 const BREATHE = /spine|chest|neck|head/;
+const _brQ = new THREE.Quaternion(), _brE = new THREE.Euler();
+const _brV = new THREE.Vector3();
 function breathe(g, t, phase){
-  if (!g.userData.__breath){
+  let st = g.userData.__breath;
+  if (!st){
     const bones = [];
-    g.traverse(o => { if (o.isBone && BREATHE.test(boneKey(o.name))) bones.push(o); });
+    g.traverse(o => {
+      if (!o.isBone) return;
+      const k = boneKey(o.name);
+      /* Leaf tips — HeadTop_End, head_end — carry no skin and no track.
+         Rotating one moves nothing and only ever accumulated error. */
+      if (!BREATHE.test(k) || /end$|^headtop/.test(k)) return;
+      bones.push(o);
+    });
     /* Lowest first: the rise starts at the waist and arrives at the
-       head, which is the order a breath actually travels. */
-    bones.sort((a, b) => a.position.y - b.position.y);
-    g.userData.__breath = bones.slice(0, 6);
+       head, which is the order a breath actually travels. Sorted by
+       WORLD height — position.y is the bone's offset from its parent,
+       so sorting on it ordered these by bone length and the wave
+       arrived in whatever order the rig happened to be built in. */
+    const worldY = new Map();
+    for (const o of bones) worldY.set(o, o.getWorldPosition(_brV).y);
+    bones.sort((a, b) => worldY.get(a) - worldY.get(b));
+    st = g.userData.__breath = {
+      bones: bones.slice(0, 6),
+      base: bones.slice(0, 6).map(b => b.quaternion.clone()),
+      last: bones.slice(0, 6).map(b => b.quaternion.clone()),
+    };
   }
-  const bones = g.userData.__breath;
-  if (!bones.length) return;
+  if (!st.bones.length) return;
   const b = Math.sin(t * 1.15 + phase);
   const sway = Math.sin(t * 0.42 + phase * 1.7);
-  bones.forEach((bone, i) => {
-    const k = (i + 1) / bones.length;
-    bone.rotation.x += b * 0.011 * k;
-    bone.rotation.z += sway * 0.006 * k;
+  st.bones.forEach((bone, i) => {
+    /* anything other than us wrote this bone — that is the new rest */
+    if (!bone.quaternion.equals(st.last[i])) st.base[i].copy(bone.quaternion);
+    const k = (i + 1) / st.bones.length;
+    _brQ.setFromEuler(_brE.set(b * 0.011 * k, 0, sway * 0.006 * k));
+    bone.quaternion.copy(st.base[i]).multiply(_brQ);
+    st.last[i].copy(bone.quaternion);
   });
 }
 /* Play the clip at the pace the body is actually travelling. Clamped
@@ -6848,6 +6896,15 @@ function lookAtViewer(g, look){
   look.head.quaternion.premultiply(
     parentQ.clone().invert().multiply(C).multiply(parentQ));
   look.head.updateMatrixWorld(true);
+  /* breathe() re-bases a bone whenever it finds a value it did not
+     write itself, and this bone is one of its six. Without this line it
+     would read our correction as the mixer's new rest pose and stack
+     the next breath on top of it, every frame. */
+  const st = g.userData.__breath;
+  if (st){
+    const i = st.bones.indexOf(look.head);
+    if (i >= 0) st.last[i].copy(look.head.quaternion);
+  }
 }
 /* Which way is this body facing? Read off the skeleton rather than
    assumed from a convention the models do not share — one arrived
