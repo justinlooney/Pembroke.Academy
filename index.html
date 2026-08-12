@@ -5569,7 +5569,10 @@ function indoorsNow(){
   for (const o of students){
     if (o.static || o.orbit) continue;
     roamers++;
-    if (o.inside) n++;
+    /* on their way counts as gone. Counting only those already through
+       the door let several set off together and all arrive: a probe
+       measured five indoors against a cap of four. */
+    if (o.inside || o.mode === "todoor") n++;
   }
   return { n, cap: Math.max(1, Math.floor(roamers * INSIDE_SHARE)) };
 }
@@ -5846,8 +5849,23 @@ function stepStudents(dt, now){
          * for a third as long. */
         /* Arrived. Three things a person does here: go and talk to
            somebody, stand a moment, or carry on. */
-        /* Somewhere to be, first of all. A student with a lecture to get
-           to does not stop to sit down on the way. */
+        /* Somebody to speak to first, then somewhere to be. Both were
+           asked for, but they are not worth the same: a conversation
+           runs eight to twenty seconds and is the thing a visitor
+           actually catches, while a lecture takes a student off the
+           quad for minutes. Putting the lecture first let it preempt
+           the talking and the campus went quiet — 23% of the cast
+           indoors and conversations down to 2% of student-time. */
+        const other = (now - (s.socialAt || -1e9) > SOCIAL_COOL && Math.random() < P_MEET)
+          ? findPartner(s, now) : null;
+        if (other){
+          const wait = now + 14000;         /* if we cannot reach them, give up */
+          s.mode = "approach"; s.partner = other; s.until = wait; s.target = null;
+          other.mode = "approach"; other.partner = s; other.until = wait;
+          other.target = null; other.pauseUntil = 0;
+          s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+          continue;
+        }
         const door = (now - (s.doorAt || -1e9) > DOOR_COOL && Math.random() < P_DOOR)
           ? nearestDoor(s) : null;
         if (door){
@@ -5877,14 +5895,7 @@ function stepStudents(dt, now){
           s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
           continue;
         }
-        const other = (now - (s.socialAt || -1e9) > SOCIAL_COOL && Math.random() < P_MEET)
-          ? findPartner(s, now) : null;
-        if (other){
-          const wait = now + 14000;         /* if we cannot reach them, give up */
-          s.mode = "approach"; s.partner = other; s.until = wait; s.target = null;
-          other.mode = "approach"; other.partner = s; other.until = wait;
-          other.target = null; other.pauseUntil = 0;
-        } else if (s.roles?.idle && Math.random() < P_LINGER){
+        if (s.roles?.idle && Math.random() < P_LINGER){
           s.mode = "linger";
           s.pauseUntil = now + LINGER_MS[0] + Math.random() * (LINGER_MS[1] - LINGER_MS[0]);
         }
