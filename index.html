@@ -48,6 +48,18 @@ if ("serviceWorker" in navigator){
   } else {
     sessionStorage.removeItem("nosw");
     navigator.serviceWorker.register("sw.js").catch(() => {});
+    /* Ask whichever worker is controlling this page what version it is.
+       If it answers with something other than the BUILD below, this page
+       came out of an old cache and a second reload will fix it — which
+       is worth saying out loud, because from a screenshot that state is
+       indistinguishable from a bug that was never fixed. */
+    navigator.serviceWorker.addEventListener("message", (e) => {
+      if (e.data?.type === "version") window.__swVersion = e.data.version;
+    });
+    const askSW = () => navigator.serviceWorker.controller
+      ?.postMessage({ type: "version" });
+    askSW();
+    navigator.serviceWorker.ready.then(askSW).catch(() => {});
   }
 }
 </script>
@@ -1117,7 +1129,7 @@ const SECTORS = {
                 "· trust the filter, verify the sensor",
                 "· flight test — quad lawn, friday 0900"],
          blurb:"Behind the imperial-purple spire sits the Autonomy Wing — capstone territory. State estimation, control loops, and flight planners that let machines navigate the world alone." },
-  cathedral: { key:"cathedral", hall:"The Pembroke Cathedral", track:"The University Chapel",
+  cathedral: { key:"cathedral", hall:"The Pembroke Chapel", track:"The University Chapel",
          color:"#d4af6a", soft:"rgba(212,175,106,", icon:"✦",
          motto:"Lux perpetua luceat studiis.",
          room:"The Nave — Lux Perpetua",
@@ -1846,6 +1858,11 @@ import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js"
 import { SMAAPass } from "three/addons/postprocessing/SMAAPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 
+/* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
+   build if they drift. Shown in ?debug so a report from a phone can be
+   tied to the code that produced it. */
+const BUILD = "pembroke-v47";
+
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
 const labelEls = {};                  /* sector -> progress <span>            */
@@ -1881,10 +1898,10 @@ const camera = new THREE.PerspectiveCamera(46, 1, 2, 6000);
 /* Stand back further on a tall screen. Even at the widened fov, portrait
    leaves only ~40° across, so the arrival view on a phone was a keyhole
    onto the quad with the whole outer world outside it. This does not fit
-   the athletics district on arrival — the gridiron alone is 720 units
-   wide and would want ~3300 units of standoff, which would shrink the
-   campus to a smudge — but it shows the cathedral and the district
-   edges, and the zoom now reaches the rest. */
+   the athletics district on arrival — the ballpark and the tennis club
+   sit a long way south and would want thousands of units of standoff,
+   which would shrink the campus to a smudge — but it shows the north
+   quad and the district edges, and the zoom now reaches the rest. */
 const AERIAL = [-640, 690, 640];
 const PORTRAIT_K = 1.5;
 /* How far back the aerial view stands. Portrait screens stand back
@@ -2214,6 +2231,12 @@ let fountainWater = null;
   const ring = new THREE.Mesh(new THREE.RingGeometry(168, 197, 96), pathMat);
   ring.rotation.x = -Math.PI / 2; ring.position.set(0, 0.3, 0); ring.receiveShadow = true;
   world.add(ring);
+  /* the North Quad's own ring, tighter than the great oval, its lawn
+     left empty on purpose — the whole point of the second quad is
+     ground you can cross without walking into anything */
+  const nring = new THREE.Mesh(new THREE.RingGeometry(106, 134, 96), pathMat);
+  nring.rotation.x = -Math.PI / 2; nring.position.set(0, 0.3, -680); nring.receiveShadow = true;
+  world.add(nring);
   /* The ways, described by what they join rather than by rectangles.
      The four hall doors sit at the corners — library NW, engineering NE,
      science SW, administration SE — the cathedral closes the north axis,
@@ -2222,7 +2245,15 @@ let fountainWater = null;
   const RING_N = [500, 320], RING_S = [500, 682], RING_W = [318, 500], RING_E = [682, 500];
 
   /* the processional: cathedral doors, down the north axis, to the ring */
-  walkway([[500, 60], [500, 150], [497, 236], [500, 300], RING_N], 30);
+  /* The processional, and from here on the walk BETWEEN the two quads:
+     44 wide rather than 30, so it reads as the spine of the campus and
+     two people can pass a third on it without anybody stepping onto
+     the grass. */
+  walkway([[500, 60], [500, 150], [497, 236], [500, 300], RING_N], 44);
+  /* ...and on north, between the quads: one unbroken 44-wide spine from
+     ring to ring, plus the stub up to the chapel doors */
+  walkway([[500, 64], [500, 0], [500, -62]], 44);
+  walkway([[500, -296], [500, -322]], 26);
   /* the south walk out to the gatehouse and the stadium boulevard */
   walkway([RING_S, [500, 760], [503, 840], [500, 918], [500, 985]], 30);
 
@@ -2230,12 +2261,12 @@ let fountainWater = null;
      through it — the halls are wide (the science hall alone runs 200 by
      150) and a walk drawn straight from door to lawn buries itself in
      masonry. These skirt the footprints the way the ground forces. */
-  walkway([[268, 340], [300, 392], [330, 444], RING_W], 22);
-  walkway([[740, 306], [690, 340], [672, 412], [676, 456], RING_E], 22);
+  walkway([[268, 340], [300, 392], [330, 444], RING_W], 28);
+  walkway([[740, 306], [690, 340], [672, 412], [676, 456], RING_E], 28);
   walkway([[240, 822], [302, 832], [360, 800], [380, 738], [370, 660],
-           [348, 594], RING_W], 22);
+           [348, 594], RING_W], 28);
   walkway([[735, 832], [668, 838], [620, 798], [604, 718], [610, 640],
-           [642, 570], RING_E], 22);
+           [642, 570], RING_E], 28);
 
   /* hall to hall, skirting the lawn rather than crossing it — the north
      range keeps south of the library and engineering, the south range
@@ -2516,87 +2547,6 @@ function loadLandmark(url, opts){
 /* the cathedral's crown: the scan ends in bare white ceiling slabs
    and a towerless front, so a slate nave roof, aisle strips, and twin
    spires with crosses complete the silhouette (see Villanova chapel) */
-function buildCathedralCrown(rootObj){
-  const bb = new THREE.Box3().setFromObject(rootObj);
-  const size = new THREE.Vector3(); bb.getSize(size);
-  const cx = (bb.min.x + bb.max.x) / 2, cz = (bb.min.z + bb.max.z) / 2;
-  const topY = bb.max.y;
-  /* nave gable running the length of the church */
-  gableRoof(world, { x: cx + 500 - size.x * 0.29, y: cz + 500 - (size.z - 8) / 2,
-                     w: size.x * 0.58, d: size.z - 8, z: topY - 3, h: 44, axis: "y" });
-  /* low slate strips over the aisle slabs */
-  const slateFlat = new THREE.MeshStandardMaterial({ map: shingleTex, roughness: 0.92 });
-  [-1, 1].forEach(sx => {
-    const strip = new THREE.Mesh(new THREE.BoxGeometry(size.x * 0.24, 3.2, size.z - 8), slateFlat);
-    strip.position.set(cx + sx * size.x * 0.37, topY - 1.2, cz);
-    strip.castShadow = strip.receiveShadow = true;
-    world.add(strip);
-  });
-  /* twin spires flanking the west front */
-  const drumMat = new THREE.MeshStandardMaterial({ color: 0xb5a68c, roughness: 0.95 });
-  const spireMat = new THREE.MeshStandardMaterial({ map: shingleTex, roughness: 0.85 });
-  const crossMat = new THREE.MeshStandardMaterial({ color: 0xd4af6a, metalness: 0.75, roughness: 0.3 });
-  [-1, 1].forEach(sx => {
-    const x = cx + sx * (size.x / 2 - 26), z = bb.max.z - 20;
-    const drum = new THREE.Mesh(new THREE.CylinderGeometry(15, 16.5, 26, 8), drumMat);
-    drum.position.set(x, topY + 13, z);
-    const spire = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 14, 80, 8), spireMat);
-    spire.position.set(x, topY + 26 + 40, z);
-    const crossV = new THREE.Mesh(new THREE.BoxGeometry(1.6, 14, 1.6), crossMat);
-    crossV.position.set(x, topY + 26 + 80 + 6, z);
-    const crossH = new THREE.Mesh(new THREE.BoxGeometry(8, 1.6, 1.6), crossMat);
-    crossH.position.set(x, topY + 26 + 80 + 8.5, z);
-    [drum, spire, crossV, crossH].forEach(m => { m.castShadow = true; world.add(m); });
-  });
-}
-function buildCathedralPortal(rootObj){
-  const probe = new THREE.Raycaster(new THREE.Vector3(0, 40, W(220)), new THREE.Vector3(0, 0, -1));
-  const hit = probe.intersectObject(rootObj, true)[0];
-  const wallZ = hit ? hit.point.z
-    : new THREE.Box3().setFromObject(rootObj).max.z - 6;
-  gltf.load("assets/portal.glb", (g) => {
-    const porch = g.scene;
-    porch.rotation.y = Math.PI / 2;          /* the scan's face looks -x; turn it south */
-    porch.updateMatrixWorld(true);
-    let bb = new THREE.Box3().setFromObject(porch);
-    const size = new THREE.Vector3(); bb.getSize(size);
-    porch.scale.setScalar(100 / size.y);
-    porch.updateMatrixWorld(true);
-    bb = new THREE.Box3().setFromObject(porch);
-    const ctr = new THREE.Vector3(); bb.getCenter(ctr);
-    porch.position.x += -ctr.x;
-    porch.position.y += -bb.min.y;
-    porch.position.z += (wallZ - 17) - bb.min.z;   /* backing band sinks into the facade */
-    porch.updateMatrixWorld(true);
-    /* the flanking band skews the bbox, so find the true arch axis by
-       probing where rays pass through the opening to the facade behind */
-    const rc = new THREE.Raycaster();
-    const openXs = [];
-    for (let px = -34; px <= 34; px += 1){
-      rc.set(new THREE.Vector3(px, 26, wallZ + 60), new THREE.Vector3(0, 0, -1));
-      const h = rc.intersectObject(porch, true)[0];
-      if (!h || h.point.z < wallZ + 6) openXs.push(px);
-    }
-    if (openXs.length > 4) porch.position.x -= (openXs[0] + openXs[openXs.length - 1]) / 2;
-    porch.traverse(o => {
-      if (o.isMesh){
-        o.castShadow = o.receiveShadow = true;
-        o.material = new THREE.MeshStandardMaterial({
-          vertexColors: true, color: 0xe8ddc8,     /* warm the scan toward the facade brick */
-          roughness: 0.93, envMapIntensity: 0.7 });
-      }
-    });
-    world.add(porch);
-    COLLIDERS.push({ x: 455, y: 58, w: 90, d: 34 });
-    /* dark oak doors deep in the recess, where the scan's archway
-       would otherwise open onto bare facade brick */
-    const doors = new THREE.Mesh(new THREE.BoxGeometry(21, 36, 2),
-      new THREE.MeshStandardMaterial({ color: 0x3e2a18, roughness: 0.82, metalness: 0.05 }));
-    doors.position.set(0, 18, wallZ + 1.2);
-    doors.receiveShadow = true;
-    world.add(doors);
-  });
-}
 
 /* derive normal + roughness/metalness maps from the height mask so
    glass turns mirror-smooth (sky reflections) and stone stays matte,
@@ -2822,15 +2772,53 @@ BUILDINGS.forEach(spec => {
 {
   const amb = new THREE.Group();
   world.add(amb);
-  /* the Pembroke Cathedral — "Cathedral" by tabitown (CC-BY-4.0),
-     enterable, crowning the north axis; its stained glass burns
-     from within after dark */
-  loadLandmark("assets/cathedral2.glb", {
-    plane: [500, -160], height: 340, rotY: Math.PI, maxFoot: [400, 440],
-    glassNames: ["glass"],
-    collider: "auto",
-    onLoaded: (r) => { cathedralRoot = r; buildCathedralPortal(r); buildCathedralCrown(r); },
-  });
+  /* ── the North Quad ─────────────────────────────────────────────
+     The Pembroke Cathedral stood here — a 4MB scan closing the north
+     axis. Its EXTERIOR is gone; the nave survives, because the chapel
+     interior always loaded its own copy of the model lazily on entry,
+     so pulling the building off the skyline cost the inside nothing.
+     What was housed in the cathedral is housed in the chapel that
+     crowns this quad instead, under the same sector key, so the door
+     prompt, the interior, the quests and the smoke checks all follow
+     it here rather than breaking.
+
+     Laid out like the main quad but opener: a ring walk at r=120
+     around a lawn with nothing standing on it, three halls around the
+     rim, and the south side left open where the widened processional
+     arrives from the main quad. */
+  {
+    const S = SECTORS.cathedral;
+    const grp = new THREE.Group();
+    world.add(grp);
+    cathedralRoot = grp;               /* aerial click-to-enter follows the chapel */
+
+    /* the chapel, closing the axis the cathedral used to close */
+    stoneBox(grp, { x: 410, y: -420, w: 180, d: 100, h: 64, parapet: 6,
+                    windows: "lancet", ivy: true, noRoof: true,
+                    accent: S.color, seed: 7 });
+    gableRoof(grp, { x: 410, y: -420, w: 180, d: 100, z: 64, h: 40 });
+    stoneBox(grp, { x: 472, y: -452, w: 56, d: 56, h: 98, parapet: 5,
+                    windows: "grand", accent: S.color, seed: 9 });
+    spire(grp, 500, 98, -424, 56, 64);
+
+    /* flanking halls, west and east — scenery with the same masonry */
+    stoneBox(amb, { x: 262, y: -256, w: 104, d: 152, h: 56, parapet: 6,
+                    windows: "lancet", ivy: true, noRoof: true, seed: 8 });
+    gableRoof(amb, { x: 262, y: -256, w: 104, d: 152, z: 56, h: 30 });
+    stoneBox(amb, { x: 634, y: -256, w: 104, d: 152, h: 56, parapet: 6,
+                    windows: "lancet", ivy: true, noRoof: true, seed: 11 });
+    gableRoof(amb, { x: 634, y: -256, w: 104, d: 152, z: 56, h: 30 });
+
+    /* nameplate, in the chapel's gold */
+    const el = document.createElement("div");
+    el.className = "hall-tag";
+    el.style.setProperty("--glow", S.color);
+    el.innerHTML = `<div class="t1"><span class="flag"></span>${S.hall}</div>
+      <div class="t2">${S.track}</div>`;
+    const tag = new CSS2DObject(el);
+    tag.position.set(W(500), 150, W(-360));
+    world.add(tag);
+  }
   /* ── the outer world loads lazily: the core campus paints first,
         then the horizon landmarks and districts stream in (~40MB)
         without contending for first-load bandwidth ─────────────────── */
@@ -2839,10 +2827,12 @@ BUILDINGS.forEach(spec => {
        Stadium dead ahead down the boulevard, Pembroke Field to the
        southwest, the Pembroke Tennis Club southeast. A visitor can walk
        to all three, so they arrive before anything merely scenic. */
-    ["assets/gridiron.glb", { plane: [500, 1530], height: 110, maxFoot: [720, 700], sink: 3,
-      vista: "Pembroke Stadium", collider: "auto",
-      rotY: Math.PI,                     /* grand entrance faces the boulevard */
-      onLoaded: brandStadium }],
+    /* Pembroke Stadium stood here, dead ahead down the boulevard —
+       720 x 700 units and 3.1MB of it, the single largest thing on the
+       map. Removed along with the Moscow institute and, once the north
+       quad can take over its duties, the cathedral. The promenade south
+       still runs, because it always served three destinations and two
+       of them are still there. */
     ["assets/ballpark.glb", { plane: [-380, 1290], height: 62, maxFoot: [430, 440], sink: 2.5,
       vista: "Pembroke Field", collider: "auto" }],
     ["assets/tennis.glb",   { plane: [1270, 1280], height: 60, maxFoot: [500, 390], sink: 2.5,
@@ -2863,8 +2853,6 @@ BUILDINGS.forEach(spec => {
     ["assets/university.glb", {
       plane: [1620, 760], height: 300, rotY: Math.PI / 2, maxFoot: [900, 1400], sink: 4.5,
       vista: "The Town Beyond the Drive", collider: "auto" }],
-    ["assets/msu.glb", { plane: [1680, -420], height: 780, rotY: -2.4, maxFoot: [1150, 950],
-      vista: "The Distant Institute" }],
   ];
   /* One at a time, not all at once. Seven large models landing together
      put ~37MB of decode and texture upload on a phone simultaneously,
@@ -2903,46 +2891,6 @@ BUILDINGS.forEach(spec => {
   /* re-brand the football stadium: navy-and-gold Pembroke boards
      mounted over the scan's baked lettering (rotunda banners and the
      fascia band), placed at ray-probed model-local coordinates */
-  function brandStadium(root){
-    root.updateMatrixWorld(true);
-    const mkBoard = (w2, h2, draw) => {
-      const c = document.createElement("canvas");
-      c.width = 512; c.height = Math.max(64, Math.round(512 * h2 / w2));
-      const x = c.getContext("2d");
-      x.fillStyle = "#0f1b2d"; x.fillRect(0, 0, c.width, c.height);
-      x.strokeStyle = "#d4af6a"; x.lineWidth = Math.max(6, c.height * 0.045);
-      x.strokeRect(x.lineWidth / 2 + 2, x.lineWidth / 2 + 2, c.width - x.lineWidth - 4, c.height - x.lineWidth - 4);
-      draw(x, c.width, c.height);
-      const t = new THREE.CanvasTexture(c);
-      t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
-      return new THREE.Mesh(new THREE.PlaneGeometry(w2, h2),
-        new THREE.MeshStandardMaterial({ map: t, roughness: 0.55 }));
-    };
-    const mount = (board, px, py, pz, nx, ny, nz) => {
-      board.position.set(px + nx * 3.2, py + ny * 3.2, pz + nz * 3.2);
-      root.add(board);
-      root.updateMatrixWorld(true);
-      board.lookAt(root.localToWorld(new THREE.Vector3(px + nx * 40, py + ny * 40, pz + nz * 40)));
-    };
-    /* rotunda banners: gold P over PEMBROKE */
-    [[-45.3, -19.7, 169.6, 0.45, 0.03, 0.89], [89.7, -21.5, 107.5, 0.45, -0.02, 0.89]].forEach(p => {
-      const b = mkBoard(16, 21, (x, w2, h2) => {
-        x.fillStyle = "#d4af6a"; x.textAlign = "center";
-        x.font = "bold " + Math.round(h2 * 0.52) + "px Georgia"; x.textBaseline = "middle";
-        x.fillText("P", w2 / 2, h2 * 0.38);
-        x.font = "bold " + Math.round(h2 * 0.11) + "px Georgia";
-        x.fillText("PEMBROKE", w2 / 2, h2 * 0.78);
-      });
-      mount(b, ...p);
-    });
-    /* the fascia band: PEMBROKE STADIUM across the gate */
-    const band = mkBoard(68, 8.5, (x, w2, h2) => {
-      x.fillStyle = "#d4af6a"; x.textAlign = "center"; x.textBaseline = "middle";
-      x.font = "bold " + Math.round(h2 * 0.62) + "px Georgia";
-      x.fillText("PEMBROKE STADIUM", w2 / 2, h2 * 0.54);
-    });
-    mount(band, 18.9, -18, 130.7, 0.71, 0.09, 0.7);
-  }
   /* monument gateway signs — every venue reads Pembroke */
   const stadiumSign = (px, py, text, w2) => {
     const c = document.createElement("canvas"); c.width = 1024; c.height = 192;
@@ -3050,15 +2998,23 @@ BUILDINGS.forEach(spec => {
       pos.setXYZ(i, pos.getX(i) * j, pos.getY(i) * j * 0.88, pos.getZ(i) * j);
     }
     geo.computeVertexNormals();
+    /* Planted BESIDE the walking, never across it. Reported from the
+       live campus: "too cluttered with bushes in the walking areas...
+       take a few steps and walk into something."
+     *
+       The worst of it was a ring of ten shrub balls at radius 88 —
+       drawn around the fountain plaza, which is to say drawn around the
+       one part of the lawn everybody crosses. Gone entirely. The
+       fountain does not need a hedge around it to read as a fountain.
+
+       The door shrubs stay, because a doorway wants something either
+       side of it, but they move outward: the hall walks are 28 wide
+       now, so a shrub at 22 from the centreline stood IN one. */
     const SHRUBS = [];
     [[260,326],[740,306],[240,822],[735,832]].forEach(([dx2, dy2]) => {
-      SHRUBS.push([dx2 - 22, dy2 + 6, 7.5], [dx2 + 22, dy2 + 6, 6.5],
-                  [dx2 - 34, dy2 + 10, 5], [dx2 + 34, dy2 + 10, 5.5]);
+      SHRUBS.push([dx2 - 34, dy2 + 6, 7.5], [dx2 + 34, dy2 + 6, 6.5],
+                  [dx2 - 48, dy2 + 12, 5], [dx2 + 48, dy2 + 12, 5.5]);
     });
-    for (let k = 0; k < 10; k++){
-      const a = (k / 10) * Math.PI * 2 + 0.31;
-      SHRUBS.push([500 + 88 * Math.cos(a), 500 + 88 * Math.sin(a), 4.5 + (k % 3)]);
-    }
     const inst = new THREE.InstancedMesh(geo, hedgeMat, SHRUBS.length);
     inst.castShadow = true;
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
@@ -3150,8 +3106,14 @@ const EZ_SETS = { m011: [], m002: [], m010: [], l009: [] };
     const rad = a * Math.PI / 180;
     T[i % 3 === 2 ? "elm" : "maple"].push([500 + r * Math.cos(rad), 500 + r * Math.sin(rad), 0.95 + (a % 7) / 16]);
   });
-  /* four specimen maples on the great lawn (collidable) */
-  [[608,539],[463,608],[392,461],[537,392]].forEach(([px, py], i) => {
+  /* Four specimen maples, at the lawn's edge rather than in the middle
+     of it. They stood at radius 115 — out on the open grass between the
+     plaza and the ring, at angles that put them across the diagonal
+     desire lines — and they are the only collidable things on the lawn,
+     so crossing it meant walking into a tree. At 150 they sit just
+     inside the ring walk and frame the lawn instead of blocking it, and
+     the whole middle of the quad is walkable. */
+  [[606,606],[394,606],[394,394],[606,394]].forEach(([px, py], i) => {
     T.maple.push([px, py, 1.1 + (i % 3) * 0.06]);
     COLLIDERS.push({ x: px - 5, y: py - 5, w: 10, d: 10 });
   });
@@ -3195,7 +3157,7 @@ const EZ_SETS = { m011: [], m002: [], m010: [], l009: [] };
     const a = (i / 90) * Math.PI * 2 + (i % 7) * 0.09;
     const r = 700 + ((i * 149) % 520);
     const px = 500 + Math.cos(a) * r, py = 500 + Math.sin(a) * r;
-    if (px > 290 && px < 710 && py > -400 && py < 100) continue;   /* cathedral close */
+    if (px > 240 && px < 760 && py > -460 && py < 100) continue;   /* the North Quad */
     if (px > 1400 || (px < -300 && py < -200)) continue;            /* MSU, Cologne */
     if (px < -350 && py > 200 && py < 560) continue;                /* white cathedral */
     if (py > 1040 && px > -650 && px < 1550) continue;              /* athletics district */
@@ -3575,6 +3537,53 @@ gltf.load("assets/lamp.glb", (g) => {
     world.add(ch);
   });
 }
+/* ── somewhere to sit ─────────────────────────────────────────────────
+   Filled by the bench loader, so the seats are wherever the benches
+   actually went. A campus with sit clips and nowhere to sit puts people
+   on the grass with their hips at chair height, floating.
+
+   The caps are the ones asked for: sitting up to twenty minutes,
+   standing idle up to five, walking up to five. The DRAWN times are far
+   shorter than the ceilings, because a visit lasts a minute or two and
+   a student who sits for twenty of them is scenery, not behaviour. */
+/* ── somewhere to be ──────────────────────────────────────────────────
+   A campus is not people circulating between junctions. They are going
+   INTO buildings: a lecture, an hour in the library, back to a room.
+   Asked for as "walk to a building for a lecture, go inside for awhile
+   for a class, then they come out and go to a library or housing".
+
+   None of it needs an animation. Inside is not drawn — the student is
+   hidden at the door and put back there later — so this costs nothing
+   to render and it TAKES people off the quad rather than adding them,
+   which is the opposite of everything else in this file.
+
+   Doors come from the DOORS table the player's own prompt uses, so a
+   student walks to the same doorway you do. */
+const DOOR_RANGE = 900;           /* far enough that a lecture is worth the walk */
+const INSIDE_MS = [70000, 280000];        /* a class, or an hour with a book */
+const DOOR_COOL = 200000;         /* nobody attends four lectures in a row */
+const P_DOOR = 0.22;
+/* How much of the cast may be indoors at once. Without a ceiling they
+   all go: a probe run had every one of the eight roamers inside a
+   building simultaneously at t+150s, which is not a quiet campus, it is
+   an empty one — and a visitor who arrives during that sees nobody at
+   all and concludes the crowd is broken. A third is enough to make the
+   quad feel like it has somewhere else to be. */
+const INSIDE_SHARE = 1 / 3;
+const SEATS = [];
+const SIT_RANGE = 420;            /* how far someone will go for a seat */
+/* Two figures, because a sit is only as good as what plays during it.
+   With a seated LOOP the student is genuinely animated and can stay a
+   while — the ceiling asked for is twenty minutes. Without one the
+   seated pose is the sit-down's last frame held, plus breathing, and
+   holding that for four minutes is the statue this was supposed to get
+   rid of, sitting down. Observed in a probe run: one student seated,
+   unmoving, for 180 seconds and still going when the run ended. */
+const SEATED_MS = [45000, 240000];        /* with a loop; ceiling 20 min */
+const HELD_SEAT_MS = [14000, 34000];      /* a held pose wears out fast */
+const SIT_COOL = 180000;          /* before the same student sits again */
+const P_SIT = 0.35;
+
 /* "Campus Conversation" by restore50 stood here: a scanned group of
    students frozen mid-chat on the lawn, 1.55MB and 181,682 triangles.
    It was here because the campus had nobody on it. It now has fifteen
@@ -3589,6 +3598,25 @@ gltf.load("assets/bench.glb", (g) => {
     bench.position.set(Math.cos(a) * 118, 0, Math.sin(a) * 118);
     bench.rotation.y = -a + Math.PI / 2;
     world.add(bench);
+    /* Somewhere to sit, taken from the bench as it is placed rather
+       than written out again beside it — a second copy of these six
+       angles would be a second thing to keep in step, and a student
+       sitting a metre in front of a bench is worse than one who never
+       sits at all. Plane coordinates, because that is what a student's
+       pos is in: W maps plane to world by subtracting 500. */
+    SEATS.push({ x: Math.cos(a) * 118 + 500, y: Math.sin(a) * 118 + 500,
+                 face: bench.rotation.y, taken: null });
+  }
+  /* four more around the North Quad's lawn, same pattern, same deal */
+  for (let k = 0; k < 4; k++){
+    const a = (45 + 90 * k) * Math.PI / 180;
+    const bench = g.scene.clone(true);
+    bench.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    bench.position.set(Math.cos(a) * 88, 0, -680 + Math.sin(a) * 88);
+    bench.rotation.y = -a + Math.PI / 2;
+    world.add(bench);
+    SEATS.push({ x: Math.cos(a) * 88 + 500, y: Math.sin(a) * 88 - 180,
+                 face: bench.rotation.y, taken: null });
   }
 });
 
@@ -3695,6 +3723,13 @@ const EDGES = {};
      no way back to campus. */
   walk([[500, 1104], [330, 1148], [152, 1192], [-40, 1236]]);     /* west to the ballpark */
   walk([[500, 1104], [678, 1148], [854, 1190], [982, 1236]]);     /* east to the tennis   */
+  /* the North Quad: its own ring, joined to the processional at
+     [500,150] so the two quads are one graph and students drift
+     between them the way you do */
+  const nring2 = (k) =>
+    [500 + 120 * Math.cos(k * Math.PI / 4), -180 + 120 * Math.sin(k * Math.PI / 4)];
+  walk([0, 1, 2, 3, 4, 5, 6, 7].map(nring2), true);
+  walk([[500, 150], [500, 60], [500, 0], nring2(2)]);             /* the connector */
 }
 /* Somewhere to start that is not where everyone else started. Spread
    across the whole graph rather than taken in order, so the extras open
@@ -4362,19 +4397,133 @@ function prepFigure(k, height, live, clipIx = 0){
    The original walker is the exception and keeps its hand-named clips,
    because it has seven of them and they are known good. */
 const ROLE_CACHE = {};
+/* ── which clip is a person sitting down? ─────────────────────────────
+   Read off the hips, not the name. A clip arrives called whatever the
+   download was called, and three files offered as sitting animations
+   turned out to be a weightlifting snatch, a stand-up and someone
+   picking things off the floor. Names are not evidence.
+
+   The hips are. Every Mixamo clip animates hips POSITION, so the height
+   is in the track data — no mixer, no clone, no pose to put back:
+
+     both ends low     a seated loop
+     low -> high       standing up
+     both ends high    standing, and none of our business
+
+   0.62 of the bind-pose hip height is the line, which tools/check-sitting.mjs
+   arrived at the hard way: at 0.72 it called a jog a sit-down, because a
+   jog drops the hips to 0.68 at the bottom of a stride. Walker's real
+   seated pose sits at 0.48. */
+const SEATED_AT = 0.62;
+const _seatV = new THREE.Vector3(), _seatW = new THREE.Vector3();
+function seatRoles(src){
+  const out = { seat: null, rise: null, seated: new Set(), riseFrom: 1 };
+  if (!src.animations?.length) return out;
+
+  /* Evaluate the pose. Two cheaper readings were tried and both were
+     wrong, in the same way: they trusted a number without checking what
+     frame it was in.
+     
+     Dividing the hips track by the rest translation called walker's
+     Strut Walking a seated loop. Calibrating each clip against the
+     median of the others did no better. The dump says why — these
+     clips came from separate Mixamo downloads and their hips tracks do
+     not share a scale or an origin at all:
+     
+       Idle          mean 2.62      Sitting Talking  mean 1.56
+       Standard Walk mean 4.36      Strut Walking    mean 1.21
+       Start Walking mean 139.75 (root travel baked into the track)
+     
+     There is nothing to compare across those. So drive the mixer and
+     measure the hips against the FEET, which is a distance inside one
+     pose and cannot be in the wrong frame. On a clone, so no pose has
+     to be put back afterwards; once per body, cached with the roles. */
+  const probe = skeletonClone(src.scene);
+  let hips = null, foot = null;
+  probe.traverse(o => {
+    if (!o.isBone) return;
+    const k = boneKey(o.name);
+    if (!hips && /hip|pelvis/.test(k)) hips = o;
+    if (!foot && /foot/.test(k) && !/end|toe/.test(k)) foot = o;
+  });
+  if (!hips || !foot) return out;
+
+  const mixer = new THREE.AnimationMixer(probe);
+  const at = (act, t) => {
+    act.time = t;
+    mixer.setTime(t);
+    probe.updateMatrixWorld(true);
+    hips.getWorldPosition(_seatV); foot.getWorldPosition(_seatW);
+    return _seatV.y - _seatW.y;
+  };
+  const rows = [];
+  for (const c of src.animations){
+    const act = mixer.clipAction(c);
+    act.reset(); act.play(); act.setEffectiveWeight(1);
+    /* a little inside each end, so a single odd keyframe at t=0 does
+       not decide it */
+    const y0 = at(act, Math.min(0.05, c.duration * 0.02));
+    const y1 = at(act, Math.max(0, c.duration - Math.min(0.05, c.duration * 0.02)));
+    const mid = at(act, c.duration * 0.5);
+    act.stop(); mixer.uncacheAction(c);
+    rows.push({ name: c.name, dur: c.duration, y0, y1, mid });
+  }
+  mixer.uncacheRoot(probe);
+  if (!rows.length) return out;
+  /* standing height: the tallest reading anywhere in the cast of clips */
+  const stand = Math.max(...rows.map(r => Math.max(r.y0, r.y1, r.mid)));
+  if (!(stand > 1e-6)) return out;
+  const line = SEATED_AT * stand;
+  let bestSeat = -1;
+  for (const r of rows){
+    const lo0 = r.y0 <= line, lo1 = r.y1 <= line;
+    if (lo0 && lo1){
+      out.seated.add(r.name);
+      /* the longest seated loop, so a student settles rather than
+         cycling through a two-second one over and over */
+      if (r.dur > bestSeat){ bestSeat = r.dur; out.seat = r.name; }
+    } else if (lo0 && !lo1){
+      out.rise = r.name;                /* low to high: standing up */
+      out.riseFrom = r.y0 / stand;      /* ...from how far down? */
+    }
+  }
+  /* Where the rise STARTS decides where the student has to be sitting,
+     and the two clips have to agree or the hips jump between them.
+     Walker's pair does not: Standing Up begins at 0.01 of standing
+     height — flat on the floor — and Sitting Talking sits at 0.48,
+     which is a chair. Chaining those snaps the hips half a body.
+     
+     So a rise from the floor means sitting ON THE GROUND, and the
+     seated pose is the last frame of the sit-down held, which is by
+     construction exactly where the rise begins. A rise from chair
+     height can use the seated loop, because then they agree. */
+  if (out.rise && out.seat){
+    const seatRow = rows.find(r => r.name === out.seat);
+    const seatY = seatRow ? seatRow.mid / stand : 0;
+    if (Math.abs(seatY - out.riseFrom) > 0.15) out.seat = null;
+  }
+  return out;
+}
 function rolesOf(k, src){
   if (ROLE_CACHE[k]) return ROLE_CACHE[k];
+  const sit = seatRoles(src);
   if (k === "walker")
-    return (ROLE_CACHE[k] = { gaits: GAITS, idle: "Idle", start: "Start Walking" });
+    return (ROLE_CACHE[k] = { gaits: GAITS, idle: "Idle", start: "Start Walking",
+                              seat: sit.seat, rise: sit.rise, riseFrom: sit.riseFrom });
   const scored = src.animations
     .filter(c => c.duration > 0.2)                 /* an eye-blink is not a clip */
     .map(c => ({ name: c.name, cadence: (c.userData?.cycles || 0) / c.duration }));
   const gaits = scored.filter(c => c.cadence > 0.45).map(c => c.name);
-  const still = scored.filter(c => c.cadence <= 0.45).map(c => c.name);
+  /* A seated clip barely swings a thigh, so it scores as "still" and
+     would otherwise be handed straight to idle — leaving a student
+     sitting in mid-air every time they stopped walking. */
+  const still = scored.filter(c => c.cadence <= 0.45 && !sit.seated.has(c.name) &&
+                                   c.name !== sit.rise).map(c => c.name);
   /* No idle is not a fault, it is a fact about the download: a body
      with nothing to do when standing simply never stops walking. That
      reads far better than freezing someone mid-stride. */
-  const roles = { gaits, idle: still[0] || null, start: null };
+  const roles = { gaits, idle: still[0] || null, start: null,
+                  seat: sit.seat, rise: sit.rise, riseFrom: sit.riseFrom };
   ROLE_CACHE[k] = roles;
   return roles;
 }
@@ -4609,6 +4758,13 @@ const GAITS = ["Standard Walk", "Strut Walking", "Walk Forward"];
    cast and by the crowd behind them, so the two move under identical
    rules — an extra who walks differently from a classmate reads as a
    bug, however well dressed. */
+const MEET = 240;                 /* near enough to have noticed */
+const TALK_GAP = 30;              /* stand this far apart — outside SPACE */
+const TALK_MS = [8000, 20000];
+const LINGER_MS = [1800, 5200];
+const SOCIAL_COOL = 22000;        /* before this pair, or either, tries again */
+const P_MEET = 0.55;              /* chance of going over, when there is someone */
+const P_LINGER = 0.3;
 function makeRoamer(g, startKey, extra, forceGait){
   /* Whatever this body can actually do. The walker has three gaits and
      an idle; some bodies have one walk and nothing else, so they never
@@ -4661,7 +4817,12 @@ function makeRoamer(g, startKey, extra, forceGait){
               pos: [WAYPOINTS[startKey][0] + (open ? lane[0] : 0),
                     WAYPOINTS[startKey][1] + (open ? lane[1] : 0)],
               anim0: roles.idle, idleRate: 0.85 + Math.random() * 0.3,
-              phase: Math.random() * 9, walkT: 0, gait: 0, gait2: gait };
+              phase: Math.random() * 9, walkT: 0, gait: 0, gait2: gait,
+              /* walk | linger | approach | talk — see stepStudents.
+                 Staggered so the campus does not hold its first four
+                 conversations in the same ten seconds. */
+              mode: "walk", partner: null, until: 0,
+              socialAt: -Math.random() * SOCIAL_COOL };
   if (extra) Object.assign(s, extra);
   students.push(s);
   return s;
@@ -4948,11 +5109,24 @@ const VISIT = Math.floor(Math.random() * 1e6);
    people should be three different people, not three throws of the same
    die that might come up the same twice. */
 let castDeck = [];
+let castPass = 0;                      /* how many times the deck has been dealt */
 function nextBody(n){
   const pool = loadedRoaming();
   if (!pool.length) return null;
-  if (n === 0 || castDeck.length === 0){
-    castDeck = pool.slice();
+  if (n === 0){ castPass = 0; castDeck = []; }
+  if (castDeck.length === 0){
+    castPass++;
+    /* Everybody once, then only the ones a change of clothes can tell
+       apart. Four of the eight roaming bodies own no mesh the wardrobe
+       can dress — alina, nathan, kenta and isla wear what is in their
+       file — so a second copy of one of those is not a similar student,
+       it is the same student twice, down to the pixel. Reported as "too
+       many same people", and photographed: two identical men in red.
+       A second walker at least arrives in a different shirt.
+       Falls back to the whole pool if nothing loaded is dressable,
+       because a repeat beats an empty campus. */
+    const repeatable = pool.filter(k => CAST_DRESSABLE.includes(k));
+    castDeck = (castPass === 1 || !repeatable.length) ? pool.slice() : repeatable.slice();
     for (let i = castDeck.length - 1; i > 0; i--){
       const j = Math.floor(Math.random() * (i + 1));
       [castDeck[i], castDeck[j]] = [castDeck[j], castDeck[i]];
@@ -4975,10 +5149,17 @@ function addExtra(n){
      within the minute. */
   makeRoamer(g, ALL_WAYS[Math.floor(Math.random() * ALL_WAYS.length)]);
 }
-function stepCrowd(now, dt){
+function stepCrowd(now, dt, raw){
   /* a slow average, so one stutter — a model finishing its decode, a
-     texture uploading — does not permanently cap the campus */
-  crowdFps += (1 / Math.max(dt, 1e-4) - crowdFps) * Math.min(1, dt * 1.5);
+     texture uploading — does not permanently cap the campus.
+   *
+   * Measured on the RAW frame time, not the clamped dt. dt is capped so
+   * one long frame cannot teleport the campus, and reading the frame
+   * rate off it meant this governor saturated at the cap's reciprocal:
+   * it could not report a rate worse than 20, and it is comparing
+   * against a floor of 33. The one measurement whose job is to notice a
+   * slow device was structurally unable to see how slow. */
+  crowdFps += (1 / Math.max(raw ?? dt, 1e-4) - crowdFps) * Math.min(1, dt * 1.5);
   if (crowdDone || !crowdReady || crowdN >= CROWD_TARGET) return;
   /* Not while the campus is still arriving. 39MB of models decode on
      the main thread, and on a phone that is half a minute of frames the
@@ -5271,9 +5452,132 @@ function matchSpeed(s, name, speed){
    step that closes an already-short gap counts — otherwise two people
    who have ended up near each other could never walk apart again. */
 const SPACE = 27;
+/* ── people, rather than traffic ──────────────────────────────────────
+   Asked for: "1 is walking up to another and then they appear to start
+   talking then maybe after talking one or both start walking... it
+   should be like a true human experience of walking around a campus
+   and seeing people randomly."
+
+   Four modes and the transitions between them:
+
+     walk      heading for a waypoint
+     linger    stopped where they got to, for a few seconds
+     approach  closing on somebody to talk to
+     talk      standing, facing them
+
+   The decision is taken at a waypoint, which is where a person would
+   take it: carry on, stop a moment, or go and speak to whoever is in
+   sight. Everything else falls out of that — you round a corner and
+   two people are talking, and a minute later one of them is walking
+   past you somewhere else.
+
+   MEET is deliberately short. A student who notices somebody the width
+   of the campus away and marches over reads as a homing missile, not a
+   person; at 150 units they are near enough to have seen each other.
+   The cooldown stops the same two falling into conversation again the
+   moment they part. */
+function freeToTalk(s, now){
+  return !s.static && !s.orbit && s.pos && !s.seat && !s.inside &&
+         (s.mode === "walk" || s.mode === undefined) &&
+         now - (s.socialAt || -1e9) > SOCIAL_COOL;
+}
+/* Somebody nearby, unoccupied, and not just spoken to. Nearest wins:
+   walking past two people to reach a third is exactly the tell that
+   gives away a machine choosing. */
+function findPartner(self, now){
+  let best = null, bestD = MEET;
+  /* Never the same body twice. Two of the roaming bodies can appear on
+     the quad at once, and a pair of them standing face to face is the
+     "too many same people" report in its most obvious possible form —
+     a man talking to himself. Observed as "ariel + ariel" the first
+     time this ran. */
+  const mine = self.g?.userData?.figure;
+  for (const o of students){
+    if (o === self || !freeToTalk(o, now)) continue;
+    if (mine && o.g?.userData?.figure === mine) continue;
+    const d = Math.hypot(o.pos[0] - self.pos[0], o.pos[1] - self.pos[1]);
+    if (d < bestD && d > TALK_GAP){ bestD = d; best = o; }
+  }
+  return best;
+}
+/* Play a clip once, forwards or backwards, and say how long it runs.
+   Backwards is how a student sits down: there is a Standing Up clip and
+   no sitting-down clip anywhere on Mixamo that matched this skeleton,
+   and a stand-up reversed is a controlled lowering into a seat. Not
+   setClip, which crossfades and returns early when the clip is already
+   current — this needs the playhead put back to a specific end. */
+function playOnce(s, name, reverse){
+  const a = s.g.userData?.anim;
+  const act = a?.actions[name];
+  if (!act) return 0;
+  if (s.held) release(s);
+  const prev = a.current && a.actions[a.current];
+  if (prev && prev !== act) prev.fadeOut(0.2);
+  act.reset();
+  act.setLoop(THREE.LoopOnce, 1);
+  act.clampWhenFinished = true;      /* hold the last pose, do not snap back */
+  act.timeScale = reverse ? -1 : 1;
+  act.time = reverse ? act.getClip().duration : 0;
+  act.setEffectiveWeight(1).fadeIn(0.2).play();
+  a.current = name;
+  s.anim0 = name;
+  return act.getClip().duration * 1000;
+}
+/* The nearest door within reach, so a student goes to the building they
+   are actually near rather than marching across campus past three
+   others. Ties broken by distance alone — a preference for one hall
+   over another would show up as everyone attending the same lecture. */
+function indoorsNow(){
+  let n = 0, roamers = 0;
+  for (const o of students){
+    if (o.static || o.orbit) continue;
+    roamers++;
+    /* on their way counts as gone. Counting only those already through
+       the door let several set off together and all arrive: a probe
+       measured five indoors against a cap of four. */
+    if (o.inside || o.mode === "todoor") n++;
+  }
+  return { n, cap: Math.max(1, Math.floor(roamers * INSIDE_SHARE)) };
+}
+function nearestDoor(s){
+  const { n, cap } = indoorsNow();
+  if (n >= cap) return null;             /* enough of the campus is away */
+  let best = null, bestD = DOOR_RANGE;
+  for (const d of DOORS){
+    const dist = Math.hypot(d.x - s.pos[0], d.y - s.pos[1]);
+    if (dist < bestD){ bestD = dist; best = d; }
+  }
+  return best;
+}
+/* Where does the waypoint graph pick up again? A student who comes out
+   of a door is standing at a doorway, not at a junction, and walking
+   on from whichever node they last remembered would send them back
+   across the campus in a straight line through a building. */
+function nearestWaypoint(pos){
+  let best = null, bestD = Infinity;
+  for (const k in WAYPOINTS){
+    const w = WAYPOINTS[k];
+    const d = Math.hypot(w[0] - pos[0], w[1] - pos[1]);
+    if (d < bestD){ bestD = d; best = k; }
+  }
+  return best;
+}
+function freeSeat(from){
+  let best = null, bestD = SIT_RANGE;
+  for (const seat of SEATS){
+    if (seat.taken) continue;
+    const d = Math.hypot(seat.x - from.pos[0], seat.y - from.pos[1]);
+    if (d < bestD){ bestD = d; best = seat; }
+  }
+  return best;
+}
+function leaveSeat(s){
+  if (s.seat && s.seat.taken === s) s.seat.taken = null;
+  s.seat = null;
+}
 function crowded(self, nx, ny){
   for (const o of students){
-    if (o === self || !o.pos) continue;
+    if (o === self || !o.pos || o.inside) continue;
     const d2 = (o.pos[0] - nx) ** 2 + (o.pos[1] - ny) ** 2;
     if (d2 > SPACE * SPACE) continue;
     const was = (o.pos[0] - self.pos[0]) ** 2 + (o.pos[1] - self.pos[1]) ** 2;
@@ -5305,8 +5609,179 @@ function stepStudents(dt, now){
       continue;
     }
     let moving = false;
-    if (now < s.pauseUntil){ /* idle */ }
+    /* ── going inside, and coming back out ───────────────────────────
+       Walk to a door, vanish through it, and reappear there later.
+       Hidden rather than removed: the student keeps their place in
+       students[], their clothes, their body and their history, so the
+       person who comes out is the person who went in — which is what
+       makes seeing them again somewhere else read as recognition
+       rather than as a new spawn. */
+    if (s.mode === "todoor"){
+      const d = s.door;
+      if (!d){ s.mode = "walk"; }
+      else {
+        const dx = d.x - s.pos[0], dy = d.y - s.pos[1];
+        const gap = Math.hypot(dx, dy);
+        if (gap < 10){
+          s.mode = "inside";
+          s.inside = true;
+          s.until = now + INSIDE_MS[0] + Math.random() * (INSIDE_MS[1] - INSIDE_MS[0]);
+          s.g.visible = false;
+          continue;
+        }
+        s.pos[0] += dx / gap * s.speed * dt;
+        s.pos[1] += dy / gap * s.speed * dt;
+        s.g.rotation.y = Math.atan2(dx, dy);
+        s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+        stepMotion(s, true, now, dt);
+        continue;
+      }
+    }
+    if (s.mode === "inside"){
+      if (now < s.until) continue;      /* not drawn, not stepped, not there */
+      s.mode = "walk";
+      s.inside = false;
+      s.g.visible = true;
+      s.doorAt = now;
+      /* out of the same doorway, facing the campus rather than the wall */
+      s.pos[0] = s.door.x; s.pos[1] = s.door.y;
+      s.g.rotation.y = Math.atan2(500 - s.pos[0], 500 - s.pos[1]);
+      s.door = null;
+      s.target = null;
+      s.node = nearestWaypoint(s.pos) ?? s.node;
+      s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+    }
+    /* ── sitting down, sitting, standing up ──────────────────────────
+       One cycle, in one direction, and never straight back into
+       another: sit down, stay a while, stand up, walk away. A student
+       who sits and stands and sits again on the same bench is the thing
+       that most gives away a machine, so standing up starts a cooldown
+       rather than a fresh roll.
+
+       The seat is claimed on the way there, not on arrival. Two
+       students converging on one bench and both sitting in it is worse
+       than one of them walking a little further. */
+    if (s.mode === "toseat"){
+      const seat = s.seat;
+      if (!seat){ s.mode = "walk"; }
+      else {
+        const dx = seat.x - s.pos[0], dy = seat.y - s.pos[1];
+        const d = Math.hypot(dx, dy);
+        if (d < 3){
+          s.mode = "sitdown";
+          s.g.rotation.y = seat.face;
+          s.pos[0] = seat.x; s.pos[1] = seat.y;
+          s.until = now + (playOnce(s, s.roles.rise, true) || 1200);
+          s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+          continue;
+        }
+        s.pos[0] += dx / d * s.speed * dt;
+        s.pos[1] += dy / d * s.speed * dt;
+        s.g.rotation.y = Math.atan2(dx, dy);
+        s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+        stepMotion(s, true, now, dt);
+        continue;
+      }
+    }
+    if (s.mode === "sitdown" || s.mode === "seated" || s.mode === "standup"){
+      if (now < s.until){
+        s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+        continue;                     /* the clip has the whole body */
+      }
+      if (s.mode === "sitdown"){
+        s.mode = "seated";
+        const span = s.roles.seat ? SEATED_MS : HELD_SEAT_MS;
+        s.until = now + span[0] + Math.random() * (span[1] - span[0]);
+        /* No loop that meets the sit-down? Then the pose it finished on
+           IS the seated pose — clampWhenFinished is already holding it,
+           and breathe() gives it a chest. Nothing to cross-fade to, and
+           nothing to jump. */
+        const act = s.roles.seat ? s.g.userData.anim?.actions[s.roles.seat] : null;
+        if (!act) s.held = true;
+        if (act){
+          act.reset();
+          act.setLoop(THREE.LoopRepeat, Infinity);
+          act.clampWhenFinished = false;
+          act.timeScale = s.idleRate;
+          act.setEffectiveWeight(1).fadeIn(0.3).play();
+          const prev = s.g.userData.anim.current;
+          if (prev && prev !== s.roles.seat) s.g.userData.anim.actions[prev]?.fadeOut(0.3);
+          s.g.userData.anim.current = s.roles.seat;
+          s.anim0 = s.roles.seat;
+        }
+      } else if (s.mode === "seated"){
+        s.mode = "standup";
+        s.until = now + (playOnce(s, s.roles.rise, false) || 1200);
+      } else {
+        s.mode = "walk";
+        s.sitAt = now;                /* not again for a while */
+        s.held = false;
+        leaveSeat(s);
+        s.target = null;
+        s.pauseUntil = now + 200 + Math.random() * 600;
+      }
+      s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+      continue;
+    }
+    /* ── standing and talking ────────────────────────────────────────
+       Two students who have decided to talk walk to TALK_GAP of each
+       other, turn to face, and stand there for a while. Nothing else
+       drives them until the clock runs out.
+
+       TALK_GAP sits OUTSIDE personal space on purpose. crowded() below
+       refuses any step that closes a gap under SPACE, so a pair told to
+       stand at 20 would approach to 27, be refused, hang back, try
+       again, and never arrive — the rule that keeps strangers from
+       overlapping is the same rule that would stop anyone ever walking
+       up to anyone. Standing a little further apart costs nothing and
+       needs no exception. */
+    if (s.mode === "talk"){
+      const p = s.partner;
+      if (!p || p.mode !== "talk" || p.partner !== s || now > s.until){
+        s.mode = "walk"; s.partner = null; s.socialAt = now;
+        /* a beat before setting off, so a conversation ends rather than
+           cuts */
+        s.pauseUntil = now + 300 + Math.random() * 900;
+      } else {
+        s.g.rotation.y = Math.atan2(p.pos[0] - s.pos[0], p.pos[1] - s.pos[1]);
+        s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+        stepMotion(s, false, now, dt);
+        continue;
+      }
+    }
+    if (s.mode === "approach"){
+      const p = s.partner;
+      if (!p || p.partner !== s || now > s.until){        /* gave up waiting */
+        s.mode = "walk"; s.partner = null; s.socialAt = now;
+      } else {
+        const dx = p.pos[0] - s.pos[0], dy = p.pos[1] - s.pos[1];
+        const gap = Math.hypot(dx, dy);
+        if (gap <= TALK_GAP + 3){
+          /* Only once BOTH have arrived, or one stands talking to
+             somebody still walking towards them. */
+          if (p.mode === "approach" || p.mode === "talk"){
+            const secs = TALK_MS[0] + Math.random() * (TALK_MS[1] - TALK_MS[0]);
+            s.mode = "talk"; s.until = now + secs;
+            if (p.mode === "approach"){ p.mode = "talk"; p.until = now + secs; }
+          }
+          s.g.rotation.y = Math.atan2(dx, dy);
+          s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+          stepMotion(s, false, now, dt);
+          continue;
+        }
+        const nx = s.pos[0] + dx / gap * s.speed * dt;
+        const ny = s.pos[1] + dy / gap * s.speed * dt;
+        s.pos[0] = nx; s.pos[1] = ny;
+        s.g.rotation.y = Math.atan2(dx, dy);
+        s.g.position.set(W(nx), 0, W(ny));
+        stepMotion(s, true, now, dt);
+        continue;
+      }
+    }
+    if (now < s.pauseUntil){ /* standing */ }
     else {
+      if (s.mode === "linger") s.mode = "walk";
+      if (s.seat && s.mode === "walk") leaveSeat(s);
       if (!s.target){
         const opts = EDGES[s.node];
         s.target = opts[Math.floor(Math.random() * opts.length)];
@@ -5326,10 +5801,67 @@ function stepStudents(dt, now){
         s.node = s.target; s.target = null;
         /* Standing about is most of what people do on a campus, and a
            student who stops is a student not adding to the queue behind
-           them. Two thirds pause at each waypoint, for longer than they
-           used to. */
-        if (s.roles?.idle && Math.random() < 0.66)
-          s.pauseUntil = now + 1400 + Math.random() * 5200;
+           them.
+         *
+         * It was two thirds pausing for up to 6.6s, which at any moment
+         * left about half the campus standing — reported as "too many
+         * frozen people, just 1 or 2 walking around". Half a campus
+         * standing is realistic and it does not read as realistic: a
+         * still figure looks broken in a way a walking one does not,
+         * and at this crowd size there is no queue to relieve. A third,
+         * for a third as long. */
+        /* Arrived. Three things a person does here: go and talk to
+           somebody, stand a moment, or carry on. */
+        /* Somebody to speak to first, then somewhere to be. Both were
+           asked for, but they are not worth the same: a conversation
+           runs eight to twenty seconds and is the thing a visitor
+           actually catches, while a lecture takes a student off the
+           quad for minutes. Putting the lecture first let it preempt
+           the talking and the campus went quiet — 23% of the cast
+           indoors and conversations down to 2% of student-time. */
+        const other = (now - (s.socialAt || -1e9) > SOCIAL_COOL && Math.random() < P_MEET)
+          ? findPartner(s, now) : null;
+        if (other){
+          const wait = now + 14000;         /* if we cannot reach them, give up */
+          s.mode = "approach"; s.partner = other; s.until = wait; s.target = null;
+          other.mode = "approach"; other.partner = s; other.until = wait;
+          other.target = null; other.pauseUntil = 0;
+          s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+          continue;
+        }
+        const door = (now - (s.doorAt || -1e9) > DOOR_COOL && Math.random() < P_DOOR)
+          ? nearestDoor(s) : null;
+        if (door){
+          s.door = door; s.mode = "todoor"; s.target = null;
+          s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+          continue;
+        }
+        /* A seat next, if this body can sit at all and has not just
+           got up. Sitting is the longer, more legible thing to do; a
+           student who would otherwise stand about for four seconds is
+           better spent walking to a bench. */
+        const canSit = s.roles?.rise && now - (s.sitAt || -1e9) > SIT_COOL &&
+                       Math.random() < P_SIT;
+        /* On the ground where they stand, or on a bench — decided by
+           where this body's rise clip begins, not by preference. */
+        const onGround = canSit && (s.roles.riseFrom ?? 1) < 0.25;
+        const seat = (canSit && !onGround && s.roles.seat) ? freeSeat(s) : null;
+        if (seat){
+          seat.taken = s;             /* claimed on the way, not on arrival */
+          s.seat = seat; s.mode = "toseat"; s.target = null;
+          s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+          continue;
+        }
+        if (onGround){
+          s.mode = "sitdown"; s.target = null;
+          s.until = now + (playOnce(s, s.roles.rise, true) || 1200);
+          s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+          continue;
+        }
+        if (s.roles?.idle && Math.random() < P_LINGER){
+          s.mode = "linger";
+          s.pauseUntil = now + LINGER_MS[0] + Math.random() * (LINGER_MS[1] - LINGER_MS[0]);
+        }
       } else {
         const nx = s.pos[0] + dx / dist * s.speed * dt;
         const ny = s.pos[1] + dy / dist * s.speed * dt;
@@ -5347,6 +5879,14 @@ function stepStudents(dt, now){
         }
       }
     }
+    stepMotion(s, moving, now, dt);
+  }
+}
+/* Which clip, at what pace — the same answer whether the student is
+   walking a path, closing on somebody to talk to, or standing still
+   having got there. Pulled out of stepStudents so the social modes can
+   ask it too rather than reimplementing the choice and drifting. */
+function stepMotion(s, moving, now, dt){
     if (s.g.userData.anim){
       /* walking or standing about, and the clip supplies every bit of the
          motion — no faked bob, no swaying, no procedural limbs */
@@ -5407,7 +5947,6 @@ function stepStudents(dt, now){
       s.g.rotation.z = idleSway;
       s.g.position.set(W(s.pos[0]), bounce, W(s.pos[1]));
     }
-  }
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -5941,7 +6480,7 @@ const wing = wingEl;
 const DOORS = [
   { sector:"lib", x:260, y:326 }, { sector:"eng", x:740, y:306 },
   { sector:"sci", x:240, y:822 }, { sector:"adm", x:735, y:832 },
-  { sector:"cathedral", x:500, y:118 },
+  { sector:"cathedral", x:500, y:-300 },   /* the chapel, on the North Quad */
 ];
 const walker = { on:false, x:500, y:802, h:0, eye:34, bobT:0, door:null, keys:{}, zoom:1 };
 const WALK_FOV = 62;                  /* wide enough to see your feet and the path */
@@ -6218,6 +6757,7 @@ let lastT = performance.now();
       Off by default; costs nothing when the flag is absent. ──────── */
 const DEBUG = q.has("debug");
 let dbgEl = null, dbgFrames = 0, dbgAcc = 0, dbgMin = 1e9, dbgNext = 0, dbgFirst = 0;
+let dbgSlowest = 0;   /* longest single frame, in seconds */
 if (DEBUG){
   /* The panel lands squarely on the wing intro, and two blocks of text
      over one another are worth neither. Anyone who has typed ?debug
@@ -6231,12 +6771,17 @@ if (DEBUG){
     "padding:9px 11px;max-width:19rem;max-height:72vh;overflow:hidden;";
   document.getElementById("stage").appendChild(dbgEl);
 }
-function dbgUpdate(now, dt){
+/* raw, not the clamped dt: see the render loop. Totalling the clamped
+   value made this saturate at the clamp's reciprocal and report that
+   same number forever, exactly when the frame rate was worth knowing. */
+function dbgUpdate(now, dt, raw){
   if (!DEBUG) return;
   if (!dbgFirst) dbgFirst = now;
-  dbgFrames++; dbgAcc += dt;
-  const inst = 1 / Math.max(dt, 1e-4);
+  const real = Math.max(raw ?? dt, 1e-4);
+  dbgFrames++; dbgAcc += real;
+  const inst = 1 / real;
   if (now - dbgFirst > 3000 && inst < dbgMin) dbgMin = inst;   /* skip warm-up */
+  if (real > dbgSlowest) dbgSlowest = real;
   if (now < dbgNext) return;
   dbgNext = now + 500;
   const fps = dbgAcc > 0 ? dbgFrames / dbgAcc : 0;
@@ -6258,9 +6803,21 @@ function dbgUpdate(now, dt){
     .map(a => "  " + (a.name + "                    ").slice(0, 19) + " " +
               (a.ms / 1000).toFixed(1) + "s" + (a.err ? "  " + a.why : "")).join("\n");
   const last = done.length ? Math.max(...done.map(a => a.t0 + a.ms)) : 0;
+  /* The worker answers with its own VERSION; a mismatch means this page
+     was served out of an older cache and one more reload will replace
+     it. Said plainly, because a stale build and an unfixed bug look
+     identical in a photograph of a phone. */
+  const sw = window.__swVersion;
+  const build = "build  " + BUILD +
+    (!sw ? "   (no worker yet)"
+         : sw === BUILD ? ""
+         : "   STALE: worker is serving " + sw + " — reload again") + "\n";
   dbgEl.textContent =
-    "PEMBROKE · DIAGNOSTICS\n" +
-    "fps    " + fps.toFixed(0) + "   worst " + (dbgMin < 1e8 ? dbgMin.toFixed(0) : "–") + "\n" +
+    "PEMBROKE · DIAGNOSTICS\n" + build +
+    "fps    " + fps.toFixed(1) + "   worst " + (dbgMin < 1e8 ? dbgMin.toFixed(1) : "–") +
+      "   slowest frame " + (dbgSlowest * 1000).toFixed(0) + "ms\n" +
+    (fps < 10 ? "       SLOW MOTION: the campus runs at " +
+                (fps / 10).toFixed(2) + "x real time below 10fps\n" : "") +
     "gpu    " + ((glInfo || "unknown").slice(0, 30)) + "\n" +
     "post   " + (softGL ? "reduced (soft GL)" : "ssao+bloom+smaa") + "\n" +
     "draws  " + inf.render.calls + "   tris " + (inf.render.triangles / 1e6).toFixed(2) + "M\n" +
@@ -6281,15 +6838,30 @@ function dbgUpdate(now, dt){
 renderer.setAnimationLoop(() => {
   renderer.info.reset();                  /* totals accumulate across every pass below */
   const now = performance.now();
-  const dt = Math.min(0.05, (now - lastT) / 1000);
+  /* The real gap, kept separate from the clamped one. The panel used to
+     total the CLAMPED dt to work out the frame rate, which meant that
+     once every frame ran longer than the clamp the sum was always
+     frames x clamp and the answer was always exactly the clamp's
+     reciprocal. A phone at four frames a second reported twenty, and
+     "fps 20 worst 20" was not a reading at all — it was the metric
+     hitting its floor and saying nothing. */
+  const raw = (now - lastT) / 1000;
+  /* Clamped so one long frame cannot teleport the campus — a tab
+     restored after a minute would otherwise advance everything by a
+     minute in a single step. Raised from 0.05: below the clamp the
+     world runs in slow motion, because it advances by the clamp rather
+     than by the time that actually passed, and at 0.05 that began at
+     20fps — which this device sits under. At 0.1 the campus keeps real
+     time down to 10fps and only then starts to slow. */
+  const dt = Math.min(0.1, raw);
   lastT = now;
   /* Everything below this line is the campus. In a conversation none of
      it is on screen, so none of it runs — not the crowd ramp, not the
      walk graph, not the day cycle, not the detail pass, not the
      minimap, and not sixty skeletons' worth of mixers. That is where
      the 887 draws go. */
-  if (convoView){ convoFrame(dt); dbgUpdate(now, dt); return; }
-  stepCrowd(now, dt);
+  if (convoView){ convoFrame(dt); dbgUpdate(now, dt, raw); return; }
+  stepCrowd(now, dt, raw);
   stepStudents(dt, now);
   if (walker.on) walkUpdate(dt);
   else { stepFlight(now); controls.update(); }
@@ -6339,7 +6911,7 @@ renderer.setAnimationLoop(() => {
     labelRenderer.render(world, camera);
     composer.render();
   }
-  dbgUpdate(now, dt);
+  dbgUpdate(now, dt, raw);
 });
 resize();
 
@@ -7184,6 +7756,30 @@ function convoFrame(dt){
 /* test/debug hooks: the cast, and the conversation they can be pulled
    into. `named` is the eight with a dossier — the crowd are strangers. */
 window.__students = students;
+/* test/debug hook: advance the crowd without painting.
+ *
+ * Everything the students decide, they decide on arriving at a
+ * waypoint — whether to stop, and whether to go and talk to somebody.
+ * A headless browser draws this campus at about a tenth of a frame a
+ * second, so in two minutes of wall clock nobody reaches a waypoint at
+ * all and none of that behaviour can be observed. Two separate
+ * investigations in this repository have measured the harness and
+ * reported it as the campus: "students crawl" and "nobody is walking"
+ * were both the rasterizer, not the code.
+ *
+ * So this steps the simulation and nothing else. No render, no mixers,
+ * no clock: just the crowd, at whatever rate is asked for.
+ *
+ * The clock it hands stepStudents runs ahead of performance.now(),
+ * which is why this is a test hook and not something the page uses —
+ * afterwards the real loop will pass a smaller `now` and anyone left
+ * mid-pause stays paused until the world catches up. Fine for a probe
+ * that is about to be thrown away, wrong for anything else. */
+window.__sim = (steps = 900, dt = 1 / 30) => {
+  let t = performance.now();
+  for (let i = 0; i < steps; i++){ t += dt * 1000; stepStudents(dt, t); }
+  return { steps, simulated: +(steps * dt).toFixed(1) };
+};
 window.__convo = { open: convoOpen, close: convoClose, on: () => !!convoView,
                    named: () => students.filter(s => s.data) };
 

@@ -34,7 +34,7 @@
  * BUMP VERSION whenever anything under assets/ changes, or returning
  * visitors keep the old models forever.
  */
-const VERSION = "pembroke-v42";
+const VERSION = "pembroke-v47";
 const SHELL = VERSION + "-shell";
 const DEPOT = VERSION + "-assets";
 
@@ -57,6 +57,15 @@ async function keep(cache, url){
   if (!res || !res.ok) throw new Error("precache failed: " + url);
   await cache.put(url, res);
 }
+
+/* Which worker is actually serving this page? The page cannot read it
+   any other way, and it is the one fact that settles "am I looking at
+   the new build or a cached old one" — a question that has now cost
+   real time to answer from a screenshot. */
+self.addEventListener("message", (e) => {
+  if (e.data && e.data.type === "version")
+    e.source?.postMessage({ type: "version", version: VERSION });
+});
 
 self.addEventListener("install", (e) => {
   /* Deliberately allowed to fail. Swallowing an error here and calling

@@ -22,11 +22,30 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # --since below diffs the inbox against the push
 
+      # Build what this push edited, not the whole file. Every block used
+      # to be rebuilt on every run, which re-downloads each character and
+      # overwrites whatever has happened to it since — the metalrough
+      # conversion that recovered two bodies' colour, the idle clips the
+      # other courier landed. Adding one clip to one student should not
+      # put the other eight back to their download.
+      #
+      # workflow_dispatch has no "before", so a manual run still builds
+      # everything, which is the escape hatch when that is what you want.
       - name: Read the inbox
         id: plan
         run: |
-          python3 tools/mixamo-plan.py tools/mixamo-inbox.txt /tmp/plan
+          before='${{ github.event.before }}'
+          case "$before" in
+            ''|0000000000000000000000000000000000000000)
+              echo "no previous commit to diff against — building every block"
+              python3 tools/mixamo-plan.py tools/mixamo-inbox.txt /tmp/plan ;;
+            *)
+              python3 tools/mixamo-plan.py tools/mixamo-inbox.txt /tmp/plan --since "$before"
+              echo "edited=yes" >> "$GITHUB_OUTPUT" ;;
+          esac
           n=$(ls /tmp/plan 2>/dev/null | wc -l)
           echo "blocks=$n" >> "$GITHUB_OUTPUT"
 
@@ -50,6 +69,15 @@ jobs:
 
       - name: Fetch and build
         if: steps.plan.outputs.blocks != '0'
+        env:
+          # A block only reaches the plan if this push edited it, so the
+          # "already built" skip below has nothing left to protect: it is
+          # there to stop a run re-fetching characters nobody asked
+          # about, and with --since nobody else is in the plan. Without
+          # this, editing a block was a no-op — which is exactly what
+          # happened when three clips were added to walker and the run
+          # reported success having built nothing.
+          REBUILD_ALL: ${{ steps.plan.outputs.edited == 'yes' && '1' || '' }}
         run: |
           set -o pipefail
           failed_any=0
@@ -316,6 +344,18 @@ jobs:
             echo "::error::VERSION did not bump — still pembroke-v$got, wanted pembroke-v$next"
             exit 1
           fi
+          # index.html carries the same string as BUILD, printed in the
+          # ?debug panel and compared against what the worker reports so
+          # a stale cache can be told apart from an unfixed bug. Bumping
+          # one without the other makes every page claim to be stale, and
+          # check-sw-version.sh fails the next PR for the drift. Checked,
+          # not assumed, for the same reason the line above is.
+          sed -i "s/^const BUILD = \"pembroke-v$cur\";$/const BUILD = \"pembroke-v$next\";/" index.html
+          build=$(sed -n 's/^const BUILD = "pembroke-v\([0-9][0-9]*\)";$/\1/p' index.html)
+          if [ "$build" != "$next" ]; then
+            echo "::error::index.html BUILD did not bump — still pembroke-v$build, wanted pembroke-v$next"
+            exit 1
+          fi
           echo "cache version: pembroke-v$cur -> pembroke-v$next"
 
       - name: Commit
@@ -323,7 +363,7 @@ jobs:
         run: |
           git config user.name "pembroke-asset-courier"
           git config user.email "actions@users.noreply.github.com"
-          git add assets sw.js
+          git add assets sw.js index.html
           git commit -m "Courier: build $(ls /tmp/plan | grep -c '^block-') character(s) from Mixamo" \
             || { echo "nothing changed"; exit 0; }
           git push origin HEAD:${{ github.ref_name }}

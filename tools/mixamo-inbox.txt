@@ -34,6 +34,30 @@ Walk_Forward    https://drive.google.com/file/d/1bdGGSIPtRIBZsssxPMuLSHixs781OT1
 Idle            https://drive.google.com/file/d/1aw-oEHfcGVtozFy2JLQXy8NecFK7zaXx/view
 Standard_Walk   https://drive.google.com/file/d/1rJdHfnkXFza8BcSSoweajDVVwYZs4FB-/view
 Sitting_Talking https://drive.google.com/file/d/1LPSnmgWqpgAT1SCbs7wCBH1k2hSgQVtx/view
+# Standing up, which with Sitting_Talking above completes the whole
+# seated cycle: sit down is this clip played backwards (timeScale -1),
+# the seated loop is Sitting_Talking, and standing up is this. One
+# download rather than three.
+#
+Standing_Up     https://drive.google.com/file/d/101SKrfyvhBdwGS4ngvrEx-xKJ3qmipdA/view
+# Snatch.fbx was landed here and then removed, having been rendered:
+#
+#   0.00s  deep crouch      0.48s  rising, bent forward
+#   0.96s  standing         1.20s  crouch again — the LOOP, not the motion
+#
+# One direction, crouch to standing in about a second. It reads as a sit
+# and a stand in Mixamo's preview because that preview loops: crouch,
+# stand, snap back, over and over. Not a pair of clips, and not usable
+# as one — reversed it is a 1.2 second drop into a squat, which is too
+# fast to read as sitting and ends in a squat rather than a seat.
+#
+# Standing Up beats it for the ground sit on both counts: it begins at
+# floor level rather than mid-squat, and takes 6.1 seconds, which is
+# what a person lowering themselves actually looks like.
+#
+# Worth keeping the shape of that check: the name said weightlifting,
+# the hips said standing-up, and only the render said which second of it
+# was which.
 
 # ── a finished character ─────────────────────────────────────────────
 # A block can also be a single link to a GLB that is already a rigged,

@@ -23,6 +23,28 @@ if ! git rev-parse --verify --quiet "$base" >/dev/null; then
   exit 0
 fi
 
+# The ?debug panel prints BUILD from index.html and compares it against
+# the version the worker reports, to tell a stale cache apart from an
+# unfixed bug. That only works while the two agree, and nothing about
+# editing one makes you edit the other — so check it every run, whether
+# or not any asset moved.
+build="$(sed -n 's/^const BUILD = "\(.*\)";$/\1/p' index.html)"
+version="$(sed -n 's/^const VERSION = "\(.*\)";$/\1/p' sw.js)"
+if [ -z "$build" ] || [ -z "$version" ]; then
+  echo "could not read BUILD from index.html ('$build') or VERSION from sw.js ('$version')"
+  exit 1
+fi
+if [ "$build" != "$version" ]; then
+  echo
+  echo "index.html BUILD is '$build' but sw.js VERSION is '$version'."
+  echo
+  echo "The debug panel reads BUILD and compares it to what the worker"
+  echo "reports, so a drift here makes every page claim to be stale —"
+  echo "or worse, makes a genuinely stale page look current."
+  exit 1
+fi
+echo "BUILD and VERSION agree at $build"
+
 changed_assets="$(git diff --name-only "$base"...HEAD -- assets/ | grep -viE '\.md$' || true)"
 if [ -z "$changed_assets" ]; then
   echo "no asset changes — VERSION bump not required"

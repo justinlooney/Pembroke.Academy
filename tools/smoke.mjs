@@ -140,6 +140,25 @@ const acrossReload = async (fn) => {
 page.on("console", m => {
   if (m.type() !== "error") return;
   if (navigating && /Couldn't load texture blob:/.test(m.text())) return;
+  /* "Failed to load resource: the server responded with a status of 404"
+     is Chromium echoing a request that the response handler below has
+     already seen — WITH its URL, which this message does not carry. So
+     this one is a duplicate that cannot say what it is about, and it
+     went red on a fonts.gstatic.com hiccup that the response handler
+     had already, correctly, decided was not ours. Twice: the first fix
+     taught the response handler about other people's CDNs and left this
+     one still shouting anonymously.
+
+     Dropping it loses no coverage. Anything this repository serves
+     arrives at page.on("response") with a URL and is counted there, and
+     a request that never got a response at all lands in requestfailed. */
+  if (/Failed to load resource/i.test(m.text())){
+    const where = m.location?.().url || "";
+    console.log("  ..   ignoring an anonymous load failure" +
+                (where ? " from " + where.replace(/^(\w+:\/\/[^/]+).*/, "$1") : "") +
+                " — the response handler has the real one");
+    return;
+  }
   errors.push("console: " + m.text());
 });
 page.on("requestfailed", r => {
@@ -192,7 +211,8 @@ try {
   /* walk mode: stand at the cathedral doors and expect the prompt */
   step("walk mode engages", await pressUntil("f", () => window.__walker.on === true));
 
-  await page.evaluate(() => { const w = window.__walker; w.x = 500; w.y = 132; w.h = 0; });
+  /* the chapel lives on the North Quad now — same sector key, new door */
+  await page.evaluate(() => { const w = window.__walker; w.x = 500; w.y = -292; w.h = 0; });
   const doored = await page
     .waitForFunction(() => window.__walker.door === "cathedral", null, { timeout: 180_000 })
     .then(() => true, () => false);
@@ -474,7 +494,9 @@ try {
     const { WAYPOINTS, EDGES } = window.__ways;
     /* the halls and their towers, in plane coordinates */
     const BOX = [[150,150,220,160], [645,150,190,140], [140,660,200,150], [640,650,190,170],
-                 [238,182,92,92], [668,168,66,66], [212,680,72,72], [700,702,78,78]];
+                 [238,182,92,92], [668,168,66,66], [212,680,72,72], [700,702,78,78],
+                 /* the North Quad: chapel + its tower, west hall, east hall */
+                 [410,-420,180,100], [472,-452,56,56], [262,-256,104,152], [634,-256,104,152]];
     const bad = [];
     for (const [from, tos] of Object.entries(EDGES)){
       for (const to of tos){
