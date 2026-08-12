@@ -645,6 +645,7 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
 #doorprompt{
   position:absolute;left:50%;bottom:4.4rem;transform:translateX(-50%);z-index:26;
   display:none;white-space:nowrap;
+  cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;
   padding:.55rem 1.3rem;border-radius:12px;
   font-size:13px;color:var(--parchment);
   background:rgba(10,16,30,.92);border:1.5px solid var(--brass);
@@ -653,6 +654,7 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
 }
 #doorprompt b{display:inline-block;padding:0 .45rem;margin-right:.2rem;border:1.5px solid var(--brass);border-radius:6px;color:var(--brass);}
 #doorprompt.show{display:block;}
+#doorprompt:active{transform:translateX(-50%) scale(.96);}
 #touchpad{position:absolute;left:50%;bottom:7.4rem;transform:translateX(-50%);z-index:26;display:none;gap:1rem;}
 #touchpad button{
   width:56px;height:56px;border-radius:50%;font-size:20px;color:#e2e8f0;
@@ -937,10 +939,10 @@ body.day .int-lamp::after{opacity:.45;}
     </div>
 
     <!-- walk-mode HUD -->
-    <div id="walkhud">W A S D move &nbsp;·&nbsp; Shift hurry &nbsp;·&nbsp; ◀ ▶ turn &nbsp;·&nbsp; scroll zoom &nbsp;·&nbsp; E enter hall &nbsp;·&nbsp; F leave walk</div>
+    <div id="walkhud">W A S D move &nbsp;·&nbsp; drag to look &nbsp;·&nbsp; Shift hurry &nbsp;·&nbsp; ◀ ▶ turn &nbsp;·&nbsp; scroll zoom &nbsp;·&nbsp; E enter hall &nbsp;·&nbsp; F leave walk</div>
     <div id="zoomlvl" aria-hidden="true"></div>
     <button id="vista-back" type="button">← back to the quad</button>
-    <div id="doorprompt"><b>E</b> — <span id="doorprompt-name"></span></div>
+    <div id="doorprompt"><b>E</b> — <span id="doorprompt-name"></span> <span style="opacity:.65">· tap to enter</span></div>
     <div id="touchpad">
       <button data-t="left">◀</button><button data-t="fwd">▲</button><button data-t="right">▶</button>
     </div>
@@ -2000,6 +2002,53 @@ Object.assign(sun.shadow.camera, { left: -760, right: 760, top: 760, bottom: -76
 sun.shadow.bias = -0.0006;
 world.add(sun, sun.target);
 const lampLights = [];
+/* ── dynamic lamp shadows, on a budget ────────────────────────────────
+   "Can the street lamps put off more light and have dynamic shadows?"
+   More light is cheap. Shadows are not: a PointLight shadow is six
+   renders of the scene per lamp per frame, and there are eighteen
+   lamps — over a hundred shadow passes on a phone that just reached
+   60fps. Nobody can see eighteen lamps at once, though. So two
+   shadow-casting spotlights ROAM: each frame they park on the two
+   lamps nearest the camera, throwing real moving shadows exactly where
+   you are looking, while every other lamp keeps its cheap glow. 512
+   maps, night only, and never on the software rasterizer CI runs. */
+const lampSpots = [];
+function makeLampSpots(){
+  for (let i = 0; i < 2; i++){
+    const sp = new THREE.SpotLight(0xffb45e, 0, 260, 0.98, 0.55, 1.5);
+    sp.castShadow = !softGL;
+    sp.shadow.mapSize.set(512, 512);
+    sp.shadow.camera.near = 6;
+    sp.shadow.camera.far = 260;
+    sp.shadow.bias = -0.0006;
+    sp.visible = false;
+    world.add(sp); world.add(sp.target);
+    lampSpots.push(sp);
+  }
+}
+makeLampSpots();
+function stepLampSpots(){
+  if (!lampSpots.length || !lampLights.length) return;
+  const night = window.__visual === "night";
+  if (!night){ lampSpots.forEach(sp => sp.visible = false); return; }
+  /* the two lamps nearest the camera get the real shadows */
+  const cx = camera.position.x, cz = camera.position.z;
+  let a = null, b = null, da = Infinity, db = Infinity;
+  for (const l of lampLights){
+    const d = (l.position.x - cx) ** 2 + (l.position.z - cz) ** 2;
+    if (d < da){ b = a; db = da; a = l; da = d; }
+    else if (d < db){ b = l; db = d; }
+  }
+  [a, b].forEach((l, i) => {
+    const sp = lampSpots[i];
+    if (!l){ sp.visible = false; return; }
+    sp.visible = true;
+    sp.intensity = 2400;
+    sp.position.copy(l.position);
+    sp.target.position.set(l.position.x, 0, l.position.z);
+    sp.target.updateMatrixWorld();
+  });
+}
 
 /* ── canvas texture helpers ──────────────────────────────────────── */
 function canvasTex(px, draw, repeat){
@@ -2970,8 +3019,9 @@ BUILDINGS.forEach(spec => {
   COLLIDERS.push({ x: 456, y: 880, w: 26, d: 46 }, { x: 518, y: 880, w: 26, d: 46 });
   stoneBox(amb, { x: 257, y: 874, w: 27, d: 36, h: 96, parapet: 6, windows: "slits", seed: 8, accent: "#d4af6a" });
   stoneBox(amb, { x: 536, y: 874, w: 27, d: 36, h: 96, parapet: 6, windows: "slits", seed: 9, accent: "#d4af6a" });
-  /* landscaping: clipped hedges with real foliage texture and rounded
-     profiles, shrub balls at the hall doors, flower beds at the spokes */
+  /* landscaping: shrub balls flanking the hall doors — all that
+     remains of a scheme that once hedged and flower-bedded the lawn
+     crossings, and was cleared for standing in the way */
   const leafTex = canvasTex(128, (x, px) => {
     x.fillStyle = "#24512e"; x.fillRect(0, 0, px, px);
     speck(x, px, 3400, ["#1b3f24", "#2f6039", "#38704a", "#173420", "#407950"], 0.9);
@@ -2981,14 +3031,12 @@ BUILDINGS.forEach(spec => {
     speck(x, px, 3000, ["#565656", "#9a9a9a", "#3e3e3e", "#b0b0b0"], 1);
   }, 3);
   const hedgeMat = new THREE.MeshStandardMaterial({ map: leafTex, bumpMap: leafBump, bumpScale: 1.1, roughness: 1 });
-  [[466,338,12,86],[522,338,12,86],[466,576,12,86],[522,576,12,86],
-   [338,466,86,12],[338,522,86,12],[576,466,86,12],[576,522,86,12]]
-    .forEach(([px, py, w2, d2]) => {
-      const m = new THREE.Mesh(new RoundedBoxGeometry(w2 + 5, 16, d2 + 5, 3, 5.5), hedgeMat);
-      m.position.set(W(px + w2 / 2), 7.4, W(py + d2 / 2));
-      m.castShadow = m.receiveShadow = true;
-      amb.add(m);
-    });
+  /* Eight 16-unit hedge WALLS stood here, lining the four lawn
+     crossings between the ring and the fountain — walling the exact
+     ground everyone cuts across. On a phone they read as green canyons:
+     "too cluttered with bushes in the walking areas". Gone. hedgeMat
+     lives on in the door shrubs below, which flank a doorway the way
+     shrubs actually should. */
   /* shrub balls: jittered spheres clustered at each hall door and the plaza */
   {
     const geo = new THREE.SphereGeometry(1, 10, 8);
@@ -3026,33 +3074,9 @@ BUILDINGS.forEach(spec => {
     });
     amb.add(inst);
   }
-  /* flower beds along the hedge feet: soil ribbon + petal confetti */
-  {
-    const soilMat = new THREE.MeshStandardMaterial({ color: 0x3d2f22, roughness: 1 });
-    const beds = [[452,338,10,86],[536,338,10,86],[452,576,10,86],[536,576,10,86],
-                  [338,452,86,10],[338,536,86,10],[576,452,86,10],[576,536,86,10]];
-    beds.forEach(([px, py, w2, d2]) => boxMesh(amb, soilMat, px, py, w2, d2, 2.2));
-    const bloomGeo = new THREE.IcosahedronGeometry(1.15, 0);
-    const bloomTones = [0xd9527a, 0xe8c33a, 0xe8e2d2, 0xc0392b, 0xb07fd4];
-    bloomTones.forEach((tone, ti) => {
-      const spots = [];
-      beds.forEach(([px, py, w2, d2], bi) => {
-        for (let k = 0; k < 7; k++){
-          if ((k + bi) % bloomTones.length !== ti) continue;
-          spots.push([px + 1.5 + ((k * 37 + bi * 13) % (w2 - 3)), py + 1.5 + ((k * 61 + bi * 7) % (d2 - 3))]);
-        }
-      });
-      if (!spots.length) return;
-      const inst = new THREE.InstancedMesh(bloomGeo,
-        new THREE.MeshStandardMaterial({ color: tone, roughness: 0.7 }), spots.length);
-      const m4 = new THREE.Matrix4();
-      spots.forEach(([px, py], i) => {
-        m4.makeTranslation(W(px), 2.6, W(py));
-        inst.setMatrixAt(i, m4);
-      });
-      amb.add(inst);
-    });
-  }
+  /* Their flower beds went with them — soil ribbons and petal confetti
+     "along the hedge feet", which with the hedges gone were eight bark
+     boxes stranded in the middle of the crossings. */
 }
 
 /* instanced buttress piers collected from every lancet facade */
@@ -3071,8 +3095,9 @@ BUILDINGS.forEach(spec => {
 
 /* ── glTF 2.0 prop library (assets/*.glb) ────────────────────────── */
 /* Placed like a groundskeeper would: an allée up the processional walk,
-   specimen maples on the lawn, groves flanking the diagonal spokes,
-   shade belts at the campus edges, and a forest rolling to the horizon.
+   specimen maples framing the lawn from its edges, shade belts at the
+   campus edges, and a forest rolling to the horizon. (The groves that
+   used to flank the diagonal spokes stood in the walks and are gone.)
  *
  * Two libraries, split by how close you get. Everything on the campus
  * plate — anything you can walk up to — is a photographed tree. The
@@ -3120,19 +3145,13 @@ const EZ_SETS = { m011: [], m002: [], m010: [], l009: [] };
   /* maple allées flanking the walk, north approach and south entry */
   [130, 195, 265, 345].forEach(y => { T.maple.push([462, y, 0.76 + (y % 20) / 160], [538, y, 0.8 + (y % 17) / 160]); });
   [655, 735, 815].forEach(y => { T.maple.push([462, y, 0.76 + (y % 19) / 160], [538, y, 0.8 + (y % 23) / 160]); });
-  /* Paired groves flanking each diagonal spoke. These stand within a
-     few feet of the walkways, which is as close as anyone gets to a
-     tree here — so the cheapest photographed species, three of them to
-     a grove, rather than the stylised shapes that used to be here. */
-  [[280,352],[352,280],[648,280],[720,352],[280,648],[352,720],[648,720],[720,648]].forEach(([cx, cy], ci) => {
-    for (let i = 0; i < 3; i++){
-      const a = (i / 3) * Math.PI * 2 + ci * 0.9;
-      const r = 14 + ((i * 53 + ci * 31) % 14);
-      const sp = (i + ci) % 4 === 0 ? "m011" : ((i + ci) % 2 ? "maple" : "m002");
-      (sp === "maple" ? T.maple : E[sp])
-        .push([cx + Math.cos(a) * r, cy + Math.sin(a) * r, 0.85 + ((i * 29 + ci * 17) % 30) / 55]);
-    }
-  });
+  /* The eight "groves flanking each diagonal spoke" are gone. Their
+     own comment said they stood "within a few feet of the walkways",
+     and measured, that was optimistic: grove centres sat 8 units off a
+     20-wide walk's centreline with trunks planted up to 28 units out —
+     trees standing IN the diagonal walks. That is the trunk you kept
+     walking into. The ring arc, the allees and the belts carry the
+     canopy; none of them touch a path. */
   /* Shade belts along the campus edges (clear of halls, lots, cathedral).
      The north pair sits behind the halls and is read over their roofs;
      the south belt lines the walk out to the athletics district, which
@@ -3346,14 +3365,15 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
   const BUSHB = [[440,398,1],[560,398,0.9],[440,602,0.95],[560,602,1.05],[420,905,1],[580,905,1]];
   const BUSHC = [[457,330,1],[541,330,0.9],[457,668,1],[541,668,0.9],
                  [330,457,0.95],[330,541,1.05],[668,457,0.95],[668,541,1.05]];
-  const DAFF = [[457,381,0.8],[541,381,0.75],[457,619,0.8],[541,619,0.75],
-                [381,457,0.8],[381,541,0.75],[619,457,0.8],[619,541,0.75]];
-  const LAV = [[457,428,1],[541,332,1],[457,570,1],[541,666,1],
-               [334,457,1],[428,541,1],[570,457,1],[666,541,1],[471,80,1.2],[529,80,1.2]];
+  /* Daffodils and lavender used to be scattered ACROSS the lawn
+     crossings — sixteen clumps between the ring and the fountain, on
+     the diagonals people actually walk. The lawn plantings are gone;
+     what survives frames an approach instead of standing in one. */
+  const DAFF = [[381,457,0.8],[619,541,0.75]];
+  const LAV = [[471,80,1.2],[529,80,1.2]];
   const CYP = [[238,314,1],[282,316,0.85],[718,296,1],[762,296,0.85],
                [218,808,1],[262,814,0.85],[712,822,1],[758,826,0.85],[434,886,1.1],[566,886,1.1]];
-  const FERNS = [[600,548,1],[616,532,0.85],[455,616,1],[472,600,0.85],
-                 [384,470,1],[400,452,0.85],[529,384,1],[545,400,0.85],[350,80,1.2],[650,84,1.2]];
+  const FERNS = [[350,80,1.2],[650,84,1.2]];
   /* The boulevard is 24 wide and runs 500,985 to 500,1156, so the
      avenue stands 46 off the centre line — clear of the paving, close
      enough to walk under. West and east are different species on
@@ -3462,10 +3482,19 @@ gltf.load("assets/car.glb", (g) => {
     world.add(inst);
   });
 });
-const LAMPS = [[34,34],[952,34],[34,952],[952,952],[471,92],[529,92]];
+/* the gate pair moved from ±29 to ±38 off the processional's centre —
+   the walk is 44 wide now, and a lamp 7 units clear of its edge with a
+   3-unit base flare read as a post standing in it */
+const LAMPS = [[34,34],[952,34],[34,952],[952,952],[462,92],[538,92]];
 for (let k = 0; k < 8; k++){
   const a = (22.5 + 45 * k) * Math.PI / 180;
   LAMPS.push([500 + 210 * Math.cos(a), 500 + 210 * Math.sin(a)]);
+}
+/* the North Quad gets its own four — it had none, which at night made
+   the new quad a hole in the campus */
+for (let k = 0; k < 4; k++){
+  const a = (45 + 90 * k) * Math.PI / 180;
+  LAMPS.push([500 + 152 * Math.cos(a), -180 + 152 * Math.sin(a)]);
 }
 const lampGlowMats = [];
 /* college pennants hung from every lamp post */
@@ -3500,7 +3529,8 @@ gltf.load("assets/lamp.glb", (g) => {
     banner.position.set(W(px) + Math.sin(ba) * 5.6, 31.4, W(py) + Math.cos(ba) * 5.6);
     banner.rotation.y = ba + Math.PI / 2;
     world.add(banner);
-    const pl = new THREE.PointLight(0xffb45e, 0, 130, 1.8);
+    /* wider pool, gentler falloff — "at night is too dark" */
+    const pl = new THREE.PointLight(0xffb45e, 0, 200, 1.7);
     pl.position.set(W(px), 44, W(py));
     world.add(pl);
     lampLights.push(pl);
@@ -3510,7 +3540,8 @@ gltf.load("assets/lamp.glb", (g) => {
 /* bike racks by the hall doors, Adirondack pairs on the lawn */
 {
   const rackMat = new THREE.MeshStandardMaterial({ color: 0x2c2f34, metalness: 0.65, roughness: 0.4 });
-  [[288,318],[712,298],[264,812],[758,824]].forEach(([px, py]) => {
+  /* the north pair stood against the hall-to-hall walk's edge */
+  [[288,306],[712,286],[264,812],[758,824]].forEach(([px, py]) => {
     for (let k = 0; k < 3; k++){
       const hoop = new THREE.Mesh(new THREE.TorusGeometry(3.2, 0.4, 6, 10, Math.PI), rackMat);
       hoop.position.set(W(px + k * 7), 0.4, W(py));
@@ -3519,7 +3550,11 @@ gltf.load("assets/lamp.glb", (g) => {
     }
   });
   const CHAIR_TONES = [0xe8e2d2, 0x9db89a, 0x9fb9cc, 0xd8c37a];
-  [[432,362,0],[578,342,1],[356,548,2],[642,572,3],[540,652,0]].forEach(([px, py, ti]) => {
+  /* Inboard of the ring walk, not on it. One of these sat at r=176 —
+     ON the paving — and the rest at 152-159 against its inner edge
+     (168). At ~135 they sit on the open lawn, still facing the
+     fountain, out of everybody's way. */
+  [[441,379,0],[560,379,1],[372,543,2],[620,561,3],[534,631,0]].forEach(([px, py, ti]) => {
     const mat = new THREE.MeshStandardMaterial({ color: CHAIR_TONES[ti], roughness: 0.85 });
     const ch = new THREE.Group();
     const seat = new THREE.Mesh(new THREE.BoxGeometry(8, 1.2, 8), mat);
@@ -3641,7 +3676,47 @@ const fireflies = pointsCloud(60, 900, 6, 60, 4, 0xffe9a8);
 fireflies.visible = false;
 world.add(fireflies);
 /* drifting leaves over the quad, all seasons, all hours */
-const leaves = pointsCloud(90, 760, 4, 85, 3.2, 0xc98a3e);
+/* Falling leaves that are SHAPED like leaves. These were pointsCloud
+   squares — additive-blended, so they glowed — and "the leaves falling
+   just look like squares" is exactly what an untextured gl point is. A
+   pointed-oval sprite with a midrib and stem, alpha-tested so the
+   corners of the quad vanish, normal blending so they read as matter
+   rather than light, and per-leaf autumn tones via vertex colours. */
+const leafSprite = canvasTex(64, (x) => {
+  x.clearRect(0, 0, 64, 64);
+  x.fillStyle = "#ffffff";
+  x.beginPath();
+  x.moveTo(32, 4);
+  x.bezierCurveTo(52, 18, 54, 40, 33, 52);
+  x.bezierCurveTo(12, 40, 12, 18, 32, 4);
+  x.closePath();
+  x.fill();
+  x.strokeStyle = "rgba(120,60,20,0.85)";
+  x.lineWidth = 2.4;
+  x.beginPath(); x.moveTo(32, 8); x.lineTo(32, 50); x.stroke();
+  x.lineWidth = 3.2;
+  x.beginPath(); x.moveTo(32, 50); x.lineTo(30, 60); x.stroke();
+});
+leafSprite.wrapS = leafSprite.wrapT = THREE.ClampToEdgeWrapping;
+const leaves = (() => {
+  const n = 110, spread = 760;
+  const pos = new Float32Array(n * 3), col = new Float32Array(n * 3);
+  const tones = [0xc98a3e, 0xb5651d, 0xd4a017, 0x8f4a2b, 0xa96a2f];
+  const c = new THREE.Color();
+  for (let i = 0; i < n; i++){
+    pos[i*3] = (Math.random() - 0.5) * spread;
+    pos[i*3+1] = 4 + Math.random() * 81;
+    pos[i*3+2] = (Math.random() - 0.5) * spread;
+    c.set(tones[i % tones.length]);
+    col[i*3] = c.r; col[i*3+1] = c.g; col[i*3+2] = c.b;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  return new THREE.Points(geo, new THREE.PointsMaterial({
+    map: leafSprite, size: 4.4, sizeAttenuation: true, vertexColors: true,
+    transparent: true, alphaTest: 0.3, depthWrite: false }));
+})();
 leaves.material.blending = THREE.NormalBlending;
 leaves.material.opacity = 0.75;
 world.add(leaves);
@@ -6277,15 +6352,15 @@ function engineSetLit(key, isLit){ isLit ? litSectors.add(key) : litSectors.dele
 /* ── the day cycle: dawn to dusk, a real sun on a real arc ───────── */
 /*            t   sky-top    horizon    sun-color  sunI  hemiI  envI  */
 const PHASES = [
-  [0.000, "#05060e", "#131c33", "#8fa8d8", 0.00, 0.30, 0.05],
-  [0.210, "#070a18", "#241f3d", "#c88a6a", 0.00, 0.32, 0.05],
+  [0.000, "#05060e", "#131c33", "#8fa8d8", 0.00, 0.44, 0.10],
+  [0.210, "#070a18", "#241f3d", "#c88a6a", 0.00, 0.46, 0.10],
   [0.265, "#20305e", "#e08a5a", "#ffb27a", 0.90, 0.45, 0.20],
   [0.330, "#3f78c0", "#d8e6f0", "#ffe6c0", 1.90, 0.70, 0.40],
   [0.500, "#4f93d8", "#e6f0f8", "#fff0d2", 2.60, 0.85, 0.55],
   [0.670, "#4a7fc4", "#e8ddc8", "#ffd9a0", 1.90, 0.72, 0.42],
   [0.735, "#2d2c58", "#f0955c", "#ff9a5e", 0.95, 0.45, 0.20],
-  [0.790, "#0a0d20", "#3d2540", "#b07a6a", 0.00, 0.32, 0.06],
-  [1.000, "#05060e", "#131c33", "#8fa8d8", 0.00, 0.30, 0.05],
+  [0.790, "#0a0d20", "#3d2540", "#b07a6a", 0.00, 0.46, 0.10],
+  [1.000, "#05060e", "#131c33", "#8fa8d8", 0.00, 0.44, 0.10],
 ];
 const _cA = new THREE.Color(), _cB = new THREE.Color();
 function setTimeOfDay(t){
@@ -6310,14 +6385,17 @@ function setTimeOfDay(t){
     sun.intensity = sunI;
   } else {
     sun.position.set(420, 620, -300);               /* moonlight */
-    sun.intensity = 0.5;
+    /* 0.9, from 0.5 — the moon is also the night's only shadow caster,
+       and at 0.5 its shadows were barely distinguishable from the
+       unlit ground they fell on */
+    sun.intensity = 0.9;
   }
   hemi.intensity = lerpN(5);
   hemi.color.copy(lerpC(1)).lerp(_cB.set(0xffffff), 0.45);
   hemi.groundColor.set(night ? 0x0b140d : 0x4a5b3a);
   world.environmentIntensity = lerpN(6);
-  world.fog.color.copy(lerpC(2)).multiplyScalar(night ? 0.55 : 0.92);
-  renderer.toneMappingExposure = night ? 0.95 : 1.02;
+  world.fog.color.copy(lerpC(2)).multiplyScalar(night ? 0.62 : 0.92);
+  renderer.toneMappingExposure = night ? 1.06 : 1.02;
   bloom.strength = night ? 0.6 : 0.24;
   setVisualBinary(night ? "night" : "day");
 }
@@ -6332,8 +6410,8 @@ function setVisualBinary(v){
   applyFog();
   stars.visible = !day;
   fireflies.visible = !day;
-  lampLights.forEach(l => l.intensity = day ? 0 : 1400);
-  lampGlowMats.forEach(mm => mm.emissiveIntensity = day ? 0.05 : 1.9);
+  lampLights.forEach(l => l.intensity = day ? 0 : 3000);
+  lampGlowMats.forEach(mm => mm.emissiveIntensity = day ? 0.05 : 2.5);
   glassGlowMats.forEach(mm => mm.emissiveIntensity = day ? 0 : 2.4);
   skylineMat.map = day ? skylinePair.day : skylinePair.night;
   skinSwaps.forEach(({ mat, day: dTex, night: nTex }) => {
@@ -6494,7 +6572,11 @@ function enterWalk(){
   walker.on = true;
   walker.x = 500; walker.y = 802; walker.h = 0;
   walker.zoom = 1;
+  walker.pitch = 0;
   controls.enabled = false;
+  /* one-finger drags are ours now — without this the page grabs them
+     as scrolling and the look stops mid-swipe */
+  renderer.domElement.style.touchAction = "none";
   /* drop any fly-over outright rather than starting a return trip that
      would only play out behind the walker's back */
   flight = null;
@@ -6511,6 +6593,7 @@ function exitWalk(){
   if (!walker.on) return;
   walker.on = false;
   controls.enabled = true;
+  renderer.domElement.style.touchAction = "";
   aerialHome();
   controls.target.set(0, 30, 0);
   camera.rotation.set(0, 0, 0);
@@ -6545,6 +6628,42 @@ renderer.domElement.addEventListener("wheel", (e) => {
   e.preventDefault();                      /* OrbitControls is off; this is ours */
   walkZoom(e.deltaY < 0 ? 1.12 : 1 / 1.12);
 }, { passive: false });
+
+/* ── drag to look ─────────────────────────────────────────────────────
+   "you can zoom in and out but can't look left and right." The arrow
+   keys and the ◀ ▶ pads always turned, but a swipe on the world did
+   nothing — and on a phone the world is the only control that feels
+   like looking. One finger (or a held mouse button) drags the view:
+   sideways turns, up and down pitches within a clamp that keeps feet
+   and sky both reachable and the horizon findable again.
+
+   A SECOND finger cancels the drag outright — two fingers are the
+   pinch zoom below, and a pinch that also steered would corkscrew. A
+   tap still talks to people: the tap handler ignores anything that
+   moved more than six pixels, and a look is exactly a move. */
+let lookPtr = null, lookLast = null, lookDown = 0;
+renderer.domElement.addEventListener("pointerdown", (e) => {
+  lookDown++;
+  if (!walker.on) return;
+  if (lookDown === 1){ lookPtr = e.pointerId; lookLast = [e.clientX, e.clientY]; }
+  else { lookPtr = null; lookLast = null; }
+});
+renderer.domElement.addEventListener("pointermove", (e) => {
+  if (!walker.on || e.pointerId !== lookPtr || !lookLast) return;
+  const dx = e.clientX - lookLast[0], dy = e.clientY - lookLast[1];
+  lookLast = [e.clientX, e.clientY];
+  /* finer when zoomed, same as the turn keys */
+  const k = 1 / Math.sqrt(walker.zoom);
+  walker.h += dx * 0.26 * k;
+  walker.pitch = Math.max(-0.55, Math.min(0.6,
+    (walker.pitch || 0) - dy * 0.0042 * k));
+});
+const lookEnd = (e) => {
+  lookDown = Math.max(0, lookDown - 1);
+  if (e.pointerId === lookPtr){ lookPtr = null; lookLast = null; }
+};
+renderer.domElement.addEventListener("pointerup", lookEnd);
+renderer.domElement.addEventListener("pointercancel", lookEnd);
 
 /* pinch: track the two-finger span and scale the zoom by how it changes */
 let pinchSpan = 0;
@@ -6608,7 +6727,7 @@ function walkUpdate(dt){
   camera.position.set(W(walker.x), walker.eye + bob, W(walker.y));
   camera.rotation.order = "YXZ";
   camera.rotation.y = -hr;
-  camera.rotation.x = -0.045;
+  camera.rotation.x = -0.045 + (walker.pitch || 0);
   camera.rotation.z = 0;
   walker.door = null;
   for (const d of DOORS){
@@ -6624,19 +6743,26 @@ window.addEventListener("keydown", e => {
   if (!walker.on) return;
   walker.keys[e.code] = true;
   if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
-  if (e.code === "KeyE" && walker.door){
-    const key = walker.door;
-    if (key === "cathedral"){
-      openInterior("cathedral");
-      toast("🕯️ A candle for the term", "The nave is quiet. Stained glass burns overhead, and somewhere a page turns.", "#d4af6a", 5000);
-    } else {
-      selectSector(key, false);
-      openInterior(key);
-      const q = questInfo();
-      if (q.sector === key) toast("📚 Class attended", "You made it to lecture. Seal the course in the ledger once you've mastered it.", SECTORS[key].color, 5500);
-    }
-  }
+  if (e.code === "KeyE") enterDoor();
 });
+/* One path in, shared by the E key and a tap on the prompt itself. On a
+   phone there is no keyboard, so "E — Enter" was a button that could
+   not be pressed: the prompt showed the way in and provided no way to
+   take it. The prompt IS the button now. */
+function enterDoor(){
+  if (!walker.on || !walker.door) return;
+  const key = walker.door;
+  if (key === "cathedral"){
+    openInterior("cathedral");
+    toast("🕯️ A candle for the term", "The nave is quiet. Stained glass burns overhead, and somewhere a page turns.", "#d4af6a", 5000);
+  } else {
+    selectSector(key, false);
+    openInterior(key);
+    const q = questInfo();
+    if (q.sector === key) toast("📚 Class attended", "You made it to lecture. Seal the course in the ledger once you've mastered it.", SECTORS[key].color, 5500);
+  }
+}
+document.getElementById("doorprompt").addEventListener("click", enterDoor);
 window.addEventListener("keyup", e => { walker.keys[e.code] = false; });
 document.querySelectorAll("#touchpad button").forEach(b => {
   const on  = ev => { ev.preventDefault(); walker.keys["t" + b.dataset.t] = true; };
@@ -6874,6 +7000,7 @@ renderer.setAnimationLoop(() => {
     lastClock = now;
     setTimeOfDay(clockT());
   }
+  stepLampSpots();
   if (fireflies.visible){
     fireflies.rotation.y += dt * 0.02;
     fireflies.position.y = Math.sin(now / 1700) * 4;

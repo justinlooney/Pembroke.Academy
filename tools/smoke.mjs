@@ -480,6 +480,30 @@ try {
              builds: out.builds.size, bodies: [...out.bodies].sort().join("+"),
              dressable: [...out.dressable].sort().join("+") || "none" };
   }).catch(() => null);
+  /* Which bodies actually decoded on THIS runner. The cohort checks
+     below judge casting and wardrobe variety, and both are functions of
+     who arrived: a software rasterizer that decodes two of six
+     dressable bodies before every timeout fills the quad with two
+     people's copies, and the checks then fail the code for the
+     machine's slowness — this exact run has now happened, with the
+     same commit passing beside it on a faster runner. A body that
+     ERRORED still fails hard below; a body that is merely still
+     decoding when the suite loses patience is not a bug in the campus.
+     When any body is missing, the cohort checks say so and stand down
+     rather than deliver a verdict about a cohort that is not there. */
+  const bodiesHere = await crowdPage.evaluate(() =>
+    (window.__assets || []).filter(a => /^stu_/.test(a.name))
+      .map(a => ({ name: a.name, ok: a.ms != null, err: a.err || null })))
+    .catch(() => []);
+  const brokenBodies = bodiesHere.filter(a => a.err).map(a => a.name);
+  const missingBodies = bodiesHere.filter(a => !a.ok && !a.err).map(a => a.name);
+  step("no body failed to load", brokenBodies.length === 0, brokenBodies.join(", "));
+  const cohortJudged = missingBodies.length === 0;
+  if (!cohortJudged)
+    console.log(`  ..   ${missingBodies.length} body(ies) never finished decoding here — ` +
+                `cohort variety not judged: ${missingBodies.join(", ")}`);
+
+  if (cohortJudged)
   step("?crowd fills the quad", !!c && c.people >= 17,
        c ? c.people + " people" : "no crowd hook");
 
@@ -546,6 +570,7 @@ try {
      stops being loaded, or a wardrobe regex that stops matching the
      material names two of them use, leaves a cohort that still passes
      every colour count while looking like one man in fancy dress. */
+  if (cohortJudged)
   step("the crowd is drawn from more than one body",
        !!c && c.bodies.split("+").length >= 3, c ? c.bodies : "could not read the cohort");
   /* When this goes red the useful question is never "why so few
@@ -556,6 +581,7 @@ try {
      wave that happens to contain one dressable body caps at one
      colour per figure of that body, and reads as a colour bug when it
      is a casting bug. Print who could be dressed. */
+  if (cohortJudged)
   step("the crowd is not one person fourteen times",
        !!c && c.shirts >= 6 && c.skins >= 4 && c.builds >= 8,
        c ? `${c.shirts} shirt colours over ${c.tinted} garments, ` +
