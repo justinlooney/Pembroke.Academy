@@ -4611,6 +4611,7 @@ function buildCast(){
       const a0 = i * 0.9;
       if (plan.clip){ setClipOn(g, plan.clip); stagger(g, plan.clip); }
       students.push({ g, data: st, orbit: 182.5, orbitA: a0, orbitW: 0.16, clip: plan.clip,
+                      roles: g.userData.anim?.roles,
                       pos: [500 + Math.cos(a0) * 182.5, 500 + Math.sin(a0) * 182.5] });
       return;
     }
@@ -4618,7 +4619,16 @@ function buildCast(){
       g.position.set(W(plan.at[0]), 0, W(plan.at[1]));
       g.rotation.y = plan.face || 0;
       if (plan.clip){ setClipOn(g, plan.clip); stagger(g, plan.clip); }
+      /* Their roles, same as a roamer gets. Without this line every
+         student who stands still — the ones at the doors, the ones on
+         the plaza, the ones you are most likely to walk up to and
+         talk to — arrives with s.roles undefined. stepStudents then
+         reads R.idle as absent and calls holdStill, which PAUSES the
+         idle at a single frame. So a body carrying a perfectly good
+         standing animation was frozen mid-breath, on the lawn and in
+         conversation both, and the clip it owned never played once. */
       students.push({ g, data: st, static: true, kind: plan.kind, baseYaw: plan.face || 0,
+                      roles: g.userData.anim?.roles,
                       phase0: i * 1.7, pos: [...plan.at] });
       return;
     }
@@ -4642,7 +4652,7 @@ function buildCast(){
   if (sk){
     world.add(sk);
     students.push({ g: sk, orbit: 84, orbitA: 3.6, orbitW: -0.6, skate: true,
-                    cx: 500, cy: 1120,
+                    roles: sk.userData.anim?.roles, cx: 500, cy: 1120,
                     pos: [500 + Math.cos(3.6) * 84, 1120 + Math.sin(3.6) * 84] });
   }
   /* Three more of the second rigged character — a genuinely different
@@ -6693,7 +6703,16 @@ function convoOpen(s){
      stand with. Most of the cohort arrived with a single walk cycle and
      nothing else — for those, walking on the spot reads better than a
      freeze, which is the same judgement makeRoamer already makes. */
-  if (s.roles && s.roles.idle) setClipOn(g, s.roles.idle, 0.3);
+  if (s.roles && s.roles.idle){
+    setClipOn(g, s.roles.idle, 0.3);
+    /* setClip returns early when the clip is already current, and a
+       student standing on the lawn is already in hers. If anything ever
+       paused it she would arrive frozen at one frame — which is the one
+       thing a conversation must not be. The walking branch has known
+       this trap for a while ("setClip alone will not unpause it"); the
+       conversation did not. */
+    release(s);
+  }
   else holdStill(s);                  /* the eight with only a walk cycle */
   /* Measured after the clip is chosen, because neutral is a property of
      the clip that will actually play. */
