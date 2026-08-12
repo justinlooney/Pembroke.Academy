@@ -3857,6 +3857,16 @@ const CAST_FILES = {
      simplifier; nadia is a full Character Creator anatomy and the one
      to watch on weight. sophia is not a roamer at all — her bones are
      named ..._idling_... and her clip runs 488 frames. */
+  /* kenta reads paler than the rest of the cast, and that is his
+     texture rather than anything the renderer is doing: measured, his
+     base map averages rgb 174,159,154 at a saturation of 0.15 where
+     every other body sits near 0.42, and he is the only one carrying no
+     normal map — so there is no surface shading to give him form
+     either. His colour space is correct. Easing envMapIntensity on
+     flat-textured bodies was tried and gave almost nothing for a
+     campus-wide change, so it was taken back out. Left as he is on
+     purpose: pale and soft-lit is variety in a crowd, and he is 22k
+     triangles for 0.24MB. Fixing it means a better texture, not code. */
   kenta:   "assets/stu_kenta.glb",      /* 22k tris, mixamo-named, walks */
   isla:    "assets/stu_isla.glb",       /* walks; heavy until simplified */
   nadia:   "assets/stu_nadia.glb",      /* character creator, 46 maps    */
