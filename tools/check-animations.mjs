@@ -58,6 +58,15 @@ for (let attempt = 1; attempt <= 8 && !present; attempt++){
   await page.goto(`http://127.0.0.1:${PORT}/?crowd=12`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => window.__convo && window.__convo.named().length,
                              null, { timeout: 300_000 });
+  /* ...and then wait for the LATE wave. Half the cast arrives after the
+     campus is walkable — isla, nadia, woman and alina are all in it —
+     and checking the moment the named cast exists finds only the first
+     seven bodies. Eight reloads then report a body as absent that was
+     simply not out of the van yet. __crowd().done is raised once the
+     forced quad has been filled, which is after the late bodies land or
+     after the give-up decides they never will. */
+  await page.waitForFunction(() => window.__crowd?.().done === true,
+                             null, { timeout: 400_000 }).catch(() => {});
   present = await page.evaluate((body) => (window.__students || [])
     .some(x => x.g?.userData?.figure === body &&
                (x.g.userData.anim || x.g.userData.stand)), BODY);
