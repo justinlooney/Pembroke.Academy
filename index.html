@@ -4626,11 +4626,11 @@ const GAITS = ["Standard Walk", "Strut Walking", "Walk Forward"];
    cast and by the crowd behind them, so the two move under identical
    rules — an extra who walks differently from a classmate reads as a
    bug, however well dressed. */
-const MEET = 150;                 /* near enough to have noticed */
+const MEET = 240;                 /* near enough to have noticed */
 const TALK_GAP = 30;              /* stand this far apart — outside SPACE */
-const TALK_MS = [5000, 13000];
+const TALK_MS = [8000, 20000];
 const LINGER_MS = [1800, 5200];
-const SOCIAL_COOL = 30000;        /* before this pair, or either, tries again */
+const SOCIAL_COOL = 22000;        /* before this pair, or either, tries again */
 const P_MEET = 0.55;              /* chance of going over, when there is someone */
 const P_LINGER = 0.3;
 function makeRoamer(g, startKey, extra, forceGait){
@@ -5354,8 +5354,15 @@ function freeToTalk(s, now){
    gives away a machine choosing. */
 function findPartner(self, now){
   let best = null, bestD = MEET;
+  /* Never the same body twice. Two of the roaming bodies can appear on
+     the quad at once, and a pair of them standing face to face is the
+     "too many same people" report in its most obvious possible form —
+     a man talking to himself. Observed as "ariel + ariel" the first
+     time this ran. */
+  const mine = self.g?.userData?.figure;
   for (const o of students){
     if (o === self || !freeToTalk(o, now)) continue;
+    if (mine && o.g?.userData?.figure === mine) continue;
     const d = Math.hypot(o.pos[0] - self.pos[0], o.pos[1] - self.pos[1]);
     if (d < bestD && d > TALK_GAP){ bestD = d; best = o; }
   }
