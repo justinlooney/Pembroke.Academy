@@ -4626,6 +4626,13 @@ const GAITS = ["Standard Walk", "Strut Walking", "Walk Forward"];
    cast and by the crowd behind them, so the two move under identical
    rules — an extra who walks differently from a classmate reads as a
    bug, however well dressed. */
+const MEET = 150;                 /* near enough to have noticed */
+const TALK_GAP = 30;              /* stand this far apart — outside SPACE */
+const TALK_MS = [5000, 13000];
+const LINGER_MS = [1800, 5200];
+const SOCIAL_COOL = 30000;        /* before this pair, or either, tries again */
+const P_MEET = 0.55;              /* chance of going over, when there is someone */
+const P_LINGER = 0.3;
 function makeRoamer(g, startKey, extra, forceGait){
   /* Whatever this body can actually do. The walker has three gaits and
      an idle; some bodies have one walk and nothing else, so they never
@@ -4678,7 +4685,12 @@ function makeRoamer(g, startKey, extra, forceGait){
               pos: [WAYPOINTS[startKey][0] + (open ? lane[0] : 0),
                     WAYPOINTS[startKey][1] + (open ? lane[1] : 0)],
               anim0: roles.idle, idleRate: 0.85 + Math.random() * 0.3,
-              phase: Math.random() * 9, walkT: 0, gait: 0, gait2: gait };
+              phase: Math.random() * 9, walkT: 0, gait: 0, gait2: gait,
+              /* walk | linger | approach | talk — see stepStudents.
+                 Staggered so the campus does not hold its first four
+                 conversations in the same ten seconds. */
+              mode: "walk", partner: null, until: 0,
+              socialAt: -Math.random() * SOCIAL_COOL };
   if (extra) Object.assign(s, extra);
   students.push(s);
   return s;
@@ -5308,6 +5320,47 @@ function matchSpeed(s, name, speed){
    step that closes an already-short gap counts — otherwise two people
    who have ended up near each other could never walk apart again. */
 const SPACE = 27;
+/* ── people, rather than traffic ──────────────────────────────────────
+   Asked for: "1 is walking up to another and then they appear to start
+   talking then maybe after talking one or both start walking... it
+   should be like a true human experience of walking around a campus
+   and seeing people randomly."
+
+   Four modes and the transitions between them:
+
+     walk      heading for a waypoint
+     linger    stopped where they got to, for a few seconds
+     approach  closing on somebody to talk to
+     talk      standing, facing them
+
+   The decision is taken at a waypoint, which is where a person would
+   take it: carry on, stop a moment, or go and speak to whoever is in
+   sight. Everything else falls out of that — you round a corner and
+   two people are talking, and a minute later one of them is walking
+   past you somewhere else.
+
+   MEET is deliberately short. A student who notices somebody the width
+   of the campus away and marches over reads as a homing missile, not a
+   person; at 150 units they are near enough to have seen each other.
+   The cooldown stops the same two falling into conversation again the
+   moment they part. */
+function freeToTalk(s, now){
+  return !s.static && !s.orbit && s.pos &&
+         (s.mode === "walk" || s.mode === undefined) &&
+         now - (s.socialAt || -1e9) > SOCIAL_COOL;
+}
+/* Somebody nearby, unoccupied, and not just spoken to. Nearest wins:
+   walking past two people to reach a third is exactly the tell that
+   gives away a machine choosing. */
+function findPartner(self, now){
+  let best = null, bestD = MEET;
+  for (const o of students){
+    if (o === self || !freeToTalk(o, now)) continue;
+    const d = Math.hypot(o.pos[0] - self.pos[0], o.pos[1] - self.pos[1]);
+    if (d < bestD && d > TALK_GAP){ bestD = d; best = o; }
+  }
+  return best;
+}
 function crowded(self, nx, ny){
   for (const o of students){
     if (o === self || !o.pos) continue;
@@ -5342,8 +5395,64 @@ function stepStudents(dt, now){
       continue;
     }
     let moving = false;
-    if (now < s.pauseUntil){ /* idle */ }
+    /* ── standing and talking ────────────────────────────────────────
+       Two students who have decided to talk walk to TALK_GAP of each
+       other, turn to face, and stand there for a while. Nothing else
+       drives them until the clock runs out.
+
+       TALK_GAP sits OUTSIDE personal space on purpose. crowded() below
+       refuses any step that closes a gap under SPACE, so a pair told to
+       stand at 20 would approach to 27, be refused, hang back, try
+       again, and never arrive — the rule that keeps strangers from
+       overlapping is the same rule that would stop anyone ever walking
+       up to anyone. Standing a little further apart costs nothing and
+       needs no exception. */
+    if (s.mode === "talk"){
+      const p = s.partner;
+      if (!p || p.mode !== "talk" || p.partner !== s || now > s.until){
+        s.mode = "walk"; s.partner = null; s.socialAt = now;
+        /* a beat before setting off, so a conversation ends rather than
+           cuts */
+        s.pauseUntil = now + 300 + Math.random() * 900;
+      } else {
+        s.g.rotation.y = Math.atan2(p.pos[0] - s.pos[0], p.pos[1] - s.pos[1]);
+        s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+        stepMotion(s, false, now, dt);
+        continue;
+      }
+    }
+    if (s.mode === "approach"){
+      const p = s.partner;
+      if (!p || p.partner !== s || now > s.until){        /* gave up waiting */
+        s.mode = "walk"; s.partner = null; s.socialAt = now;
+      } else {
+        const dx = p.pos[0] - s.pos[0], dy = p.pos[1] - s.pos[1];
+        const gap = Math.hypot(dx, dy);
+        if (gap <= TALK_GAP + 3){
+          /* Only once BOTH have arrived, or one stands talking to
+             somebody still walking towards them. */
+          if (p.mode === "approach" || p.mode === "talk"){
+            const secs = TALK_MS[0] + Math.random() * (TALK_MS[1] - TALK_MS[0]);
+            s.mode = "talk"; s.until = now + secs;
+            if (p.mode === "approach"){ p.mode = "talk"; p.until = now + secs; }
+          }
+          s.g.rotation.y = Math.atan2(dx, dy);
+          s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+          stepMotion(s, false, now, dt);
+          continue;
+        }
+        const nx = s.pos[0] + dx / gap * s.speed * dt;
+        const ny = s.pos[1] + dy / gap * s.speed * dt;
+        s.pos[0] = nx; s.pos[1] = ny;
+        s.g.rotation.y = Math.atan2(dx, dy);
+        s.g.position.set(W(nx), 0, W(ny));
+        stepMotion(s, true, now, dt);
+        continue;
+      }
+    }
+    if (now < s.pauseUntil){ /* standing */ }
     else {
+      if (s.mode === "linger") s.mode = "walk";
       if (!s.target){
         const opts = EDGES[s.node];
         s.target = opts[Math.floor(Math.random() * opts.length)];
@@ -5372,8 +5481,19 @@ function stepStudents(dt, now){
          * still figure looks broken in a way a walking one does not,
          * and at this crowd size there is no queue to relieve. A third,
          * for a third as long. */
-        if (s.roles?.idle && Math.random() < 0.33)
-          s.pauseUntil = now + 900 + Math.random() * 2400;
+        /* Arrived. Three things a person does here: go and talk to
+           somebody, stand a moment, or carry on. */
+        const other = (now - (s.socialAt || -1e9) > SOCIAL_COOL && Math.random() < P_MEET)
+          ? findPartner(s, now) : null;
+        if (other){
+          const wait = now + 14000;         /* if we cannot reach them, give up */
+          s.mode = "approach"; s.partner = other; s.until = wait; s.target = null;
+          other.mode = "approach"; other.partner = s; other.until = wait;
+          other.target = null; other.pauseUntil = 0;
+        } else if (s.roles?.idle && Math.random() < P_LINGER){
+          s.mode = "linger";
+          s.pauseUntil = now + LINGER_MS[0] + Math.random() * (LINGER_MS[1] - LINGER_MS[0]);
+        }
       } else {
         const nx = s.pos[0] + dx / dist * s.speed * dt;
         const ny = s.pos[1] + dy / dist * s.speed * dt;
@@ -5391,6 +5511,14 @@ function stepStudents(dt, now){
         }
       }
     }
+    stepMotion(s, moving, now, dt);
+  }
+}
+/* Which clip, at what pace — the same answer whether the student is
+   walking a path, closing on somebody to talk to, or standing still
+   having got there. Pulled out of stepStudents so the social modes can
+   ask it too rather than reimplementing the choice and drifting. */
+function stepMotion(s, moving, now, dt){
     if (s.g.userData.anim){
       /* walking or standing about, and the clip supplies every bit of the
          motion — no faked bob, no swaying, no procedural limbs */
@@ -5451,7 +5579,6 @@ function stepStudents(dt, now){
       s.g.rotation.z = idleSway;
       s.g.position.set(W(s.pos[0]), bounce, W(s.pos[1]));
     }
-  }
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -7261,6 +7388,30 @@ function convoFrame(dt){
 /* test/debug hooks: the cast, and the conversation they can be pulled
    into. `named` is the eight with a dossier — the crowd are strangers. */
 window.__students = students;
+/* test/debug hook: advance the crowd without painting.
+ *
+ * Everything the students decide, they decide on arriving at a
+ * waypoint — whether to stop, and whether to go and talk to somebody.
+ * A headless browser draws this campus at about a tenth of a frame a
+ * second, so in two minutes of wall clock nobody reaches a waypoint at
+ * all and none of that behaviour can be observed. Two separate
+ * investigations in this repository have measured the harness and
+ * reported it as the campus: "students crawl" and "nobody is walking"
+ * were both the rasterizer, not the code.
+ *
+ * So this steps the simulation and nothing else. No render, no mixers,
+ * no clock: just the crowd, at whatever rate is asked for.
+ *
+ * The clock it hands stepStudents runs ahead of performance.now(),
+ * which is why this is a test hook and not something the page uses —
+ * afterwards the real loop will pass a smaller `now` and anyone left
+ * mid-pause stays paused until the world catches up. Fine for a probe
+ * that is about to be thrown away, wrong for anything else. */
+window.__sim = (steps = 900, dt = 1 / 30) => {
+  let t = performance.now();
+  for (let i = 0; i < steps; i++){ t += dt * 1000; stepStudents(dt, t); }
+  return { steps, simulated: +(steps * dt).toFixed(1) };
+};
 window.__convo = { open: convoOpen, close: convoClose, on: () => !!convoView,
                    named: () => students.filter(s => s.data) };
 
