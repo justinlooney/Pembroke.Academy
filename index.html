@@ -4959,7 +4959,15 @@ function passingTime(g){
   const hands = [];
   g.traverse(o => {
     /* the hand itself, not its fingers: LeftHand yes, LeftHandIndex1 no */
-    if (o.isBone && /(hand|wrist)$/.test(boneKey(o.name))) hands.push(o);
+    /* ...and the side may be spelled at either end. Mixamo writes
+       LeftHand, Character Creator CC_Base_L_Hand, Renderpeople
+       hand_l — and the last of those keys to "handl", which an
+       anchored /hand$/ misses completely. nathan and sophia are both
+       Renderpeople, so their arms were never scored at all: the search
+       fell back to feet alone, which is precisely the case the comment
+       below warns about, because a bind pose has its feet together
+       too. */
+    if (o.isBone && /(hand|wrist)(l|r)?$/.test(boneKey(o.name))) hands.push(o);
   });
   /* The body's own centre line, read per frame off the hips, because
      the hips swing sideways through a stride and a fixed origin would
@@ -6720,15 +6728,30 @@ function facingOf(g){
      an angle to the person talking to him, and the more accurately the
      standing pose was measured the further round he turned.
      Two vectors summed cancel a symmetric splay; one cannot. */
+  /* Three spellings of the same joint, and the trailing-side one is the
+     reason this is written out: Mixamo writes LeftFoot, Character
+     Creator CC_Base_L_Foot, and Renderpeople foot_l — which keys to
+     "footl" and slips straight past an anchored /foot$/. nathan and
+     sophia are both Renderpeople, so this returned null for them and
+     the caller fell back to turning the body by pi. A guess, on the two
+     bodies a visitor stands closest to.
+     "footend" is excluded so this takes the ankle and not the toe tip,
+     which is the joint the toe is measured FROM. */
   const feet = [];
-  g.traverse(o => { if (o.isBone && /foot$/.test(boneKey(o.name))) feet.push(o); });
+  g.traverse(o => {
+    if (o.isBone && /(?<!end)foot(l|r)?$/.test(boneKey(o.name))) feet.push(o);
+  });
   if (!feet.length) return null;
   const a = new THREE.Vector3(), b = new THREE.Vector3();
   let sx = 0, sz = 0, n = 0;
   for (const foot of feet){
     let toe = null;
     foot.traverse(o => {
-      if (!toe && o !== foot && o.isBone && /toe/.test(boneKey(o.name))) toe = o;
+      /* Renderpeople has no toe bone at all: the tip of the foot chain
+         is foot_end_l. It is the same joint for this purpose — forward
+         of the ankle, which is the whole of what is being measured. */
+      if (!toe && o !== foot && o.isBone &&
+          /toe|footend/.test(boneKey(o.name))) toe = o;
     });
     if (!toe) continue;
     foot.getWorldPosition(a); toe.getWorldPosition(b);

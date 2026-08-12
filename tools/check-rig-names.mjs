@@ -135,13 +135,19 @@ window.__names = (url) => new Promise((done) => {
        stride, so one foot is not enough. */
     const keys = bones.map(boneKey);
     const count = (rx) => keys.filter(k => rx.test(k)).length;
+    /* Asked per FUNCTION, because they do not ask the same question:
+       passingTime takes any bone containing "foot" and needs a left and
+       a right; facingOf needs the ankle specifically plus a toe forward
+       of it; breathe wants a spine. Reporting one merged verdict hid
+       the fact that nathan satisfied one and not the other. */
     const findable = [
-      ["hips/pelvis", count(/hip|pelvis/) >= 1],
-      ["head",        count(/head$/) >= 1],
-      ["feet (2)",    count(/foot$/) >= 2],
-      ["toes",        count(/toe/) >= 1],
-      ["hands (2)",   count(/(hand|wrist)$/) >= 2],
-      ["spine",       count(/spine|chest/) >= 1],
+      ["hips/pelvis",        count(/hip|pelvis/) >= 1],
+      ["head (look-at)",     count(/head$/) >= 1],
+      ["feet x2 (stand)",    count(/foot/) >= 2],
+      ["ankles x2 (facing)", count(/(?<!end)foot(l|r)?$/) >= 2],
+      ["toe (facing)",       count(/toe|footend/) >= 1],
+      ["hands x2 (stand)",   count(/(hand|wrist)(l|r)?$/) >= 2],
+      ["spine (breathe)",    count(/spine|chest/) >= 1],
     ];
 
     const tagOf = (m) => {

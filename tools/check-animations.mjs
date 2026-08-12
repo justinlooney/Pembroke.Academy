@@ -151,17 +151,33 @@ if (!roles.roles.idle){
       return n.replace(/[^a-z0-9]/gi,"").toLowerCase(); };
     const feet = [], hands = []; let hip = null;
     s.g.traverse(o => { if (!o.isBone) return;
-      if (/foot$/.test(key(o.name))) feet.push(o);
-      if (/(hand|wrist)$/.test(key(o.name))) hands.push(o);
+      /* /foot/, not /foot$/ — the same loose read passingTime makes,
+         because Renderpeople spells it foot_l and an anchored pattern
+         reports "fewer than two feet found" on a body the campus is
+         standing quite happily. */
+      if (/foot/.test(key(o.name))) feet.push(o);
+      if (/(hand|wrist)(l|r)?$/.test(key(o.name))) hands.push(o);
       if (!hip && /hip|pelvis/.test(key(o.name))) hip = o; });
-    if (feet.length < 2) return { err: "fewer than two feet found" };
+    /* A left and a RIGHT, chosen the way passingTime chooses them.
+       Taking feet[0] and feet[1] off a loose /foot/ match picked
+       nathan's left ankle and his left toe — the length of one foot,
+       which barely changes through a stride — and the tool then
+       disagreed with the campus and looked like it had found a bug.
+       The side is spelled out on some rigs and carried as a lone letter
+       between separators on others, so both are read. */
+    const side = (b, word, letter) =>
+      key(b.name).includes(word) ||
+      new RegExp("(^|[^a-z])" + letter + "([^a-z]|$)", "i").test(b.name);
+    const L = feet.find(b => side(b, "left", "l"));
+    const R = feet.find(b => b !== L && side(b, "right", "r"));
+    if (!L || !R) return { err: "no left/right foot pair found" };
     const wp = (o) => ({ x:o.matrixWorld.elements[12], z:o.matrixWorld.elements[14] });
     const was = act.time, wasPaused = act.paused;
     const dur = act.getClip().duration, scores = [];
     for (let i = 0; i < 24; i++){
       act.time = (i / 24) * dur; act.paused = false;
       a.mixer.update(0); s.g.updateMatrixWorld(true);
-      const p = wp(feet[0]), q = wp(feet[1]);
+      const p = wp(L), q = wp(R);
       let d = Math.hypot(p.x - q.x, p.z - q.z);
       /* across the body, per frame — the same reading passingTime makes */
       const c = wp(hip || s.g);

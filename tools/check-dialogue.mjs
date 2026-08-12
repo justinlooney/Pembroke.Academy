@@ -99,24 +99,24 @@ else {
              cardLeft: box ? Math.round(box.left) : null,
              bodySpan: Number.isFinite(hi - lo) ? +(hi - lo).toFixed(1) : null,
              nanBones: nan,
-             /* how far off straight-ahead the head actually ends up —
-                the number the eye is judging when it says "still turned" */
+             /* Whether the look-at can work at all, and no angle.
+                An angle was reported here and it was worse than
+                nothing: it read local +Z as forward for both head and
+                body, which is the very assumption lookAtViewer avoids
+                making, so it called nathan 85 degrees off while the
+                render showed him staring straight down the lens. The
+                correction works in body space against a measured
+                neutral; there is no meaningful scalar to print from
+                outside it. The picture judges the direction. */
              look: (() => {
                if (!g) return null;
-               const THREE = window.__app.THREE;
-               let head = null;
                const key = (s) => { s=(s||"").split("|").pop().split(":").pop();
                  s=s.replace(/^mixamorig\d*/i,"").replace(/[._]\d+$/,"");
                  return s.replace(/[^a-z0-9]/gi,"").toLowerCase(); };
+               let head = null;
                g.traverse(o => { if (!head && o.isBone && /head$/.test(key(o.name))) head = o; });
-               if (!head) return "no head bone";
-               const f = new THREE.Vector3(0,0,1).applyQuaternion(
-                 head.getWorldQuaternion(new THREE.Quaternion()));
-               const b = new THREE.Vector3(0,0,1).applyQuaternion(
-                 g.getWorldQuaternion(new THREE.Quaternion()));
-               f.y = 0; b.y = 0; f.normalize(); b.normalize();
-               const yaw = Math.acos(Math.min(1, Math.max(-1, f.dot(b)))) * 180/Math.PI;
-               return { headVsBodyYaw: +yaw.toFixed(1) };
+               return head ? "head bone found — look-at active"
+                           : "NO head bone — look-at skipped, he will not turn to you";
              })(),
              text: (document.querySelector("#convo")?.innerText || "").slice(0, 220) };
   });
