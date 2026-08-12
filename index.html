@@ -4992,10 +4992,17 @@ function addExtra(n){
      within the minute. */
   makeRoamer(g, ALL_WAYS[Math.floor(Math.random() * ALL_WAYS.length)]);
 }
-function stepCrowd(now, dt){
+function stepCrowd(now, dt, raw){
   /* a slow average, so one stutter — a model finishing its decode, a
-     texture uploading — does not permanently cap the campus */
-  crowdFps += (1 / Math.max(dt, 1e-4) - crowdFps) * Math.min(1, dt * 1.5);
+     texture uploading — does not permanently cap the campus.
+   *
+   * Measured on the RAW frame time, not the clamped dt. dt is capped so
+   * one long frame cannot teleport the campus, and reading the frame
+   * rate off it meant this governor saturated at the cap's reciprocal:
+   * it could not report a rate worse than 20, and it is comparing
+   * against a floor of 33. The one measurement whose job is to notice a
+   * slow device was structurally unable to see how slow. */
+  crowdFps += (1 / Math.max(raw ?? dt, 1e-4) - crowdFps) * Math.min(1, dt * 1.5);
   if (crowdDone || !crowdReady || crowdN >= CROWD_TARGET) return;
   /* Not while the campus is still arriving. 39MB of models decode on
      the main thread, and on a phone that is half a minute of frames the
@@ -6235,6 +6242,7 @@ let lastT = performance.now();
       Off by default; costs nothing when the flag is absent. ──────── */
 const DEBUG = q.has("debug");
 let dbgEl = null, dbgFrames = 0, dbgAcc = 0, dbgMin = 1e9, dbgNext = 0, dbgFirst = 0;
+let dbgSlowest = 0;   /* longest single frame, in seconds */
 if (DEBUG){
   /* The panel lands squarely on the wing intro, and two blocks of text
      over one another are worth neither. Anyone who has typed ?debug
@@ -6248,12 +6256,17 @@ if (DEBUG){
     "padding:9px 11px;max-width:19rem;max-height:72vh;overflow:hidden;";
   document.getElementById("stage").appendChild(dbgEl);
 }
-function dbgUpdate(now, dt){
+/* raw, not the clamped dt: see the render loop. Totalling the clamped
+   value made this saturate at the clamp's reciprocal and report that
+   same number forever, exactly when the frame rate was worth knowing. */
+function dbgUpdate(now, dt, raw){
   if (!DEBUG) return;
   if (!dbgFirst) dbgFirst = now;
-  dbgFrames++; dbgAcc += dt;
-  const inst = 1 / Math.max(dt, 1e-4);
+  const real = Math.max(raw ?? dt, 1e-4);
+  dbgFrames++; dbgAcc += real;
+  const inst = 1 / real;
   if (now - dbgFirst > 3000 && inst < dbgMin) dbgMin = inst;   /* skip warm-up */
+  if (real > dbgSlowest) dbgSlowest = real;
   if (now < dbgNext) return;
   dbgNext = now + 500;
   const fps = dbgAcc > 0 ? dbgFrames / dbgAcc : 0;
@@ -6286,7 +6299,10 @@ function dbgUpdate(now, dt){
          : "   STALE: worker is serving " + sw + " — reload again") + "\n";
   dbgEl.textContent =
     "PEMBROKE · DIAGNOSTICS\n" + build +
-    "fps    " + fps.toFixed(0) + "   worst " + (dbgMin < 1e8 ? dbgMin.toFixed(0) : "–") + "\n" +
+    "fps    " + fps.toFixed(1) + "   worst " + (dbgMin < 1e8 ? dbgMin.toFixed(1) : "–") +
+      "   slowest frame " + (dbgSlowest * 1000).toFixed(0) + "ms\n" +
+    (fps < 10 ? "       SLOW MOTION: the campus runs at " +
+                (fps / 10).toFixed(2) + "x real time below 10fps\n" : "") +
     "gpu    " + ((glInfo || "unknown").slice(0, 30)) + "\n" +
     "post   " + (softGL ? "reduced (soft GL)" : "ssao+bloom+smaa") + "\n" +
     "draws  " + inf.render.calls + "   tris " + (inf.render.triangles / 1e6).toFixed(2) + "M\n" +
@@ -6307,15 +6323,30 @@ function dbgUpdate(now, dt){
 renderer.setAnimationLoop(() => {
   renderer.info.reset();                  /* totals accumulate across every pass below */
   const now = performance.now();
-  const dt = Math.min(0.05, (now - lastT) / 1000);
+  /* The real gap, kept separate from the clamped one. The panel used to
+     total the CLAMPED dt to work out the frame rate, which meant that
+     once every frame ran longer than the clamp the sum was always
+     frames x clamp and the answer was always exactly the clamp's
+     reciprocal. A phone at four frames a second reported twenty, and
+     "fps 20 worst 20" was not a reading at all — it was the metric
+     hitting its floor and saying nothing. */
+  const raw = (now - lastT) / 1000;
+  /* Clamped so one long frame cannot teleport the campus — a tab
+     restored after a minute would otherwise advance everything by a
+     minute in a single step. Raised from 0.05: below the clamp the
+     world runs in slow motion, because it advances by the clamp rather
+     than by the time that actually passed, and at 0.05 that began at
+     20fps — which this device sits under. At 0.1 the campus keeps real
+     time down to 10fps and only then starts to slow. */
+  const dt = Math.min(0.1, raw);
   lastT = now;
   /* Everything below this line is the campus. In a conversation none of
      it is on screen, so none of it runs — not the crowd ramp, not the
      walk graph, not the day cycle, not the detail pass, not the
      minimap, and not sixty skeletons' worth of mixers. That is where
      the 887 draws go. */
-  if (convoView){ convoFrame(dt); dbgUpdate(now, dt); return; }
-  stepCrowd(now, dt);
+  if (convoView){ convoFrame(dt); dbgUpdate(now, dt, raw); return; }
+  stepCrowd(now, dt, raw);
   stepStudents(dt, now);
   if (walker.on) walkUpdate(dt);
   else { stepFlight(now); controls.update(); }
@@ -6365,7 +6396,7 @@ renderer.setAnimationLoop(() => {
     labelRenderer.render(world, camera);
     composer.render();
   }
-  dbgUpdate(now, dt);
+  dbgUpdate(now, dt, raw);
 });
 resize();
 
