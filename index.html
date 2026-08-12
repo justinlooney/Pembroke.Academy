@@ -4514,7 +4514,7 @@ function rolesOf(k, src){
   const sit = seatRoles(src);
   if (k === "walker")
     return (ROLE_CACHE[k] = { gaits: GAITS, idle: "Idle", start: "Start Walking",
-                              seat: sit.seat, rise: sit.rise });
+                              seat: sit.seat, rise: sit.rise, riseFrom: sit.riseFrom });
   const scored = src.animations
     .filter(c => c.duration > 0.2)                 /* an eye-blink is not a clip */
     .map(c => ({ name: c.name, cadence: (c.userData?.cycles || 0) / c.duration }));
@@ -4528,7 +4528,7 @@ function rolesOf(k, src){
      with nothing to do when standing simply never stops walking. That
      reads far better than freezing someone mid-stride. */
   const roles = { gaits, idle: still[0] || null, start: null,
-                  seat: sit.seat, rise: sit.rise };
+                  seat: sit.seat, rise: sit.rise, riseFrom: sit.riseFrom };
   ROLE_CACHE[k] = roles;
   return roles;
 }
