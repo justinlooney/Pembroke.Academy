@@ -43,20 +43,33 @@ page.on("pageerror", e => console.log("  [pageerror] " + e.message.split("\n")[0
    be out today. Reload until it is, rather than reporting nothing and
    leaving the reader to guess whether that was a fault. */
 let who = [];
+/* One warm-up visit first, purely to fill the cache.
+ *
+ * Half the roster arrives AFTER the campus is walkable — isla, nadia,
+ * woman and alina are all late — and a forced quad gives up waiting for
+ * them after 45 seconds and deals from whoever is out. On a cold visit
+ * that is the first seven bodies, every time, so asking for a late body
+ * reported eight empty visits and a cast list that was first wave only.
+ * Waiting on __crowd().done does not help: the give-up is what raises
+ * it.
+ *
+ * So: load once and wait for every stu_ file to actually arrive, then
+ * reload. Second time round they come from cache in a moment and the
+ * quad is dealt from the whole roster. */
+await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "domcontentloaded" });
+await page.waitForFunction(() => window.__app && window.__assets, null, { timeout: 300_000 });
+await page.waitForFunction(() => {
+  const s = (window.__assets || []).filter(a => /^stu_/.test(a.name));
+  return s.length >= 10 && s.every(a => a.ms != null);
+}, null, { timeout: 500_000 })
+  .then(() => console.log("cache warm — every body has arrived"),
+        () => console.log("(not every body arrived; judging what did)"));
+
 for (let attempt = 1; attempt <= 8; attempt++){
   await page.goto(`http://127.0.0.1:${PORT}/?crowd=12`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => window.__app && window.__convo, null, { timeout: 300_000 });
   await page.waitForFunction(() => (window.__convo.named() || []).length > 0,
                              null, { timeout: 300_000 });
-  /* ...and then wait for the LATE wave. Half the cast arrives after the
-     campus is walkable — isla, nadia, woman and alina are all in it —
-     and checking the moment the named cast exists finds only the first
-     seven bodies. Eight reloads then report a body as absent that was
-     simply not out of the van yet. __crowd().done is raised once the
-     forced quad has been filled, which is after the late bodies land or
-     after the give-up decides they never will. */
-  await page.waitForFunction(() => window.__crowd?.().done === true,
-                             null, { timeout: 400_000 }).catch(() => {});
   who = await page.evaluate(() => window.__convo.named()
     .map(s => ({ name: s.data?.name, body: s.g?.userData?.figure })));
   if (who.some(w => w.body === BODY)) break;
