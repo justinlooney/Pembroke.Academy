@@ -4965,11 +4965,24 @@ const VISIT = Math.floor(Math.random() * 1e6);
    people should be three different people, not three throws of the same
    die that might come up the same twice. */
 let castDeck = [];
+let castPass = 0;                      /* how many times the deck has been dealt */
 function nextBody(n){
   const pool = loadedRoaming();
   if (!pool.length) return null;
-  if (n === 0 || castDeck.length === 0){
-    castDeck = pool.slice();
+  if (n === 0){ castPass = 0; castDeck = []; }
+  if (castDeck.length === 0){
+    castPass++;
+    /* Everybody once, then only the ones a change of clothes can tell
+       apart. Four of the eight roaming bodies own no mesh the wardrobe
+       can dress — alina, nathan, kenta and isla wear what is in their
+       file — so a second copy of one of those is not a similar student,
+       it is the same student twice, down to the pixel. Reported as "too
+       many same people", and photographed: two identical men in red.
+       A second walker at least arrives in a different shirt.
+       Falls back to the whole pool if nothing loaded is dressable,
+       because a repeat beats an empty campus. */
+    const repeatable = pool.filter(k => CAST_DRESSABLE.includes(k));
+    castDeck = (castPass === 1 || !repeatable.length) ? pool.slice() : repeatable.slice();
     for (let i = castDeck.length - 1; i > 0; i--){
       const j = Math.floor(Math.random() * (i + 1));
       [castDeck[i], castDeck[j]] = [castDeck[j], castDeck[i]];
@@ -5350,10 +5363,17 @@ function stepStudents(dt, now){
         s.node = s.target; s.target = null;
         /* Standing about is most of what people do on a campus, and a
            student who stops is a student not adding to the queue behind
-           them. Two thirds pause at each waypoint, for longer than they
-           used to. */
-        if (s.roles?.idle && Math.random() < 0.66)
-          s.pauseUntil = now + 1400 + Math.random() * 5200;
+           them.
+         *
+         * It was two thirds pausing for up to 6.6s, which at any moment
+         * left about half the campus standing — reported as "too many
+         * frozen people, just 1 or 2 walking around". Half a campus
+         * standing is realistic and it does not read as realistic: a
+         * still figure looks broken in a way a walking one does not,
+         * and at this crowd size there is no queue to relieve. A third,
+         * for a third as long. */
+        if (s.roles?.idle && Math.random() < 0.33)
+          s.pauseUntil = now + 900 + Math.random() * 2400;
       } else {
         const nx = s.pos[0] + dx / dist * s.speed * dt;
         const ny = s.pos[1] + dy / dist * s.speed * dt;
