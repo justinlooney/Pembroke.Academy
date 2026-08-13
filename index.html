@@ -5013,100 +5013,257 @@ const SIT_DONOR = "assets/clip_sit.glb";
    end in a foot. Everything else in the clip is decoration. */
 const SIT_CHAIN = ["hips", "spine", "leftupleg", "leftleg", "leftfoot",
                    "rightupleg", "rightleg", "rightfoot"];
-/* ── is this actually a person sitting down? ──────────────────────────
-   A lent clip can bind every bone it needs and still be nonsense, and
-   the only reason anyone knows that is that two of them were rendered:
-   nadia with her arms over her head and sophia balanced on one leg,
-   both binding 53 joints out of 69. Their files rest in a pose that
-   does not correspond to the donor's rest, and the delta then means
-   something different on them than it does on everybody else.
+/* A standing pose needs less: nothing has to bend, but the figure does
+   have to have a spine and legs to stand on. */
+const STAND_CHAIN = ["hips", "spine", "leftupleg", "leftfoot",
+                     "rightupleg", "rightfoot"];
+/* ── did the receiver end up in the same shape as the donor? ──────────
+   A lent clip can bind every bone it needs and still be nonsense. Two
+   of them are: nadia comes out with her arms over her head and sophia
+   balanced on one leg, both binding 53 joints out of 69, because their
+   files rest in a pose that does not correspond to the donor's rest
+   and the delta then means something different on them.
 
-   So the clip is asked to prove itself on the body it was built for:
+   The first version of this check was a pair of thresholds picked by
+   eye — the pelvis must drop, the feet must stay down — and it let
+   both of them straight through. Tuning the numbers until they failed
+   would have been fitting the test to two known bodies rather than
+   testing anything.
 
-     the pelvis must end up meaningfully lower than it started
-     both feet must stay on the floor throughout
+   The real rule is the one the retarget is FOR: the receiver should
+   end up in the same shape as the donor. So both are driven together
+   and compared, joint by joint, in the only units that mean the same
+   thing on two different bodies — height above the floor as a fraction
+   of that rig's own standing hip height. Proportions differ, so the
+   tolerance is loose; a hand where a donor's head is exceeds it by a
+   mile.
 
-   The second is what catches these two. A person lowering themselves
-   onto a bench keeps their feet where they are; a figure whose knee
-   comes up to its chest does not, and that is measurable without
-   knowing anything about why. */
-function sitLooksWrong(clip, src){
-  const probe = skeletonClone(src.scene);
-  probe.updateMatrixWorld(true);
-  const [hips, , feet] = hipFootOf(probe, false);
-  if (!hips || feet.length < 2) return "no hips or feet to measure";
-  const mixer = new THREE.AnimationMixer(probe);
+   It earned its keep at once, on a sit that had already been RENDERED
+   and passed — see the note about inPlaceClip below. */
+/* The pelvis and the feet, and deliberately not the hands. What the
+   retarget has to get right is where the BODY is: the pelvis low
+   enough to be on a seat and the feet still on the floor. Arms are
+   what differs most between rigs and what matters least to whether a
+   sit reads — measured, comparing hands rejected kenta at 0.36 and
+   isla at 0.67 of a body, both of whom had been rendered sitting
+   perfectly well. Both broken bodies fail on their feet anyway:
+   sophia balances on one leg and nadia lifts a knee to her chest, and
+   that is the same fault that makes them look wrong. */
+const POSE_JOINTS = ["leftfoot", "rightfoot", "hips"];
+const POSE_SAMPLES = 10;
+const POSE_TOLERANCE = 0.35;      /* of standing hip height */
+const _ppV = new THREE.Vector3();
+function poseProfile(root, clip, loose){
+  const joints = new Map();
+  for (const o of jointsOf(root, loose)){
+    const k = canonBone(o.name);
+    if (POSE_JOINTS.includes(k) && !joints.has(k)) joints.set(k, o);
+  }
+  const [hips, , feet] = hipFootOf(root, loose);
+  if (!hips || !feet.length || joints.size < POSE_JOINTS.length) return null;
+  root.updateMatrixWorld(true);
+  hips.getWorldPosition(_ppV);
+  const hipY = _ppV.y;
+  feet[0].getWorldPosition(_ppV);
+  const stand = hipY - _ppV.y;
+  if (!(stand > 1e-6)) return null;
+
+  const mixer = new THREE.AnimationMixer(root);
   const act = mixer.clipAction(clip);
   act.reset(); act.play(); act.setEffectiveWeight(1);
-  const P = new THREE.Vector3(), F = new THREE.Vector3();
-  const stand0 = (() => {
-    hips.getWorldPosition(P); feet[0].getWorldPosition(F); return P.y - F.y;
-  })();
-  const N = 12, hipAt = [], footAt = feet.map(() => []);
-  for (let i = 0; i <= N; i++){
-    const t = Math.min(clip.duration - 1e-4, clip.duration * i / N);
+  const rows = [];
+  for (let i = 0; i <= POSE_SAMPLES; i++){
+    const t = Math.min(clip.duration - 1e-4, clip.duration * i / POSE_SAMPLES);
     act.time = t; mixer.setTime(t);
-    probe.updateMatrixWorld(true);
-    hips.getWorldPosition(P);
-    feet.forEach((f, j) => { f.getWorldPosition(F); footAt[j].push(F.y); });
-    hipAt.push(P.y - Math.min(...footAt.map(a => a[a.length - 1])));
+    root.updateMatrixWorld(true);
+    let floor = Infinity;
+    for (const f of feet){ f.getWorldPosition(_ppV); floor = Math.min(floor, _ppV.y); }
+    hips.getWorldPosition(_ppV);
+    const hy = _ppV.y;
+    const row = {};
+    /* Everything but the pelvis is measured FROM the pelvis. Against
+       the floor instead, isla is rejected for a hand 0.72 of a body out
+       of place while sitting perfectly well — she is wearing heels and
+       has long legs, so every height above the ground is shifted before
+       the clip does anything. A hand resting on a knee sits at much the
+       same place below the hips on any body; the pelvis is the one that
+       has to be measured against the floor, because how far it is off
+       the ground is the whole question a sit-down asks. */
+    for (const [k, o] of joints){
+      o.getWorldPosition(_ppV);
+      row[k] = k === "hips" ? (hy - floor) / stand : (_ppV.y - hy) / stand;
+    }
+    rows.push(row);
   }
-  act.stop(); mixer.uncacheAction(clip); mixer.uncacheRoot(probe);
-  if (!(stand0 > 1e-6)) return "cannot measure a standing height";
-  const drop = (hipAt[0] - hipAt[hipAt.length - 1]) / stand0;
-  if (drop < 0.25) return "hips only drop " + drop.toFixed(2);
-  for (const a of footAt){
-    const lift = (Math.max(...a) - Math.min(...a)) / stand0;
-    if (lift > 0.3) return "a foot lifts " + lift.toFixed(2) + " off the floor";
+  act.stop(); mixer.uncacheAction(clip); mixer.uncacheRoot(root);
+  return rows;
+}
+/* The donor is measured once per clip, not once per body. */
+const POSE_REF = new Map();
+function poseLooksWrong(clip, src, expect, from, fromClip){
+  let ref = POSE_REF.get(fromClip);
+  if (ref === undefined){
+    /* driven on a clone so the donor is left as it was found */
+    ref = poseProfile(skeletonClone(from.scene), fromClip, true);
+    POSE_REF.set(fromClip, ref);
   }
+  const mine = poseProfile(skeletonClone(src.scene), clip, false);
+  if (!mine) return "nothing measurable to compare";
+  if (!ref) return null;                  /* cannot compare — let it through */
+  let worst = 0, where = "";
+  for (let i = 0; i < Math.min(ref.length, mine.length); i++){
+    for (const k of POSE_JOINTS){
+      if (ref[i][k] === undefined || mine[i][k] === undefined) continue;
+      const d = Math.abs(ref[i][k] - mine[i][k]);
+      if (d > worst){ worst = d; where = k; }
+    }
+  }
+  if (worst > POSE_TOLERANCE)
+    return where + " off by " + worst.toFixed(2) + " of a body";
+  /* and a cheap sanity on what the clip is FOR, in case the donor and
+     the receiver are wrong together */
+  const lo = Math.min(...mine.map(r => r.hips));
+  const hi = Math.max(...mine.map(r => r.hips));
+  if (expect === "sit" && mine[0].hips - mine[mine.length - 1].hips < 0.25)
+    return "the hips never drop";
+  if (expect === "seated" && hi > 0.75) return "hips reach " + hi.toFixed(2) + ", not seated";
+  if (expect === "stand" && lo < 0.6) return "hips fall to " + lo.toFixed(2) + " for an idle";
   return null;
 }
+/* ── the two that are named rather than measured ──────────────────────
+   nadia and sophia rest in a pose the donor's rest does not correspond
+   to. Rendered through this exact code path, nadia comes out with her
+   arms over her head and sophia balanced on one leg, both binding 53
+   joints out of 69.
+
+   They are NAMED here, which is not what I wanted. The measurement was
+   tried and it cannot do this job: comparing where the hands end up
+   rejects isla at 0.67 of a body before it rejects nadia at 1.11, and
+   isla sits perfectly well — she is simply built differently and
+   wearing heels. A threshold set between those two numbers would be
+   fitted to the two bodies I happen to have looked at, not a test of
+   anything, and this file has been wrong that way before.
+
+   So the structural check below keeps the job it can actually do —
+   catching a clip that has gone wrong, which is how the inPlaceClip
+   bug was found — and the two known-bad bodies are excluded by name,
+   with the reason written down. Both are queued for Mixamo's
+   auto-rigger (tools/prep-inbox.txt); when they come back Mixamo-named
+   this list should be emptied and the pictures taken again. */
+const NO_LENDING = new Set(["nadia", "sophia"]);
 let sitDonor = null;
-function lendSitDown(){
-  const clip = sitDonor && sitDonor.animations && sitDonor.animations[0];
-  if (!clip) return;
-  const got = [], no = [];
-  for (const k of Object.keys(castLib)){
-    const src = castLib[k];
-    if (!src || !ROAMING.includes(k)) continue;   /* only the ones roles drive */
-    if (rolesOf(k, src).sit) continue;            /* already owns one */
-    const lent = lendClip(clip, src.scene, sitDonor.scene, "Stand To Sit");
-    /* Whether the bones a SIT needs are there, not how many bones
-       matched. Counting was the obvious test and it was wrong: isla
-       carries every one of the fourteen below and only 32 of the 75
-       tracks, because she has no fingers — and a threshold on the
-       count threw out the one woman on this campus who could have sat
-       down. Fingers do not sit. */
-    if (!lent || !SIT_CHAIN.every(b => lent.tracks.some(t => canonBone(t.name.split(".")[0]) === b))){
-      no.push(k + " (bones)"); continue;
-    }
-    /* ...and then LOOK at it, because binding is not the same as
-       working. nadia and sophia bind 53 joints apiece and come out
-       twisted, standing on one leg with their arms over their heads —
-       their files rest in a pose the donor's rest does not correspond
-       to, and no count of matched bones says so. Rendered to find it;
-       measured here so it cannot ship. */
-    const why = sitLooksWrong(lent, src);
-    if (why){ no.push(k + " (" + why + ")"); continue; }
-    src.animations.push(lent);
-    /* NOT prepareClips: that ends in inPlaceClip, which pins every
-       position track's x and z to frame 0 to strip root travel. This
-       clip's hips track has no travel to strip — it is written from
-       the target's own rest position every key — and on a rig whose
-       hips axis is not world up the DESCENT is carried in x and z, so
-       pinning them flattened the sit into a squat and the feet came up
-       to meet it. Caught by the acceptance test on walker, whose sit
-       had already been rendered and passed. Only the cycle count is
-       wanted here, and a sit-down has none worth having. */
-    if (!lent.userData) lent.userData = {};
-    lent.userData.cycles = gaitCycles(lent);
-    delete ROLE_CACHE[k];                         /* what this body can do just changed */
-    got.push(k);
-  }
-  if (got.length || no.length)
-    console.info("cast: sit-down lent to " + (got.join(", ") || "nobody") +
-                 (no.length ? "; declined by " + no.join(", ") : ""));
+/* ── what each body is short of, and who can lend it ──────────────────
+   Three clips, one mechanism. The sit-down comes from its own donor;
+   the other two come from walker, who is the only body on this campus
+   whose download carried more than a walk.
+
+     Stand To Sit    nobody had one. Without it every student sits on
+                     the grass and ten benches go unused.
+     Idle            six of the eight roaming bodies have none, and a
+                     body with nothing to do standing still NEVER
+                     STOPS WALKING — that is what holdStill and
+                     passingTime exist to paper over. It is also why
+                     Priya, who asks for a body that can stand about,
+                     could only ever be walker.
+     Sitting Talking only walker owns the forty-four second seated
+                     loop, so everybody else holds the sit's last frame
+                     — capped at 34 seconds, because a held pose is the
+                     statue this was all supposed to remove, sitting
+                     down. */
+function lendable(){
+  return [
+    { name: "Stand To Sit", from: sitDonor, clip: sitDonor && sitDonor.animations[0],
+      chain: SIT_CHAIN, expect: "sit",
+      wanted: (R) => !R.sit },
+    /* ── not from walker, and here is why ─────────────────────────────
+       Idle and Sitting Talking were lent from him and both were WRONG:
+       woman stood hunched with her head down, isla bent over backwards
+       with her arms out. Rendered through this exact code path, and
+       the acceptance test below passed them both.
+
+       The reason is the donor, not the receivers. lendClip carries each
+       bone's change FROM ITS OWN REST, which assumes the donor's rest
+       is a neutral pose — true of a Sketchfab Mixamo export like the
+       sit donor, and evidently not true of walker, who was assembled
+       out of eight FBX downloads in Blender. A near-still idle is
+       almost all rest and almost no change, so on him the error is the
+       whole clip.
+
+       Left out until there is a donor whose rest is known good, or the
+       retarget stops depending on the donor's rest. Both are real
+       pieces of work; shipping a campus of hunched students to save
+       them is not.
+
+    { name: "Idle", from: w, clip: byName(w, "Idle"), ... }
+    { name: "Sitting Talking", from: w, clip: byName(w, "Sitting Talking"), ... }
+    */
+  ];
 }
+function lendSitDown(){
+  const log = [];
+  for (const job of lendable()){
+    if (!job.clip || !job.from) continue;
+    const got = [], no = [];
+    for (const k of Object.keys(castLib)){
+      const src = castLib[k];
+      if (!src || !ROAMING.includes(k)) continue;   /* only the ones roles drive */
+      if (NO_LENDING.has(k)){ no.push(k + " (rests in the wrong pose)"); continue; }
+      if (src === job.from) continue;               /* it is already theirs */
+      /* Belt as well as braces. `wanted` asks the ROLES, and a role is
+         a conclusion drawn from the clips — if that conclusion comes
+         out wrong the same clip gets lent again on every later pass and
+         the body ends up carrying five copies of one idle. Measured:
+         ariel collected five. */
+      if (src.animations.some(c => c.name === job.name)) continue;
+      if (!job.wanted(rolesOf(k, src))) continue;   /* they have one of their own */
+      const lent = lendClip(job.clip, src.scene, job.from.scene, job.name);
+      /* Whether the bones this POSE needs are there, not how many bones
+         matched. Counting was the obvious test and it was wrong: isla
+         carries every bone a sit needs and only 32 of the 75 tracks,
+         because she has no fingers — and a threshold on the count threw
+         out the one woman on this campus who could have sat down.
+         Fingers do not sit. */
+      if (!lent || !job.chain.every(b =>
+            lent.tracks.some(t => canonBone(t.name.split(".")[0]) === b))){
+        no.push(k + " (bones)"); continue;
+      }
+      /* ...and then LOOK at it, because binding is not the same as
+         working. nadia and sophia bind 53 joints apiece and come out
+         twisted, standing on one leg with their arms over their heads —
+         their files rest in a pose the donor's rest does not correspond
+         to, and no count of matched bones says so. Rendered to find it;
+         measured here so it cannot ship. */
+      const why = poseLooksWrong(lent, src, job.expect, job.from, job.clip);
+      if (why){ no.push(k + " (" + why + ")"); continue; }
+      src.animations.push(lent);
+      /* NOT prepareClips: that ends in inPlaceClip, which pins every
+         position track's x and z to frame 0 to strip root travel. A
+         lent clip has no travel to strip — its hips track is written
+         from the target's own rest position every key — and on a rig
+         whose hips axis is not world up the DESCENT is carried in x and
+         z, so pinning them flattened walker's sit into a squat and his
+         feet came up to meet it. Caught by the acceptance test, on a
+         body whose sit had already been rendered and passed. Only the
+         cycle count is wanted here. */
+      if (!lent.userData) lent.userData = {};
+      /* The SOURCE's count, not a fresh one off the retargeted curves.
+         gaitCycles counts a thigh swinging back and forth, and a
+         retarget leaves enough jitter on a still thigh to score seven
+         crossings on a standing idle — which then reads as a gait
+         cadence, keeps roles.idle empty, and has the body walking for
+         ever while collecting another copy of the idle every pass.
+         It is the same motion; it has the same number of cycles. */
+      lent.userData.cycles = job.clip.userData?.cycles ?? gaitCycles(lent);
+      delete ROLE_CACHE[k];                     /* what this body can do just changed */
+      got.push(k);
+    }
+    if (got.length || no.length)
+      log.push(job.name + " -> " + (got.join(", ") || "nobody") +
+               (no.length ? "; declined by " + no.join(", ") : ""));
+  }
+  if (log.length) console.info("cast: lent " + log.join("  |  "));
+}
+
 {
   const first = CAST_FIRST.filter(k => CAST_FILES[k]);
   const later = Object.keys(CAST_FILES).filter(k => !first.includes(k));
@@ -8409,12 +8566,21 @@ window.__students = students;
    spread over three minutes of cooldown, so a check that waits for one
    to happen is measuring the dice. This lets a probe send somebody. */
 window.__seats = SEATS;
+window.__castLib = castLib;   /* test/debug hook: the loaded bodies */
 /* test/debug hook: what the sit-down looks like on a given body, and
    what the acceptance test made of it. */
-window.__sitCheck = (k) => {
+window.__sitCheck = (k, name = "Stand To Sit", expect = "sit") => {
   const src = castLib[k];
-  const clip = src && src.animations.find(c => c.name === "Stand To Sit");
-  return { has: !!clip, why: clip ? sitLooksWrong(clip, src) : "no clip",
+  const clip = src && src.animations.find(c => c.name === name);
+  /* The donor's own clip is called "mixamo.com" — the name it is given
+     is the one it gets on the RECEIVER. */
+  const donor = name === "Stand To Sit" ? sitDonor : castLib.walker;
+  const dclip = donor && (name === "Stand To Sit"
+    ? donor.animations[0] : donor.animations.find(c => c.name === name));
+  if (!src) return { has: false, why: "not loaded", clips: [], roles: null };
+  return { has: !!clip,
+           why: clip ? poseLooksWrong(clip, src, expect, donor, dclip) : "no clip",
+           clips: src.animations.map(c => c.name),
            roles: rolesOf(k, src) };
 };
 /* test/debug hook: advance the crowd without painting.
