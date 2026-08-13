@@ -137,6 +137,13 @@ function canonBone(raw){
     const t = CC[m[2].toLowerCase()];
     return t ? (side && t !== "hips" ? side + t : t) : null;
   }
+  m = /^(Left|Right)?(Pelvis|Chest|Clavicle|UpperArm|Thigh|Shin|Toe)$/.exec(s);
+  if (m){
+    const side = m[1] ? m[1].toLowerCase() : "";
+    const t = { pelvis: "hips", chest: "chest", clavicle: "shoulder",
+                upperarm: "arm", thigh: "upleg", shin: "leg", toe: "toebase" }[m[2].toLowerCase()];
+    return side && t !== "hips" ? side + t : t;
+  }
   s = s.replace(/^mixamorig\\d*/i, "").replace(/[^a-z0-9]/gi, "").toLowerCase();
   return s ? s.replace(/^spine0(\\d)$/, "spine$1") : null;
 }
@@ -169,9 +176,11 @@ window.__check = (url) => new Promise((done) => loader.load(url, (g) => {
   root.traverse(o => { if (o.isBone) bones.push(o); });
   out.bones = bones.length;
   const raw = bones[1] ? bones[1].name : (bones[0] ? bones[0].name : "");
+  const names = bones.map(b => b.name);
   out.dialect = /^mixamorig/i.test(raw) ? "Mixamo"
               : /^CC_Base_/i.test(raw) ? "Character Creator"
               : /^rp_.+_animated_/i.test(raw) ? "Renderpeople"
+              : names.some(n => /Thigh$|Shin$/.test(n)) ? "StudentProductionRig"
               : canonBone(raw) ? "plain" : "unrecognised";
   const have = new Set();
   for (const b of bones){ const k = canonBone(b.name); if (k) have.add(k); }

@@ -1863,7 +1863,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v49";
+const BUILD = "pembroke-v50";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -4661,6 +4661,17 @@ function canonBone(raw){
     const side = m[1] ? (m[1].toUpperCase() === "L" ? "left" : "right") : "";
     const t = CC_BONE[m[2].toLowerCase()];
     return t ? (side && t !== "hips" ? side + t : t) : null;
+  }
+  /* StudentProductionRigV4 — the first character MADE for this campus
+     rather than found for it. Words no other rig here uses, so none of
+     these can collide with isla's bare Mixamo-style names. Two of its
+     words (Pelvis, Chest) carry no side; the rest do. */
+  m = /^(Left|Right)?(Pelvis|Chest|Clavicle|UpperArm|Thigh|Shin|Toe)$/.exec(s);
+  if (m){
+    const side = m[1] ? m[1].toLowerCase() : "";
+    const t = { pelvis: "hips", chest: "chest", clavicle: "shoulder",
+                upperarm: "arm", thigh: "upleg", shin: "leg", toe: "toebase" }[m[2].toLowerCase()];
+    return side && t !== "hips" ? side + t : t;
   }
   s = s.replace(/^mixamorig\d*/i, "").replace(/[^a-z0-9]/gi, "").toLowerCase();
   /* isla spells them Spine01 and Spine02 where Mixamo says Spine1 */
