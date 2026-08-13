@@ -673,6 +673,31 @@ try {
        looks.women <= looks.total - 2,
        looks ? `${looks.women} of ${looks.total} figures read female` : "could not count");
 
+  /* ── can anybody sit down? ───────────────────────────────────────
+     Nobody on this campus could, until a 2.2 second sit-down arrived
+     on a body of its own and was lent to the skeletons already here.
+     Two things have to hold and neither is visible in a screenshot:
+     a body has to END UP with the clip, and its seated pose has to
+     agree with the seated LOOP closely enough that seatRoles keeps
+     the loop — because a disagreement there silently drops everyone
+     back onto the grass, which is exactly the state this replaced. */
+  const sitting = await crowdPage.evaluate(() => {
+    const seen = new Map();
+    for (const s of (window.__students || [])){
+      const k = s.g?.userData?.figure, R = s.g?.userData?.anim?.roles;
+      if (k && R && !seen.has(k)) seen.set(k, R);
+    }
+    const can = [...seen].filter(([, R]) => R.sit).map(([k, R]) =>
+      `${k}@${(R.sitTo ?? 1).toFixed(2)}${R.seat ? "+loop" : ""}`);
+    const benched = (window.__seats || []).length;
+    return { can, bodies: seen.size, benched };
+  }).catch(() => ({ can: [], bodies: 0, benched: 0 }));
+  step("somebody on this campus can sit down", sitting.can.length > 0,
+       sitting.can.length
+         ? `${sitting.can.join(", ")} — over ${sitting.benched} benches`
+         : `no body of ${sitting.bodies} has a sit-down; the clip donor ` +
+           `did not load, or lendClip bound nothing`);
+
   step("a full quad still draws", !!c && c.draws > 0 && c.tris > 0,
        c ? `draws ${c.draws} · tris ${(c.tris / 1e6).toFixed(2)}M` : "");
   step("the crowd arrives without errors", crowdErrs.length === 0,

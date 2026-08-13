@@ -1863,7 +1863,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v48";
+const BUILD = "pembroke-v49";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -4308,7 +4308,7 @@ function canDo(k, needs){
   const r = rolesOf(k, src);
   if (needs === "idle") return !!r.idle;
   if (needs === "gait") return !!(r.gaits && r.gaits.length);
-  if (needs === "seat") return !!(r.seat || r.rise);
+  if (needs === "seat") return !!(r.sit || r.seat || r.rise);
   return true;
 }
 /* Least-worn first, and matching the student's look wherever the cast
@@ -4564,6 +4564,162 @@ function prepFigure(k, height, live, clipIx = 0){
   }
   return g2;
 }
+/* ── lending a clip to somebody else's skeleton ───────────────────────
+   Nobody on this campus could sit down onto anything. Walker's only
+   clip that changes height is "Standing Up", and it begins at 0.01 of
+   his standing hip height — flat on the floor — so seatRoles rightly
+   refuses to chain it to a seated loop that sits at 0.48, every
+   student sits on the grass, and the forty-four second Sitting Talking
+   loop and every bench on the campus have never once been used.
+
+   A real sit-down arrived: 2.23 seconds, hips 0.99 -> 0.49, holding.
+   It came on a body of its own, and a clip addresses bones by NAME —
+   so the question is whether it can be moved onto the bodies that are
+   already here. Measured: 75 of 75 tracks find a counterpart on
+   walker, kenta and tutor; 0 of 75 on nathan, whose bones are called
+   rp_nathan_animated_003_walking_hip_02; 32 of 75 on isla, who has no
+   fingers.
+
+   Renaming the tracks is NOT enough, and this is the part that has to
+   be looked at rather than reasoned about. Copying the local rotations
+   across folded walker into a heap on the floor while kenta and tutor
+   sat down perfectly — because kenta and tutor came straight out of
+   Mixamo and walker came back through Blender, so his bones share
+   Mixamo's names and not their rest orientations.
+
+   So what crosses over is not the pose but the CHANGE from rest:
+   for each bone, how far it has turned from where its own rig left it,
+   in world space, re-applied to where the receiving rig's rest leaves
+   it, and converted back to local. That is indifferent to bone roll,
+   to bone length, and to which way a rig thinks is forward.
+
+   Three things then have to be true of the hips, which carry the drop
+   a rotation cannot express:
+     the units       hips sit at local y 209 on the donor, 2.3 on
+                     walker, 97 on kenta, 0.97 on tutor
+     the proportions a taller student's pelvis has further to fall
+     the AXES        walker's hips animate along a local axis that is
+                     not world up; writing raw local y laid him down
+   None of the donor's numbers are used directly: each key is read as a
+   fraction of the DONOR's own standing hip height, applied to the
+   receiver's, and turned back into whatever the receiver's hips call
+   down.
+
+   Verified by rendering all three at five points through the clip.
+   Walker now goes 1.00 -> 0.47 of standing hip height with his feet
+   planted to within three thousandths the whole way. */
+function jointsOf(root, loose){
+  const out = [];
+  root.traverse(o => { if ((loose || o.isBone) && boneKey(o.name)) out.push(o); });
+  return out;
+}
+function hipFootOf(root, loose){
+  let h = null, f = null;
+  for (const o of jointsOf(root, loose)){
+    const k = boneKey(o.name);
+    if (!h && /hip|pelvis/.test(k)) h = o;
+    if (!f && /foot/.test(k) && !/end|toe/.test(k)) f = o;
+  }
+  return [h, f];
+}
+const _lq = new THREE.Quaternion(), _lD = new THREE.Quaternion();
+const _lW = new THREE.Quaternion(), _lP = new THREE.Quaternion();
+const _lL = new THREE.Quaternion(), _lV = new THREE.Vector3(), _lF = new THREE.Vector3();
+function lendClip(clip, target, srcRoot, name, fps = 30){
+  /* The donor is sampled through a mixer, which leaves it posed. It is
+     handed to every body in turn, so the second lend would read its
+     rest orientation off the first lend's last frame. Put it back. */
+  const src = jointsOf(srcRoot, true);
+  const keep = src.map(o => [o.position.clone(), o.quaternion.clone()]);
+  const restore = () => {
+    src.forEach((o, i) => { o.position.copy(keep[i][0]); o.quaternion.copy(keep[i][1]); });
+    srcRoot.updateMatrixWorld(true);
+  };
+  try {
+    srcRoot.updateMatrixWorld(true); target.updateMatrixWorld(true);
+    const [srcHips, srcFoot] = hipFootOf(srcRoot, true);
+    const [tgtHips, tgtFoot] = hipFootOf(target, false);
+    if (!srcHips || !srcFoot || !tgtHips || !tgtFoot) return null;
+    const reach = (h, f) => {
+      h.getWorldPosition(_lV); f.getWorldPosition(_lF); return _lV.y - _lF.y;
+    };
+    const srcStand = reach(srcHips, srcFoot), tgtStand = reach(tgtHips, tgtFoot);
+    if (!(srcStand > 1e-6) || !(tgtStand > 1e-6)) return null;
+
+    /* Parents before children: a local rotation only means anything
+       once its parent's world rotation is known, and traverse() is
+       already depth-first from the root. */
+    const byKey = new Map();
+    for (const o of jointsOf(target, false)){
+      const k = boneKey(o.name);
+      if (k && !byKey.has(k)) byKey.set(k, o);
+    }
+    const pairs = [];
+    for (const s of src){
+      const t = byKey.get(boneKey(s.name));
+      if (t) pairs.push({ s, t });
+    }
+    if (!pairs.length) return null;
+
+    const restS = pairs.map(({ s }) => s.getWorldQuaternion(new THREE.Quaternion()));
+    const restT = pairs.map(({ t }) => t.getWorldQuaternion(new THREE.Quaternion()));
+
+    const mixer = new THREE.AnimationMixer(srcRoot);
+    const act = mixer.clipAction(clip);
+    act.reset(); act.play(); act.setEffectiveWeight(1);
+
+    const n = Math.max(2, Math.round(clip.duration * fps) + 1);
+    const times = new Float32Array(n);
+    const out = pairs.map(() => new Float32Array(n * 4));
+    const hipsPos = new Float32Array(n * 3);
+    const world = new Map();
+
+    /* whatever the receiver's hips think "down" is */
+    const parent = tgtHips.parent;
+    parent.updateWorldMatrix(true, false);
+    const up = new THREE.Vector3(0, 1, 0)
+      .transformDirection(new THREE.Matrix4().copy(parent.matrixWorld).invert()).normalize();
+    const perWorld = 1 / (parent.matrixWorld.getMaxScaleOnAxis() || 1);
+    const restPos = tgtHips.position.clone();
+
+    for (let i = 0; i < n; i++){
+      const time = Math.min(clip.duration - 1e-4, (i / (n - 1)) * clip.duration);
+      times[i] = time;
+      act.time = time; mixer.setTime(time);
+      srcRoot.updateMatrixWorld(true);
+
+      const frac = reach(srcHips, srcFoot) / srcStand;    /* 1 standing, ~0.5 seated */
+      _lV.copy(up).multiplyScalar((frac - 1) * tgtStand * perWorld).add(restPos);
+      hipsPos[i * 3] = _lV.x; hipsPos[i * 3 + 1] = _lV.y; hipsPos[i * 3 + 2] = _lV.z;
+
+      world.clear();
+      pairs.forEach(({ s, t }, bi) => {
+        s.getWorldQuaternion(_lq);
+        _lD.copy(restS[bi]).invert().premultiply(_lq);   /* how far from ITS rest */
+        _lW.copy(_lD).multiply(restT[bi]);               /* onto the receiver's */
+        world.set(t, _lW.clone());
+        const p = t.parent;
+        if (p && world.has(p)) _lP.copy(world.get(p));
+        else if (p) p.getWorldQuaternion(_lP);
+        else _lP.identity();
+        _lL.copy(_lP).invert().multiply(_lW);
+        const a = out[bi], o4 = i * 4;
+        a[o4] = _lL.x; a[o4 + 1] = _lL.y; a[o4 + 2] = _lL.z; a[o4 + 3] = _lL.w;
+      });
+    }
+    act.stop(); mixer.uncacheAction(clip); mixer.uncacheRoot(srcRoot);
+
+    const tracks = pairs.map(({ t }, bi) =>
+      new THREE.QuaternionKeyframeTrack(t.name + ".quaternion", times, out[bi]));
+    tracks.push(new THREE.VectorKeyframeTrack(tgtHips.name + ".position", times, hipsPos));
+    return new THREE.AnimationClip(name, clip.duration, tracks);
+  } catch (err){
+    console.warn("cast: could not lend " + name, err);
+    return null;
+  } finally {
+    restore();
+  }
+}
 /* ── what can this body do? ───────────────────────────────────────────
    Every download names its clips "mixamo.com", so the names say
    nothing. What they can be asked is how fast a thigh swings in them:
@@ -4595,7 +4751,8 @@ const ROLE_CACHE = {};
 const SEATED_AT = 0.62;
 const _seatV = new THREE.Vector3(), _seatW = new THREE.Vector3();
 function seatRoles(src){
-  const out = { seat: null, rise: null, seated: new Set(), riseFrom: 1 };
+  const out = { seat: null, rise: null, sit: null, seated: new Set(),
+                riseFrom: 1, sitTo: 1 };
   if (!src.animations?.length) return out;
 
   /* Evaluate the pose. Two cheaper readings were tried and both were
@@ -4663,31 +4820,53 @@ function seatRoles(src){
     } else if (lo0 && !lo1){
       out.rise = r.name;                /* low to high: standing up */
       out.riseFrom = r.y0 / stand;      /* ...from how far down? */
+    } else if (!lo0 && lo1){
+      /* high to low: an actual sit-down, which until the borrowed clip
+         landed no body on this campus owned. Worth more than a
+         reversed stand-up in both directions — it is the right length,
+         it ends where a chair is, and played backwards it is a
+         stand-up from that same chair. */
+      out.sit = r.name;
+      out.sitTo = r.y1 / stand;         /* ...down to where? */
     }
   }
-  /* Where the rise STARTS decides where the student has to be sitting,
-     and the two clips have to agree or the hips jump between them.
-     Walker's pair does not: Standing Up begins at 0.01 of standing
-     height — flat on the floor — and Sitting Talking sits at 0.48,
-     which is a chair. Chaining those snaps the hips half a body.
-     
-     So a rise from the floor means sitting ON THE GROUND, and the
-     seated pose is the last frame of the sit-down held, which is by
-     construction exactly where the rise begins. A rise from chair
-     height can use the seated loop, because then they agree. */
-  if (out.rise && out.seat){
+  /* Where the transition MEETS the seat, and the two have to agree or
+     the hips jump between them. Walker's own pair does not: Standing
+     Up begins at 0.01 of standing height — flat on the floor — and
+     Sitting Talking sits at 0.48, which is a chair. Chaining those
+     snaps the hips half a body, so the loop is dropped and the seated
+     pose becomes the last frame of the sit held.
+
+     With a sit-down present the question is asked of ITS end instead,
+     which is the pose the student will actually be in. The borrowed
+     one finishes at 0.47 against Sitting Talking's 0.48, so for the
+     first time the forty-four second seated loop is reachable. */
+  const meets = out.sit ? out.sitTo : out.rise ? out.riseFrom : null;
+  if (meets !== null && out.seat){
     const seatRow = rows.find(r => r.name === out.seat);
     const seatY = seatRow ? seatRow.mid / stand : 0;
-    if (Math.abs(seatY - out.riseFrom) > 0.15) out.seat = null;
+    if (Math.abs(seatY - meets) > 0.15) out.seat = null;
   }
   return out;
+}
+/* Which clip takes a student down into a seat and back out of it, and
+   which way round to play it. A measured sit-down serves both ways;
+   without one, a stand-up reversed is still the best there is. */
+function seatCycle(R){
+  if (!R) return null;
+  if (R.sit)  return { down: R.sit,  downRev: false, up: R.sit,  upRev: true,
+                       to: R.sitTo ?? 0.5 };
+  if (R.rise) return { down: R.rise, downRev: true,  up: R.rise, upRev: false,
+                       to: R.riseFrom ?? 1 };
+  return null;
 }
 function rolesOf(k, src){
   if (ROLE_CACHE[k]) return ROLE_CACHE[k];
   const sit = seatRoles(src);
   if (k === "walker")
     return (ROLE_CACHE[k] = { gaits: GAITS, idle: "Idle", start: "Start Walking",
-                              seat: sit.seat, rise: sit.rise, riseFrom: sit.riseFrom });
+                              seat: sit.seat, rise: sit.rise, riseFrom: sit.riseFrom,
+                              sit: sit.sit, sitTo: sit.sitTo });
   const scored = src.animations
     .filter(c => c.duration > 0.2)                 /* an eye-blink is not a clip */
     .map(c => ({ name: c.name, cadence: (c.userData?.cycles || 0) / c.duration }));
@@ -4696,12 +4875,13 @@ function rolesOf(k, src){
      would otherwise be handed straight to idle — leaving a student
      sitting in mid-air every time they stopped walking. */
   const still = scored.filter(c => c.cadence <= 0.45 && !sit.seated.has(c.name) &&
-                                   c.name !== sit.rise).map(c => c.name);
+                                   c.name !== sit.rise && c.name !== sit.sit).map(c => c.name);
   /* No idle is not a fault, it is a fact about the download: a body
      with nothing to do when standing simply never stops walking. That
      reads far better than freezing someone mid-stride. */
   const roles = { gaits, idle: still[0] || null, start: null,
-                  seat: sit.seat, rise: sit.rise, riseFrom: sit.riseFrom };
+                  seat: sit.seat, rise: sit.rise, riseFrom: sit.riseFrom,
+                  sit: sit.sit, sitTo: sit.sitTo };
   ROLE_CACHE[k] = roles;
   return roles;
 }
@@ -4758,6 +4938,49 @@ function detailPass(){
     }
   }
 }
+/* ── the sit-down, and who gets to borrow it ──────────────────────────
+   54KB, and it is a whole skeleton with no skin on it: the character
+   this came on is 847KB, and none of that weight is the motion. What
+   the file has to carry is the bone hierarchy and its rest pose, which
+   is what lendClip measures the borrowed motion against.
+
+   gltf-transform prunes the skin once no mesh points at it, so these
+   joints arrive as plain Object3D rather than Bone — which is why the
+   source side of lendClip asks about names and the target side asks
+   about bones. */
+const SIT_DONOR = "assets/clip_sit.glb";
+/* What a body has to have before it can be handed a sit-down: a
+   pelvis, a spine to fold, and two legs that bend in two places and
+   end in a foot. Everything else in the clip is decoration. */
+const SIT_CHAIN = ["hips", "spine", "leftupleg", "leftleg", "leftfoot",
+                   "rightupleg", "rightleg", "rightfoot"];
+let sitDonor = null;
+function lendSitDown(){
+  const clip = sitDonor && sitDonor.animations && sitDonor.animations[0];
+  if (!clip) return;
+  const got = [], no = [];
+  for (const k of Object.keys(castLib)){
+    const src = castLib[k];
+    if (!src || !ROAMING.includes(k)) continue;   /* only the ones roles drive */
+    if (rolesOf(k, src).sit) continue;            /* already owns one */
+    const lent = lendClip(clip, src.scene, sitDonor.scene, "Stand To Sit");
+    /* Whether the bones a SIT needs are there, not how many bones
+       matched. Counting was the obvious test and it was wrong: isla
+       carries every one of the fourteen below and only 32 of the 75
+       tracks, because she has no fingers — and a threshold on the
+       count threw out the one woman on this campus who could have sat
+       down. Fingers do not sit. */
+    if (!lent || !SIT_CHAIN.every(b => lent.tracks.some(t => boneKey(t.name.split(".")[0]) === b))){
+      no.push(k); continue;
+    }
+    src.animations.push(lent);
+    prepareClips([lent]);
+    delete ROLE_CACHE[k];                         /* what this body can do just changed */
+    got.push(k);
+  }
+  console.info("cast: sit-down lent to " + (got.join(", ") || "nobody") +
+               (no.length ? "; not a Mixamo skeleton: " + no.join(", ") : ""));
+}
 {
   const first = CAST_FIRST.filter(k => CAST_FILES[k]);
   const later = Object.keys(CAST_FILES).filter(k => !first.includes(k));
@@ -4778,12 +5001,17 @@ function detailPass(){
      that does not arrive is simply one fewer person. */
   const lost = (k, err) =>
     console.warn("cast: " + CAST_FILES[k] + " did not load, carrying on without it", err);
+  /* + 1 for the clip donor. It has to be in before buildCast, because
+     prepFigure builds a body's actions from the clips it has AT THAT
+     MOMENT — a sit-down that lands afterwards would be owned by the
+     library and reachable by nobody already standing on the quad. */
   const done = () => {
-    if (++castReady < first.length) return;
+    if (++castReady < first.length + 1) return;
     if (!loadedRoaming().length && !loadedLoitering().length){
       console.error("no rigged body loaded — no students");
       return;
     }
+    lendSitDown();
     /* Claimed before the campus is built, not after. buildCast ends by
        offering to fill a ?crowd quad, and if the count were still zero
        at that moment it would fill from the first wave alone — which is
@@ -4809,6 +5037,13 @@ function detailPass(){
     lost(k, err);
     done();
   }));
+  /* Alongside them, not after: a body built before this lands cannot
+     be given the clip later. If it fails to arrive the campus simply
+     goes back to sitting on the grass. */
+  gltf.load(SIT_DONOR, (g) => { sitDonor = g; done(); }, undefined, (err) => {
+    console.warn("cast: " + SIT_DONOR + " did not load — nobody will sit on a bench", err);
+    done();
+  });
 }
 /* ── dressing one model as a whole cohort ────────────────────────────
    There is exactly one rigged character in this project, and a campus
@@ -5855,10 +6090,11 @@ function stepStudents(dt, now){
         const dx = seat.x - s.pos[0], dy = seat.y - s.pos[1];
         const d = Math.hypot(dx, dy);
         if (d < 3){
+          const cyc = seatCycle(s.roles);
           s.mode = "sitdown";
           s.g.rotation.y = seat.face;
           s.pos[0] = seat.x; s.pos[1] = seat.y;
-          s.until = now + (playOnce(s, s.roles.rise, true) || 1200);
+          s.until = now + (cyc ? playOnce(s, cyc.down, cyc.downRev) || 1200 : 1200);
           s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
           continue;
         }
@@ -5897,8 +6133,9 @@ function stepStudents(dt, now){
           s.anim0 = s.roles.seat;
         }
       } else if (s.mode === "seated"){
+        const cyc = seatCycle(s.roles);
         s.mode = "standup";
-        s.until = now + (playOnce(s, s.roles.rise, false) || 1200);
+        s.until = now + (cyc ? playOnce(s, cyc.up, cyc.upRev) || 1200 : 1200);
       } else {
         s.mode = "walk";
         s.sitAt = now;                /* not again for a while */
@@ -6027,12 +6264,21 @@ function stepStudents(dt, now){
            got up. Sitting is the longer, more legible thing to do; a
            student who would otherwise stand about for four seconds is
            better spent walking to a bench. */
-        const canSit = s.roles?.rise && now - (s.sitAt || -1e9) > SIT_COOL &&
+        const cyc = seatCycle(s.roles);
+        const canSit = cyc && now - (s.sitAt || -1e9) > SIT_COOL &&
                        Math.random() < P_SIT;
         /* On the ground where they stand, or on a bench — decided by
-           where this body's rise clip begins, not by preference. */
-        const onGround = canSit && (s.roles.riseFrom ?? 1) < 0.25;
-        const seat = (canSit && !onGround && s.roles.seat) ? freeSeat(s) : null;
+           where this body's seat cycle bottoms out, not by preference.
+           A reversed stand-up that begins flat on the floor puts them
+           on the grass; a real sit-down that finishes at chair height
+           sends them to a bench. Until the borrowed clip landed only
+           the first of those existed, and every bench on this campus
+           went unused. */
+        const onGround = canSit && cyc.to < 0.25;
+        /* No seated loop is not a reason to stay standing: the pose the
+           sit-down ends on IS a person sitting, and clampWhenFinished
+           holds it. That is what `held` is for. */
+        const seat = (canSit && !onGround) ? freeSeat(s) : null;
         if (seat){
           seat.taken = s;             /* claimed on the way, not on arrival */
           s.seat = seat; s.mode = "toseat"; s.target = null;
@@ -6041,7 +6287,7 @@ function stepStudents(dt, now){
         }
         if (onGround){
           s.mode = "sitdown"; s.target = null;
-          s.until = now + (playOnce(s, s.roles.rise, true) || 1200);
+          s.until = now + (playOnce(s, cyc.down, cyc.downRev) || 1200);
           s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
           continue;
         }
@@ -8028,6 +8274,10 @@ function convoFrame(dt){
 /* test/debug hooks: the cast, and the conversation they can be pulled
    into. `named` is the eight with a dossier — the crowd are strangers. */
 window.__students = students;
+/* test/debug hook. Whether a student CHOOSES a bench is a probability
+   spread over three minutes of cooldown, so a check that waits for one
+   to happen is measuring the dice. This lets a probe send somebody. */
+window.__seats = SEATS;
 /* test/debug hook: advance the crowd without painting.
  *
  * Everything the students decide, they decide on arriving at a
