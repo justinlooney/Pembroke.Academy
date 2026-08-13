@@ -4608,19 +4608,78 @@ function prepFigure(k, height, live, clipIx = 0){
    Verified by rendering all three at five points through the clip.
    Walker now goes 1.00 -> 0.47 of standing hip height with his feet
    planted to within three thousandths the whole way. */
+/* ── four rigs, one set of names ──────────────────────────────────────
+   boneKey is enough to tell a head from a foot, which is all the rest
+   of this file asks of it. Lending a clip asks something harder: which
+   bone on THIS skeleton is the one that bone on THAT skeleton. Across
+   the cast the same joint is called four different things —
+
+     mixamorigLeftUpLeg            walker, kenta, tutor
+     LeftUpLeg_3                   isla
+     CC_Base_L_Thigh_04            woman, alina, ariel, nadia
+     rp_nathan_..._upperleg_l_074  nathan, sophia
+
+   — and both foreign schemes are perfectly regular, so this is a table
+   rather than a rewrite. Measured after it: 53 of the donor's 69
+   joints bind on a Character Creator body and 53 on a Renderpeople
+   one, where the count was nought for both. */
+const RP_BONE = {
+  hip: "hips", spine_01: "spine", spine_02: "spine1", spine_03: "spine2",
+  neck: "neck", head: "head", shoulder: "shoulder", upperarm: "arm",
+  lowerarm: "forearm", hand: "hand", upperleg: "upleg", lowerleg: "leg",
+  foot: "foot", ball: "toebase",
+  thumb_01: "handthumb1", thumb_02: "handthumb2", thumb_03: "handthumb3",
+  index_01: "handindex1", index_02: "handindex2", index_03: "handindex3",
+  middle_01: "handmiddle1", middle_02: "handmiddle2", middle_03: "handmiddle3",
+  ring_01: "handring1", ring_02: "handring2", ring_03: "handring3",
+  pinky_01: "handpinky1", pinky_02: "handpinky2", pinky_03: "handpinky3",
+};
+const CC_BONE = {
+  hip: "hips", waist: "spine", spine01: "spine1", spine02: "spine2",
+  necktwist01: "neck", head: "head", clavicle: "shoulder", upperarm: "arm",
+  forearm: "forearm", hand: "hand", thigh: "upleg", calf: "leg",
+  foot: "foot", toebase: "toebase",
+  thumb1: "handthumb1", thumb2: "handthumb2", thumb3: "handthumb3",
+  index1: "handindex1", index2: "handindex2", index3: "handindex3",
+  mid1: "handmiddle1", mid2: "handmiddle2", mid3: "handmiddle3",
+  ring1: "handring1", ring2: "handring2", ring3: "handring3",
+  pinky1: "handpinky1", pinky2: "handpinky2", pinky3: "handpinky3",
+};
+function canonBone(raw){
+  let s = (raw || "").split("|").pop().split(":").pop();
+  s = s.replace(/[._]\d+$/, "");             /* the loader's uniqueness suffix */
+  let m = /^rp_.+?_animated_\d+_[a-z]+_(.+)$/i.exec(s);
+  if (m){
+    let b = m[1].toLowerCase(), side = "";
+    const sm = /^(.*)_(l|r)$/.exec(b);       /* the side is a suffix here */
+    if (sm){ b = sm[1]; side = sm[2] === "l" ? "left" : "right"; }
+    const t = RP_BONE[b];
+    return t ? (side && t !== "hips" ? side + t : t) : null;
+  }
+  m = /^CC_Base_(?:([LR])_)?(.+)$/i.exec(s); /* ...and a prefix here */
+  if (m){
+    const side = m[1] ? (m[1].toUpperCase() === "L" ? "left" : "right") : "";
+    const t = CC_BONE[m[2].toLowerCase()];
+    return t ? (side && t !== "hips" ? side + t : t) : null;
+  }
+  s = s.replace(/^mixamorig\d*/i, "").replace(/[^a-z0-9]/gi, "").toLowerCase();
+  /* isla spells them Spine01 and Spine02 where Mixamo says Spine1 */
+  return s ? s.replace(/^spine0(\d)$/, "spine$1") : null;
+}
 function jointsOf(root, loose){
   const out = [];
-  root.traverse(o => { if ((loose || o.isBone) && boneKey(o.name)) out.push(o); });
+  root.traverse(o => { if ((loose || o.isBone) && canonBone(o.name)) out.push(o); });
   return out;
 }
 function hipFootOf(root, loose){
-  let h = null, f = null;
+  let h = null;
+  const feet = [];
   for (const o of jointsOf(root, loose)){
-    const k = boneKey(o.name);
-    if (!h && /hip|pelvis/.test(k)) h = o;
-    if (!f && /foot/.test(k) && !/end|toe/.test(k)) f = o;
+    const k = canonBone(o.name);
+    if (!h && k === "hips") h = o;
+    if (/^(left|right)foot$/.test(k)) feet.push(o);
   }
-  return [h, f];
+  return [h, feet[0] || null, feet];
 }
 const _lq = new THREE.Quaternion(), _lD = new THREE.Quaternion();
 const _lW = new THREE.Quaternion(), _lP = new THREE.Quaternion();
@@ -4651,12 +4710,12 @@ function lendClip(clip, target, srcRoot, name, fps = 30){
        already depth-first from the root. */
     const byKey = new Map();
     for (const o of jointsOf(target, false)){
-      const k = boneKey(o.name);
+      const k = canonBone(o.name);
       if (k && !byKey.has(k)) byKey.set(k, o);
     }
     const pairs = [];
     for (const s of src){
-      const t = byKey.get(boneKey(s.name));
+      const t = byKey.get(canonBone(s.name));
       if (t) pairs.push({ s, t });
     }
     if (!pairs.length) return null;
@@ -4954,6 +5013,54 @@ const SIT_DONOR = "assets/clip_sit.glb";
    end in a foot. Everything else in the clip is decoration. */
 const SIT_CHAIN = ["hips", "spine", "leftupleg", "leftleg", "leftfoot",
                    "rightupleg", "rightleg", "rightfoot"];
+/* ── is this actually a person sitting down? ──────────────────────────
+   A lent clip can bind every bone it needs and still be nonsense, and
+   the only reason anyone knows that is that two of them were rendered:
+   nadia with her arms over her head and sophia balanced on one leg,
+   both binding 53 joints out of 69. Their files rest in a pose that
+   does not correspond to the donor's rest, and the delta then means
+   something different on them than it does on everybody else.
+
+   So the clip is asked to prove itself on the body it was built for:
+
+     the pelvis must end up meaningfully lower than it started
+     both feet must stay on the floor throughout
+
+   The second is what catches these two. A person lowering themselves
+   onto a bench keeps their feet where they are; a figure whose knee
+   comes up to its chest does not, and that is measurable without
+   knowing anything about why. */
+function sitLooksWrong(clip, src){
+  const probe = skeletonClone(src.scene);
+  probe.updateMatrixWorld(true);
+  const [hips, , feet] = hipFootOf(probe, false);
+  if (!hips || feet.length < 2) return "no hips or feet to measure";
+  const mixer = new THREE.AnimationMixer(probe);
+  const act = mixer.clipAction(clip);
+  act.reset(); act.play(); act.setEffectiveWeight(1);
+  const P = new THREE.Vector3(), F = new THREE.Vector3();
+  const stand0 = (() => {
+    hips.getWorldPosition(P); feet[0].getWorldPosition(F); return P.y - F.y;
+  })();
+  const N = 12, hipAt = [], footAt = feet.map(() => []);
+  for (let i = 0; i <= N; i++){
+    const t = Math.min(clip.duration - 1e-4, clip.duration * i / N);
+    act.time = t; mixer.setTime(t);
+    probe.updateMatrixWorld(true);
+    hips.getWorldPosition(P);
+    feet.forEach((f, j) => { f.getWorldPosition(F); footAt[j].push(F.y); });
+    hipAt.push(P.y - Math.min(...footAt.map(a => a[a.length - 1])));
+  }
+  act.stop(); mixer.uncacheAction(clip); mixer.uncacheRoot(probe);
+  if (!(stand0 > 1e-6)) return "cannot measure a standing height";
+  const drop = (hipAt[0] - hipAt[hipAt.length - 1]) / stand0;
+  if (drop < 0.25) return "hips only drop " + drop.toFixed(2);
+  for (const a of footAt){
+    const lift = (Math.max(...a) - Math.min(...a)) / stand0;
+    if (lift > 0.3) return "a foot lifts " + lift.toFixed(2) + " off the floor";
+  }
+  return null;
+}
 let sitDonor = null;
 function lendSitDown(){
   const clip = sitDonor && sitDonor.animations && sitDonor.animations[0];
@@ -4970,16 +5077,35 @@ function lendSitDown(){
        tracks, because she has no fingers — and a threshold on the
        count threw out the one woman on this campus who could have sat
        down. Fingers do not sit. */
-    if (!lent || !SIT_CHAIN.every(b => lent.tracks.some(t => boneKey(t.name.split(".")[0]) === b))){
-      no.push(k); continue;
+    if (!lent || !SIT_CHAIN.every(b => lent.tracks.some(t => canonBone(t.name.split(".")[0]) === b))){
+      no.push(k + " (bones)"); continue;
     }
+    /* ...and then LOOK at it, because binding is not the same as
+       working. nadia and sophia bind 53 joints apiece and come out
+       twisted, standing on one leg with their arms over their heads —
+       their files rest in a pose the donor's rest does not correspond
+       to, and no count of matched bones says so. Rendered to find it;
+       measured here so it cannot ship. */
+    const why = sitLooksWrong(lent, src);
+    if (why){ no.push(k + " (" + why + ")"); continue; }
     src.animations.push(lent);
-    prepareClips([lent]);
+    /* NOT prepareClips: that ends in inPlaceClip, which pins every
+       position track's x and z to frame 0 to strip root travel. This
+       clip's hips track has no travel to strip — it is written from
+       the target's own rest position every key — and on a rig whose
+       hips axis is not world up the DESCENT is carried in x and z, so
+       pinning them flattened the sit into a squat and the feet came up
+       to meet it. Caught by the acceptance test on walker, whose sit
+       had already been rendered and passed. Only the cycle count is
+       wanted here, and a sit-down has none worth having. */
+    if (!lent.userData) lent.userData = {};
+    lent.userData.cycles = gaitCycles(lent);
     delete ROLE_CACHE[k];                         /* what this body can do just changed */
     got.push(k);
   }
-  console.info("cast: sit-down lent to " + (got.join(", ") || "nobody") +
-               (no.length ? "; not a Mixamo skeleton: " + no.join(", ") : ""));
+  if (got.length || no.length)
+    console.info("cast: sit-down lent to " + (got.join(", ") || "nobody") +
+                 (no.length ? "; declined by " + no.join(", ") : ""));
 }
 {
   const first = CAST_FIRST.filter(k => CAST_FILES[k]);
@@ -5024,7 +5150,12 @@ function lendSitDown(){
     gltf.__late = true;
     const settled = () => { if (--lateOutstanding === 0) topUpForcedCrowd(); };
     later.forEach(k => gltf.load(CAST_FILES[k],
-      (g) => { arrive(k, g); settled(); },
+      /* Lend to them too. The warning above is about bodies already
+         BUILT — these have not been yet, they are the crowd's, and
+         prepFigure will read their clips when the ramp reaches them.
+         Without this the four that arrive late could never sit, which
+         is three of the five women. */
+      (g) => { arrive(k, g); lendSitDown(); settled(); },
       undefined,
       (e) => { lost(k, e); settled(); }));
     gltf.__late = false;
@@ -8278,6 +8409,14 @@ window.__students = students;
    spread over three minutes of cooldown, so a check that waits for one
    to happen is measuring the dice. This lets a probe send somebody. */
 window.__seats = SEATS;
+/* test/debug hook: what the sit-down looks like on a given body, and
+   what the acceptance test made of it. */
+window.__sitCheck = (k) => {
+  const src = castLib[k];
+  const clip = src && src.animations.find(c => c.name === "Stand To Sit");
+  return { has: !!clip, why: clip ? sitLooksWrong(clip, src) : "no clip",
+           roles: rolesOf(k, src) };
+};
 /* test/debug hook: advance the crowd without painting.
  *
  * Everything the students decide, they decide on arriving at a
