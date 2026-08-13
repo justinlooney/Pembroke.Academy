@@ -26,5 +26,11 @@
 # script's 60,000 budget. What they need is to stop being glTF, which
 # Mixamo refuses before it looks inside, and for nadia to stop being
 # eighteen separate meshes, which it also refuses.
-nadia   https://drive.google.com/file/d/1Ash6ZBwS06zABx3drQSO8fLMlGnGlRqv/view
-sophia  https://drive.google.com/file/d/1ixDssTHFDwjbo6YDGHXB71GF7mxuUbKQ/view
+#
+# The names here were the wrong way round on the first run and the
+# fetch said so: the link called nadia arrived at 320K and the one
+# called sophia at 4.1M, against 4,215,428 and 325,160 bytes on disk.
+# A link carries no name, so the only check available is the size of
+# what comes back — worth doing, and worth printing.
+sophia  https://drive.google.com/file/d/1Ash6ZBwS06zABx3drQSO8fLMlGnGlRqv/view
+nadia   https://drive.google.com/file/d/1ixDssTHFDwjbo6YDGHXB71GF7mxuUbKQ/view

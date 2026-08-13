@@ -19,6 +19,21 @@ bite:
 None of that says anything about the character. This fixes all three
 and changes nothing else.
 
+One thing it cannot fix, because it happens before this script is
+reached: every model in assets/ is written with --compress meshopt,
+and Blender 4.0's glTF importer refuses one outright —
+
+    Extension EXT_meshopt_compression is not available on this
+    addon version
+
+Decompress it first. gltf-transform reads meshopt and, told nothing
+about compression on the way out, writes plain:
+
+    gltf-transform copy assets/stu_nadia.glb /tmp/nadia.glb
+
+.github/workflows/prep.yml does this for you, which is the way to run
+any of this without a Blender to hand.
+
 Worth knowing before you reach for the alternative: Mixamo's rigger
 handles an A-pose natively — you place markers on chin, wrists, elbows,
 knees and groin, and it solves from there. Borrowing a T-posed skeleton

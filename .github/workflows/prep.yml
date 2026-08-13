@@ -47,6 +47,14 @@ jobs:
           # gdown, not curl: a character is well past the 25MB where
           # Drive stops serving bytes and starts serving an interstitial.
           pip install -q gdown
+          # Every model in this repository is written with
+          # --compress meshopt, and Blender 4.0's glTF importer refuses
+          # one outright: "Extension EXT_meshopt_compression is not
+          # available on this addon version". So anything coming back
+          # from Drive is decompressed before Blender is asked to open
+          # it. gltf-transform reads meshopt and, told nothing about
+          # compression on the way out, writes plain.
+          npm install -g --silent @gltf-transform/cli
 
       - name: Fetch and prepare
         if: steps.plan.outputs.n != '0'
@@ -86,7 +94,23 @@ jobs:
               # bare Drive link does not carry
               mv "$src" "/tmp/in/$name.gltf"; src="/tmp/in/$name.gltf"
             fi
-            echo "  in: $src ($(du -h "$src" | cut -f1))"
+            echo "  in: $src ($(du -h "$src" | cut -f1), $(stat -c%s "$src") bytes)"
+            # A link carries no name. The size is the only thing that
+            # can say the inbox has two of them the wrong way round,
+            # which it did on the first run — so print it where it will
+            # be read.
+            case "$src" in
+              *.glb|*.gltf)
+                if grep -qa EXT_meshopt_compression "$src"; then
+                  echo "  meshopt-compressed — decompressing for Blender"
+                  if gltf-transform copy "$src" "/tmp/in/$name.plain.glb"; then
+                    src="/tmp/in/$name.plain.glb"
+                  else
+                    echo "::error::$name — could not decompress"
+                    echo "::endgroup::"; continue
+                  fi
+                fi ;;
+            esac
             if ! blender --background --python-exit-code 1 \
                  --python tools/for-mixamo.py -- "/tmp/out/$name.fbx" "$src"; then
               echo "::error::$name — Blender could not prepare it"
