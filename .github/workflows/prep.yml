@@ -1,0 +1,115 @@
+name: prep
+
+# Make a body Mixamo will accept, without needing Blender to hand.
+#
+# tools/for-mixamo.py does the work and has always needed a Blender.
+# The machine this repository is written from has none, and neither
+# does a phone — so the one command anybody actually has to run has
+# been the one nobody could. The runners already install Blender for
+# the courier; this borrows the same step and hands back an FBX.
+#
+# Driven by a data file rather than workflow_dispatch for the same
+# reason the courier is: dispatching by name through the API needs the
+# workflow present on the DEFAULT branch, which one added on a feature
+# branch is not. A push trigger has no such rule. Put links in
+# tools/prep-inbox.txt, push, download the artifact.
+#
+# Nothing is committed. What comes back from Mixamo goes in
+# tools/mixamo-inbox.txt, which is the file that does.
+on:
+  push:
+    paths: ['tools/prep-inbox.txt', '.github/workflows/prep.yml', 'tools/for-mixamo.py']
+  workflow_dispatch:
+
+jobs:
+  prep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Anything to prepare?
+        id: plan
+        run: |
+          n=$(grep -cE '^[[:space:]]*[^#[:space:]]+[[:space:]]+\S+' tools/prep-inbox.txt || true)
+          echo "n=$n" >> "$GITHUB_OUTPUT"
+          echo "$n file(s) listed"
+
+      - name: Install Blender
+        if: steps.plan.outputs.n != '0'
+        run: |
+          sudo apt-get update -qq
+          # python3-numpy explicitly: Ubuntu's blender runs on the system
+          # python and its FBX exporter imports numpy at module load, but
+          # the runner image installs without recommended packages.
+          sudo apt-get install -y -qq blender python3-numpy >/dev/null
+          blender --version | head -1
+          # gdown, not curl: a character is well past the 25MB where
+          # Drive stops serving bytes and starts serving an interstitial.
+          pip install -q gdown
+
+      - name: Fetch and prepare
+        if: steps.plan.outputs.n != '0'
+        run: |
+          set -o pipefail
+          mkdir -p /tmp/in /tmp/out
+          failed=0
+          grep -E '^[[:space:]]*[^#[:space:]]+[[:space:]]+\S+' tools/prep-inbox.txt \
+          | while read -r name url rest; do
+            id=$(printf '%s' "$url" | sed -n -e 's|.*/d/\([^/]*\).*|\1|p' -e 's|.*[?&]id=\([^&]*\).*|\1|p' | head -1)
+            [ -z "$id" ] && id="$url"
+            echo "::group::$name"
+            if ! gdown -q "https://drive.google.com/uc?id=$id" -O "/tmp/in/$name.bin"; then
+              echo "::error::$name — gdown could not download $id"
+              echo "::endgroup::"; continue
+            fi
+            # Magic bytes, not the file name: a Drive link's name is
+            # whatever the inbox happened to call it, and for-mixamo.py
+            # picks its importer off the extension.
+            head2=$(head -c 2 "/tmp/in/$name.bin")
+            head4=$(head -c 4 "/tmp/in/$name.bin")
+            src="/tmp/in/$name.bin"
+            if [ "$head4" = "glTF" ]; then      mv "$src" "/tmp/in/$name.glb"; src="/tmp/in/$name.glb"
+            elif [ "$head2" = "PK" ]; then
+              rm -rf "/tmp/in/$name.d" && mkdir -p "/tmp/in/$name.d"
+              unzip -q "$src" -d "/tmp/in/$name.d" || {
+                echo "::error::$name — could not unpack"; echo "::endgroup::"; continue; }
+              src=$(find "/tmp/in/$name.d" -type f \
+                    \( -iname '*.fbx' -o -iname '*.glb' -o -iname '*.gltf' -o -iname '*.obj' \) \
+                    | sort | head -1)
+              [ -z "$src" ] && { echo "::error::$name — no model in the zip"
+                                 echo "::endgroup::"; continue; }
+            elif head -c 20 "$src" | grep -q 'Kaydara'; then
+              mv "$src" "/tmp/in/$name.fbx"; src="/tmp/in/$name.fbx"
+            else
+              # a .gltf is JSON and needs its .bin beside it, which a
+              # bare Drive link does not carry
+              mv "$src" "/tmp/in/$name.gltf"; src="/tmp/in/$name.gltf"
+            fi
+            echo "  in: $src ($(du -h "$src" | cut -f1))"
+            if ! blender --background --python-exit-code 1 \
+                 --python tools/for-mixamo.py -- "/tmp/out/$name.fbx" "$src"; then
+              echo "::error::$name — Blender could not prepare it"
+              echo "::endgroup::"; continue
+            fi
+            echo "::endgroup::"
+          done
+          ls -la /tmp/out || true
+          [ -n "$(ls -A /tmp/out 2>/dev/null)" ] || {
+            echo "::error::nothing was prepared"; exit 1; }
+
+      - name: What to do with it
+        if: steps.plan.outputs.n != '0'
+        run: |
+          echo "Download the 'mixamo-ready' artifact from this run's summary."
+          echo "At mixamo.com: Upload Character, place the markers on chin,"
+          echo "wrists, elbows, knees and groin, then download a walk WITH"
+          echo "SKIN and In Place. Put that Drive link in"
+          echo "tools/mixamo-inbox.txt under its own '# out:' block."
+
+      - name: Upload
+        if: steps.plan.outputs.n != '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mixamo-ready
+          path: /tmp/out/*.fbx

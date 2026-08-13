@@ -1,0 +1,30 @@
+# Mixamo prep inbox — a body in, a file Mixamo will accept out.
+#
+# THIS IS A DATA FILE, NOT A SCRIPT. Nothing here is typed at a shell.
+#
+# Put "name link" on a line, commit, and .github/workflows/prep.yml
+# fetches the model, runs tools/for-mixamo.py over it in Blender, and
+# uploads the FBX as a run artifact. Download that from the run's
+# summary page and drop it on mixamo.com — Upload Character.
+#
+# It exists because Blender is not on the machine this repository is
+# written from, and installing it on the machine a phone is holding is
+# not a plan either. The runners already install it for the courier;
+# this borrows the same step.
+#
+# Nothing is committed. What comes back from Mixamo goes in
+# tools/mixamo-inbox.txt, which is the file that does commit.
+
+# ── the two the borrowed sit-down cannot reach ───────────────────────
+# Every other body on the campus takes it. These two bind their bones
+# and still come out wrong — rendered, and unmistakable: nadia with her
+# arms over her head, sophia balanced on one leg. Their files rest in a
+# pose the donor's rest does not correspond to, which is the one thing
+# a name table cannot fix and an auto-rigger can.
+#
+# Neither needs thinning: 45,094 and 16,475 triangles against the
+# script's 60,000 budget. What they need is to stop being glTF, which
+# Mixamo refuses before it looks inside, and for nadia to stop being
+# eighteen separate meshes, which it also refuses.
+nadia   https://drive.google.com/file/d/1Ash6ZBwS06zABx3drQSO8fLMlGnGlRqv/view
+sophia  https://drive.google.com/file/d/1ixDssTHFDwjbo6YDGHXB71GF7mxuUbKQ/view
