@@ -1863,7 +1863,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v47";
+const BUILD = "pembroke-v48";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -3824,9 +3824,15 @@ window.__ways = { WAYPOINTS, EDGES };   /* test/debug hook */
    about their own subject. `at` is which hall that subject is taught
    in, which is what lets a conversation know whether you have actually
    sat the course they are enthusing about. `ask` is what you can put to
-   them: a question, and what they say back. */
+   them: a question, and what they say back.
+ *
+ * `looks` says which BODY to dress them in and nothing else. It is
+ * written down rather than guessed from the name at runtime, because
+ * guessing from a name is exactly the thing that would be wrong about
+ * Jun and Kenji — who carry no `looks` and are dealt whichever body is
+ * least worn today, like the crowd. */
 const STUDENT_ROSTER = [
-  { name:"Elowen", c:0x34d399, at:"lib", major:"Pure Mathematics",
+  { name:"Elowen", looks:"f", c:0x34d399, at:"lib", major:"Pure Mathematics",
     says:["Off to Calc III — gradients await!","The Library dome at dusk… unbeatable.","Stokes' theorem finally clicked!"],
     ask:[["What are you working on?",
           "Calculus III. Vector fields, mostly. You spend a fortnight thinking a gradient is just a slope with extra steps, and then one afternoon it stops being arithmetic and starts being a picture — the field pointing uphill everywhere at once."],
@@ -3834,7 +3840,7 @@ const STUDENT_ROSTER = [
           "Honestly? It says the swirl inside a region and the push around its edge are the same number. That's it. Everything else is bookkeeping to make the two sides line up."],
          ["Why the Library?",
           "The dome. Go up at dusk, when the lamps come on under the emerald glass and the whole reading room turns the colour of a pond. Nobody talks. It's the only place on this campus where I get anything done."]] },
-  { name:"Marcus", c:0xfbbf24, at:"eng", major:"Software Foundations",
+  { name:"Marcus", looks:"m", c:0xfbbf24, at:"eng", major:"Software Foundations",
     says:["My first Python script ran — no errors!","Binary search in 17 steps. SEVENTEEN.","Whitmore Quad study group, 8pm."],
     ask:[["What are you working on?",
           "Python, and I'm not going to pretend to be cool about it. My first script ran with no errors this morning. Eleven lines. I've read them back about six times."],
@@ -3842,7 +3848,7 @@ const STUDENT_ROSTER = [
           "A hundred and thirty thousand records and it found the one I wanted in seventeen looks. Seventeen! You halve the haystack, then halve what's left. I keep doing it on paper to check it isn't a trick."],
          ["Any advice for a beginner?",
           "Type it out. Don't copy it in — type it. You'll make a mistake somewhere around line four, and fixing that mistake is the bit where you actually learn something."]] },
-  { name:"Priya",  c:0x38bdf8, at:"sci", major:"Electrical Hardware",
+  { name:"Priya",  looks:"f", c:0x38bdf8, at:"sci", major:"Electrical Hardware",
     says:["My full adder passed every row!","RAX holds the whole sum. Registers are elegant.","Lab practical on flip-flops today."],
     ask:[["What are you working on?",
           "A full adder. Two bits in, a carry in, a sum and a carry out — and this afternoon it passed all eight rows of the truth table on the first go. I may have made a noise in the lab."],
@@ -3858,7 +3864,7 @@ const STUDENT_ROSTER = [
           "Guessing well. It's a search that keeps asking 'how far have I come, and how far do I probably still have to go' — and it always expands the option where that sum is smallest. Give it an honest guess and it finds the shortest path without checking the whole map."],
          ["Capstone flight?",
           "Friday, over the quad, if the wind behaves. Full autonomous circuit round the fountain and back to the pad at Aldergate. Come and watch. Stand well back."]] },
-  { name:"Sofia",  c:0xf472b6, at:"lib", major:"Pure Mathematics",
+  { name:"Sofia",  looks:"f", c:0xf472b6, at:"lib", major:"Pure Mathematics",
     says:["Simpson's rule tamed the Gaussian bell.","Unit circle from memory. All of it.","Meet at the fountain after lecture?"],
     ask:[["What are you working on?",
           "Numerical integration. The Gaussian bell has no nice antiderivative — you cannot just write the answer down — so you approximate it, and Simpson's rule does it with parabolas instead of rectangles. Frighteningly accurate for how little work it is."],
@@ -3866,7 +3872,7 @@ const STUDENT_ROSTER = [
           "All of it. Not because anyone made me — because once you can see it, half of trigonometry stops being formulas to remember and turns into one picture you already know."],
          ["Where's good to sit out here?",
           "The fountain, after lecture. The lawn's warm by then and you can hear the water over the walk. I usually have a problem set and no intention of finishing it."]] },
-  { name:"Theo",   c:0x5eead4, at:"eng", major:"Software Foundations",
+  { name:"Theo",   looks:"m", c:0x5eead4, at:"eng", major:"Software Foundations",
     says:["Pointers finally make sense!","Committed my problem sets — git push, done.","K-maps are just crossword puzzles."],
     ask:[["What are you working on?",
           "C. Pointers, specifically, which everybody warns you about for a fortnight and then one day you realise a pointer is just an address — a house number, not the house. After that it's fine. Mostly fine."],
@@ -3874,7 +3880,7 @@ const STUDENT_ROSTER = [
           "They're crossword puzzles. You draw the truth table as a grid, circle the neighbouring ones in the biggest blocks you can, and each block is a term you get to delete from the expression. It's the most fun anyone has ever had removing gates."],
          ["Why bother with git?",
           "Because I lost a week's work once. Now every problem set is committed the moment it runs. It isn't discipline, it's fear, and fear is a perfectly good reason."]] },
-  { name:"Amara",  c:0xfb923c, at:"lib", major:"Pure Mathematics",
+  { name:"Amara",  looks:"f", c:0xfb923c, at:"lib", major:"Pure Mathematics",
     says:["Ten laps of the oval before class.","The chapel bells at dusk — worth the walk.","Green's theorem is just bookkeeping for flow."],
     ask:[["What are you working on?",
           "Vector calculus, between laps. Ten round the oval before the first lecture — it's the only hour of the day when this campus is completely mine."],
@@ -4089,6 +4095,16 @@ const CAST_MB = { walker: 1.84, ariel: 1.66, kenta: 0.24, nathan: 0.34,
 /* Measured, not guessed: these are the six bodies with a shirt mesh the
    wardrobe can find. See the note above about the ten that have none. */
 const CAST_DRESSABLE = ["walker", "ariel", "woman", "nadia"];
+/* Which models read as women across a lawn. A fact about the MODEL —
+   which one to dress a student in — and nothing more.
+ *
+ * It is written down because it was the one thing about this cast that
+ * a visitor can see from twenty feet and nothing in the file recorded.
+ * Five of the eight roaming bodies are women, and two measured visits
+ * put walker×3 + sophia×2 and walker×2 + kenta + tutor + woman + sophia
+ * on the quad — reported from a phone as "none of the female characters
+ * are present", which is very nearly what the numbers say. */
+const CAST_FEM = new Set(["woman", "alina", "ariel", "isla", "nadia", "sophia"]);
 const CAST_BUDGET = 3.0;
 function drawFirstWave(){
   const core = ["walker", "sophia", "skate", "tutor"].filter(k => CAST_FILES[k]);
@@ -4115,6 +4131,23 @@ function drawFirstWave(){
     const pick = dressable[Math.floor(Math.random() * dressable.length)];
     picks.push(pick);
     spent += CAST_MB[pick] || 0;
+  }
+  /* TWO women in the first wave, not one, and allowed to overrun the
+     budget to get there — the same licence the floor-of-three step
+     below takes, for a more visible reason.
+   *
+     One is what the rules above produce whenever the dressable draw
+     lands on `woman` at 2.64MB: she spends the budget outright, the
+     fill can only afford kenta and nathan, and ariel, isla, alina and
+     nadia all arrive late. The named cast is built at that moment, so
+     four students who want a woman's body have exactly one to share —
+     which is the identical-twins complaint wearing different clothes.
+     The cheapest second is isla at 0.88MB, and she walks. */
+  const women = () => picks.filter(k => CAST_FEM.has(k)).length;
+  if (women() < 2){
+    const next = pool.filter(k => !picks.includes(k) && CAST_FEM.has(k))
+                     .sort((a, b) => (CAST_MB[a] || 9) - (CAST_MB[b] || 9))[0];
+    if (next){ picks.push(next); spent += CAST_MB[next] || 0; }
   }
   for (const k of pool){
     if (picks.includes(k)) continue;
@@ -4170,21 +4203,30 @@ const loadedLoitering = () => LOITERING.filter(k => castLib[k]);
    neither `at` nor `orbit` roams the ring; the gait it roams with is
    drawn per figure in makeRoamer rather than fixed here, so the mix
    changes between visits. */
+/* One entry per STUDENT_ROSTER entry, in the same order. The comments
+   name them so that order is checkable — it had drifted by three, which
+   cost nothing but read as a bug every time anyone looked.
+ *
+ * `clip` is a ROLE, not a clip name. "Idle" and "Sitting Talking" are
+ * labels that exist on the walker alone; every other body calls its
+ * clips "mixamo.com" or "Take 001". rolesOf measures which clip is
+ * which, so the plan asks for the pose and lets the body answer.
+ * `needs` is the same question asked before the body is chosen. */
 const CAST_PLAN = [
   { k: "any" },                                             /* Elowen — roams        */
   { k: "loiter", at: [700, 340], face: -0.9, live: true, pose: 0 }, /* Marcus — Whitmore door */
-  { k: "walker", at: [449, 449], face:  0.8, kind: "chat",  /* Priya  — plaza        */
-    clip: "Idle" },
-  { k: "walker", at: [543, 449], face: -2.4, kind: "laptop",/* Sofia  — lawn         */
-    clip: "Sitting Talking" },
+  { k: "any", needs: "idle", at: [449, 449], face: 0.8,     /* Priya  — plaza        */
+    kind: "chat", clip: "idle" },
+  { k: "loiter", at: [286, 838], face:  0.2, live: true, pose: 1 }, /* Jun — Alden front.
+     He stood at 270,700 — inside the science hall, behind its south
+     wall. Out on the front now, facing the quad. */
+  { k: "any", needs: "seat", at: [543, 449], face: -2.4,    /* Sofia  — lawn         */
+    kind: "laptop", clip: "seat" },
   { k: "any" },                                             /* Theo   — roams        */
-  /* Jun stood at 270,700 — which is inside the science hall, invisible
-     behind its south wall. Out on the front now, facing the quad. */
-  { k: "loiter", at: [286, 838], face:  0.2, live: true, pose: 1 }, /* Jun — Alden front */
   /* Amara used to lap the ring at 182 — which, with the player standing
      in the middle of it, meant she was on screen permanently. She runs
      the campus now, on the same paths as everyone else, just faster. */
-  { k: "walker", jog: true },                               /* Amara  — runs the campus */
+  { k: "any", needs: "gait", jog: true },                   /* Amara  — runs the campus */
   { k: "any" },                                             /* Kenji  — roams        */
 ];
 const castLib = {};
@@ -4250,24 +4292,64 @@ function prepareClips(anims){
     inPlaceClip(c);
   }
 }
+/* Can this body do the job the plan needs doing? Asked of the ROLES,
+   which are measured off the clips, rather than of the body's name.
+ *
+ * Three of the eight named students used to ask for "walker" outright,
+ * because walker is the only body whose clips are hand-named and the
+ * plan wanted "Idle", "Sitting Talking" and "Jogging" by those names.
+ * That put the same man on the quad three times over and shut five
+ * women out of the named cast altogether. The need was real; naming a
+ * body to meet it was the mistake. */
+function canDo(k, needs){
+  if (!needs) return true;
+  const src = castLib[k];
+  if (!src) return false;
+  const r = rolesOf(k, src);
+  if (needs === "idle") return !!r.idle;
+  if (needs === "gait") return !!(r.gaits && r.gaits.length);
+  if (needs === "seat") return !!(r.seat || r.rise);
+  return true;
+}
+/* Least-worn first, and matching the student's look wherever the cast
+   allows it. Three independent random draws have no memory of one
+   another, and it showed: measured, a campus of five came out as the
+   same man three times over. Counting who is already out there costs
+   one pass over a list of a dozen and cannot produce that. */
+function drawBody(pool, looks){
+  if (!pool.length) return null;
+  const want = looks ? pool.filter(x => CAST_FEM.has(x) === (looks === "f")) : [];
+  const from = want.length ? want : pool;
+  const worn = new Map();
+  for (const s of students){
+    const f = s.g && s.g.userData && s.g.userData.figure;
+    if (f) worn.set(f, (worn.get(f) || 0) + 1);
+  }
+  let least = Infinity;
+  for (const x of from) least = Math.min(least, worn.get(x) || 0);
+  const fresh = from.filter(x => (worn.get(x) || 0) === least);
+  return fresh[Math.floor(Math.random() * fresh.length)];
+}
 /* Which body to actually build, given one that was asked for. The
    crowd draws from a list already filtered to what loaded, but the
    named cast asks by name, and CAST_PLAN cannot know that a body has
    left the roster or that its model 404'd. Standing in for them is a
    smaller loss than losing the student. */
-function bodyFor(k){
-  /* "any" means this student has no particular body — Elowen, Theo and
-     Kenji roam and nothing about them depends on which one they are, so
-     they are dealt a different one each visit like the crowd. Priya,
-     Sofia and Amara ask by name because they need the original walker's
-     clips: Idle, Sitting Talking and Jogging, which no other body has. */
+function bodyFor(k, looks, needs){
+  /* "any" means this student has no particular body — nothing about
+     them depends on which one they are, so they are dealt one each
+     visit like the crowd, preferring a body that matches their `looks`
+     and one nobody else is already wearing. */
   if (k === "any" || k === "loiter"){
     /* "loiter" is "any" for the standers. Marcus and Jun used to ask
        for stu_anim by name — 179,598 triangles to hold still by a door,
        the heaviest figure on the campus doing the least. Whoever is
        standing about today does it instead. */
     const pool = k === "any" ? loadedRoaming() : loadedLoitering();
-    return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+    /* The need comes first and the look second: a student who cannot
+       hold the pose their plan calls for is a frozen figure, which is
+       worse than a mismatched one. */
+    return drawBody(pool.filter(x => canDo(x, needs)), looks) || drawBody(pool, looks);
   }
   if (castLib[k]) return k;
   const pool = ROAMING.includes(k) ? loadedRoaming() : loadedLoitering();
@@ -4423,29 +4505,43 @@ function prepFigure(k, height, live, clipIx = 0){
     if (!o.isMesh) return;
     o.castShadow = true;
     meshes.push(o);                      /* kept for the distance detail pass */
-    /* A skinned mesh's bounds are the bind pose, so a figure whose arms
-       swing wider than that pops out of view at the edge of the screen.
-       The cheap fix is to turn culling off — which is what this used to
-       do, and it meant every student on campus was drawn every frame
-       whether or not they were behind you. Give them a generous sphere
-       instead and the cull comes back: with a crowd on the quad, the
-       ones at your back cost nothing.
+    /* ── a bounding sphere that contains the person ──────────────────
+       three.js raycasts and frustum-culls a SkinnedMesh against
+       `boundingSphere`, and this used to take that from the GEOMETRY —
+       the bind pose, scaled by the mesh node's own matrix — with a
+       ×2.2 fudge over the top for swinging arms.
 
-       Taken from the geometry rather than SkinnedMesh.computeBoundingSphere,
-       which walks every vertex through the skeleton — 50k of them per
-       figure. The geometry is shared between clones, so this is measured
-       once for the whole cohort. */
-    const gm = o.geometry;
-    if (o.isSkinnedMesh && gm){
-      if (!gm.boundingSphere) gm.computeBoundingSphere();
-      if (gm.boundingSphere){
-        o.boundingSphere = gm.boundingSphere.clone();
-        o.boundingSphere.radius *= 2.2;
-      }
+       Measured, in world units, for figures 43 units tall:
+
+         tutor  57.6     walker 0.8     isla 0.7     kenta 0.6
+         sophia  0.8     woman  0.3     nathan 0.7
+
+       Every body but one is off by a factor of about thirty. The
+       vertices are placed by the SKELETON, and on these assets the
+       skeleton carries a scale the mesh node does not — so the sphere
+       is a marble at the student's feet. The renderer culls them the
+       instant that marble leaves the frustum, and a ray aimed at the
+       middle of a student's chest misses by many times their width.
+       That is why tapping somebody to talk to them did nothing:
+       measured at zero hits for eight of eight students in plain view.
+
+       The BOX is right, because Box3.setFromObject just computed it by
+       walking the vertices through the skeleton — the same path the
+       raycast uses, so it is in the same space and cannot disagree.
+       Take the sphere from that. It costs nothing: computeBoundingBox
+       has already run and cached, a few lines above. */
+    if (o.isSkinnedMesh){
+      if (!o.boundingBox) o.computeBoundingBox();
+      const sph = new THREE.Sphere();
+      o.boundingBox.getBoundingSphere(sph);
+      /* the pose it was measured in is not the only pose they hold */
+      sph.radius *= 1.6;
+      o.boundingSphere = sph;
     }
   });
   g2.add(root);
   g2.userData.figure = k;                /* test/debug: this is a person */
+  g2.userData.height = height || CAST_HEIGHT[k];   /* what a tap aims at */
   g2.userData.meshes = meshes;
   g2.userData.shadow = true;
   if (standRec) g2.userData.stand = standRec;
@@ -4954,7 +5050,7 @@ function buildCast(){
   STUDENT_ROSTER.forEach((st, i) => {
     if (!present[i]) return;             /* in a lecture */
     const plan = CAST_PLAN[i];
-    const k = bodyFor(plan.k);
+    const k = bodyFor(plan.k, st.looks, plan.needs);
     if (!k) return;                      /* nothing loaded at all */
     /* Dressed off this visit's seed, so Elowen is not wearing the same
        shirt she wore last time either. Her name, her lines and where
@@ -4963,25 +5059,34 @@ function buildCast(){
     const g = prepFigure(k, CAST_HEIGHT[k] * buildOf(seed), plan.live, plan.pose || 0);
     if (!g) return;
     if (ROAMING.includes(k)) dressFigure(g, seed);
+    /* The plan asked for a POSE; the body says which of its clips that
+       is. A missing one is null rather than a name nothing answers to,
+       so setClip leaves the figure on whatever it is already playing
+       instead of silently doing nothing and looking frozen. */
+    const roles = g.userData.anim?.roles;
+    const clip = plan.clip ? (roles && roles[plan.clip]) || null : null;
     const tagEl = document.createElement("div");
     tagEl.className = "stu-tag";
     tagEl.textContent = st.name;
     const tag = new CSS2DObject(tagEl);
-    tag.position.y = plan.k === "laptop" ? 32 : 48;
+    /* plan.kind, not plan.k — `k` is which body to build and has never
+       been "laptop", so the seated student's name tag has always hung
+       at standing height, a head and a half above where she is. */
+    tag.position.y = plan.kind === "laptop" ? 32 : 48;
     g.add(tag);
     world.add(g);
     if (plan.orbit){
       const a0 = i * 0.9;
-      if (plan.clip){ setClipOn(g, plan.clip); stagger(g, plan.clip); }
-      students.push({ g, data: st, orbit: 182.5, orbitA: a0, orbitW: 0.16, clip: plan.clip,
-                      roles: g.userData.anim?.roles,
+      if (clip){ setClipOn(g, clip); stagger(g, clip); }
+      students.push({ g, data: st, orbit: 182.5, orbitA: a0, orbitW: 0.16, clip,
+                      roles,
                       pos: [500 + Math.cos(a0) * 182.5, 500 + Math.sin(a0) * 182.5] });
       return;
     }
     if (plan.at){
       g.position.set(W(plan.at[0]), 0, W(plan.at[1]));
       g.rotation.y = plan.face || 0;
-      if (plan.clip){ setClipOn(g, plan.clip); stagger(g, plan.clip); }
+      if (clip){ setClipOn(g, clip); stagger(g, clip); }
       /* Their roles, same as a roamer gets. Without this line every
          student who stands still — the ones at the doors, the ones on
          the plaza, the ones you are most likely to walk up to and
@@ -4991,7 +5096,7 @@ function buildCast(){
          standing animation was frozen mid-breath, on the lawn and in
          conversation both, and the clip it owned never played once. */
       students.push({ g, data: st, static: true, kind: plan.kind, baseYaw: plan.face || 0,
-                      roles: g.userData.anim?.roles,
+                      roles,
                       phase0: i * 1.7, pos: [...plan.at] });
       return;
     }
@@ -6460,26 +6565,55 @@ controls.maxDistance = 2600;
 controls.maxPolarAngle = 1.32;
 controls.enablePan = false;
 const ray = new THREE.Raycaster();
+const _tapC = new THREE.Vector3(), _tapS = new THREE.Sphere();
 let downAt = null;
-renderer.domElement.addEventListener("pointerdown", e => { downAt = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener("pointerdown", e => {
+  downAt = [e.clientX, e.clientY, e.pointerType === "touch" ? 14 : 6];
+});
 renderer.domElement.addEventListener("pointerup", e => {
   if (!downAt || convoView) return;
   const moved = Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]);
+  /* Six pixels is a mouse. A finger rolls on the glass as it lifts, and
+     in walk mode every one of those pixels also turns the view, so a
+     tap that was meant to be still arrives as a small drag. Fourteen is
+     still far short of a deliberate swipe. */
+  const slop = downAt[2];
   downAt = null;
-  if (moved > 6) return;
+  if (moved > slop) return;
   const r = renderer.domElement.getBoundingClientRect();
   const ndc = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
   ray.setFromCamera(ndc, camera);
   /* People first, and in walk mode too — everything else here is
      buildings, and a tap that lands on a person means the person. The
      crowd are strangers with no name tag and nothing to say; only the
-     named eight carry a `data` record, so only they answer. */
+     named eight carry a `data` record, so only they answer.
+
+     Aimed at the PERSON rather than at their triangles. Two reasons,
+     one of them a bug and one of them a phone:
+
+     The bug: SkinnedMesh.raycast rejects on `boundingSphere` before it
+     ever looks at a triangle, and on these assets that sphere is a
+     marble at the student's feet — see prepFigure. Eight of eight
+     students in plain view returned zero hits. That is fixed at the
+     source, but a picking test that depends on a per-asset bounding
+     volume being right is a picking test that will break again with
+     the next body somebody drops in.
+
+     The phone: a fingertip is about forty pixels across and a student
+     across the quad is about twenty. Demanding an exact triangle hit
+     on a walking figure is a game of darts. A capsule around them is
+     what the visitor is aiming at anyway. */
   {
     let best = null, bestD = Infinity;
     for (const s of students){
       if (!s.data || !s.g || !s.g.visible) continue;
-      const hit = ray.intersectObject(s.g, true);
-      if (hit.length && hit[0].distance < bestD){ bestD = hit[0].distance; best = s; }
+      const h = s.g.userData.height || 42;
+      s.g.getWorldPosition(_tapC);
+      _tapC.y += h * 0.5;                  /* the middle of them, not their feet */
+      _tapS.set(_tapC, h * 0.55);
+      if (!ray.ray.intersectsSphere(_tapS)) continue;
+      const d = ray.ray.origin.distanceTo(_tapC);
+      if (d < bestD){ bestD = d; best = s; }
     }
     if (best){ convoOpen(best); return; }
   }
