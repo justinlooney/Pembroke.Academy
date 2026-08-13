@@ -1863,7 +1863,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v50";
+const BUILD = "pembroke-v51";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -4316,15 +4316,42 @@ function canDo(k, needs){
    another, and it showed: measured, a campus of five came out as the
    same man three times over. Counting who is already out there costs
    one pass over a list of a dozen and cannot produce that. */
-function drawBody(pool, looks){
-  if (!pool.length) return null;
-  const want = looks ? pool.filter(x => CAST_FEM.has(x) === (looks === "f")) : [];
-  const from = want.length ? want : pool;
+/* ── nobody appears twice, and a shirt is not a disguise ──────────────
+   A body is a PERSON. It goes out once.
+
+   This was argued down twice before settling here. First the crowd
+   repeated anybody, and two identical men in red were photographed on
+   one lawn. Then repeats were confined to the four bodies the wardrobe
+   can re-dress, on the theory that a different shirt makes a different
+   student — and measured on a forced quad that produced walker seven
+   times and woman seven times out of nineteen people. Same face, same
+   hair, same build, seven times. A shirt is not a disguise.
+
+   So the rule is now the simple one: a body is spent the moment it is
+   used, counted across the WHOLE campus. The named cast and the crowd
+   used to draw from separate lists and neither knew what the other had
+   taken, which is how a named student could stand on the plaza while an
+   identical stranger walked past behind them.
+
+   It follows that the population is bounded by the cast — as many
+   people as there are distinct bodies to be, and no more. That is the
+   right way round. The author is authoring characters now; the way to
+   put more people on the quad is to make more people. */
+function wornFigures(){
   const worn = new Map();
   for (const s of students){
     const f = s.g && s.g.userData && s.g.userData.figure;
     if (f) worn.set(f, (worn.get(f) || 0) + 1);
   }
+  return worn;
+}
+function drawBody(pool, looks){
+  if (!pool.length) return null;
+  const worn = wornFigures();
+  const free = pool.filter(x => !worn.has(x));
+  if (!free.length) return null;               /* everyone left is already out */
+  const want = looks ? free.filter(x => CAST_FEM.has(x) === (looks === "f")) : [];
+  const from = want.length ? want : free;
   let least = Infinity;
   for (const x of from) least = Math.min(least, worn.get(x) || 0);
   const fresh = from.filter(x => (worn.get(x) || 0) === least);
@@ -4724,9 +4751,42 @@ function lendClip(clip, target, srcRoot, name, fps = 30){
       const k = canonBone(o.name);
       if (k && !byKey.has(k)) byKey.set(k, o);
     }
+    /* ── which side is this rig's "Left" actually on? ─────────────────
+       A bone called Left is not necessarily on the left. The first
+       character authored for this campus has LeftFoot at x = -0.125,
+       the side every other rig here calls Right, and motion transfers
+       SPATIALLY — so the donor's +x arm drove the bone at -x and the
+       figure sat down correctly from the waist while raising both arms
+       over its head. Rendered; unmistakable; and identical to the
+       failure signature of a body nobody could explain for a week.
+
+       Asked of the geometry rather than the name, and calibrated
+       against the DONOR rather than against a convention, so it needs
+       to know nothing about which handedness is "right". If the two
+       files disagree about where left is, the sides are swapped for
+       this pairing only — nothing is written to either file, and the
+       day the author corrects the export upstream this quietly stops
+       doing anything. */
+    const sideOf = (root, loose, key) => {
+      const hips = hipFootOf(root, loose)[0];
+      let bone = null;
+      for (const o of jointsOf(root, loose)) if (canonBone(o.name) === key){ bone = o; break; }
+      if (!hips || !bone) return 0;
+      hips.getWorldPosition(_lV); const hx = _lV.x;
+      bone.getWorldPosition(_lV);
+      return Math.sign(_lV.x - hx);
+    };
+    const sSide = sideOf(srcRoot, true, "leftfoot"), tSide = sideOf(target, false, "leftfoot");
+    const mirrored = sSide !== 0 && tSide !== 0 && sSide !== tSide;
+    const flip = (k) => !mirrored ? k
+      : k.startsWith("left") ? "right" + k.slice(4)
+      : k.startsWith("right") ? "left" + k.slice(5) : k;
+    if (mirrored)
+      console.info("cast: " + name + " — this rig labels its sides the other way round, swapping");
+
     const pairs = [];
     for (const s of src){
-      const t = byKey.get(canonBone(s.name));
+      const t = byKey.get(flip(canonBone(s.name)));
       if (t) pairs.push({ s, t });
     }
     if (!pairs.length) return null;
@@ -5763,6 +5823,7 @@ const CROWD_FLOOR = 33;
    crowd untested on the only machine that tests anything. */
 const CROWD_FORCE = q.has("crowd") ? Math.max(0, Math.min(CROWD_MAX, +q.get("crowd") || 0)) : null;
 let crowdReady = false, crowdN = 0, crowdNext = 0, crowdDone = false, crowdFps = 60;
+let crowdSpent = false;          /* every distinct body is already out there */
 /* ?crowd fills the quad once every body that is coming has come, so a
    forced crowd shows the whole cohort rather than whichever half
    happened to load first. Called both when the campus is built and when
@@ -5785,7 +5846,7 @@ function fillForcedCrowd(){
     return;
   }
   clearTimeout(lateGiveUp);
-  while (crowdN < CROWD_FORCE) addExtra(crowdN++);
+  while (crowdN < CROWD_FORCE && addExtra(crowdN)) crowdN++;
   crowdDone = true;
 }
 /* ── and when the stragglers finally arrive ───────────────────────────
@@ -5830,37 +5891,37 @@ const VISIT = Math.floor(Math.random() * 1e6);
    people should be three different people, not three throws of the same
    die that might come up the same twice. */
 let castDeck = [];
-let castPass = 0;                      /* how many times the deck has been dealt */
 function nextBody(n){
   const pool = loadedRoaming();
   if (!pool.length) return null;
-  if (n === 0){ castPass = 0; castDeck = []; }
-  if (castDeck.length === 0){
-    castPass++;
-    /* Everybody once, then only the ones a change of clothes can tell
-       apart. Four of the eight roaming bodies own no mesh the wardrobe
-       can dress — alina, nathan, kenta and isla wear what is in their
-       file — so a second copy of one of those is not a similar student,
-       it is the same student twice, down to the pixel. Reported as "too
-       many same people", and photographed: two identical men in red.
-       A second walker at least arrives in a different shirt.
-       Falls back to the whole pool if nothing loaded is dressable,
-       because a repeat beats an empty campus. */
-    const repeatable = pool.filter(k => CAST_DRESSABLE.includes(k));
-    castDeck = (castPass === 1 || !repeatable.length) ? pool.slice() : repeatable.slice();
-    for (let i = castDeck.length - 1; i > 0; i--){
-      const j = Math.floor(Math.random() * (i + 1));
-      [castDeck[i], castDeck[j]] = [castDeck[j], castDeck[i]];
-    }
+  if (n === 0) castDeck = [];
+  /* Asked as the card is dealt rather than as the deck is built: the
+     named cast is built first and takes bodies out of circulation, and
+     a deck shuffled before that happened would deal them again. */
+  const worn = wornFigures();
+  while (castDeck.length){
+    const k = castDeck.pop();
+    if (!worn.has(k)) return k;
+  }
+  /* One pass, and there is no second one. An empty space on the lawn
+     is better than the same student standing in two of them. */
+  const src = pool.filter(k => !worn.has(k));
+  if (!src.length) return null;
+  castDeck = src.slice();
+  for (let i = castDeck.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [castDeck[i], castDeck[j]] = [castDeck[j], castDeck[i]];
   }
   return castDeck.pop();
 }
+/* true if somebody was actually added — the crowd has to be able to
+   tell "not yet" from "there is nobody left who would not be a twin" */
 function addExtra(n){
   const k = nextBody(n);
-  if (!k) return;
+  if (!k) return false;
   const seed = VISIT + n * 37;
   const g = prepFigure(k, CAST_HEIGHT[k] * buildOf(seed), false);
-  if (!g) return;
+  if (!g) return false;
   dressFigure(g, seed);
   g.userData.crowd = true;               /* test/debug: not one of the named */
   world.add(g);
@@ -5869,6 +5930,7 @@ function addExtra(n){
      together are small, and if they do they will have walked apart
      within the minute. */
   makeRoamer(g, ALL_WAYS[Math.floor(Math.random() * ALL_WAYS.length)]);
+  return true;
 }
 function stepCrowd(now, dt, raw){
   /* a slow average, so one stutter — a model finishing its decode, a
@@ -5896,7 +5958,11 @@ function stepCrowd(now, dt, raw){
   if (now < crowdNext) return;
   if (crowdN >= CROWD_MIN && crowdFps < CROWD_FLOOR){ crowdDone = true; return; }
   crowdNext = now + 500;
-  addExtra(crowdN++);
+  /* Out of people rather than out of budget: stop, and say so in the
+     panel, so "3 people" reads as a fact about the cast rather than a
+     performance cap somebody has to go looking for. */
+  if (addExtra(crowdN)) crowdN++;
+  else { crowdDone = true; crowdSpent = true; }
 }
 /* test/debug hook: how many people are on campus, whether more are
    coming, and what they cost to draw. `target` is what this visit drew
@@ -5921,7 +5987,7 @@ window.__crowd = () => ({ n: crowdN, done: crowdDone, fps: crowdFps,
  * bodies, same deck. What arrives is what a machine that could keep up
  * would have shown, all at once instead of over a few seconds. */
 window.__crowdFill = () => {
-  while (crowdN < CROWD_TARGET) addExtra(crowdN++);
+  while (crowdN < CROWD_TARGET && addExtra(crowdN)) crowdN++;
   crowdDone = true;
   return crowdN;
 };
@@ -7639,6 +7705,7 @@ function dbgUpdate(now, dt, raw){
     "crowd  " + students.length + " people" +
       (CROWD_FORCE !== null ? "  (forced by ?crowd)" :
        crowdN >= CROWD_TARGET ? "  (all " + CROWD_TARGET + " in)" :
+       crowdSpent ? "  (every body already out — no twins)" :
        crowdDone ? "  (capped at " + crowdFps.toFixed(0) + "fps)" : "  (arriving)") + "\n" +
     "assets " + done.length + "/" + core.length + (bad.length ? "  " + bad.length + " FAILED" : "") +
       (pending ? "  (" + pending + " loading)" : "  all in " + (last / 1000).toFixed(1) + "s") + "\n" +
@@ -8578,6 +8645,18 @@ window.__students = students;
    to happen is measuring the dice. This lets a probe send somebody. */
 window.__seats = SEATS;
 window.__castLib = castLib;   /* test/debug hook: the loaded bodies */
+/* test/debug hook: lend the sit-down to a body that is not cast yet,
+   through the real lendClip. A character being authored has to be
+   judged before it is committed to, and judging it means seeing it
+   move — not reading a bone list. */
+window.__lendTo = (url) => new Promise((ok, no) => gltf.load(url, (g) => {
+  const clip = sitDonor && sitDonor.animations[0];
+  if (!clip) return ok({ err: "the sit donor has not loaded" });
+  const lent = lendClip(clip, g.scene, sitDonor.scene, "Stand To Sit");
+  if (!lent) return ok({ err: "nothing bound" });
+  ok({ gltf: g, clip: lent, tracks: lent.tracks.length,
+       why: poseLooksWrong(lent, g, "sit", sitDonor, clip) });
+}, undefined, (e) => ok({ err: String(e).slice(0, 120) })));
 /* test/debug hook: what the sit-down looks like on a given body, and
    what the acceptance test made of it. */
 window.__sitCheck = (k, name = "Stand To Sit", expect = "sit") => {

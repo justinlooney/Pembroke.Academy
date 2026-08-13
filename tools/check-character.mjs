@@ -208,6 +208,19 @@ window.__check = (url) => new Promise((done) => loader.load(url, (g) => {
       : null;
   }
 
+  /* which side is "Left" actually on? */
+  {
+    const pick = (k) => { for (const b of bones) if (canonBone(b.name) === k) return b; return null; };
+    const hips = pick("hips"), lf = pick("leftfoot"), rf = pick("rightfoot");
+    if (hips && lf && rf){
+      const v = new THREE.Vector3();
+      hips.getWorldPosition(v); const hx = v.x;
+      lf.getWorldPosition(v); const lx = v.x - hx;
+      rf.getWorldPosition(v); const rx = v.x - hx;
+      out.sides = { left: +lx.toFixed(3), right: +rx.toFixed(3) };
+    }
+  }
+
   /* what the wardrobe can find */
   const slots = new Set();
   root.traverse(o => {
@@ -307,6 +320,18 @@ for (const f of files){
       note.push(`rests ${median}° from its bind pose — if a borrowed clip looks wrong on it, start here`);
   } else console.log("  rest vs bind pose: no skin to compare against");
 
+  if (r.sides){
+    const mirrored = r.sides.left < r.sides.right;
+    console.log(`  sides: LeftFoot at x ${r.sides.left > 0 ? "+" : ""}${r.sides.left}, ` +
+                `RightFoot at x ${r.sides.right > 0 ? "+" : ""}${r.sides.right}` +
+                (mirrored ? "  ← MIRRORED" : ""));
+    if (mirrored)
+      warn.push("Left and Right are swapped: the bone called Left is on the character's " +
+                "right. Motion borrowed from another rig transfers SPATIALLY, so this " +
+                "puts the donor's left arm on the right arm — rendered once as a figure " +
+                "sitting down correctly with both arms over its head. The campus detects " +
+                "and compensates, but fix it in the source and there is nothing to detect");
+  }
   console.log(`  wardrobe can tint: ${r.slots.length ? r.slots.join(", ") : "NOTHING"}`);
   if (!r.slots.length)
     warn.push("no mesh or material named for the wardrobe — it wears its factory colours for ever, so a second copy is the same student twice");
