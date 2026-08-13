@@ -3595,16 +3595,23 @@ gltf.load("assets/lamp.glb", (g) => {
    Doors come from the DOORS table the player's own prompt uses, so a
    student walks to the same doorway you do. */
 const DOOR_RANGE = 900;           /* far enough that a lecture is worth the walk */
-const INSIDE_MS = [70000, 280000];        /* a class, or an hour with a book */
+const INSIDE_MS = [35000, 140000];        /* a class, or an hour with a book */
 const DOOR_COOL = 200000;         /* nobody attends four lectures in a row */
 const P_DOOR = 0.22;
 /* How much of the cast may be indoors at once. Without a ceiling they
    all go: a probe run had every one of the eight roamers inside a
    building simultaneously at t+150s, which is not a quiet campus, it is
    an empty one — and a visitor who arrives during that sees nobody at
-   all and concludes the crowd is broken. A third is enough to make the
-   quad feel like it has somewhere else to be. */
-const INSIDE_SHARE = 1 / 3;
+   all and concludes the crowd is broken.
+
+   A fifth, down from a third. Reported as "now they aren't appearing
+   very much", alongside a request to halve the time spent indoors —
+   and halving that alone would not have fixed it. Measured, the indoor
+   population sat AT the cap for almost the whole run (4 of 12, cap 4,
+   29% of student-samples against a 33% ceiling). When the cap is what
+   binds, shortening the visits only speeds the turnstile; it does not
+   put anyone back on the quad. Both moved. */
+const INSIDE_SHARE = 1 / 5;
 const SEATS = [];
 const SIT_RANGE = 420;            /* how far someone will go for a seat */
 /* Two figures, because a sit is only as good as what plays during it.
@@ -7018,7 +7025,11 @@ renderer.setAnimationLoop(() => {
   {  /* leaves drift down and sideways, respawning at the canopy */
     const lp = leaves.geometry.attributes.position;
     for (let i = 0; i < lp.count; i++){
-      let y = lp.getY(i) - dt * (4 + (i % 5));
+      /* half the old rate — they fell like they were being dropped
+         rather than shed. The sideways drift is unchanged on purpose,
+         so a leaf now meanders twice as far per foot of descent, which
+         is what a leaf actually does. */
+      let y = lp.getY(i) - dt * (2 + (i % 5) * 0.5);
       if (y < 1) y = 60 + (i % 7) * 4;
       lp.setY(i, y);
       lp.setX(i, lp.getX(i) + Math.sin(now / 900 + i) * dt * 3);
