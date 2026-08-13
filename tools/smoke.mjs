@@ -622,6 +622,138 @@ try {
            `${c.builds} build(s); dressable: ${c.dressable}`
          : "could not read the cohort");
 
+  /* ── can you actually tap somebody? ──────────────────────────────
+     Reported from a phone as "touch player to start dialogue isn't
+     working", and it was: three.js rejects a SkinnedMesh raycast on
+     `boundingSphere` before it looks at a triangle, and on these
+     assets that sphere came out with a radius of 0.8 for a figure 43
+     units tall. A ray aimed at the middle of a student's chest missed
+     by thirty times their width — measured at zero hits for eight of
+     eight students standing in plain view.
+
+     Nothing could see it. The figures draw, animate, walk and cast
+     shadows exactly as before; the only symptom is that tapping them
+     does nothing, which reads as a dead event handler. So: put a ray
+     through the middle of every named student and require them to
+     answer. It uses the page's own picking, so it fails on a broken
+     bounding volume, a broken handler, and a student who has quietly
+     stopped being pickable, without caring which.
+
+     One tap per turn of this loop, with the conversation closed and a
+     beat allowed before the next. Opening one makes #stage fullscreen
+     and resizes the canvas under it, so a batch of taps fired inside a
+     single evaluate() aims the second through the first one's
+     viewport — which read as two students refusing to answer when all
+     eight in fact do. */
+  const named = await crowdPage.evaluate(() =>
+    (window.__students || []).filter(s => s.data && s.g).map(s => s.data.name))
+    .catch(() => []);
+  const miss = [], skipped = [];
+  for (const nm of named){
+    const r = await crowdPage.evaluate((nm) => {
+      const THREE = window.__app.THREE, cam = window.__app.camera;
+      const s = (window.__students || []).find(x => x.data && x.data.name === nm);
+      if (!s || !s.g) return { gone: true };
+      if (!s.g.visible) return { skip: "indoors" };
+      const p = new THREE.Box3().setFromObject(s.g)
+        .getCenter(new THREE.Vector3()).project(cam);
+      if (!(p.z < 1 && Math.abs(p.x) < 0.95 && Math.abs(p.y) < 0.95))
+        return { skip: "off screen" };
+      /* Is anybody standing in front of them? A tap picks the NEAREST
+         person on the ray, which is right — if Kenji is between the
+         camera and Elowen, tapping Elowen's chest should get Kenji.
+         Demanding that the aimed-at student answer therefore fails on
+         a CORRECT pick, and did, in CI: "no answer from Elowen/ariel
+         (answered as Kenji)". So an overlapped target is skipped, and
+         what is left is the question worth asking. */
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera(new THREE.Vector2(p.x, p.y), cam);
+      const reach = (o) => {
+        const h = o.g.userData.height || 42;
+        const c = o.g.getWorldPosition(new THREE.Vector3());
+        c.y += h * 0.5;
+        return ray.ray.intersectsSphere(new THREE.Sphere(c, h * 0.55))
+          ? ray.ray.origin.distanceTo(c) : Infinity;
+      };
+      const mine = reach(s);
+      for (const o of window.__students){
+        if (o === s || !o.data || !o.g || !o.g.visible) continue;
+        if (reach(o) < mine) return { skip: "someone is standing in front of them" };
+      }
+      const el = document.querySelector("#stage canvas");
+      const c = el.getBoundingClientRect();
+      const ev = (t, x, y) => el.dispatchEvent(new PointerEvent(t, { pointerId: 1,
+        pointerType: "touch", isPrimary: true, clientX: x, clientY: y,
+        bubbles: true, cancelable: true }));
+      const x = c.left + (p.x * 0.5 + 0.5) * c.width;
+      const y = c.top + (-p.y * 0.5 + 0.5) * c.height;
+      /* a couple of pixels of drift, because a finger has some */
+      ev("pointerdown", x, y); ev("pointerup", x + 3, y + 2);
+      const opened = window.__convo.on();
+      const who = document.getElementById("convo-name")?.textContent;
+      if (opened) window.__convo.close();
+      return { opened, who, fig: s.g.userData.figure,
+               client: `${Math.round(x)},${Math.round(y)}`,
+               rect: `${Math.round(c.left)},${Math.round(c.top)} ` +
+                     `${Math.round(c.width)}x${Math.round(c.height)}` };
+    }, nm).catch((e) => ({ err: String(e).slice(0, 80) }));
+    if (r.skip || r.gone){ skipped.push(nm); continue; }
+    /* Answering as somebody else is a miss too — it means the ray found
+       a different person, which is the failure this cannot afford to
+       call a pass. */
+    if (!r.opened || r.who !== nm)
+      miss.push(`${nm}/${r.fig || "?"} (` +
+                (r.err ? r.err : r.opened ? "answered as " + r.who : "nothing opened") +
+                `, aimed ${r.client} in ${r.rect})`);
+    await crowdPage.waitForTimeout(400);
+  }
+  step("tapping a student opens a conversation", named.length > 0 && miss.length === 0,
+       miss.length ? "no answer from " + miss.join(", ")
+                   : `${named.length - skipped.length} of ${named.length} named students answered` +
+                     (skipped.length ? ` (${skipped.length} indoors or off screen)` : ""));
+
+  /* Five of the eight roaming bodies are women, and a phone reported
+     "none of the female characters are present" — which the numbers
+     bore out: three of the named plans asked for the walker by NAME,
+     because it is the only body whose clips are hand-labelled, so the
+     same man stood on the quad three times over. Fixed by asking for
+     the POSE instead. This is the check that keeps it fixed. */
+  const looks = await crowdPage.evaluate(() => {
+    const FEM = new Set(["woman", "alina", "ariel", "isla", "nadia", "sophia"]);
+    const figs = (window.__students || []).map(s => s.g && s.g.userData.figure).filter(Boolean);
+    return { total: figs.length, women: figs.filter(f => FEM.has(f)).length,
+             tally: figs.join(",") };
+  }).catch(() => null);
+  if (cohortJudged)
+  step("the campus is not all one gender", !!looks && looks.women >= 2 &&
+       looks.women <= looks.total - 2,
+       looks ? `${looks.women} of ${looks.total} figures read female` : "could not count");
+
+  /* ── can anybody sit down? ───────────────────────────────────────
+     Nobody on this campus could, until a 2.2 second sit-down arrived
+     on a body of its own and was lent to the skeletons already here.
+     Two things have to hold and neither is visible in a screenshot:
+     a body has to END UP with the clip, and its seated pose has to
+     agree with the seated LOOP closely enough that seatRoles keeps
+     the loop — because a disagreement there silently drops everyone
+     back onto the grass, which is exactly the state this replaced. */
+  const sitting = await crowdPage.evaluate(() => {
+    const seen = new Map();
+    for (const s of (window.__students || [])){
+      const k = s.g?.userData?.figure, R = s.g?.userData?.anim?.roles;
+      if (k && R && !seen.has(k)) seen.set(k, R);
+    }
+    const can = [...seen].filter(([, R]) => R.sit).map(([k, R]) =>
+      `${k}@${(R.sitTo ?? 1).toFixed(2)}${R.seat ? "+loop" : ""}`);
+    const benched = (window.__seats || []).length;
+    return { can, bodies: seen.size, benched };
+  }).catch(() => ({ can: [], bodies: 0, benched: 0 }));
+  step("somebody on this campus can sit down", sitting.can.length > 0,
+       sitting.can.length
+         ? `${sitting.can.join(", ")} — over ${sitting.benched} benches`
+         : `no body of ${sitting.bodies} has a sit-down; the clip donor ` +
+           `did not load, or lendClip bound nothing`);
+
   step("a full quad still draws", !!c && c.draws > 0 && c.tris > 0,
        c ? `draws ${c.draws} · tris ${(c.tris / 1e6).toFixed(2)}M` : "");
   step("the crowd arrives without errors", crowdErrs.length === 0,
