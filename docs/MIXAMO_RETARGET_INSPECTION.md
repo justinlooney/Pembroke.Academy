@@ -79,11 +79,28 @@ figure sitting correctly from the waist down **with both arms
 overhead** — the same failure signature as nadia. Swapping the sides
 fixed it completely.
 
-Resolution: the campus copy (`assets/stu_hero.glb`) has Left↔Right
-node names swapped — 16 nodes, JSON chunk only, geometry and skin
-untouched, master untouched. **Recommended upstream fix:** correct the
-side naming in the Blender master so future exports match convention;
-until then, re-run the same swap on any fresh export.
+Resolution — and this changed once, so read the code, not the first
+draft of this paragraph. The first fix renamed 16 nodes in the campus
+copy. That works, but it is a correction baked into one file, and the
+author has said they intend to replace this character with others made
+the same way: a per-file patch would have to be re-applied by hand,
+correctly, every time, for ever. So the baked swap was **taken back
+out**. `assets/stu_hero.glb` is now byte-identical to the delivered
+`student_photohero_web.glb`, mirrored labels and all, and `lendClip`
+works out handedness **from the geometry** instead:
+
+    where is the bone called LeftFoot, relative to the hips, in x?
+    where is the donor's?
+    if they disagree, swap left↔right for the whole transfer.
+
+That costs two `getWorldPosition` calls at load, is measured rather
+than remembered, and is right for any future character whether its
+labels are mirrored or not. `tools/check-character.mjs` still reports
+the mirroring, because it is still worth knowing.
+
+**Recommended upstream fix, unchanged:** correct the side naming in
+the Blender master so future exports match convention. The campus no
+longer needs it — but every other tool in the world will assume it.
 
 ## REST-POSE DIFFERENCES
 
@@ -162,7 +179,8 @@ skeleton + motion.
 
 ## IMPLEMENTATION PLAN (state: mostly done, verified)
 
-1. ~~Side-label swap on the campus copy~~ — done, 16 nodes.
+1. ~~Side-label swap on the campus copy~~ — reverted in favour of
+   runtime handedness detection in `lendClip`. See above.
 2. ~~`canonBone` vocabulary for the rig~~ — done, in index.html and
    `tools/check-character.mjs` (collision-checked against isla's bare
    Mixamo-style names: this rig's words are unique to it).
@@ -181,9 +199,9 @@ skeleton + motion.
 
 | check                                   | result |
 |-----------------------------------------|--------|
-| 300,000 triangles preserved             | yes — JSON-chunk rename only, BIN untouched |
+| 300,000 triangles preserved             | yes — `assets/stu_hero.glb` is byte-identical to the delivered file |
 | 183,934 vertices, 1 primitive, 1 material | yes |
-| 24 bones, hierarchy unchanged            | yes — names re-sided on 16, no reparenting |
+| 24 bones, hierarchy unchanged            | yes — nothing renamed, nothing reparented |
 | skin/IBM intact                          | yes — joints reference by index, not name |
 | rest = bind, all 14 clip-driven bones    | 0.0° |
 | sit-down retarget                        | bound 22/69; hips 1.00→0.32; feet planted; arms natural (rendered) |
