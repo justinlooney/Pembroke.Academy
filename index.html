@@ -5637,6 +5637,11 @@ function upgradeBody(s){
   g2.visible = old.visible;
   world.add(g2);
   world.remove(old);
+  /* the old body's mixers too, or the frame loop steps an orphaned
+     skeleton for the rest of the visit — prepFigure registers up to
+     two entries per figure (the action mixer and a stand mixer) */
+  for (let i = castMixers.length - 1; i >= 0; i--)
+    if (castMixers[i].g === old) castMixers.splice(i, 1);
   s.g = g2;
   s.roles = g2.userData.anim?.roles || s.roles;
   s.anim0 = null; s.held = false;
