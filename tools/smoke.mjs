@@ -655,8 +655,25 @@ try {
       const s = (window.__students || []).find(x => x.data && x.data.name === nm);
       if (!s || !s.g) return { gone: true };
       if (!s.g.visible) return { skip: "indoors" };
-      const p = new THREE.Box3().setFromObject(s.g)
-        .getCenter(new THREE.Vector3()).project(cam);
+      /* The check WALKS UP to each student instead of tapping from
+         wherever the camera happens to sit. Left to the accidental
+         camera, one run tapped from a vista where every student was a
+         few pixels tall, the too-small skip excused all five, and the
+         check passed having tested nothing — the same silent hollowing
+         this suite has been bitten by before. A visitor taps people
+         they walked to; the check now does the same, and puts the
+         camera back afterwards so the draw-stats check is undisturbed. */
+      const { controls } = window.__app;
+      if (!window.__tapCam) window.__tapCam = { t: controls.target.clone(),
+        p: cam.position.clone(), min: controls.minDistance };
+      const aim = new THREE.Box3().setFromObject(s.g).getCenter(new THREE.Vector3());
+      const H = (s.g.userData.height || 42) *
+                s.g.getWorldScale(new THREE.Vector3()).y / (s.g.scale.y || 1);
+      controls.minDistance = 1;
+      controls.target.copy(aim);
+      cam.position.set(aim.x + H * 1.2, aim.y + H * 0.5, aim.z + H * 1.8);
+      controls.update();
+      const p = aim.clone().project(cam);
       if (!(p.z < 1 && Math.abs(p.x) < 0.95 && Math.abs(p.y) < 0.95))
         return { skip: "off screen" };
       /* Is anybody standing in front of them? A tap picks the NEAREST
@@ -739,10 +756,28 @@ try {
                               (r.preOpen ? ", a convo was already open" : "")) + `)`);
     await crowdPage.waitForTimeout(400);
   }
-  step("tapping a student opens a conversation", named.length > 0 && miss.length === 0,
+  /* the camera went walking with the taps — put it back before anything
+     downstream reads draw statistics through it */
+  await crowdPage.evaluate(() => {
+    const c = window.__tapCam;
+    if (!c) return;
+    const { controls, camera } = window.__app;
+    controls.minDistance = c.min;
+    controls.target.copy(c.t);
+    camera.position.copy(c.p);
+    controls.update();
+    delete window.__tapCam;
+  }).catch(() => {});
+  /* At least one student must actually ANSWER. A run where every tap
+     was excused (indoors, off screen, too small) reported "0 of 5
+     answered" as a pass — a suite that tests nothing and says green,
+     which this file has done before and is not allowed to do again. */
+  const answered = named.length - skipped.length - miss.length;
+  step("tapping a student opens a conversation", answered >= 1 && miss.length === 0,
        miss.length ? "no answer from " + miss.join(", ")
-                   : `${named.length - skipped.length} of ${named.length} named students answered` +
-                     (skipped.length ? ` (${skipped.length} indoors or off screen)` : ""));
+       : answered < 1 ? `nobody could be tapped at all (${skipped.length} skipped) — the check tested nothing`
+       : `${answered} of ${named.length} named students answered` +
+         (skipped.length ? ` (${skipped.length} indoors or off screen)` : ""));
 
   /* Five of the eight roaming bodies are women, and a phone reported
      "none of the female characters are present" — which the numbers
