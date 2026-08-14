@@ -682,6 +682,15 @@ try {
       }
       const el = document.querySelector("#stage canvas");
       const c = el.getBoundingClientRect();
+      /* Diagnostics that name the failure, learned from a run this
+         check failed 0-for-5 and a probe minutes later passed 5-for-5
+         on identical code. If it happens again, the answer to "did the
+         events even arrive, and was a conversation already blocking
+         the handler?" is in the failure text instead of a rerun. */
+      const preOpen = window.__convo.on();
+      let sawUp = false;
+      const wUp = () => sawUp = true;
+      el.addEventListener("pointerup", wUp, true);
       const ev = (t, x, y) => el.dispatchEvent(new PointerEvent(t, { pointerId: 1,
         pointerType: "touch", isPrimary: true, clientX: x, clientY: y,
         bubbles: true, cancelable: true }));
@@ -689,11 +698,13 @@ try {
       const y = c.top + (-p.y * 0.5 + 0.5) * c.height;
       /* a couple of pixels of drift, because a finger has some */
       ev("pointerdown", x, y); ev("pointerup", x + 3, y + 2);
+      el.removeEventListener("pointerup", wUp, true);
       const opened = window.__convo.on();
       const who = document.getElementById("convo-name")?.textContent;
       if (opened) window.__convo.close();
       return { opened, who, fig: s.g.userData.figure,
                client: `${Math.round(x)},${Math.round(y)}`,
+               preOpen, sawUp,
                rect: `${Math.round(c.left)},${Math.round(c.top)} ` +
                      `${Math.round(c.width)}x${Math.round(c.height)}` };
     }, nm).catch((e) => ({ err: String(e).slice(0, 80) }));
@@ -704,7 +715,9 @@ try {
     if (!r.opened || r.who !== nm)
       miss.push(`${nm}/${r.fig || "?"} (` +
                 (r.err ? r.err : r.opened ? "answered as " + r.who : "nothing opened") +
-                `, aimed ${r.client} in ${r.rect})`);
+                `, aimed ${r.client} in ${r.rect}` +
+                (r.err ? "" : `, up ${r.sawUp ? "arrived" : "LOST"}` +
+                              (r.preOpen ? ", a convo was already open" : "")) + `)`);
     await crowdPage.waitForTimeout(400);
   }
   step("tapping a student opens a conversation", named.length > 0 && miss.length === 0,
