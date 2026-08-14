@@ -5867,19 +5867,26 @@ let crowdSpent = false;          /* every distinct body is already out there */
    the late wave settles, whichever is last — and it is idempotent, so
    being called twice costs nothing. */
 let lateOutstanding = 0, lateGiveUp = 0;
-function fillForcedCrowd(){
+function fillForcedCrowd(force){
   if (CROWD_FORCE === null || !crowdReady || crowdN >= CROWD_FORCE) return;
-  if (lateOutstanding > 0){
+  if (lateOutstanding > 0 && !force){
     /* Wait for the rest of the cohort — but not indefinitely. Decoding
        ten megabytes of people takes seconds on a phone and minutes on a
        software rasterizer, and a body that never arrives at all would
-       otherwise leave ?crowd showing an empty quad forever. Twenty
-       seconds, then fill with whoever is here. */
-    /* Forty-five, not twenty. There are nine deferred bodies now rather
-       than six, and ?crowd exists to show the variety they provide — a
-       give-up that fires first fills the quad from the first wave and
-       demonstrates the opposite. */
-    if (!lateGiveUp) lateGiveUp = setTimeout(() => { lateOutstanding = 0; fillForcedCrowd(); }, 45000);
+       otherwise leave ?crowd showing an empty quad forever. Forty-five
+       seconds, then fill with whoever is here.
+
+       The give-up FORCES PAST the check rather than zeroing the
+       counter. It used to write lateOutstanding = 0, and that wrote
+       off the whole late wave: every body landing afterwards
+       decremented the counter to -1, -2, ... so the `=== 0` in
+       settled() never fired, topUpForcedCrowd never ran, and the
+       stragglers were locked out of the quad for the visit. Measured
+       as "6 people from 12 bodies" the moment the late wave got heavy
+       enough (14MB of authored characters) to reliably outlast the
+       timer. The counter is the settle protocol; nothing else may
+       touch it. */
+    if (!lateGiveUp) lateGiveUp = setTimeout(() => fillForcedCrowd(true), 45000);
     return;
   }
   clearTimeout(lateGiveUp);
