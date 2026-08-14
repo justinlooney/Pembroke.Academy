@@ -1863,7 +1863,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v60";
+const BUILD = "pembroke-v61";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -1900,7 +1900,7 @@ const camera = new THREE.PerspectiveCamera(46, 1, 2, 6000);
 /* Stand back further on a tall screen. Even at the widened fov, portrait
    leaves only ~40° across, so the arrival view on a phone was a keyhole
    onto the quad with the whole outer world outside it. This does not fit
-   the athletics district on arrival — the ballpark and the tennis club
+   the athletics district on arrival — the ballpark
    sit a long way south and would want thousands of units of standoff,
    which would shrink the campus to a smudge — but it shows the north
    quad and the district edges, and the zoom now reaches the rest. */
@@ -2341,7 +2341,7 @@ let fountainWater = null;
   /* Out to the athletics district. The gates are the hinge: the south
      walk arrives there, and from it a promenade runs down the boulevard
      to the stadium with branches west to the ballpark and east to the
-     tennis club — the same three destinations the roads serve, on foot. */
+     field — the destinations the roads serve, on foot. */
   walkway([[500, 985], [500, 1046], [500, 1104], [500, 1156]], 24);
   walkway([[476, 1112], [330, 1148], [152, 1192], [-40, 1236], [-150, 1280]], 18);
   walkway([[524, 1112], [678, 1148], [854, 1190], [982, 1236], [1012, 1274]], 18);
@@ -2454,7 +2454,7 @@ lot(16, 430, 70, 240, 5);
   /* the boulevard south from the gatehouse to the stadium forecourt */
   drive([[500, 985], [500, 1050], [498, 1105], [500, 1160]], 46);
   /* and the athletics roads: west along the front of the district to the
-     ballpark, east to the tennis club, so the fields are reached the way
+     ballpark, so the field is reached the way
      a campus reaches them rather than sitting unserved on the horizon */
   drive([[478, 1088], [330, 1124], [150, 1168], [-40, 1212], [-152, 1256]], 32);
   drive([[522, 1088], [676, 1124], [852, 1166], [980, 1212], [1014, 1250]], 32);
@@ -2533,6 +2533,18 @@ let cathedralRoot = null;
 const VISTAS = [];
 function loadLandmark(url, opts){
   return new Promise((settle) => {
+  /* Landmarks are scenery, and they are fetched AFTER the campus says
+     it is ready — deferOuter waits for exactly that. So they must be
+     logged `late`, or stepCrowd's gate ("do not ramp while anything
+     non-late is still loading") holds the crowd hostage to the
+     scenery it was deliberately made to arrive behind.
+     Measured before this line existed: the campus reached ready, the
+     outer world started, and the quad froze at 3 people against a
+     target of 7 for two and a half minutes while a stadium streamed.
+     The flag is read synchronously inside gltf.load, so setting it
+     around the call is race-free even though the loads are async. */
+  const wasLate = gltf.__late;
+  gltf.__late = true;
   gltf.load(url, (g) => {
     const root = g.scene;
     root.rotation.y = opts.rotY || 0;
@@ -2585,6 +2597,7 @@ function loadLandmark(url, opts){
     if (opts.onLoaded) opts.onLoaded(root);
     settle(root);
   }, undefined, () => settle(null));   /* a missing landmark must not stall the queue */
+  gltf.__late = wasLate;
   });
 }
 
@@ -2884,8 +2897,15 @@ BUILDINGS.forEach(spec => {
        of them are still there. */
     ["assets/ballpark.glb", { plane: [-380, 1290], height: 62, maxFoot: [430, 440], sink: 2.5,
       vista: "Pembroke Field", collider: "auto" }],
-    ["assets/tennis.glb",   { plane: [1270, 1280], height: 60, maxFoot: [500, 390], sink: 2.5,
-      vista: "Pembroke Tennis Club", collider: "auto" }],
+    /* The Pembroke Tennis Club stood here and is gone: 2.94MB for the
+       fewest triangles of any large asset on the map, because its
+       238,516 vertices serve only 79,997 triangles — three per
+       triangle, nothing shared, every face an island — and its UVs
+       were raw f32 where every other building quantises to u16. That
+       is 34 bytes a triangle against reshall's 7.9. It was also the
+       asset that most often gated the crowd, being the largest thing
+       fetched after the campus goes ready. Judged not worth its
+       weight; the promenade south still runs to the field. */
     /* the white cathedral (Gnemegorl) joins the horizon, west */
     ["assets/gothic_cathedral.glb", {
       plane: [-560, 380], height: 420, rotY: 1.9, maxFoot: [520, 420],
@@ -3185,8 +3205,19 @@ const EZ_SETS = { m011: [], m002: [], m010: [], l009: [] };
   }
 }
 const TREE_TARGET_H = { oak: 50, elm: 64, pine: 54, maple: 58 };
+/* One fetch per file, however many planting schemes read it. maple.glb
+   is wanted twice — by the species loop here for the specimen trees,
+   and by FLORA below for the belts — and was being downloaded twice
+   for it, 0.43MB paid for nothing. Both consumers only ever READ the
+   source scene to clone geometry out of it, so one load serves both. */
+const floraCache = new Map();
+const loadFlora = (url, use) => {
+  if (!floraCache.has(url))
+    floraCache.set(url, new Promise((ok) => gltf.load(url, ok, undefined, () => ok(null))));
+  floraCache.get(url).then(g => { if (g) use(g); });
+};
 ["oak", "elm", "pine", "maple"].forEach(sp => {
-  gltf.load(`assets/${sp}.glb`, (g) => {
+  loadFlora(`assets/${sp}.glb`, (g) => {
     const list = TREE_SETS[sp];
     if (!list.length) return;
     g.scene.updateMatrixWorld(true);
@@ -3444,7 +3475,7 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
     ["assets/fern.glb",      [["", FERNS, 5]]],
   ];
   FLORA.forEach(([url, specs]) =>
-    gltf.load(url, g => specs.forEach(([p, l, h, sh, dm, ka]) =>
+    loadFlora(url, g => specs.forEach(([p, l, h, sh, dm, ka]) =>
       plantSpecies(g.scene, p, l, h, sh, dm, ka))));
 }
 const CARS = [];
@@ -3804,7 +3835,9 @@ const EDGES = {};
      started on one would have spent the day on a stretch of path with
      no way back to campus. */
   walk([[500, 1104], [330, 1148], [152, 1192], [-40, 1236]]);     /* west to the ballpark */
-  walk([[500, 1104], [678, 1148], [854, 1190], [982, 1236]]);     /* east to the tennis   */
+  /* the east spur went with the tennis club: a paved walk ending on
+     empty lawn reads worse than no walk, and students routed down it
+     would have spent the day at a destination that is not there */
   /* the North Quad: its own ring, joined to the processional at
      [500,150] so the two quads are one graph and students drift
      between them the way you do */
@@ -7635,7 +7668,7 @@ function collide(nx, ny){
   const r = 6;
   /* The old fence stopped at the campus edge, which was fine while the
      ways did too. Now that roads and walks run out to the stadium, the
-     ballpark and the tennis club, the walker has to be allowed to follow
+     ballpark, the walker has to be allowed to follow
      them — a path to an invisible wall is worse than no path. Still
      bounded, and every landmark out there is solid. */
   if (nx < -640 || nx > 1560 || ny < 20 || ny > 1520) return true;
