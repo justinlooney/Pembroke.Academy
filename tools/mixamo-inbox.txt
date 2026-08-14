@@ -74,8 +74,10 @@ Standing_Up     https://drive.google.com/file/d/101SKrfyvhBdwGS4ngvrEx-xKJ3qmipd
 # out: assets/stu_woman.glb
 Realistic_Woman_Walking  https://drive.google.com/file/d/1BoerD9I8YcpZGE7WNvQBCzj-WvRw0-JH/view
 
-# out: assets/stu_alina.glb
-Alina_Realistic_Woman  https://drive.google.com/file/d/1KchXnerEn9vgJlemnehy8ViPqZ18FVhS/view
+# alina is gone — her block with her, as always: an inbox block is a
+# promise to rebuild. Retired at 3.04MB, undressable, resting 120
+# degrees off her bind, when character 4 took her place at 3.31MB
+# with a clean rig.
 
 # ── a collection ─────────────────────────────────────────────────────
 # A zip of several models is merged into one file with its parts named,

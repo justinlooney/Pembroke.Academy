@@ -1863,7 +1863,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v56";
+const BUILD = "pembroke-v57";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -3974,7 +3974,6 @@ const CAST_FILES = {
   walker:  "assets/stu_walker.glb",     /* 50k tris, 7 mocap clips      */
   ariel:   "assets/stu_ariel.glb",      /* 35k tris, one walk cycle     */
   woman:   "assets/stu_woman.glb",      /* ferried in by the courier    */
-  alina:   "assets/stu_alina.glb",      /* ferried in by the courier    */
   /* Brought in together to be judged on the quad rather than in a log.
      kenta is the cheapest body here by a distance and the only newcomer
      whose skeleton is Mixamo-named, so he can take the standing idle;
@@ -4003,6 +4002,7 @@ const CAST_FILES = {
   hero:    "assets/stu_hero.glb",       /* 300k tris, PhotoHero          */
   char2:   "assets/stu_char2.glb",      /* 200k tris, yellow sweater     */
   char3:   "assets/stu_char3.glb",      /* 200k tris, pink top           */
+  char4:   "assets/stu_char4.glb",      /* 200k tris, the lightest yet   */
 };
 /* ── who has to be here before the doors open ─────────────────────────
    Eleven rigged files is 15MB, all of it decoded on the main thread
@@ -4019,7 +4019,7 @@ const CAST_FILES = {
    looks like anyway.
 
      first           walker ariel kenta skate tutor
-     after           woman alina isla hero char2 char3
+     after           woman isla hero char2 char3 char4
 
    Which bodies come first is a question about variety, not only about
    megabytes, and the first list got it wrong. Of the four ROAMING
@@ -4070,7 +4070,7 @@ const CAST_FILES = {
    from more than one person at all.                                    */
 /* ── who arrives first is drawn, not written down ─────────────────────
    A fixed first wave means the same seven bodies every visit, and the
-   ones that load late — isla, woman, alina — are the ones a visitor
+   ones that load late — isla, woman, the authored four — are the ones a visitor
    rarely meets at all. The crowd was already randomised in every other
    respect: clothes, build, start point, which body a named student
    wears. The one thing still fixed was which bodies were in the room
@@ -4079,8 +4079,9 @@ const CAST_FILES = {
    It cannot be a plain shuffle, for two reasons that pull against each
    other. The first wave IS the critical path, so a free draw could put
    the heaviest roamer in front of the campus a visitor is waiting to
-   walk on (when this was written that was nadia at 4.22MB; today it is
-   alina at 3.04). And it has to contain somebody the wardrobe can
+   walk on (nadia at 4.22MB when this was written; the crown has since
+   passed twice as the heavy bodies retired). And it has to contain
+   somebody the wardrobe can
    dress, or the opening crowd is mannequins again — which is exactly
    the fault that put ariel here in the first place.
 
@@ -4099,12 +4100,12 @@ const CAST_FILES = {
    and no other body has them. The loiterers and the skater are there
    because nothing else can stand in for what they do. */
 const CAST_MB = { walker: 1.84, ariel: 1.66, kenta: 0.24,
-                  isla: 0.88, woman: 2.64, alina: 3.04,
+                  isla: 0.88, woman: 2.64,
                   skate: 1.27, tutor: 0.32,
                   /* all three past CAST_BUDGET on purpose: the first
                      wave is the critical path and these are its whole
                      weight class — they arrive with the late wave */
-                  hero: 5.40, char2: 3.86, char3: 4.72 };
+                  hero: 5.40, char2: 3.86, char3: 4.72, char4: 3.31 };
 /* Measured, not guessed: these are the six bodies with a shirt mesh the
    wardrobe can find. See the note above about the ten that have none. */
 const CAST_DRESSABLE = ["walker", "ariel", "woman"];
@@ -4117,8 +4118,8 @@ const CAST_DRESSABLE = ["walker", "ariel", "woman"];
  * put walker×3 + sophia×2 and walker×2 + kenta + tutor + woman + sophia
  * on the quad — reported from a phone as "none of the female characters
  * are present", which is very nearly what the numbers say. */
-const CAST_FEM = new Set(["woman", "alina", "ariel", "isla",
-                          "hero", "char2", "char3"]);
+const CAST_FEM = new Set(["woman", "ariel", "isla",
+                          "hero", "char2", "char3", "char4"]);
 const CAST_BUDGET = 3.0;
 function drawFirstWave(){
   const core = ["walker", "skate", "tutor"].filter(k => CAST_FILES[k]);
@@ -4153,8 +4154,7 @@ function drawFirstWave(){
    *
      One is what the rules above produce whenever the dressable draw
      lands on `woman` at 2.64MB: she spends the budget outright, the
-     fill can only afford kenta, and ariel, isla and alina all arrive
-     late. The named cast is built at that moment, so the students who
+     fill can only afford kenta, and ariel and isla arrive late. The named cast is built at that moment, so the students who
      want a woman's body have exactly one to share — which is the
      identical-twins complaint wearing different clothes. The cheapest
      second is isla at 0.88MB, and she walks. */
@@ -4176,7 +4176,8 @@ function drawFirstWave(){
      CHEAPEST remaining rather than the next shuffled one, because this
      is the one step allowed to exceed the budget and the overshoot
      should be a quarter of a megabyte rather than three. A draw that
-     ignored this put alina in the first wave and took it to 9.34MB. */
+     ignored this once put a 3MB body in the first wave and took it
+     to 9.34MB. */
   const rest = pool.filter(k => !picks.includes(k))
                    .sort((a, b) => (CAST_MB[a] || 9) - (CAST_MB[b] || 9));
   for (const k of rest){
@@ -4189,16 +4190,16 @@ function drawFirstWave(){
    any of the colours — see buildOf, which varies each figure another
    ±11% on top of these. */
 const CAST_HEIGHT = { walker: 42, woman: 41,
-                      alina: 40, ariel: 40,
+                      ariel: 40,
                       tutor: 41, skate: 42,
                       kenta: 41, isla: 40,
-                      hero: 42, char2: 41, char3: 40 };
+                      hero: 42, char2: 41, char3: 40, char4: 41 };
 /* Which bodies can be given a waypoint and told to walk it, and which
    are only good for standing about. Eight that walk against a crowd
    that caps at ten: the round robin runs out of new people only on the
    ninth, and by then they are scattered over sixty-eight waypoints. */
-const ROAMING = ["walker", "woman", "alina", "ariel",
-                 "kenta", "isla", "hero", "char2", "char3"];
+const ROAMING = ["walker", "woman", "ariel",
+                 "kenta", "isla", "hero", "char2", "char3", "char4"];
 /* Drawn here rather than beside drawFirstWave, because it reads ROAMING
    and a const cannot be read before it is declared — putting the call
    next to the function threw on load, which is a blank campus. */
@@ -4665,7 +4666,7 @@ function prepFigure(k, height, live, clipIx = 0){
 
      mixamorigLeftUpLeg            walker, kenta, tutor
      LeftUpLeg_3                   isla
-     CC_Base_L_Thigh_04            woman, alina, ariel
+     CC_Base_L_Thigh_04            woman, ariel
      rp_nathan_..._upperleg_l_074  nobody, since nathan retired — the
                                    parsing stays, because the next
                                    Renderpeople scan will spell its
@@ -4747,7 +4748,7 @@ function hipFootOf(root, loose){
 const _lq = new THREE.Quaternion(), _lD = new THREE.Quaternion();
 const _lW = new THREE.Quaternion(), _lP = new THREE.Quaternion();
 const _lL = new THREE.Quaternion(), _lV = new THREE.Vector3(), _lF = new THREE.Vector3();
-function lendClip(clip, target, srcRoot, name, fps = 30){
+function lendClip(clip, target, srcRoot, name, fps = 30, writeHips = true){
   /* The donor is sampled through a mixer, which leaves it posed. It is
      handed to every body in turn, so the second lend would read its
      rest orientation off the first lend's last frame. Put it back. */
@@ -4866,7 +4867,15 @@ function lendClip(clip, target, srcRoot, name, fps = 30){
 
     const tracks = pairs.map(({ t }, bi) =>
       new THREE.QuaternionKeyframeTrack(t.name + ".quaternion", times, out[bi]));
-    tracks.push(new THREE.VectorKeyframeTrack(tgtHips.name + ".position", times, hipsPos));
+    /* The hips height is read as reach(hips, ONE foot) — right for a
+       sit, where the feet stay planted and the shrinking reach IS the
+       descent. Wrong for a walk: that leg swings, the reach oscillates
+       ±15% a stride, and the receiver dips every time that one leg
+       extends — reported from a phone as "their walking has a limp".
+       A gait keeps its hips at rest height instead; the stride's own
+       rotations carry everything a campus-distance walk needs. */
+    if (writeHips)
+      tracks.push(new THREE.VectorKeyframeTrack(tgtHips.name + ".position", times, hipsPos));
     return new THREE.AnimationClip(name, clip.duration, tracks);
   } catch (err){
     console.warn("cast: could not lend " + name, err);
@@ -5025,12 +5034,20 @@ function rolesOf(k, src){
   const scored = src.animations
     .filter(c => c.duration > 0.2)                 /* an eye-blink is not a clip */
     .map(c => ({ name: c.name, cadence: (c.userData?.cycles || 0) / c.duration }));
-  const gaits = scored.filter(c => c.cadence > 0.45).map(c => c.name);
+  /* The seat clips are excluded from GAITS as well as from still, and
+     the reason arrived from a phone: "sometimes people move in the
+     seated position". A retargeted sit-down swings the thigh once,
+     hugely, plus whatever jitter the resample leaves — on some bodies
+     that scores past the cadence line, "Stand To Sit" lands in gaits,
+     and the state machine duly picks it as a walk cycle: a student
+     crossing the lawn folded into a chair. A clip the seat machinery
+     claims is never also a way of getting somewhere. */
+  const notSeat = (c) => !sit.seated.has(c.name) && c.name !== sit.rise && c.name !== sit.sit;
+  const gaits = scored.filter(c => c.cadence > 0.45 && notSeat(c)).map(c => c.name);
   /* A seated clip barely swings a thigh, so it scores as "still" and
      would otherwise be handed straight to idle — leaving a student
      sitting in mid-air every time they stopped walking. */
-  const still = scored.filter(c => c.cadence <= 0.45 && !sit.seated.has(c.name) &&
-                                   c.name !== sit.rise && c.name !== sit.sit).map(c => c.name);
+  const still = scored.filter(c => c.cadence <= 0.45 && notSeat(c)).map(c => c.name);
   /* No idle is not a fault, it is a fact about the download: a body
      with nothing to do when standing simply never stops walking. That
      reads far better than freezing someone mid-stride. */
@@ -5287,7 +5304,7 @@ function lendable(){
     { name: "Borrowed Walk", from: castLib.isla,
       clip: castLib.isla && castLib.isla.animations.find(
         c => c.name === "Armature|Walking_Woman|baselayer"),
-      chain: STAND_CHAIN, expect: "stand", tol: 0.5,
+      chain: STAND_CHAIN, expect: "stand", tol: 0.5, hips: false,
       wanted: (R) => !R.gaits.length },
     /* ── not from walker, and here is why ─────────────────────────────
        Idle and Sitting Talking were lent from him and both were WRONG:
@@ -5330,7 +5347,8 @@ function lendSitDown(){
          ariel collected five. */
       if (src.animations.some(c => c.name === job.name)) continue;
       if (!job.wanted(rolesOf(k, src))) continue;   /* they have one of their own */
-      const lent = lendClip(job.clip, src.scene, job.from.scene, job.name);
+      const lent = lendClip(job.clip, src.scene, job.from.scene, job.name,
+                            30, job.hips !== false);
       /* Whether the bones this POSE needs are there, not how many bones
          matched. Counting was the obvious test and it was wrong: isla
          carries every bone a sit needs and only 32 of the 75 tracks,
@@ -5419,7 +5437,11 @@ function lendSitDown(){
        10.8MB of people nobody can meet yet in front of the models the
        campus is made of. */
     gltf.__late = true;
-    const settled = () => { if (--lateOutstanding === 0) topUpForcedCrowd(); };
+    const settled = () => {
+      if (--lateOutstanding !== 0) return;
+      upgradeNamedCast();       /* before the top-up claims the bodies as extras */
+      topUpForcedCrowd();
+    };
     later.forEach(k => gltf.load(CAST_FILES[k],
       /* Lend to them too. The warning above is about bodies already
          BUILT — these have not been yet, they are the crowd's, and
@@ -5580,6 +5602,61 @@ const LINGER_MS = [1800, 5200];
 const SOCIAL_COOL = 22000;        /* before this pair, or either, tries again */
 const P_MEET = 0.55;              /* chance of going over, when there is someone */
 const P_LINGER = 0.3;
+/* ── the stars get worn by people with names ──────────────────────────
+   The named cast is built the moment the FIRST wave settles, and the
+   authored characters always arrive with the late one — they are its
+   whole weight class. So every authored body on the quad was a crowd
+   extra: no data record, no name tag, and a tap on one did nothing.
+   Reported from a phone as "I can't click on new people for dialogue",
+   which is exactly what it was.
+
+   Named students therefore trade UP into an authored body — but only
+   at the two moments nobody can watch it happen: while they are inside
+   a building (invisible by construction), and at the instant the late
+   wave settles if they are off screen. A visible body-swap is a
+   glitch; an invisible one is a student who went in wearing one thing
+   and came out wearing another, which is what buildings are for. */
+const AUTHORED = ["char4", "char2", "char3", "hero"];   /* lightest first */
+function upgradeBody(s){
+  if (!s.data || s.static || s.orbit || s.seat || s.data.looks !== "f") return false;
+  if (s.mode && s.mode !== "walk" && s.mode !== "todoor" && s.mode !== "inside") return false;
+  if (AUTHORED.includes(s.g?.userData?.figure)) return false;   /* already upgraded */
+  const worn = wornFigures();
+  const pick = AUTHORED.filter(k => castLib[k] && !worn.has(k) &&
+                                    rolesOf(k, castLib[k]).gaits.length);
+  if (!pick.length) return false;
+  const k = pick[Math.floor(Math.random() * pick.length)];
+  const seed = VISIT + Math.floor(Math.random() * 9999);
+  const g2 = prepFigure(k, CAST_HEIGHT[k] * buildOf(seed), false, 0);
+  if (!g2) return false;
+  const old = s.g;
+  const tag = old.children.find(c => c.isCSS2DObject);
+  if (tag){ old.remove(tag); g2.add(tag); }
+  g2.position.copy(old.position);
+  g2.rotation.y = old.rotation.y;
+  g2.visible = old.visible;
+  world.add(g2);
+  world.remove(old);
+  /* the old body's mixers too, or the frame loop steps an orphaned
+     skeleton for the rest of the visit — prepFigure registers up to
+     two entries per figure (the action mixer and a stand mixer) */
+  for (let i = castMixers.length - 1; i >= 0; i--)
+    if (castMixers[i].g === old) castMixers.splice(i, 1);
+  s.g = g2;
+  s.roles = g2.userData.anim?.roles || s.roles;
+  s.anim0 = null; s.held = false;
+  console.info("cast: " + s.data.name + " now wears " + k);
+  return true;
+}
+function upgradeNamedCast(){
+  for (const s of students){
+    if (!s.data || !s.g) continue;
+    if (s.inside){ upgradeBody(s); continue; }
+    /* off screen is the other moment nobody sees */
+    const p = s.g.getWorldPosition(new THREE.Vector3()).project(camera);
+    if (p.z >= 1 || Math.abs(p.x) > 1.1 || Math.abs(p.y) > 1.1) upgradeBody(s);
+  }
+}
 function makeRoamer(g, startKey, extra, forceGait){
   /* Whatever this body can actually do. The walker has three gaits and
      an idle; some bodies have one walk and nothing else, so they never
@@ -5696,6 +5773,7 @@ function buildCast(){
     const g = prepFigure(k, CAST_HEIGHT[k] * buildOf(seed), plan.live, plan.pose || 0);
     if (!g) return;
     if (ROAMING.includes(k)) dressFigure(g, seed);
+    CAST_USED.add(st.name);   /* built — this name is spoken for */
     /* The plan asked for a POSE; the body says which of its clips that
        is. A missing one is null rather than a name nothing answers to,
        so setClip leaves the figure on whatever it is already playing
@@ -5967,6 +6045,24 @@ function nextBody(n){
 }
 /* true if somebody was actually added — the crowd has to be able to
    tell "not yet" from "there is nobody left who would not be a twin" */
+/* An authored body deserves a voice. attendance() leaves some of the
+   roster "in a lecture" every visit, and a persona who never got built
+   is written dialogue nobody is using — so a crowd extra dealt one of
+   the authored characters adopts a free persona: her name tag, her
+   data record, her lines. Tapping the striking new person on the quad
+   then opens a conversation instead of nothing, which is what a phone
+   reported it should ("I can't click on new people for dialogue").
+   CAST_USED is the one ledger both buildCast and this draw from, so a
+   name can never be on the campus twice. */
+const CAST_USED = new Set();
+function adoptPersona(){
+  for (const st of STUDENT_ROSTER){
+    if (st.looks !== "f" || CAST_USED.has(st.name)) continue;
+    CAST_USED.add(st.name);
+    return st;
+  }
+  return null;
+}
 function addExtra(n){
   const k = nextBody(n);
   if (!k) return false;
@@ -5974,13 +6070,23 @@ function addExtra(n){
   const g = prepFigure(k, CAST_HEIGHT[k] * buildOf(seed), false);
   if (!g) return false;
   dressFigure(g, seed);
-  g.userData.crowd = true;               /* test/debug: not one of the named */
+  const persona = AUTHORED.includes(k) ? adoptPersona() : null;
+  g.userData.crowd = !persona;           /* test/debug: not one of the named */
+  if (persona){
+    const tagEl = document.createElement("div");
+    tagEl.className = "stu-tag";
+    tagEl.textContent = persona.name;
+    const tag = new CSS2DObject(tagEl);
+    tag.position.y = 48;
+    g.add(tag);
+  }
   world.add(g);
   /* Anywhere on the campus, drawn rather than strided. Sixty-eight
      waypoints and half a dozen people means the odds of two starting
      together are small, and if they do they will have walked apart
      within the minute. */
-  makeRoamer(g, ALL_WAYS[Math.floor(Math.random() * ALL_WAYS.length)]);
+  makeRoamer(g, ALL_WAYS[Math.floor(Math.random() * ALL_WAYS.length)],
+             persona ? { data: persona } : undefined);
   return true;
 }
 function stepCrowd(now, dt, raw){
@@ -6479,6 +6585,9 @@ function stepStudents(dt, now){
       if (now < s.until) continue;      /* not drawn, not stepped, not there */
       s.mode = "walk";
       s.inside = false;
+      /* the invisible moment: whoever went in may come out wearing the
+         authored body a tap is worth answering from */
+      upgradeBody(s);
       s.g.visible = true;
       s.doorAt = now;
       /* out of the same doorway, facing the campus rather than the wall */
