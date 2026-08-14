@@ -93,12 +93,10 @@ Realistic_Trees  https://drive.google.com/file/d/1KbKXm6qk3JgzJ0KLGjmKqCw6hx6-z-
 # which is more than three of the current cast manage.
 # ══════════════════════════════════════════════════════════════════
 
-# ── the light one ────────────────────────────────────────────────────
-# 22,042 triangles in a 1.1MB zip, and MIXAMO-NAMED — the only newcomer
-# whose skeleton can take the standing idle. Cheapest body on the
-# campus by some distance.
-# out: assets/stu_kenta.glb
-Walking_Man  https://drive.google.com/file/d/1LXZQqv6Nis3XEIwgh_QmqkGaZ3KIsAez/view
+# ── kenta is gone ────────────────────────────────────────────────────
+# His rebuild block stood here — removed WITH the body, as always.
+# Retired pale and normal-mapless when character 5 landed: the first
+# authored man, 3.43MB against kenta's 0.24, and worth it.
 
 # ── the walking woman ────────────────────────────────────────────────
 # A real walk, textured, but 183,564 triangles — three and a half times
@@ -120,6 +118,18 @@ Walking_Woman  https://drive.google.com/file/d/1eWh_xTiL2N1iHNA6YElJ_9Q_C9F2jbys
 # run resurrects a file the roster no longer knows, 4.5MB of nobody.
 # They were retired for the two authored characters (stu_hero,
 # stu_char2) — the ones the borrowed sit-down could never reach.
+
+
+# ── the male walk pool ───────────────────────────────────────────────
+# Same design as the female pool below, for the men. Character 5 walks
+# with isla's borrowed stride until this lands — it binds cleanly, but
+# a male walk will read better. One block, one link:
+#
+#   pick any character, search "Male Walk" or "Walking" (masculine
+#   ones read well), TICK "In Place" → FBX Binary, WITH SKIN, 30fps
+#
+# # out: assets/clip_walkm_1.glb
+# Male_Walk_1   PASTE-LINK-HERE
 
 # ── the female walk pool ─────────────────────────────────────────────
 # Every donor here is lent to EVERY female body, and each spawn draws
