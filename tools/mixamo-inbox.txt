@@ -105,12 +105,12 @@ Walking_Man  https://drive.google.com/file/d/1LXZQqv6Nis3XEIwgh_QmqkGaZ3KIsAez/v
 # out: assets/stu_isla.glb
 Walking_Woman  https://drive.google.com/file/d/1eWh_xTiL2N1iHNA6YElJ_9Q_C9F2jbys/view
 
-# ── nathan, again, properly ──────────────────────────────────────────
-# The same person already on the quad — rp_nathan_animated_003 — at 9MB
-# instead of 340KB. An upgrade in place rather than a new face, so it
-# keeps the existing name and simply overwrites.
-# out: assets/stu_nathan.glb
-Nathan_003  https://drive.google.com/file/d/1FPBq7Sfw9CHT7QlochIFUlM7iFy3MRV6/view
+# ── nathan is gone ───────────────────────────────────────────────────
+# His rebuild block stood here — removed WITH the body, as always,
+# because an inbox block is a promise to rebuild. Retired for sitting
+# at 0.17 of standing hip height (through every bench), resting 25
+# degrees off his bind, and being a single-mesh scan the wardrobe
+# could never dress.
 
 # ── sophia and nadia are gone ────────────────────────────────────────
 # Their build blocks stood here. Removed WITH the bodies, because an
@@ -118,3 +118,23 @@ Nathan_003  https://drive.google.com/file/d/1FPBq7Sfw9CHT7QlochIFUlM7iFy3MRV6/vi
 # run resurrects a file the roster no longer knows, 4.5MB of nobody.
 # They were retired for the two authored characters (stu_hero,
 # stu_char2) — the ones the borrowed sit-down could never reach.
+
+# ── the authored characters' gait ────────────────────────────────────
+# Two downloads animate all three authored bodies at once — stu_hero,
+# stu_char2 and stu_char3 all speak StudentProductionRigV4, and a
+# clip_ donor is lent to every rig dialect on campus anyway. In Mixamo:
+#
+#   search "Walking"  → Download: FBX Binary, WITH SKIN, 30fps,
+#                       and TICK "In Place" first
+#   search "Idle"     → Download: FBX Binary, WITH SKIN, 30fps
+#
+# Put both on Drive, share as "Anyone with the link", then remove the
+# leading "# " from the four lines below and paste the links in place
+# of PASTE-LINK-HERE. Commit; the courier builds skinless donors
+# (skeleton + motion, ~50KB each) and the campus lends them at load.
+#
+# # out: assets/clip_walk.glb
+# Walking   PASTE-LINK-HERE
+#
+# # out: assets/clip_idle.glb
+# Idle      PASTE-LINK-HERE

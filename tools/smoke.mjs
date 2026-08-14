@@ -655,8 +655,25 @@ try {
       const s = (window.__students || []).find(x => x.data && x.data.name === nm);
       if (!s || !s.g) return { gone: true };
       if (!s.g.visible) return { skip: "indoors" };
-      const p = new THREE.Box3().setFromObject(s.g)
-        .getCenter(new THREE.Vector3()).project(cam);
+      /* The check WALKS UP to each student instead of tapping from
+         wherever the camera happens to sit. Left to the accidental
+         camera, one run tapped from a vista where every student was a
+         few pixels tall, the too-small skip excused all five, and the
+         check passed having tested nothing — the same silent hollowing
+         this suite has been bitten by before. A visitor taps people
+         they walked to; the check now does the same, and puts the
+         camera back afterwards so the draw-stats check is undisturbed. */
+      const { controls } = window.__app;
+      if (!window.__tapCam) window.__tapCam = { t: controls.target.clone(),
+        p: cam.position.clone(), min: controls.minDistance };
+      const aim = new THREE.Box3().setFromObject(s.g).getCenter(new THREE.Vector3());
+      const H = (s.g.userData.height || 42) *
+                s.g.getWorldScale(new THREE.Vector3()).y / (s.g.scale.y || 1);
+      controls.minDistance = 1;
+      controls.target.copy(aim);
+      cam.position.set(aim.x + H * 1.2, aim.y + H * 0.5, aim.z + H * 1.8);
+      controls.update();
+      const p = aim.clone().project(cam);
       if (!(p.z < 1 && Math.abs(p.x) < 0.95 && Math.abs(p.y) < 0.95))
         return { skip: "off screen" };
       /* Is anybody standing in front of them? A tap picks the NEAREST
@@ -682,20 +699,50 @@ try {
       }
       const el = document.querySelector("#stage canvas");
       const c = el.getBoundingClientRect();
-      const ev = (t, x, y) => el.dispatchEvent(new PointerEvent(t, { pointerId: 1,
-        pointerType: "touch", isPrimary: true, clientX: x, clientY: y,
-        bubbles: true, cancelable: true }));
+      /* A fingertip needs something to land on. In the compact layout
+         the canvas is a ~150px letterbox showing the whole quad, and a
+         loiterer at a far door projects a few pixels tall — Marcus
+         failed there twice at the same pixel while answering fine in
+         the fullscreen layout. The check's job is "picking works", and
+         it already skips what a person could not tap (indoors, off
+         screen, somebody in front); too-small-to-aim-at is the same
+         category. Fourteen pixels is the tap slop the app itself grants
+         a touch. */
+      const headP = s.g.getWorldPosition(new THREE.Vector3());
+      const feetN = headP.clone().project(cam);
+      headP.y += (s.g.userData.height || 42);
+      const headN = headP.project(cam);
+      const tallPx = Math.abs(headN.y - feetN.y) * 0.5 * c.height;
+      if (tallPx < 14) return { skip: "a few pixels tall from here" };
+      /* Diagnostics that name the failure, learned from a run this
+         check failed 0-for-5 and a probe minutes later passed 5-for-5
+         on identical code. If it happens again, the answer to "did the
+         events even arrive, and was a conversation already blocking
+         the handler?" is in the failure text instead of a rerun. */
+      const preOpen = window.__convo.on();
+      let sawUp = false;
+      const wUp = () => sawUp = true;
       const x = c.left + (p.x * 0.5 + 0.5) * c.width;
       const y = c.top + (-p.y * 0.5 + 0.5) * c.height;
-      /* a couple of pixels of drift, because a finger has some */
-      ev("pointerdown", x, y); ev("pointerup", x + 3, y + 2);
+      el.addEventListener("pointerup", wUp, true);
+      try {
+        const ev = (t, xx, yy) => el.dispatchEvent(new PointerEvent(t, { pointerId: 1,
+          pointerType: "touch", isPrimary: true, clientX: xx, clientY: yy,
+          bubbles: true, cancelable: true }));
+        /* a couple of pixels of drift, because a finger has some */
+        ev("pointerdown", x, y); ev("pointerup", x + 3, y + 2);
+      } finally {
+        el.removeEventListener("pointerup", wUp, true);
+      }
       const opened = window.__convo.on();
       const who = document.getElementById("convo-name")?.textContent;
       if (opened) window.__convo.close();
       return { opened, who, fig: s.g.userData.figure,
                client: `${Math.round(x)},${Math.round(y)}`,
+               preOpen, sawUp, tallPx: Math.round(tallPx),
                rect: `${Math.round(c.left)},${Math.round(c.top)} ` +
-                     `${Math.round(c.width)}x${Math.round(c.height)}` };
+                     `${Math.round(c.width)}x${Math.round(c.height)}` +
+                     ` (backing ${el.width}x${el.height})` };
     }, nm).catch((e) => ({ err: String(e).slice(0, 80) }));
     if (r.skip || r.gone){ skipped.push(nm); continue; }
     /* Answering as somebody else is a miss too — it means the ray found
@@ -704,13 +751,33 @@ try {
     if (!r.opened || r.who !== nm)
       miss.push(`${nm}/${r.fig || "?"} (` +
                 (r.err ? r.err : r.opened ? "answered as " + r.who : "nothing opened") +
-                `, aimed ${r.client} in ${r.rect})`);
+                `, aimed ${r.client} in ${r.rect}` +
+                (r.err ? "" : `, up ${r.sawUp ? "arrived" : "LOST"}` +
+                              (r.preOpen ? ", a convo was already open" : "")) + `)`);
     await crowdPage.waitForTimeout(400);
   }
-  step("tapping a student opens a conversation", named.length > 0 && miss.length === 0,
+  /* the camera went walking with the taps — put it back before anything
+     downstream reads draw statistics through it */
+  await crowdPage.evaluate(() => {
+    const c = window.__tapCam;
+    if (!c) return;
+    const { controls, camera } = window.__app;
+    controls.minDistance = c.min;
+    controls.target.copy(c.t);
+    camera.position.copy(c.p);
+    controls.update();
+    delete window.__tapCam;
+  }).catch(() => {});
+  /* At least one student must actually ANSWER. A run where every tap
+     was excused (indoors, off screen, too small) reported "0 of 5
+     answered" as a pass — a suite that tests nothing and says green,
+     which this file has done before and is not allowed to do again. */
+  const answered = named.length - skipped.length - miss.length;
+  step("tapping a student opens a conversation", answered >= 1 && miss.length === 0,
        miss.length ? "no answer from " + miss.join(", ")
-                   : `${named.length - skipped.length} of ${named.length} named students answered` +
-                     (skipped.length ? ` (${skipped.length} indoors or off screen)` : ""));
+       : answered < 1 ? `nobody could be tapped at all (${skipped.length} skipped) — the check tested nothing`
+       : `${answered} of ${named.length} named students answered` +
+         (skipped.length ? ` (${skipped.length} indoors or off screen)` : ""));
 
   /* Five of the eight roaming bodies are women, and a phone reported
      "none of the female characters are present" — which the numbers
@@ -719,7 +786,8 @@ try {
      same man stood on the quad three times over. Fixed by asking for
      the POSE instead. This is the check that keeps it fixed. */
   const looks = await crowdPage.evaluate(() => {
-    const FEM = new Set(["woman", "alina", "ariel", "isla"]);
+    const FEM = new Set(["woman", "alina", "ariel", "isla",
+                         "hero", "char2", "char3"]);
     const figs = (window.__students || []).map(s => s.g && s.g.userData.figure).filter(Boolean);
     return { total: figs.length, women: figs.filter(f => FEM.has(f)).length,
              tally: figs.join(",") };

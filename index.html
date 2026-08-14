@@ -1863,7 +1863,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v53";
+const BUILD = "pembroke-v56";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -3965,14 +3965,16 @@ function mkPerson(jacketColor, seed){
    Models by their authors under CC-BY-4.0:
      stu_tutor    "Animated Instructor Avatar" by sagefreeman
      stu_ariel    "walking test"   by Oussama.Lamrani
-   stu_nathan is a scanned figure supplied by the site owner, who holds
-   the rights to it.                                                    */
+   stu_nathan, a scanned figure supplied by the site owner, served from
+   the first commit to this retirement: he sat at 0.17 of standing hip
+   height — through every bench — rested 25 degrees off his bind, and
+   his single-mesh scan could never be dressed. Retired when the
+   authored characters raised the bar.                                  */
 const CAST_FILES = {
   walker:  "assets/stu_walker.glb",     /* 50k tris, 7 mocap clips      */
   ariel:   "assets/stu_ariel.glb",      /* 35k tris, one walk cycle     */
   woman:   "assets/stu_woman.glb",      /* ferried in by the courier    */
   alina:   "assets/stu_alina.glb",      /* ferried in by the courier    */
-  nathan:  "assets/stu_nathan.glb",     /* 22k tris, a scan, one walk   */
   /* Brought in together to be judged on the quad rather than in a log.
      kenta is the cheapest body here by a distance and the only newcomer
      whose skeleton is Mixamo-named, so he can take the standing idle;
@@ -3993,6 +3995,14 @@ const CAST_FILES = {
   isla:    "assets/stu_isla.glb",       /* walks; heavy until simplified */
   tutor:   "assets/stu_tutor.glb",      /*  6k tris, a 25s standing loop */
   skate:   "assets/stu_skater.glb",
+  /* The authored characters: made FOR this campus, delivered as
+     approved web masters and landed byte-identical. All three rest at
+     exactly their bind, which is what lets them wear borrowed motion —
+     the sit from its donor, the walk from isla. None are dressable
+     (one mesh, one material), so no-twins keeps each unique. */
+  hero:    "assets/stu_hero.glb",       /* 300k tris, PhotoHero          */
+  char2:   "assets/stu_char2.glb",      /* 200k tris, yellow sweater     */
+  char3:   "assets/stu_char3.glb",      /* 200k tris, pink top           */
 };
 /* ── who has to be here before the doors open ─────────────────────────
    Eleven rigged files is 15MB, all of it decoded on the main thread
@@ -4008,8 +4018,8 @@ const CAST_FILES = {
    seconds after you do is a student walking in, which is what this
    looks like anyway.
 
-     first           walker ariel kenta nathan skate tutor
-     after           woman alina isla
+     first           walker ariel kenta skate tutor
+     after           woman alina isla hero char2 char3
 
    Which bodies come first is a question about variety, not only about
    megabytes, and the first list got it wrong. Of the four ROAMING
@@ -4077,9 +4087,10 @@ const CAST_FILES = {
    So: a fixed core, then a draw under a byte budget with a dressability
    guarantee.
 
-     core        walker, and the three who are not roamers
-     budget      2.6MB of roaming bodies beyond the core, which is what
-                 the written list cost (ariel, kenta, nathan = 2.24MB)
+     core        walker, and the two who are not roamers
+     budget      2.6MB of roaming bodies beyond the core — what the
+                 original written list cost, kept as the line the
+                 first wave must not cross
                  plus room for one more small one
      guarantee   at least one dressable body in the draw
 
@@ -4087,9 +4098,13 @@ const CAST_FILES = {
    NAME — Priya, Sofia and Amara need Idle, Sitting Talking and Jogging,
    and no other body has them. The loiterers and the skater are there
    because nothing else can stand in for what they do. */
-const CAST_MB = { walker: 1.84, ariel: 1.66, kenta: 0.24, nathan: 0.34,
+const CAST_MB = { walker: 1.84, ariel: 1.66, kenta: 0.24,
                   isla: 0.88, woman: 2.64, alina: 3.04,
-                  skate: 1.27, tutor: 0.32 };
+                  skate: 1.27, tutor: 0.32,
+                  /* all three past CAST_BUDGET on purpose: the first
+                     wave is the critical path and these are its whole
+                     weight class — they arrive with the late wave */
+                  hero: 5.40, char2: 3.86, char3: 4.72 };
 /* Measured, not guessed: these are the six bodies with a shirt mesh the
    wardrobe can find. See the note above about the ten that have none. */
 const CAST_DRESSABLE = ["walker", "ariel", "woman"];
@@ -4102,7 +4117,8 @@ const CAST_DRESSABLE = ["walker", "ariel", "woman"];
  * put walker×3 + sophia×2 and walker×2 + kenta + tutor + woman + sophia
  * on the quad — reported from a phone as "none of the female characters
  * are present", which is very nearly what the numbers say. */
-const CAST_FEM = new Set(["woman", "alina", "ariel", "isla"]);
+const CAST_FEM = new Set(["woman", "alina", "ariel", "isla",
+                          "hero", "char2", "char3"]);
 const CAST_BUDGET = 3.0;
 function drawFirstWave(){
   const core = ["walker", "skate", "tutor"].filter(k => CAST_FILES[k]);
@@ -4137,11 +4153,11 @@ function drawFirstWave(){
    *
      One is what the rules above produce whenever the dressable draw
      lands on `woman` at 2.64MB: she spends the budget outright, the
-     fill can only afford kenta and nathan, and ariel, isla and alina
-     all arrive late. The named cast is built at that moment, so the
-     students who want a woman's body have exactly one to share —
-     which is the identical-twins complaint wearing different clothes.
-     The cheapest second is isla at 0.88MB, and she walks. */
+     fill can only afford kenta, and ariel, isla and alina all arrive
+     late. The named cast is built at that moment, so the students who
+     want a woman's body have exactly one to share — which is the
+     identical-twins complaint wearing different clothes. The cheapest
+     second is isla at 0.88MB, and she walks. */
   const women = () => picks.filter(k => CAST_FEM.has(k)).length;
   if (women() < 2){
     const next = pool.filter(k => !picks.includes(k) && CAST_FEM.has(k))
@@ -4173,15 +4189,16 @@ function drawFirstWave(){
    any of the colours — see buildOf, which varies each figure another
    ±11% on top of these. */
 const CAST_HEIGHT = { walker: 42, woman: 41,
-                      alina: 40, ariel: 40, nathan: 43,
+                      alina: 40, ariel: 40,
                       tutor: 41, skate: 42,
-                      kenta: 41, isla: 40 };
+                      kenta: 41, isla: 40,
+                      hero: 42, char2: 41, char3: 40 };
 /* Which bodies can be given a waypoint and told to walk it, and which
    are only good for standing about. Eight that walk against a crowd
    that caps at ten: the round robin runs out of new people only on the
    ninth, and by then they are scattered over sixty-eight waypoints. */
-const ROAMING = ["walker", "woman", "alina", "nathan", "ariel",
-                 "kenta", "isla"];
+const ROAMING = ["walker", "woman", "alina", "ariel",
+                 "kenta", "isla", "hero", "char2", "char3"];
 /* Drawn here rather than beside drawFirstWave, because it reads ROAMING
    and a const cannot be read before it is declared — putting the call
    next to the function threw on load, which is a blank campus. */
@@ -4195,7 +4212,14 @@ const LOITERING = ["tutor"];
    arrive in two waves, so a list filtered once at startup would be
    permanently missing the six that come in later — and every extra
    after the sixth would be built from nothing. */
-const loadedRoaming = () => ROAMING.filter(k => castLib[k]);
+/* Loaded is not enough: a roamer with no gait glides like a statue.
+   The authored bodies arrive with no clips and BORROW their walk from
+   isla, so between their arrival and hers there is a window where the
+   body exists and cannot walk. Nobody wears a body in that window —
+   the moment the walk lands, lendSitDown clears ROLE_CACHE and the
+   body joins the pool on the next draw. */
+const loadedRoaming = () => ROAMING.filter(k => castLib[k] &&
+  rolesOf(k, castLib[k]).gaits.length);
 const loadedLoitering = () => LOITERING.filter(k => castLib[k]);
 /* Where the named eight are and what they are doing. A plan with
    neither `at` nor `orbit` roams the ring; the gait it roams with is
@@ -4642,7 +4666,10 @@ function prepFigure(k, height, live, clipIx = 0){
      mixamorigLeftUpLeg            walker, kenta, tutor
      LeftUpLeg_3                   isla
      CC_Base_L_Thigh_04            woman, alina, ariel
-     rp_nathan_..._upperleg_l_074  nathan
+     rp_nathan_..._upperleg_l_074  nobody, since nathan retired — the
+                                   parsing stays, because the next
+                                   Renderpeople scan will spell its
+                                   bones exactly this way again
 
    — and both foreign schemes are perfectly regular, so this is a table
    rather than a rewrite. Measured after it: 53 of the donor's 69
@@ -5170,7 +5197,7 @@ function poseProfile(root, clip, loose){
 }
 /* The donor is measured once per clip, not once per body. */
 const POSE_REF = new Map();
-function poseLooksWrong(clip, src, expect, from, fromClip){
+function poseLooksWrong(clip, src, expect, from, fromClip, tol = POSE_TOLERANCE){
   let ref = POSE_REF.get(fromClip);
   if (ref === undefined){
     /* driven on a clone so the donor is left as it was found */
@@ -5188,7 +5215,7 @@ function poseLooksWrong(clip, src, expect, from, fromClip){
       if (d > worst){ worst = d; where = k; }
     }
   }
-  if (worst > POSE_TOLERANCE)
+  if (worst > tol)
     return where + " off by " + worst.toFixed(2) + " of a body";
   /* and a cheap sanity on what the clip is FOR, in case the donor and
      the receiver are wrong together */
@@ -5242,6 +5269,26 @@ function lendable(){
     { name: "Stand To Sit", from: sitDonor, clip: sitDonor && sitDonor.animations[0],
       chain: SIT_CHAIN, expect: "sit",
       wanted: (R) => !R.sit },
+    /* ── the walk, from isla ──────────────────────────────────────────
+       The authored characters arrive with no clips at all, and the
+       roster already holds what they need. Auditioned by render, the
+       only way this file trusts: isla's walk on char3 came out arms
+       down and swinging, and on the hero — the mirror-labelled rig —
+       the same. kenta was auditioned first and REJECTED: his rest is
+       not a T-pose but an arms-down walking pose (his walk's arm keys
+       sit 8-15 degrees from his own rest), so his deltas say "stay
+       near rest" and a T-posed receiver walks with her arms straight
+       out. Same disease as walker, milder strain. isla's rest is a
+       true T — her deltas mean what they say on a T-posed receiver.
+
+       tol 0.5 rather than the sit's 0.35: a stride's feet genuinely
+       spread, and the hero measures 0.40 on a walk the render shows
+       is correct. The sit gate keeps its own number. */
+    { name: "Borrowed Walk", from: castLib.isla,
+      clip: castLib.isla && castLib.isla.animations.find(
+        c => c.name === "Armature|Walking_Woman|baselayer"),
+      chain: STAND_CHAIN, expect: "stand", tol: 0.5,
+      wanted: (R) => !R.gaits.length },
     /* ── not from walker, and here is why ─────────────────────────────
        Idle and Sitting Talking were lent from him and both were WRONG:
        woman stood hunched with her head down, isla bent over backwards
@@ -5300,7 +5347,7 @@ function lendSitDown(){
          their files rested in a pose the donor's rest did not correspond
          to, and no count of matched bones said so. Rendered to find it;
          measured here so it cannot ship. */
-      const why = poseLooksWrong(lent, src, job.expect, job.from, job.clip);
+      const why = poseLooksWrong(lent, src, job.expect, job.from, job.clip, job.tol);
       if (why){ no.push(k + " (" + why + ")"); continue; }
       src.animations.push(lent);
       /* NOT prepareClips: that ends in inPlaceClip, which pins every
@@ -5826,22 +5873,30 @@ let crowdSpent = false;          /* every distinct body is already out there */
    the late wave settles, whichever is last — and it is idempotent, so
    being called twice costs nothing. */
 let lateOutstanding = 0, lateGiveUp = 0;
-function fillForcedCrowd(){
+function fillForcedCrowd(force){
   if (CROWD_FORCE === null || !crowdReady || crowdN >= CROWD_FORCE) return;
-  if (lateOutstanding > 0){
+  if (lateOutstanding > 0 && !force){
     /* Wait for the rest of the cohort — but not indefinitely. Decoding
        ten megabytes of people takes seconds on a phone and minutes on a
        software rasterizer, and a body that never arrives at all would
-       otherwise leave ?crowd showing an empty quad forever. Twenty
-       seconds, then fill with whoever is here. */
-    /* Forty-five, not twenty. There are nine deferred bodies now rather
-       than six, and ?crowd exists to show the variety they provide — a
-       give-up that fires first fills the quad from the first wave and
-       demonstrates the opposite. */
-    if (!lateGiveUp) lateGiveUp = setTimeout(() => { lateOutstanding = 0; fillForcedCrowd(); }, 45000);
+       otherwise leave ?crowd showing an empty quad forever. Forty-five
+       seconds, then fill with whoever is here.
+
+       The give-up FORCES PAST the check rather than zeroing the
+       counter. It used to write lateOutstanding = 0, and that wrote
+       off the whole late wave: every body landing afterwards
+       decremented the counter to -1, -2, ... so the `=== 0` in
+       settled() never fired, topUpForcedCrowd never ran, and the
+       stragglers were locked out of the quad for the visit. Measured
+       as "6 people from 12 bodies" the moment the late wave got heavy
+       enough (14MB of authored characters) to reliably outlast the
+       timer. The counter is the settle protocol; nothing else may
+       touch it. */
+    if (!lateGiveUp) lateGiveUp = setTimeout(() => fillForcedCrowd(true), 45000);
     return;
   }
   clearTimeout(lateGiveUp);
+  lateGiveUp = 0;      /* the guard above reads this as "a timer is armed" */
   while (crowdN < CROWD_FORCE && addExtra(crowdN)) crowdN++;
   crowdDone = true;
 }
@@ -8645,13 +8700,20 @@ window.__castLib = castLib;   /* test/debug hook: the loaded bodies */
    through the real lendClip. A character being authored has to be
    judged before it is committed to, and judging it means seeing it
    move — not reading a bone list. */
-window.__lendTo = (url) => new Promise((ok, no) => gltf.load(url, (g) => {
-  const clip = sitDonor && sitDonor.animations[0];
-  if (!clip) return ok({ err: "the sit donor has not loaded" });
-  const lent = lendClip(clip, g.scene, sitDonor.scene, "Stand To Sit");
+window.__lendTo = (url, donorKey, clipName, expect = "sit") =>
+  new Promise((ok, no) => gltf.load(url, (g) => {
+  /* default: the sit donor, which is how every body has been judged.
+     Named: any loaded body, so kenta's walk can be auditioned on a
+     candidate without waiting for a download that may not be needed. */
+  const donor = donorKey ? castLib[donorKey] : sitDonor;
+  if (!donor) return ok({ err: (donorKey || "the sit donor") + " has not loaded" });
+  const clip = clipName ? donor.animations.find(c => c.name === clipName)
+                        : donor.animations[0];
+  if (!clip) return ok({ err: "no clip " + (clipName || "[0]") + " on " + (donorKey || "donor") });
+  const lent = lendClip(clip, g.scene, donor.scene, clip.name);
   if (!lent) return ok({ err: "nothing bound" });
   ok({ gltf: g, clip: lent, tracks: lent.tracks.length,
-       why: poseLooksWrong(lent, g, "sit", sitDonor, clip) });
+       why: poseLooksWrong(lent, g, expect, donor, clip) });
 }, undefined, (e) => ok({ err: String(e).slice(0, 120) })));
 /* test/debug hook: what the sit-down looks like on a given body, and
    what the acceptance test made of it. */
