@@ -121,22 +121,27 @@ Walking_Woman  https://drive.google.com/file/d/1eWh_xTiL2N1iHNA6YElJ_9Q_C9F2jbys
 # They were retired for the two authored characters (stu_hero,
 # stu_char2) — the ones the borrowed sit-down could never reach.
 
-# ── the authored characters' gait ────────────────────────────────────
-# Two downloads animate all three authored bodies at once — stu_hero,
-# stu_char2 and stu_char3 all speak StudentProductionRigV4, and a
-# clip_ donor is lent to every rig dialect on campus anyway. In Mixamo:
+# ── the female walk pool ─────────────────────────────────────────────
+# Every donor here is lent to EVERY female body, and each spawn draws
+# one walk at random from her whole list — shared, random,
+# interchangeable. clip_walkf_1 already exists (isla's own walk,
+# stripped to skeleton + motion); each block below adds a new stride
+# to the pool. In Mixamo, per walk:
 #
-#   search "Walking"  → Download: FBX Binary, WITH SKIN, 30fps,
-#                       and TICK "In Place" first
-#   search "Idle"     → Download: FBX Binary, WITH SKIN, 30fps
+#   pick any character, search a walk — good spread:
+#     "Walking" · "Catwalk Walk" · "Sassy Walking" · "Happy Walking"
+#   TICK "In Place" → Download: FBX Binary, WITH SKIN, 30fps
 #
-# Put both on Drive, share as "Anyone with the link", then remove the
-# leading "# " from the four lines below and paste the links in place
-# of PASTE-LINK-HERE. Commit; the courier builds skinless donors
-# (skeleton + motion, ~50KB each) and the campus lends them at load.
+# Put each on Drive as "Anyone with the link", un-comment a block,
+# paste the link, commit. The courier builds the ~50KB donor; then the
+# FEM_WALKS list in index.html gains the filename (one line — say the
+# word and it is done).
 #
-# # out: assets/clip_walk.glb
-# Walking   PASTE-LINK-HERE
+# # out: assets/clip_walkf_2.glb
+# Pool_Walk_2   PASTE-LINK-HERE
 #
-# # out: assets/clip_idle.glb
-# Idle      PASTE-LINK-HERE
+# # out: assets/clip_walkf_3.glb
+# Pool_Walk_3   PASTE-LINK-HERE
+#
+# # out: assets/clip_walkf_4.glb
+# Pool_Walk_4   PASTE-LINK-HERE

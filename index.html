@@ -1863,7 +1863,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v57";
+const BUILD = "pembroke-v58";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -5121,6 +5121,22 @@ function detailPass(){
    source side of lendClip asks about names and the target side asks
    about bones. */
 const SIT_DONOR = "assets/clip_sit.glb";
+/* ── the female walk pool ─────────────────────────────────────────────
+   Skinless walk donors, every one lent to EVERY female body — so each
+   woman's gait list holds the whole pool plus whatever walk she came
+   with, and each spawn draws one at random (makeRoamer already rolls
+   the dice; walker's three walks have used that path all along).
+   Shared, random, interchangeable: the same body walks differently on
+   different days, and no two women on the quad need to share a stride.
+
+   The first entry is isla's own walk stripped to skeleton and motion —
+   27KB — so the pool machinery runs, and is tested, from day one.
+   New donors land through the courier as clip_walkf_N.glb (see
+   tools/mixamo-inbox.txt) and are added HERE by name: the list is a
+   manifest, not a glob, because probing for files that do not exist
+   is a console full of 404s and a failed asset check. */
+const FEM_WALKS = ["assets/clip_walkf_1.glb"];
+const femWalkDonors = [];
 /* What a body has to have before it can be handed a sit-down: a
    pelvis, a spine to fold, and two legs that bend in two places and
    end in a foot. Everything else in the clip is decoration. */
@@ -5306,6 +5322,16 @@ function lendable(){
         c => c.name === "Armature|Walking_Woman|baselayer"),
       chain: STAND_CHAIN, expect: "stand", tol: 0.5, hips: false,
       wanted: (R) => !R.gaits.length },
+    /* ── the pool, one job per donor ──────────────────────────────────
+       Every pool walk goes to every female body — the ones that came
+       with a walk included, so isla can wear a stranger's stride too.
+       Each spawn then draws from the body's whole gait list at random:
+       shared, random, interchangeable, per the design brief. */
+    ...femWalkDonors.map((d, i) => ({
+      name: "Female Walk " + (i + 1), from: d,
+      clip: d.animations && d.animations[0],
+      chain: STAND_CHAIN, expect: "stand", tol: 0.5, hips: false,
+      wanted: (R, k) => CAST_FEM.has(k) })),
     /* ── not from walker, and here is why ─────────────────────────────
        Idle and Sitting Talking were lent from him and both were WRONG:
        woman stood hunched with her head down, isla bent over backwards
@@ -5346,7 +5372,7 @@ function lendSitDown(){
          the body ends up carrying five copies of one idle. Measured:
          ariel collected five. */
       if (src.animations.some(c => c.name === job.name)) continue;
-      if (!job.wanted(rolesOf(k, src))) continue;   /* they have one of their own */
+      if (!job.wanted(rolesOf(k, src), k)) continue; /* they have one of their own */
       const lent = lendClip(job.clip, src.scene, job.from.scene, job.name,
                             30, job.hips !== false);
       /* Whether the bones this POSE needs are there, not how many bones
@@ -5421,7 +5447,7 @@ function lendSitDown(){
      MOMENT — a sit-down that lands afterwards would be owned by the
      library and reachable by nobody already standing on the quad. */
   const done = () => {
-    if (++castReady < first.length + 1) return;
+    if (++castReady < first.length + 1 + FEM_WALKS.length) return;
     if (!loadedRoaming().length && !loadedLoitering().length){
       console.error("no rigged body loaded — no students");
       return;
@@ -5468,6 +5494,13 @@ function lendSitDown(){
     console.warn("cast: " + SIT_DONOR + " did not load — nobody will sit on a bench", err);
     done();
   });
+  /* the walk pool loads on the same terms: alongside, counted, and a
+     missing donor is one fewer stride rather than a broken campus */
+  FEM_WALKS.forEach(url => gltf.load(url, (g) => { femWalkDonors.push(g); done(); },
+    undefined, (err) => {
+      console.warn("cast: " + url + " did not load — one fewer walk in the pool", err);
+      done();
+    }));
 }
 /* ── dressing one model as a whole cohort ────────────────────────────
    There is exactly one rigged character in this project, and a campus
