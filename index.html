@@ -1863,7 +1863,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v55";
+const BUILD = "pembroke-v56";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -3965,14 +3965,16 @@ function mkPerson(jacketColor, seed){
    Models by their authors under CC-BY-4.0:
      stu_tutor    "Animated Instructor Avatar" by sagefreeman
      stu_ariel    "walking test"   by Oussama.Lamrani
-   stu_nathan is a scanned figure supplied by the site owner, who holds
-   the rights to it.                                                    */
+   stu_nathan, a scanned figure supplied by the site owner, served from
+   the first commit to this retirement: he sat at 0.17 of standing hip
+   height — through every bench — rested 25 degrees off his bind, and
+   his single-mesh scan could never be dressed. Retired when the
+   authored characters raised the bar.                                  */
 const CAST_FILES = {
   walker:  "assets/stu_walker.glb",     /* 50k tris, 7 mocap clips      */
   ariel:   "assets/stu_ariel.glb",      /* 35k tris, one walk cycle     */
   woman:   "assets/stu_woman.glb",      /* ferried in by the courier    */
   alina:   "assets/stu_alina.glb",      /* ferried in by the courier    */
-  nathan:  "assets/stu_nathan.glb",     /* 22k tris, a scan, one walk   */
   /* Brought in together to be judged on the quad rather than in a log.
      kenta is the cheapest body here by a distance and the only newcomer
      whose skeleton is Mixamo-named, so he can take the standing idle;
@@ -4016,8 +4018,8 @@ const CAST_FILES = {
    seconds after you do is a student walking in, which is what this
    looks like anyway.
 
-     first           walker ariel kenta nathan skate tutor
-     after           woman alina isla
+     first           walker ariel kenta skate tutor
+     after           woman alina isla hero char2 char3
 
    Which bodies come first is a question about variety, not only about
    megabytes, and the first list got it wrong. Of the four ROAMING
@@ -4085,9 +4087,10 @@ const CAST_FILES = {
    So: a fixed core, then a draw under a byte budget with a dressability
    guarantee.
 
-     core        walker, and the three who are not roamers
-     budget      2.6MB of roaming bodies beyond the core, which is what
-                 the written list cost (ariel, kenta, nathan = 2.24MB)
+     core        walker, and the two who are not roamers
+     budget      2.6MB of roaming bodies beyond the core — what the
+                 original written list cost, kept as the line the
+                 first wave must not cross
                  plus room for one more small one
      guarantee   at least one dressable body in the draw
 
@@ -4095,7 +4098,7 @@ const CAST_FILES = {
    NAME — Priya, Sofia and Amara need Idle, Sitting Talking and Jogging,
    and no other body has them. The loiterers and the skater are there
    because nothing else can stand in for what they do. */
-const CAST_MB = { walker: 1.84, ariel: 1.66, kenta: 0.24, nathan: 0.34,
+const CAST_MB = { walker: 1.84, ariel: 1.66, kenta: 0.24,
                   isla: 0.88, woman: 2.64, alina: 3.04,
                   skate: 1.27, tutor: 0.32,
                   /* all three past CAST_BUDGET on purpose: the first
@@ -4150,11 +4153,11 @@ function drawFirstWave(){
    *
      One is what the rules above produce whenever the dressable draw
      lands on `woman` at 2.64MB: she spends the budget outright, the
-     fill can only afford kenta and nathan, and ariel, isla and alina
-     all arrive late. The named cast is built at that moment, so the
-     students who want a woman's body have exactly one to share —
-     which is the identical-twins complaint wearing different clothes.
-     The cheapest second is isla at 0.88MB, and she walks. */
+     fill can only afford kenta, and ariel, isla and alina all arrive
+     late. The named cast is built at that moment, so the students who
+     want a woman's body have exactly one to share — which is the
+     identical-twins complaint wearing different clothes. The cheapest
+     second is isla at 0.88MB, and she walks. */
   const women = () => picks.filter(k => CAST_FEM.has(k)).length;
   if (women() < 2){
     const next = pool.filter(k => !picks.includes(k) && CAST_FEM.has(k))
@@ -4186,7 +4189,7 @@ function drawFirstWave(){
    any of the colours — see buildOf, which varies each figure another
    ±11% on top of these. */
 const CAST_HEIGHT = { walker: 42, woman: 41,
-                      alina: 40, ariel: 40, nathan: 43,
+                      alina: 40, ariel: 40,
                       tutor: 41, skate: 42,
                       kenta: 41, isla: 40,
                       hero: 42, char2: 41, char3: 40 };
@@ -4194,7 +4197,7 @@ const CAST_HEIGHT = { walker: 42, woman: 41,
    are only good for standing about. Eight that walk against a crowd
    that caps at ten: the round robin runs out of new people only on the
    ninth, and by then they are scattered over sixty-eight waypoints. */
-const ROAMING = ["walker", "woman", "alina", "nathan", "ariel",
+const ROAMING = ["walker", "woman", "alina", "ariel",
                  "kenta", "isla", "hero", "char2", "char3"];
 /* Drawn here rather than beside drawFirstWave, because it reads ROAMING
    and a const cannot be read before it is declared — putting the call
@@ -4663,7 +4666,10 @@ function prepFigure(k, height, live, clipIx = 0){
      mixamorigLeftUpLeg            walker, kenta, tutor
      LeftUpLeg_3                   isla
      CC_Base_L_Thigh_04            woman, alina, ariel
-     rp_nathan_..._upperleg_l_074  nathan
+     rp_nathan_..._upperleg_l_074  nobody, since nathan retired — the
+                                   parsing stays, because the next
+                                   Renderpeople scan will spell its
+                                   bones exactly this way again
 
    — and both foreign schemes are perfectly regular, so this is a table
    rather than a rewrite. Measured after it: 53 of the donor's 69
