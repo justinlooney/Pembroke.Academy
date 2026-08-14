@@ -245,6 +245,35 @@ jobs:
                       --python tools/mixamo-to-glb.py -- "$out" $args
             fi
 
+            # An out name starting with clip_ is an ANIMATION DONOR, not
+            # a person: the skeleton, its rest pose and the motion, with
+            # every mesh, material and texture dropped. assets/clip_sit.glb
+            # is 54KB where the character it came on is 847KB — none of
+            # that weight is the animation. The campus lends a donor's
+            # motion onto the bodies already there (lendClip), so one
+            # Mixamo download can animate the whole cast, including rigs
+            # whose bones are named nothing like Mixamo's.
+            case "$(basename "$out")" in clip_*)
+              echo "  .. clip donor — dropping the mesh, keeping the motion"
+              node -e '
+                const fs=require("fs");const f=process.argv[1];
+                const b=fs.readFileSync(f);
+                const jl=b.readUInt32LE(12);
+                const j=JSON.parse(b.slice(20,20+jl).toString("utf8"));
+                for (const n of j.nodes||[]){ delete n.mesh; delete n.skin; }
+                j.meshes=[]; j.materials=[]; j.textures=[]; j.images=[]; j.samplers=[];
+                const json=Buffer.from(JSON.stringify(j),"utf8");
+                const pad=(4-(json.length%4))%4;
+                const jc=Buffer.concat([json,Buffer.alloc(pad,0x20)]);
+                const rest=b.slice(20+jl);
+                const head=Buffer.alloc(12);
+                head.write("glTF",0); head.writeUInt32LE(2,4);
+                head.writeUInt32LE(12+8+jc.length+rest.length,8);
+                const jh=Buffer.alloc(8); jh.writeUInt32LE(jc.length,0); jh.writeUInt32LE(0x4E4F534A,4);
+                fs.writeFileSync(f,Buffer.concat([head,jh,jc,rest]));
+              ' "$out"
+            ;; esac
+
             before=$(stat -c%s "$out")
             # A character assembled here from Mixamo parts is one of the
             # named cast, met at conversational distance, and keeps 1024.

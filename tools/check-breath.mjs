@@ -177,6 +177,14 @@ const bad = [];
    nothing — the exact shape of the bug this file exists to catch, where
    a figure looked fine to every number anyone had thought to print. */
 const unmeasured = [];
+/* ...but a body with NOTHING to hold is a different thing from one
+   that could not be held. A character can arrive before its motion
+   does — the hero was authored for this campus and her walk and idle
+   are still coming from Mixamo — and a file with zero clips gives
+   breathe() nothing to compound on top of, which is not a failure to
+   measure but an absence of anything to measure. Kept apart and
+   printed, because "we checked nothing" still has to be visible. */
+const nothingToHold = [];
 for (const f of bodies){
   const name = f.replace(/^stu_|\.glb$/g, "");
   let r;
@@ -186,10 +194,14 @@ for (const f of bodies){
   } catch (e){
     r = { err: String(e).split("\n")[0].slice(0, 120) };
   }
-  if (r.err || !r.clips?.length){
-    const why = r.err || "the file carries no clips to hold";
-    console.log(name.padEnd(10) + "NOT MEASURED: " + why);
-    unmeasured.push(`${name}: ${why}`);
+  if (!r.err && !r.clips?.length){
+    console.log(name.padEnd(10) + "no clips yet — nothing to hold");
+    nothingToHold.push(name);
+    continue;
+  }
+  if (r.err){
+    console.log(name.padEnd(10) + "NOT MEASURED: " + r.err);
+    unmeasured.push(`${name}: ${r.err}`);
     continue;
   }
   const worst = Math.max(...r.clips.map(c => c.peak));
@@ -211,9 +223,15 @@ if (unmeasured.length){
   console.log(`${unmeasured.length} of ${bodies.length} bodies could not be ` +
               `measured, so nothing here vouches for them:\n  ` + unmeasured.join("\n  "));
 }
+if (nothingToHold.length){
+  console.log(`${nothingToHold.length} of ${bodies.length} carry no clips yet, ` +
+              `so there is nothing for a held pose to drift from:\n  ` +
+              nothingToHold.join(", "));
+}
 if (!bad.length && !unmeasured.length){
-  console.log(`all ${bodies.length} bodies held for ${SECONDS}s — ` +
-              `every head stays within ${LIMIT}deg, breathing settles`);
+  const held = bodies.length - nothingToHold.length;
+  console.log(`all ${held} bodies with something to hold held it for ` +
+              `${SECONDS}s — every head stays within ${LIMIT}deg, breathing settles`);
 }
 await browser.close(); server.close();
 process.exit(bad.length || unmeasured.length ? 1 : 0);

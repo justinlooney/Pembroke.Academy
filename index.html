@@ -1863,7 +1863,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v47";
+const BUILD = "pembroke-v53";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -3824,9 +3824,15 @@ window.__ways = { WAYPOINTS, EDGES };   /* test/debug hook */
    about their own subject. `at` is which hall that subject is taught
    in, which is what lets a conversation know whether you have actually
    sat the course they are enthusing about. `ask` is what you can put to
-   them: a question, and what they say back. */
+   them: a question, and what they say back.
+ *
+ * `looks` says which BODY to dress them in and nothing else. It is
+ * written down rather than guessed from the name at runtime, because
+ * guessing from a name is exactly the thing that would be wrong about
+ * Jun and Kenji — who carry no `looks` and are dealt whichever body is
+ * least worn today, like the crowd. */
 const STUDENT_ROSTER = [
-  { name:"Elowen", c:0x34d399, at:"lib", major:"Pure Mathematics",
+  { name:"Elowen", looks:"f", c:0x34d399, at:"lib", major:"Pure Mathematics",
     says:["Off to Calc III — gradients await!","The Library dome at dusk… unbeatable.","Stokes' theorem finally clicked!"],
     ask:[["What are you working on?",
           "Calculus III. Vector fields, mostly. You spend a fortnight thinking a gradient is just a slope with extra steps, and then one afternoon it stops being arithmetic and starts being a picture — the field pointing uphill everywhere at once."],
@@ -3834,7 +3840,7 @@ const STUDENT_ROSTER = [
           "Honestly? It says the swirl inside a region and the push around its edge are the same number. That's it. Everything else is bookkeeping to make the two sides line up."],
          ["Why the Library?",
           "The dome. Go up at dusk, when the lamps come on under the emerald glass and the whole reading room turns the colour of a pond. Nobody talks. It's the only place on this campus where I get anything done."]] },
-  { name:"Marcus", c:0xfbbf24, at:"eng", major:"Software Foundations",
+  { name:"Marcus", looks:"m", c:0xfbbf24, at:"eng", major:"Software Foundations",
     says:["My first Python script ran — no errors!","Binary search in 17 steps. SEVENTEEN.","Whitmore Quad study group, 8pm."],
     ask:[["What are you working on?",
           "Python, and I'm not going to pretend to be cool about it. My first script ran with no errors this morning. Eleven lines. I've read them back about six times."],
@@ -3842,7 +3848,7 @@ const STUDENT_ROSTER = [
           "A hundred and thirty thousand records and it found the one I wanted in seventeen looks. Seventeen! You halve the haystack, then halve what's left. I keep doing it on paper to check it isn't a trick."],
          ["Any advice for a beginner?",
           "Type it out. Don't copy it in — type it. You'll make a mistake somewhere around line four, and fixing that mistake is the bit where you actually learn something."]] },
-  { name:"Priya",  c:0x38bdf8, at:"sci", major:"Electrical Hardware",
+  { name:"Priya",  looks:"f", c:0x38bdf8, at:"sci", major:"Electrical Hardware",
     says:["My full adder passed every row!","RAX holds the whole sum. Registers are elegant.","Lab practical on flip-flops today."],
     ask:[["What are you working on?",
           "A full adder. Two bits in, a carry in, a sum and a carry out — and this afternoon it passed all eight rows of the truth table on the first go. I may have made a noise in the lab."],
@@ -3858,7 +3864,7 @@ const STUDENT_ROSTER = [
           "Guessing well. It's a search that keeps asking 'how far have I come, and how far do I probably still have to go' — and it always expands the option where that sum is smallest. Give it an honest guess and it finds the shortest path without checking the whole map."],
          ["Capstone flight?",
           "Friday, over the quad, if the wind behaves. Full autonomous circuit round the fountain and back to the pad at Aldergate. Come and watch. Stand well back."]] },
-  { name:"Sofia",  c:0xf472b6, at:"lib", major:"Pure Mathematics",
+  { name:"Sofia",  looks:"f", c:0xf472b6, at:"lib", major:"Pure Mathematics",
     says:["Simpson's rule tamed the Gaussian bell.","Unit circle from memory. All of it.","Meet at the fountain after lecture?"],
     ask:[["What are you working on?",
           "Numerical integration. The Gaussian bell has no nice antiderivative — you cannot just write the answer down — so you approximate it, and Simpson's rule does it with parabolas instead of rectangles. Frighteningly accurate for how little work it is."],
@@ -3866,7 +3872,7 @@ const STUDENT_ROSTER = [
           "All of it. Not because anyone made me — because once you can see it, half of trigonometry stops being formulas to remember and turns into one picture you already know."],
          ["Where's good to sit out here?",
           "The fountain, after lecture. The lawn's warm by then and you can hear the water over the walk. I usually have a problem set and no intention of finishing it."]] },
-  { name:"Theo",   c:0x5eead4, at:"eng", major:"Software Foundations",
+  { name:"Theo",   looks:"m", c:0x5eead4, at:"eng", major:"Software Foundations",
     says:["Pointers finally make sense!","Committed my problem sets — git push, done.","K-maps are just crossword puzzles."],
     ask:[["What are you working on?",
           "C. Pointers, specifically, which everybody warns you about for a fortnight and then one day you realise a pointer is just an address — a house number, not the house. After that it's fine. Mostly fine."],
@@ -3874,7 +3880,7 @@ const STUDENT_ROSTER = [
           "They're crossword puzzles. You draw the truth table as a grid, circle the neighbouring ones in the biggest blocks you can, and each block is a term you get to delete from the expression. It's the most fun anyone has ever had removing gates."],
          ["Why bother with git?",
           "Because I lost a week's work once. Now every problem set is committed the moment it runs. It isn't discipline, it's fear, and fear is a perfectly good reason."]] },
-  { name:"Amara",  c:0xfb923c, at:"lib", major:"Pure Mathematics",
+  { name:"Amara",  looks:"f", c:0xfb923c, at:"lib", major:"Pure Mathematics",
     says:["Ten laps of the oval before class.","The chapel bells at dusk — worth the walk.","Green's theorem is just bookkeeping for flow."],
     ask:[["What are you working on?",
           "Vector calculus, between laps. Ten round the oval before the first lecture — it's the only hour of the day when this campus is completely mine."],
@@ -3971,9 +3977,8 @@ const CAST_FILES = {
      kenta is the cheapest body here by a distance and the only newcomer
      whose skeleton is Mixamo-named, so he can take the standing idle;
      isla walks but arrives at 183k triangles and leans on the courier's
-     simplifier; nadia is a full Character Creator anatomy and the one
-     to watch on weight. sophia is not a roamer at all — her bones are
-     named ..._idling_... and her clip runs 488 frames. */
+     simplifier. nadia and sophia came in the same wave and are gone
+     now — see the note above NO_LENDING for what they measured. */
   /* kenta reads paler than the rest of the cast, and that is his
      texture rather than anything the renderer is doing: measured, his
      base map averages rgb 174,159,154 at a saturation of 0.15 where
@@ -3986,16 +3991,14 @@ const CAST_FILES = {
      triangles for 0.24MB. Fixing it means a better texture, not code. */
   kenta:   "assets/stu_kenta.glb",      /* 22k tris, mixamo-named, walks */
   isla:    "assets/stu_isla.glb",       /* walks; heavy until simplified */
-  nadia:   "assets/stu_nadia.glb",      /* character creator, 46 maps    */
-  sophia:  "assets/stu_sophia.glb",     /* 16k tris, 20 seconds of idle  */
   tutor:   "assets/stu_tutor.glb",      /*  6k tris, a 25s standing loop */
   skate:   "assets/stu_skater.glb",
 };
 /* ── who has to be here before the doors open ─────────────────────────
-   Thirteen rigged files is 19MB, all of it decoded on the main thread
-   before a phone can draw anything. But only seven of them are needed
-   to build the campus you arrive on: the named eight, the skater and
-   the loiterers. The other six exist solely for the crowd — and the
+   Eleven rigged files is 15MB, all of it decoded on the main thread
+   before a phone can draw anything. But only a handful are needed
+   to build the campus you arrive on: the named cast, the skater and
+   the loiterer. The rest exist solely for the crowd — and the
    crowd deliberately does not start arriving until the campus has
    finished loading, so making the campus wait for them is waiting for
    people who are not allowed in yet.
@@ -4005,8 +4008,8 @@ const CAST_FILES = {
    seconds after you do is a student walking in, which is what this
    looks like anyway.
 
-     first           walker ariel kenta nathan sophia skate tutor
-     after           woman alina isla nadia
+     first           walker ariel kenta nathan skate tutor
+     after           woman alina isla
 
    Which bodies come first is a question about variety, not only about
    megabytes, and the first list got it wrong. Of the four ROAMING
@@ -4057,18 +4060,19 @@ const CAST_FILES = {
    from more than one person at all.                                    */
 /* ── who arrives first is drawn, not written down ─────────────────────
    A fixed first wave means the same seven bodies every visit, and the
-   four that load late — isla, woman, alina, nadia — are the ones a
-   visitor rarely meets at all. The crowd was already randomised in
-   every other respect: clothes, build, start point, which body a named
-   student wears. The one thing still fixed was which bodies were in the
-   room to be dealt from.
+   ones that load late — isla, woman, alina — are the ones a visitor
+   rarely meets at all. The crowd was already randomised in every other
+   respect: clothes, build, start point, which body a named student
+   wears. The one thing still fixed was which bodies were in the room
+   to be dealt from.
 
    It cannot be a plain shuffle, for two reasons that pull against each
    other. The first wave IS the critical path, so a free draw could put
-   nadia's 4.22MB in front of the campus a visitor is waiting to walk
-   on. And it has to contain somebody the wardrobe can dress, or the
-   opening crowd is mannequins again — which is exactly the fault that
-   put ariel here in the first place.
+   the heaviest roamer in front of the campus a visitor is waiting to
+   walk on (when this was written that was nadia at 4.22MB; today it is
+   alina at 3.04). And it has to contain somebody the wardrobe can
+   dress, or the opening crowd is mannequins again — which is exactly
+   the fault that put ariel here in the first place.
 
    So: a fixed core, then a draw under a byte budget with a dressability
    guarantee.
@@ -4084,14 +4088,24 @@ const CAST_FILES = {
    and no other body has them. The loiterers and the skater are there
    because nothing else can stand in for what they do. */
 const CAST_MB = { walker: 1.84, ariel: 1.66, kenta: 0.24, nathan: 0.34,
-                  isla: 0.88, woman: 2.64, alina: 3.04, nadia: 4.22,
-                  sophia: 0.33, skate: 1.27, tutor: 0.32 };
+                  isla: 0.88, woman: 2.64, alina: 3.04,
+                  skate: 1.27, tutor: 0.32 };
 /* Measured, not guessed: these are the six bodies with a shirt mesh the
    wardrobe can find. See the note above about the ten that have none. */
-const CAST_DRESSABLE = ["walker", "ariel", "woman", "nadia"];
+const CAST_DRESSABLE = ["walker", "ariel", "woman"];
+/* Which models read as women across a lawn. A fact about the MODEL —
+   which one to dress a student in — and nothing more.
+ *
+ * It is written down because it was the one thing about this cast that
+ * a visitor can see from twenty feet and nothing in the file recorded.
+ * Five of the eight roaming bodies are women, and two measured visits
+ * put walker×3 + sophia×2 and walker×2 + kenta + tutor + woman + sophia
+ * on the quad — reported from a phone as "none of the female characters
+ * are present", which is very nearly what the numbers say. */
+const CAST_FEM = new Set(["woman", "alina", "ariel", "isla"]);
 const CAST_BUDGET = 3.0;
 function drawFirstWave(){
-  const core = ["walker", "sophia", "skate", "tutor"].filter(k => CAST_FILES[k]);
+  const core = ["walker", "skate", "tutor"].filter(k => CAST_FILES[k]);
   const pool = ROAMING.filter(k => k !== "walker" && CAST_FILES[k]);
   for (let i = pool.length - 1; i > 0; i--){
     const j = Math.floor(Math.random() * (i + 1));
@@ -4106,7 +4120,8 @@ function drawFirstWave(){
      Drawn at RANDOM from those that fit, not cheapest-first. Cheapest
      is deterministic, and it showed: eight visits produced two distinct
      waves, six of them identical, because ariel is always the cheapest
-     dressable that fits. nadia at 4.22MB never fits and stays late. */
+     dressable that fits. (Measured when nadia was on the roster; the
+     mechanism is the point, not her.) */
   const picks = [];
   let spent = 0;
   const dressable = pool.filter(k => CAST_DRESSABLE.includes(k) &&
@@ -4115,6 +4130,23 @@ function drawFirstWave(){
     const pick = dressable[Math.floor(Math.random() * dressable.length)];
     picks.push(pick);
     spent += CAST_MB[pick] || 0;
+  }
+  /* TWO women in the first wave, not one, and allowed to overrun the
+     budget to get there — the same licence the floor-of-three step
+     below takes, for a more visible reason.
+   *
+     One is what the rules above produce whenever the dressable draw
+     lands on `woman` at 2.64MB: she spends the budget outright, the
+     fill can only afford kenta and nathan, and ariel, isla and alina
+     all arrive late. The named cast is built at that moment, so the
+     students who want a woman's body have exactly one to share —
+     which is the identical-twins complaint wearing different clothes.
+     The cheapest second is isla at 0.88MB, and she walks. */
+  const women = () => picks.filter(k => CAST_FEM.has(k)).length;
+  if (women() < 2){
+    const next = pool.filter(k => !picks.includes(k) && CAST_FEM.has(k))
+                     .sort((a, b) => (CAST_MB[a] || 9) - (CAST_MB[b] || 9))[0];
+    if (next){ picks.push(next); spent += CAST_MB[next] || 0; }
   }
   for (const k of pool){
     if (picks.includes(k)) continue;
@@ -4143,23 +4175,22 @@ function drawFirstWave(){
 const CAST_HEIGHT = { walker: 42, woman: 41,
                       alina: 40, ariel: 40, nathan: 43,
                       tutor: 41, skate: 42,
-                      kenta: 41, isla: 40, nadia: 41, sophia: 40 };
+                      kenta: 41, isla: 40 };
 /* Which bodies can be given a waypoint and told to walk it, and which
    are only good for standing about. Eight that walk against a crowd
    that caps at ten: the round robin runs out of new people only on the
    ninth, and by then they are scattered over sixty-eight waypoints. */
 const ROAMING = ["walker", "woman", "alina", "nathan", "ariel",
-                 "kenta", "isla", "nadia"];
+                 "kenta", "isla"];
 /* Drawn here rather than beside drawFirstWave, because it reads ROAMING
    and a const cannot be read before it is declared — putting the call
    next to the function threw on load, which is a blank campus. */
 const CAST_FIRST = drawFirstWave();
 console.info("cast: first wave this visit — " + CAST_FIRST.join(", "));
-/* sophia joins the standers rather than the walkers, because that is
-   what she came with: 488 frames of idle and no gait at all. She is
-   also 16k triangles against stu_anim's 179,598 for the same job, which
-   is the heaviest figure on this campus doing the least. */
-const LOITERING = ["tutor", "sophia"];
+/* One loiterer now. sophia stood here — 488 frames of idle, no gait —
+   until her replacement arrived and she went the way of gent and mia:
+   tutor does the same job of standing near a door for 0.32MB. */
+const LOITERING = ["tutor"];
 /* Asked at the moment a figure is built, never pruned. Bodies now
    arrive in two waves, so a list filtered once at startup would be
    permanently missing the six that come in later — and every extra
@@ -4170,21 +4201,30 @@ const loadedLoitering = () => LOITERING.filter(k => castLib[k]);
    neither `at` nor `orbit` roams the ring; the gait it roams with is
    drawn per figure in makeRoamer rather than fixed here, so the mix
    changes between visits. */
+/* One entry per STUDENT_ROSTER entry, in the same order. The comments
+   name them so that order is checkable — it had drifted by three, which
+   cost nothing but read as a bug every time anyone looked.
+ *
+ * `clip` is a ROLE, not a clip name. "Idle" and "Sitting Talking" are
+ * labels that exist on the walker alone; every other body calls its
+ * clips "mixamo.com" or "Take 001". rolesOf measures which clip is
+ * which, so the plan asks for the pose and lets the body answer.
+ * `needs` is the same question asked before the body is chosen. */
 const CAST_PLAN = [
   { k: "any" },                                             /* Elowen — roams        */
   { k: "loiter", at: [700, 340], face: -0.9, live: true, pose: 0 }, /* Marcus — Whitmore door */
-  { k: "walker", at: [449, 449], face:  0.8, kind: "chat",  /* Priya  — plaza        */
-    clip: "Idle" },
-  { k: "walker", at: [543, 449], face: -2.4, kind: "laptop",/* Sofia  — lawn         */
-    clip: "Sitting Talking" },
+  { k: "any", needs: "idle", at: [449, 449], face: 0.8,     /* Priya  — plaza        */
+    kind: "chat", clip: "idle" },
+  { k: "loiter", at: [286, 838], face:  0.2, live: true, pose: 1 }, /* Jun — Alden front.
+     He stood at 270,700 — inside the science hall, behind its south
+     wall. Out on the front now, facing the quad. */
+  { k: "any", needs: "seat", at: [543, 449], face: -2.4,    /* Sofia  — lawn         */
+    kind: "laptop", clip: "seat" },
   { k: "any" },                                             /* Theo   — roams        */
-  /* Jun stood at 270,700 — which is inside the science hall, invisible
-     behind its south wall. Out on the front now, facing the quad. */
-  { k: "loiter", at: [286, 838], face:  0.2, live: true, pose: 1 }, /* Jun — Alden front */
   /* Amara used to lap the ring at 182 — which, with the player standing
      in the middle of it, meant she was on screen permanently. She runs
      the campus now, on the same paths as everyone else, just faster. */
-  { k: "walker", jog: true },                               /* Amara  — runs the campus */
+  { k: "any", needs: "gait", jog: true },                   /* Amara  — runs the campus */
   { k: "any" },                                             /* Kenji  — roams        */
 ];
 const castLib = {};
@@ -4250,24 +4290,91 @@ function prepareClips(anims){
     inPlaceClip(c);
   }
 }
+/* Can this body do the job the plan needs doing? Asked of the ROLES,
+   which are measured off the clips, rather than of the body's name.
+ *
+ * Three of the eight named students used to ask for "walker" outright,
+ * because walker is the only body whose clips are hand-named and the
+ * plan wanted "Idle", "Sitting Talking" and "Jogging" by those names.
+ * That put the same man on the quad three times over and shut five
+ * women out of the named cast altogether. The need was real; naming a
+ * body to meet it was the mistake. */
+function canDo(k, needs){
+  if (!needs) return true;
+  const src = castLib[k];
+  if (!src) return false;
+  const r = rolesOf(k, src);
+  if (needs === "idle") return !!r.idle;
+  if (needs === "gait") return !!(r.gaits && r.gaits.length);
+  if (needs === "seat") return !!(r.sit || r.seat || r.rise);
+  return true;
+}
+/* Least-worn first, and matching the student's look wherever the cast
+   allows it. Three independent random draws have no memory of one
+   another, and it showed: measured, a campus of five came out as the
+   same man three times over. Counting who is already out there costs
+   one pass over a list of a dozen and cannot produce that. */
+/* ── nobody appears twice, and a shirt is not a disguise ──────────────
+   A body is a PERSON. It goes out once.
+
+   This was argued down twice before settling here. First the crowd
+   repeated anybody, and two identical men in red were photographed on
+   one lawn. Then repeats were confined to the four bodies the wardrobe
+   can re-dress, on the theory that a different shirt makes a different
+   student — and measured on a forced quad that produced walker seven
+   times and woman seven times out of nineteen people. Same face, same
+   hair, same build, seven times. A shirt is not a disguise.
+
+   So the rule is now the simple one: a body is spent the moment it is
+   used, counted across the WHOLE campus. The named cast and the crowd
+   used to draw from separate lists and neither knew what the other had
+   taken, which is how a named student could stand on the plaza while an
+   identical stranger walked past behind them.
+
+   It follows that the population is bounded by the cast — as many
+   people as there are distinct bodies to be, and no more. That is the
+   right way round. The author is authoring characters now; the way to
+   put more people on the quad is to make more people. */
+function wornFigures(){
+  const worn = new Map();
+  for (const s of students){
+    const f = s.g && s.g.userData && s.g.userData.figure;
+    if (f) worn.set(f, (worn.get(f) || 0) + 1);
+  }
+  return worn;
+}
+function drawBody(pool, looks){
+  if (!pool.length) return null;
+  const worn = wornFigures();
+  const free = pool.filter(x => !worn.has(x));
+  if (!free.length) return null;               /* everyone left is already out */
+  const want = looks ? free.filter(x => CAST_FEM.has(x) === (looks === "f")) : [];
+  const from = want.length ? want : free;
+  let least = Infinity;
+  for (const x of from) least = Math.min(least, worn.get(x) || 0);
+  const fresh = from.filter(x => (worn.get(x) || 0) === least);
+  return fresh[Math.floor(Math.random() * fresh.length)];
+}
 /* Which body to actually build, given one that was asked for. The
    crowd draws from a list already filtered to what loaded, but the
    named cast asks by name, and CAST_PLAN cannot know that a body has
    left the roster or that its model 404'd. Standing in for them is a
    smaller loss than losing the student. */
-function bodyFor(k){
-  /* "any" means this student has no particular body — Elowen, Theo and
-     Kenji roam and nothing about them depends on which one they are, so
-     they are dealt a different one each visit like the crowd. Priya,
-     Sofia and Amara ask by name because they need the original walker's
-     clips: Idle, Sitting Talking and Jogging, which no other body has. */
+function bodyFor(k, looks, needs){
+  /* "any" means this student has no particular body — nothing about
+     them depends on which one they are, so they are dealt one each
+     visit like the crowd, preferring a body that matches their `looks`
+     and one nobody else is already wearing. */
   if (k === "any" || k === "loiter"){
     /* "loiter" is "any" for the standers. Marcus and Jun used to ask
        for stu_anim by name — 179,598 triangles to hold still by a door,
        the heaviest figure on the campus doing the least. Whoever is
        standing about today does it instead. */
     const pool = k === "any" ? loadedRoaming() : loadedLoitering();
-    return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+    /* The need comes first and the look second: a student who cannot
+       hold the pose their plan calls for is a frozen figure, which is
+       worse than a mismatched one. */
+    return drawBody(pool.filter(x => canDo(x, needs)), looks) || drawBody(pool, looks);
   }
   if (castLib[k]) return k;
   const pool = ROAMING.includes(k) ? loadedRoaming() : loadedLoitering();
@@ -4423,29 +4530,43 @@ function prepFigure(k, height, live, clipIx = 0){
     if (!o.isMesh) return;
     o.castShadow = true;
     meshes.push(o);                      /* kept for the distance detail pass */
-    /* A skinned mesh's bounds are the bind pose, so a figure whose arms
-       swing wider than that pops out of view at the edge of the screen.
-       The cheap fix is to turn culling off — which is what this used to
-       do, and it meant every student on campus was drawn every frame
-       whether or not they were behind you. Give them a generous sphere
-       instead and the cull comes back: with a crowd on the quad, the
-       ones at your back cost nothing.
+    /* ── a bounding sphere that contains the person ──────────────────
+       three.js raycasts and frustum-culls a SkinnedMesh against
+       `boundingSphere`, and this used to take that from the GEOMETRY —
+       the bind pose, scaled by the mesh node's own matrix — with a
+       ×2.2 fudge over the top for swinging arms.
 
-       Taken from the geometry rather than SkinnedMesh.computeBoundingSphere,
-       which walks every vertex through the skeleton — 50k of them per
-       figure. The geometry is shared between clones, so this is measured
-       once for the whole cohort. */
-    const gm = o.geometry;
-    if (o.isSkinnedMesh && gm){
-      if (!gm.boundingSphere) gm.computeBoundingSphere();
-      if (gm.boundingSphere){
-        o.boundingSphere = gm.boundingSphere.clone();
-        o.boundingSphere.radius *= 2.2;
-      }
+       Measured, in world units, for figures 43 units tall:
+
+         tutor  57.6     walker 0.8     isla 0.7     kenta 0.6
+         sophia  0.8     woman  0.3     nathan 0.7
+
+       Every body but one is off by a factor of about thirty. The
+       vertices are placed by the SKELETON, and on these assets the
+       skeleton carries a scale the mesh node does not — so the sphere
+       is a marble at the student's feet. The renderer culls them the
+       instant that marble leaves the frustum, and a ray aimed at the
+       middle of a student's chest misses by many times their width.
+       That is why tapping somebody to talk to them did nothing:
+       measured at zero hits for eight of eight students in plain view.
+
+       The BOX is right, because Box3.setFromObject just computed it by
+       walking the vertices through the skeleton — the same path the
+       raycast uses, so it is in the same space and cannot disagree.
+       Take the sphere from that. It costs nothing: computeBoundingBox
+       has already run and cached, a few lines above. */
+    if (o.isSkinnedMesh){
+      if (!o.boundingBox) o.computeBoundingBox();
+      const sph = new THREE.Sphere();
+      o.boundingBox.getBoundingSphere(sph);
+      /* the pose it was measured in is not the only pose they hold */
+      sph.radius *= 1.6;
+      o.boundingSphere = sph;
     }
   });
   g2.add(root);
   g2.userData.figure = k;                /* test/debug: this is a person */
+  g2.userData.height = height || CAST_HEIGHT[k];   /* what a tap aims at */
   g2.userData.meshes = meshes;
   g2.userData.shadow = true;
   if (standRec) g2.userData.stand = standRec;
@@ -4467,6 +4588,265 @@ function prepFigure(k, height, live, clipIx = 0){
     g2.userData.anim = { mixer, actions, nominal, current: null, roles: rolesOf(k, src) };
   }
   return g2;
+}
+/* ── lending a clip to somebody else's skeleton ───────────────────────
+   Nobody on this campus could sit down onto anything. Walker's only
+   clip that changes height is "Standing Up", and it begins at 0.01 of
+   his standing hip height — flat on the floor — so seatRoles rightly
+   refuses to chain it to a seated loop that sits at 0.48, every
+   student sits on the grass, and the forty-four second Sitting Talking
+   loop and every bench on the campus have never once been used.
+
+   A real sit-down arrived: 2.23 seconds, hips 0.99 -> 0.49, holding.
+   It came on a body of its own, and a clip addresses bones by NAME —
+   so the question is whether it can be moved onto the bodies that are
+   already here. Measured: 75 of 75 tracks find a counterpart on
+   walker, kenta and tutor; 0 of 75 on nathan, whose bones are called
+   rp_nathan_animated_003_walking_hip_02; 32 of 75 on isla, who has no
+   fingers.
+
+   Renaming the tracks is NOT enough, and this is the part that has to
+   be looked at rather than reasoned about. Copying the local rotations
+   across folded walker into a heap on the floor while kenta and tutor
+   sat down perfectly — because kenta and tutor came straight out of
+   Mixamo and walker came back through Blender, so his bones share
+   Mixamo's names and not their rest orientations.
+
+   So what crosses over is not the pose but the CHANGE from rest:
+   for each bone, how far it has turned from where its own rig left it,
+   in world space, re-applied to where the receiving rig's rest leaves
+   it, and converted back to local. That is indifferent to bone roll,
+   to bone length, and to which way a rig thinks is forward.
+
+   Three things then have to be true of the hips, which carry the drop
+   a rotation cannot express:
+     the units       hips sit at local y 209 on the donor, 2.3 on
+                     walker, 97 on kenta, 0.97 on tutor
+     the proportions a taller student's pelvis has further to fall
+     the AXES        walker's hips animate along a local axis that is
+                     not world up; writing raw local y laid him down
+   None of the donor's numbers are used directly: each key is read as a
+   fraction of the DONOR's own standing hip height, applied to the
+   receiver's, and turned back into whatever the receiver's hips call
+   down.
+
+   Verified by rendering all three at five points through the clip.
+   Walker now goes 1.00 -> 0.47 of standing hip height with his feet
+   planted to within three thousandths the whole way. */
+/* ── four rigs, one set of names ──────────────────────────────────────
+   boneKey is enough to tell a head from a foot, which is all the rest
+   of this file asks of it. Lending a clip asks something harder: which
+   bone on THIS skeleton is the one that bone on THAT skeleton. Across
+   the cast the same joint is called four different things —
+
+     mixamorigLeftUpLeg            walker, kenta, tutor
+     LeftUpLeg_3                   isla
+     CC_Base_L_Thigh_04            woman, alina, ariel
+     rp_nathan_..._upperleg_l_074  nathan
+
+   — and both foreign schemes are perfectly regular, so this is a table
+   rather than a rewrite. Measured after it: 53 of the donor's 69
+   joints bind on a Character Creator body and 53 on a Renderpeople
+   one, where the count was nought for both. */
+const RP_BONE = {
+  hip: "hips", spine_01: "spine", spine_02: "spine1", spine_03: "spine2",
+  neck: "neck", head: "head", shoulder: "shoulder", upperarm: "arm",
+  lowerarm: "forearm", hand: "hand", upperleg: "upleg", lowerleg: "leg",
+  foot: "foot", ball: "toebase",
+  thumb_01: "handthumb1", thumb_02: "handthumb2", thumb_03: "handthumb3",
+  index_01: "handindex1", index_02: "handindex2", index_03: "handindex3",
+  middle_01: "handmiddle1", middle_02: "handmiddle2", middle_03: "handmiddle3",
+  ring_01: "handring1", ring_02: "handring2", ring_03: "handring3",
+  pinky_01: "handpinky1", pinky_02: "handpinky2", pinky_03: "handpinky3",
+};
+const CC_BONE = {
+  hip: "hips", waist: "spine", spine01: "spine1", spine02: "spine2",
+  necktwist01: "neck", head: "head", clavicle: "shoulder", upperarm: "arm",
+  forearm: "forearm", hand: "hand", thigh: "upleg", calf: "leg",
+  foot: "foot", toebase: "toebase",
+  thumb1: "handthumb1", thumb2: "handthumb2", thumb3: "handthumb3",
+  index1: "handindex1", index2: "handindex2", index3: "handindex3",
+  mid1: "handmiddle1", mid2: "handmiddle2", mid3: "handmiddle3",
+  ring1: "handring1", ring2: "handring2", ring3: "handring3",
+  pinky1: "handpinky1", pinky2: "handpinky2", pinky3: "handpinky3",
+};
+function canonBone(raw){
+  let s = (raw || "").split("|").pop().split(":").pop();
+  s = s.replace(/[._]\d+$/, "");             /* the loader's uniqueness suffix */
+  let m = /^rp_.+?_animated_\d+_[a-z]+_(.+)$/i.exec(s);
+  if (m){
+    let b = m[1].toLowerCase(), side = "";
+    const sm = /^(.*)_(l|r)$/.exec(b);       /* the side is a suffix here */
+    if (sm){ b = sm[1]; side = sm[2] === "l" ? "left" : "right"; }
+    const t = RP_BONE[b];
+    return t ? (side && t !== "hips" ? side + t : t) : null;
+  }
+  m = /^CC_Base_(?:([LR])_)?(.+)$/i.exec(s); /* ...and a prefix here */
+  if (m){
+    const side = m[1] ? (m[1].toUpperCase() === "L" ? "left" : "right") : "";
+    const t = CC_BONE[m[2].toLowerCase()];
+    return t ? (side && t !== "hips" ? side + t : t) : null;
+  }
+  /* StudentProductionRigV4 — the first character MADE for this campus
+     rather than found for it. Words no other rig here uses, so none of
+     these can collide with isla's bare Mixamo-style names. Two of its
+     words (Pelvis, Chest) carry no side; the rest do. */
+  m = /^(Left|Right)?(Pelvis|Chest|Clavicle|UpperArm|Thigh|Shin|Toe)$/.exec(s);
+  if (m){
+    const side = m[1] ? m[1].toLowerCase() : "";
+    const t = { pelvis: "hips", chest: "chest", clavicle: "shoulder",
+                upperarm: "arm", thigh: "upleg", shin: "leg", toe: "toebase" }[m[2].toLowerCase()];
+    return side && t !== "hips" ? side + t : t;
+  }
+  s = s.replace(/^mixamorig\d*/i, "").replace(/[^a-z0-9]/gi, "").toLowerCase();
+  /* isla spells them Spine01 and Spine02 where Mixamo says Spine1 */
+  return s ? s.replace(/^spine0(\d)$/, "spine$1") : null;
+}
+function jointsOf(root, loose){
+  const out = [];
+  root.traverse(o => { if ((loose || o.isBone) && canonBone(o.name)) out.push(o); });
+  return out;
+}
+function hipFootOf(root, loose){
+  let h = null;
+  const feet = [];
+  for (const o of jointsOf(root, loose)){
+    const k = canonBone(o.name);
+    if (!h && k === "hips") h = o;
+    if (/^(left|right)foot$/.test(k)) feet.push(o);
+  }
+  return [h, feet[0] || null, feet];
+}
+const _lq = new THREE.Quaternion(), _lD = new THREE.Quaternion();
+const _lW = new THREE.Quaternion(), _lP = new THREE.Quaternion();
+const _lL = new THREE.Quaternion(), _lV = new THREE.Vector3(), _lF = new THREE.Vector3();
+function lendClip(clip, target, srcRoot, name, fps = 30){
+  /* The donor is sampled through a mixer, which leaves it posed. It is
+     handed to every body in turn, so the second lend would read its
+     rest orientation off the first lend's last frame. Put it back. */
+  const src = jointsOf(srcRoot, true);
+  const keep = src.map(o => [o.position.clone(), o.quaternion.clone()]);
+  const restore = () => {
+    src.forEach((o, i) => { o.position.copy(keep[i][0]); o.quaternion.copy(keep[i][1]); });
+    srcRoot.updateMatrixWorld(true);
+  };
+  try {
+    srcRoot.updateMatrixWorld(true); target.updateMatrixWorld(true);
+    const [srcHips, srcFoot] = hipFootOf(srcRoot, true);
+    const [tgtHips, tgtFoot] = hipFootOf(target, false);
+    if (!srcHips || !srcFoot || !tgtHips || !tgtFoot) return null;
+    const reach = (h, f) => {
+      h.getWorldPosition(_lV); f.getWorldPosition(_lF); return _lV.y - _lF.y;
+    };
+    const srcStand = reach(srcHips, srcFoot), tgtStand = reach(tgtHips, tgtFoot);
+    if (!(srcStand > 1e-6) || !(tgtStand > 1e-6)) return null;
+
+    /* Parents before children: a local rotation only means anything
+       once its parent's world rotation is known, and traverse() is
+       already depth-first from the root. */
+    const byKey = new Map();
+    for (const o of jointsOf(target, false)){
+      const k = canonBone(o.name);
+      if (k && !byKey.has(k)) byKey.set(k, o);
+    }
+    /* ── which side is this rig's "Left" actually on? ─────────────────
+       A bone called Left is not necessarily on the left. The first
+       character authored for this campus has LeftFoot at x = -0.125,
+       the side every other rig here calls Right, and motion transfers
+       SPATIALLY — so the donor's +x arm drove the bone at -x and the
+       figure sat down correctly from the waist while raising both arms
+       over its head. Rendered; unmistakable; and identical to the
+       failure signature of a body nobody could explain for a week.
+
+       Asked of the geometry rather than the name, and calibrated
+       against the DONOR rather than against a convention, so it needs
+       to know nothing about which handedness is "right". If the two
+       files disagree about where left is, the sides are swapped for
+       this pairing only — nothing is written to either file, and the
+       day the author corrects the export upstream this quietly stops
+       doing anything. */
+    const sideOf = (root, loose, key) => {
+      const hips = hipFootOf(root, loose)[0];
+      let bone = null;
+      for (const o of jointsOf(root, loose)) if (canonBone(o.name) === key){ bone = o; break; }
+      if (!hips || !bone) return 0;
+      hips.getWorldPosition(_lV); const hx = _lV.x;
+      bone.getWorldPosition(_lV);
+      return Math.sign(_lV.x - hx);
+    };
+    const sSide = sideOf(srcRoot, true, "leftfoot"), tSide = sideOf(target, false, "leftfoot");
+    const mirrored = sSide !== 0 && tSide !== 0 && sSide !== tSide;
+    const flip = (k) => !mirrored ? k
+      : k.startsWith("left") ? "right" + k.slice(4)
+      : k.startsWith("right") ? "left" + k.slice(5) : k;
+    if (mirrored)
+      console.info("cast: " + name + " — this rig labels its sides the other way round, swapping");
+
+    const pairs = [];
+    for (const s of src){
+      const t = byKey.get(flip(canonBone(s.name)));
+      if (t) pairs.push({ s, t });
+    }
+    if (!pairs.length) return null;
+
+    const restS = pairs.map(({ s }) => s.getWorldQuaternion(new THREE.Quaternion()));
+    const restT = pairs.map(({ t }) => t.getWorldQuaternion(new THREE.Quaternion()));
+
+    const mixer = new THREE.AnimationMixer(srcRoot);
+    const act = mixer.clipAction(clip);
+    act.reset(); act.play(); act.setEffectiveWeight(1);
+
+    const n = Math.max(2, Math.round(clip.duration * fps) + 1);
+    const times = new Float32Array(n);
+    const out = pairs.map(() => new Float32Array(n * 4));
+    const hipsPos = new Float32Array(n * 3);
+    const world = new Map();
+
+    /* whatever the receiver's hips think "down" is */
+    const parent = tgtHips.parent;
+    parent.updateWorldMatrix(true, false);
+    const up = new THREE.Vector3(0, 1, 0)
+      .transformDirection(new THREE.Matrix4().copy(parent.matrixWorld).invert()).normalize();
+    const perWorld = 1 / (parent.matrixWorld.getMaxScaleOnAxis() || 1);
+    const restPos = tgtHips.position.clone();
+
+    for (let i = 0; i < n; i++){
+      const time = Math.min(clip.duration - 1e-4, (i / (n - 1)) * clip.duration);
+      times[i] = time;
+      act.time = time; mixer.setTime(time);
+      srcRoot.updateMatrixWorld(true);
+
+      const frac = reach(srcHips, srcFoot) / srcStand;    /* 1 standing, ~0.5 seated */
+      _lV.copy(up).multiplyScalar((frac - 1) * tgtStand * perWorld).add(restPos);
+      hipsPos[i * 3] = _lV.x; hipsPos[i * 3 + 1] = _lV.y; hipsPos[i * 3 + 2] = _lV.z;
+
+      world.clear();
+      pairs.forEach(({ s, t }, bi) => {
+        s.getWorldQuaternion(_lq);
+        _lD.copy(restS[bi]).invert().premultiply(_lq);   /* how far from ITS rest */
+        _lW.copy(_lD).multiply(restT[bi]);               /* onto the receiver's */
+        world.set(t, _lW.clone());
+        const p = t.parent;
+        if (p && world.has(p)) _lP.copy(world.get(p));
+        else if (p) p.getWorldQuaternion(_lP);
+        else _lP.identity();
+        _lL.copy(_lP).invert().multiply(_lW);
+        const a = out[bi], o4 = i * 4;
+        a[o4] = _lL.x; a[o4 + 1] = _lL.y; a[o4 + 2] = _lL.z; a[o4 + 3] = _lL.w;
+      });
+    }
+    act.stop(); mixer.uncacheAction(clip); mixer.uncacheRoot(srcRoot);
+
+    const tracks = pairs.map(({ t }, bi) =>
+      new THREE.QuaternionKeyframeTrack(t.name + ".quaternion", times, out[bi]));
+    tracks.push(new THREE.VectorKeyframeTrack(tgtHips.name + ".position", times, hipsPos));
+    return new THREE.AnimationClip(name, clip.duration, tracks);
+  } catch (err){
+    console.warn("cast: could not lend " + name, err);
+    return null;
+  } finally {
+    restore();
+  }
 }
 /* ── what can this body do? ───────────────────────────────────────────
    Every download names its clips "mixamo.com", so the names say
@@ -4499,7 +4879,8 @@ const ROLE_CACHE = {};
 const SEATED_AT = 0.62;
 const _seatV = new THREE.Vector3(), _seatW = new THREE.Vector3();
 function seatRoles(src){
-  const out = { seat: null, rise: null, seated: new Set(), riseFrom: 1 };
+  const out = { seat: null, rise: null, sit: null, seated: new Set(),
+                riseFrom: 1, sitTo: 1 };
   if (!src.animations?.length) return out;
 
   /* Evaluate the pose. Two cheaper readings were tried and both were
@@ -4567,31 +4948,53 @@ function seatRoles(src){
     } else if (lo0 && !lo1){
       out.rise = r.name;                /* low to high: standing up */
       out.riseFrom = r.y0 / stand;      /* ...from how far down? */
+    } else if (!lo0 && lo1){
+      /* high to low: an actual sit-down, which until the borrowed clip
+         landed no body on this campus owned. Worth more than a
+         reversed stand-up in both directions — it is the right length,
+         it ends where a chair is, and played backwards it is a
+         stand-up from that same chair. */
+      out.sit = r.name;
+      out.sitTo = r.y1 / stand;         /* ...down to where? */
     }
   }
-  /* Where the rise STARTS decides where the student has to be sitting,
-     and the two clips have to agree or the hips jump between them.
-     Walker's pair does not: Standing Up begins at 0.01 of standing
-     height — flat on the floor — and Sitting Talking sits at 0.48,
-     which is a chair. Chaining those snaps the hips half a body.
-     
-     So a rise from the floor means sitting ON THE GROUND, and the
-     seated pose is the last frame of the sit-down held, which is by
-     construction exactly where the rise begins. A rise from chair
-     height can use the seated loop, because then they agree. */
-  if (out.rise && out.seat){
+  /* Where the transition MEETS the seat, and the two have to agree or
+     the hips jump between them. Walker's own pair does not: Standing
+     Up begins at 0.01 of standing height — flat on the floor — and
+     Sitting Talking sits at 0.48, which is a chair. Chaining those
+     snaps the hips half a body, so the loop is dropped and the seated
+     pose becomes the last frame of the sit held.
+
+     With a sit-down present the question is asked of ITS end instead,
+     which is the pose the student will actually be in. The borrowed
+     one finishes at 0.47 against Sitting Talking's 0.48, so for the
+     first time the forty-four second seated loop is reachable. */
+  const meets = out.sit ? out.sitTo : out.rise ? out.riseFrom : null;
+  if (meets !== null && out.seat){
     const seatRow = rows.find(r => r.name === out.seat);
     const seatY = seatRow ? seatRow.mid / stand : 0;
-    if (Math.abs(seatY - out.riseFrom) > 0.15) out.seat = null;
+    if (Math.abs(seatY - meets) > 0.15) out.seat = null;
   }
   return out;
+}
+/* Which clip takes a student down into a seat and back out of it, and
+   which way round to play it. A measured sit-down serves both ways;
+   without one, a stand-up reversed is still the best there is. */
+function seatCycle(R){
+  if (!R) return null;
+  if (R.sit)  return { down: R.sit,  downRev: false, up: R.sit,  upRev: true,
+                       to: R.sitTo ?? 0.5 };
+  if (R.rise) return { down: R.rise, downRev: true,  up: R.rise, upRev: false,
+                       to: R.riseFrom ?? 1 };
+  return null;
 }
 function rolesOf(k, src){
   if (ROLE_CACHE[k]) return ROLE_CACHE[k];
   const sit = seatRoles(src);
   if (k === "walker")
     return (ROLE_CACHE[k] = { gaits: GAITS, idle: "Idle", start: "Start Walking",
-                              seat: sit.seat, rise: sit.rise, riseFrom: sit.riseFrom });
+                              seat: sit.seat, rise: sit.rise, riseFrom: sit.riseFrom,
+                              sit: sit.sit, sitTo: sit.sitTo });
   const scored = src.animations
     .filter(c => c.duration > 0.2)                 /* an eye-blink is not a clip */
     .map(c => ({ name: c.name, cadence: (c.userData?.cycles || 0) / c.duration }));
@@ -4600,12 +5003,13 @@ function rolesOf(k, src){
      would otherwise be handed straight to idle — leaving a student
      sitting in mid-air every time they stopped walking. */
   const still = scored.filter(c => c.cadence <= 0.45 && !sit.seated.has(c.name) &&
-                                   c.name !== sit.rise).map(c => c.name);
+                                   c.name !== sit.rise && c.name !== sit.sit).map(c => c.name);
   /* No idle is not a fault, it is a fact about the download: a body
      with nothing to do when standing simply never stops walking. That
      reads far better than freezing someone mid-stride. */
   const roles = { gaits, idle: still[0] || null, start: null,
-                  seat: sit.seat, rise: sit.rise, riseFrom: sit.riseFrom };
+                  seat: sit.seat, rise: sit.rise, riseFrom: sit.riseFrom,
+                  sit: sit.sit, sitTo: sit.sitTo };
   ROLE_CACHE[k] = roles;
   return roles;
 }
@@ -4662,6 +5066,271 @@ function detailPass(){
     }
   }
 }
+/* ── the sit-down, and who gets to borrow it ──────────────────────────
+   54KB, and it is a whole skeleton with no skin on it: the character
+   this came on is 847KB, and none of that weight is the motion. What
+   the file has to carry is the bone hierarchy and its rest pose, which
+   is what lendClip measures the borrowed motion against.
+
+   gltf-transform prunes the skin once no mesh points at it, so these
+   joints arrive as plain Object3D rather than Bone — which is why the
+   source side of lendClip asks about names and the target side asks
+   about bones. */
+const SIT_DONOR = "assets/clip_sit.glb";
+/* What a body has to have before it can be handed a sit-down: a
+   pelvis, a spine to fold, and two legs that bend in two places and
+   end in a foot. Everything else in the clip is decoration. */
+const SIT_CHAIN = ["hips", "spine", "leftupleg", "leftleg", "leftfoot",
+                   "rightupleg", "rightleg", "rightfoot"];
+/* A standing pose needs less: nothing has to bend, but the figure does
+   have to have a spine and legs to stand on. */
+const STAND_CHAIN = ["hips", "spine", "leftupleg", "leftfoot",
+                     "rightupleg", "rightfoot"];
+/* ── did the receiver end up in the same shape as the donor? ──────────
+   A lent clip can bind every bone it needs and still be nonsense. Two
+   of them were: nadia came out with her arms over her head and sophia
+   balanced on one leg, both binding 53 joints out of 69, because their
+   files rested in a pose that did not correspond to the donor's rest
+   and the delta then meant something different on them.
+
+   The first version of this check was a pair of thresholds picked by
+   eye — the pelvis must drop, the feet must stay down — and it let
+   both of them straight through. Tuning the numbers until they failed
+   would have been fitting the test to two known bodies rather than
+   testing anything.
+
+   The real rule is the one the retarget is FOR: the receiver should
+   end up in the same shape as the donor. So both are driven together
+   and compared, joint by joint, in the only units that mean the same
+   thing on two different bodies — height above the floor as a fraction
+   of that rig's own standing hip height. Proportions differ, so the
+   tolerance is loose; a hand where a donor's head is exceeds it by a
+   mile.
+
+   It earned its keep at once, on a sit that had already been RENDERED
+   and passed — see the note about inPlaceClip below. */
+/* The pelvis and the feet, and deliberately not the hands. What the
+   retarget has to get right is where the BODY is: the pelvis low
+   enough to be on a seat and the feet still on the floor. Arms are
+   what differs most between rigs and what matters least to whether a
+   sit reads — measured, comparing hands rejected kenta at 0.36 and
+   isla at 0.67 of a body, both of whom had been rendered sitting
+   perfectly well. Both broken bodies failed on their feet anyway:
+   sophia balanced on one leg and nadia lifted a knee to her chest,
+   the same fault that made them look wrong. Both are gone now, but
+   the joints chosen here were chosen by that evidence. */
+const POSE_JOINTS = ["leftfoot", "rightfoot", "hips"];
+const POSE_SAMPLES = 10;
+const POSE_TOLERANCE = 0.35;      /* of standing hip height */
+const _ppV = new THREE.Vector3();
+function poseProfile(root, clip, loose){
+  const joints = new Map();
+  for (const o of jointsOf(root, loose)){
+    const k = canonBone(o.name);
+    if (POSE_JOINTS.includes(k) && !joints.has(k)) joints.set(k, o);
+  }
+  const [hips, , feet] = hipFootOf(root, loose);
+  if (!hips || !feet.length || joints.size < POSE_JOINTS.length) return null;
+  root.updateMatrixWorld(true);
+  hips.getWorldPosition(_ppV);
+  const hipY = _ppV.y;
+  feet[0].getWorldPosition(_ppV);
+  const stand = hipY - _ppV.y;
+  if (!(stand > 1e-6)) return null;
+
+  const mixer = new THREE.AnimationMixer(root);
+  const act = mixer.clipAction(clip);
+  act.reset(); act.play(); act.setEffectiveWeight(1);
+  const rows = [];
+  for (let i = 0; i <= POSE_SAMPLES; i++){
+    const t = Math.min(clip.duration - 1e-4, clip.duration * i / POSE_SAMPLES);
+    act.time = t; mixer.setTime(t);
+    root.updateMatrixWorld(true);
+    let floor = Infinity;
+    for (const f of feet){ f.getWorldPosition(_ppV); floor = Math.min(floor, _ppV.y); }
+    hips.getWorldPosition(_ppV);
+    const hy = _ppV.y;
+    const row = {};
+    /* Everything but the pelvis is measured FROM the pelvis. Against
+       the floor instead, isla is rejected for a hand 0.72 of a body out
+       of place while sitting perfectly well — she is wearing heels and
+       has long legs, so every height above the ground is shifted before
+       the clip does anything. A hand resting on a knee sits at much the
+       same place below the hips on any body; the pelvis is the one that
+       has to be measured against the floor, because how far it is off
+       the ground is the whole question a sit-down asks. */
+    for (const [k, o] of joints){
+      o.getWorldPosition(_ppV);
+      row[k] = k === "hips" ? (hy - floor) / stand : (_ppV.y - hy) / stand;
+    }
+    rows.push(row);
+  }
+  act.stop(); mixer.uncacheAction(clip); mixer.uncacheRoot(root);
+  return rows;
+}
+/* The donor is measured once per clip, not once per body. */
+const POSE_REF = new Map();
+function poseLooksWrong(clip, src, expect, from, fromClip){
+  let ref = POSE_REF.get(fromClip);
+  if (ref === undefined){
+    /* driven on a clone so the donor is left as it was found */
+    ref = poseProfile(skeletonClone(from.scene), fromClip, true);
+    POSE_REF.set(fromClip, ref);
+  }
+  const mine = poseProfile(skeletonClone(src.scene), clip, false);
+  if (!mine) return "nothing measurable to compare";
+  if (!ref) return null;                  /* cannot compare — let it through */
+  let worst = 0, where = "";
+  for (let i = 0; i < Math.min(ref.length, mine.length); i++){
+    for (const k of POSE_JOINTS){
+      if (ref[i][k] === undefined || mine[i][k] === undefined) continue;
+      const d = Math.abs(ref[i][k] - mine[i][k]);
+      if (d > worst){ worst = d; where = k; }
+    }
+  }
+  if (worst > POSE_TOLERANCE)
+    return where + " off by " + worst.toFixed(2) + " of a body";
+  /* and a cheap sanity on what the clip is FOR, in case the donor and
+     the receiver are wrong together */
+  const lo = Math.min(...mine.map(r => r.hips));
+  const hi = Math.max(...mine.map(r => r.hips));
+  if (expect === "sit" && mine[0].hips - mine[mine.length - 1].hips < 0.25)
+    return "the hips never drop";
+  if (expect === "seated" && hi > 0.75) return "hips reach " + hi.toFixed(2) + ", not seated";
+  if (expect === "stand" && lo < 0.6) return "hips fall to " + lo.toFixed(2) + " for an idle";
+  return null;
+}
+/* ── bodies excluded from lending by name ─────────────────────────────
+   Empty now, and it once held the reason this set exists: nadia and
+   sophia rested in a pose the donor's rest did not correspond to, and
+   rendered through this exact code path nadia came out with her arms
+   over her head, sophia balanced on one leg — both binding 53 of 69
+   joints, both passing every measurement that was tried. Comparing
+   where the hands end up rejected isla at 0.67 of a body before it
+   rejected nadia at 1.11, and isla sits perfectly well; a threshold
+   between those numbers would have been fitted to two bodies, not a
+   test. So known-bad bodies get excluded HERE, by name, with the
+   reason written down.
+
+   The auto-rigger route was prepared for them (tools/prep-inbox.txt)
+   and then overtaken: both were replaced outright by authored
+   characters whose rest equals their bind. If a future body passes the
+   structural check below and still renders wrong, its name goes in
+   this set — that is what the set is for. */
+const NO_LENDING = new Set([]);
+let sitDonor = null;
+/* ── what each body is short of, and who can lend it ──────────────────
+   Three clips, one mechanism. The sit-down comes from its own donor;
+   the other two come from walker, who is the only body on this campus
+   whose download carried more than a walk.
+
+     Stand To Sit    nobody had one. Without it every student sits on
+                     the grass and ten benches go unused.
+     Idle            six of the eight roaming bodies have none, and a
+                     body with nothing to do standing still NEVER
+                     STOPS WALKING — that is what holdStill and
+                     passingTime exist to paper over. It is also why
+                     Priya, who asks for a body that can stand about,
+                     could only ever be walker.
+     Sitting Talking only walker owns the forty-four second seated
+                     loop, so everybody else holds the sit's last frame
+                     — capped at 34 seconds, because a held pose is the
+                     statue this was all supposed to remove, sitting
+                     down. */
+function lendable(){
+  return [
+    { name: "Stand To Sit", from: sitDonor, clip: sitDonor && sitDonor.animations[0],
+      chain: SIT_CHAIN, expect: "sit",
+      wanted: (R) => !R.sit },
+    /* ── not from walker, and here is why ─────────────────────────────
+       Idle and Sitting Talking were lent from him and both were WRONG:
+       woman stood hunched with her head down, isla bent over backwards
+       with her arms out. Rendered through this exact code path, and
+       the acceptance test below passed them both.
+
+       The reason is the donor, not the receivers. lendClip carries each
+       bone's change FROM ITS OWN REST, which assumes the donor's rest
+       is a neutral pose — true of a Sketchfab Mixamo export like the
+       sit donor, and evidently not true of walker, who was assembled
+       out of eight FBX downloads in Blender. A near-still idle is
+       almost all rest and almost no change, so on him the error is the
+       whole clip.
+
+       Left out until there is a donor whose rest is known good, or the
+       retarget stops depending on the donor's rest. Both are real
+       pieces of work; shipping a campus of hunched students to save
+       them is not.
+
+    { name: "Idle", from: w, clip: byName(w, "Idle"), ... }
+    { name: "Sitting Talking", from: w, clip: byName(w, "Sitting Talking"), ... }
+    */
+  ];
+}
+function lendSitDown(){
+  const log = [];
+  for (const job of lendable()){
+    if (!job.clip || !job.from) continue;
+    const got = [], no = [];
+    for (const k of Object.keys(castLib)){
+      const src = castLib[k];
+      if (!src || !ROAMING.includes(k)) continue;   /* only the ones roles drive */
+      if (NO_LENDING.has(k)){ no.push(k + " (rests in the wrong pose)"); continue; }
+      if (src === job.from) continue;               /* it is already theirs */
+      /* Belt as well as braces. `wanted` asks the ROLES, and a role is
+         a conclusion drawn from the clips — if that conclusion comes
+         out wrong the same clip gets lent again on every later pass and
+         the body ends up carrying five copies of one idle. Measured:
+         ariel collected five. */
+      if (src.animations.some(c => c.name === job.name)) continue;
+      if (!job.wanted(rolesOf(k, src))) continue;   /* they have one of their own */
+      const lent = lendClip(job.clip, src.scene, job.from.scene, job.name);
+      /* Whether the bones this POSE needs are there, not how many bones
+         matched. Counting was the obvious test and it was wrong: isla
+         carries every bone a sit needs and only 32 of the 75 tracks,
+         because she has no fingers — and a threshold on the count threw
+         out the one woman on this campus who could have sat down.
+         Fingers do not sit. */
+      if (!lent || !job.chain.every(b =>
+            lent.tracks.some(t => canonBone(t.name.split(".")[0]) === b))){
+        no.push(k + " (bones)"); continue;
+      }
+      /* ...and then LOOK at it, because binding is not the same as
+         working. nadia and sophia bound 53 joints apiece and came out
+         twisted, standing on one leg with their arms over their heads —
+         their files rested in a pose the donor's rest did not correspond
+         to, and no count of matched bones said so. Rendered to find it;
+         measured here so it cannot ship. */
+      const why = poseLooksWrong(lent, src, job.expect, job.from, job.clip);
+      if (why){ no.push(k + " (" + why + ")"); continue; }
+      src.animations.push(lent);
+      /* NOT prepareClips: that ends in inPlaceClip, which pins every
+         position track's x and z to frame 0 to strip root travel. A
+         lent clip has no travel to strip — its hips track is written
+         from the target's own rest position every key — and on a rig
+         whose hips axis is not world up the DESCENT is carried in x and
+         z, so pinning them flattened walker's sit into a squat and his
+         feet came up to meet it. Caught by the acceptance test, on a
+         body whose sit had already been rendered and passed. Only the
+         cycle count is wanted here. */
+      if (!lent.userData) lent.userData = {};
+      /* The SOURCE's count, not a fresh one off the retargeted curves.
+         gaitCycles counts a thigh swinging back and forth, and a
+         retarget leaves enough jitter on a still thigh to score seven
+         crossings on a standing idle — which then reads as a gait
+         cadence, keeps roles.idle empty, and has the body walking for
+         ever while collecting another copy of the idle every pass.
+         It is the same motion; it has the same number of cycles. */
+      lent.userData.cycles = job.clip.userData?.cycles ?? gaitCycles(lent);
+      delete ROLE_CACHE[k];                     /* what this body can do just changed */
+      got.push(k);
+    }
+    if (got.length || no.length)
+      log.push(job.name + " -> " + (got.join(", ") || "nobody") +
+               (no.length ? "; declined by " + no.join(", ") : ""));
+  }
+  if (log.length) console.info("cast: lent " + log.join("  |  "));
+}
+
 {
   const first = CAST_FIRST.filter(k => CAST_FILES[k]);
   const later = Object.keys(CAST_FILES).filter(k => !first.includes(k));
@@ -4682,12 +5351,17 @@ function detailPass(){
      that does not arrive is simply one fewer person. */
   const lost = (k, err) =>
     console.warn("cast: " + CAST_FILES[k] + " did not load, carrying on without it", err);
+  /* + 1 for the clip donor. It has to be in before buildCast, because
+     prepFigure builds a body's actions from the clips it has AT THAT
+     MOMENT — a sit-down that lands afterwards would be owned by the
+     library and reachable by nobody already standing on the quad. */
   const done = () => {
-    if (++castReady < first.length) return;
+    if (++castReady < first.length + 1) return;
     if (!loadedRoaming().length && !loadedLoitering().length){
       console.error("no rigged body loaded — no students");
       return;
     }
+    lendSitDown();
     /* Claimed before the campus is built, not after. buildCast ends by
        offering to fill a ?crowd quad, and if the count were still zero
        at that moment it would fill from the first wave alone — which is
@@ -4700,7 +5374,12 @@ function detailPass(){
     gltf.__late = true;
     const settled = () => { if (--lateOutstanding === 0) topUpForcedCrowd(); };
     later.forEach(k => gltf.load(CAST_FILES[k],
-      (g) => { arrive(k, g); settled(); },
+      /* Lend to them too. The warning above is about bodies already
+         BUILT — these have not been yet, they are the crowd's, and
+         prepFigure will read their clips when the ramp reaches them.
+         Without this the four that arrive late could never sit, which
+         is three of the five women. */
+      (g) => { arrive(k, g); lendSitDown(); settled(); },
       undefined,
       (e) => { lost(k, e); settled(); }));
     gltf.__late = false;
@@ -4713,6 +5392,13 @@ function detailPass(){
     lost(k, err);
     done();
   }));
+  /* Alongside them, not after: a body built before this lands cannot
+     be given the clip later. If it fails to arrive the campus simply
+     goes back to sitting on the grass. */
+  gltf.load(SIT_DONOR, (g) => { sitDonor = g; done(); }, undefined, (err) => {
+    console.warn("cast: " + SIT_DONOR + " did not load — nobody will sit on a bench", err);
+    done();
+  });
 }
 /* ── dressing one model as a whole cohort ────────────────────────────
    There is exactly one rigged character in this project, and a campus
@@ -4954,7 +5640,7 @@ function buildCast(){
   STUDENT_ROSTER.forEach((st, i) => {
     if (!present[i]) return;             /* in a lecture */
     const plan = CAST_PLAN[i];
-    const k = bodyFor(plan.k);
+    const k = bodyFor(plan.k, st.looks, plan.needs);
     if (!k) return;                      /* nothing loaded at all */
     /* Dressed off this visit's seed, so Elowen is not wearing the same
        shirt she wore last time either. Her name, her lines and where
@@ -4963,25 +5649,34 @@ function buildCast(){
     const g = prepFigure(k, CAST_HEIGHT[k] * buildOf(seed), plan.live, plan.pose || 0);
     if (!g) return;
     if (ROAMING.includes(k)) dressFigure(g, seed);
+    /* The plan asked for a POSE; the body says which of its clips that
+       is. A missing one is null rather than a name nothing answers to,
+       so setClip leaves the figure on whatever it is already playing
+       instead of silently doing nothing and looking frozen. */
+    const roles = g.userData.anim?.roles;
+    const clip = plan.clip ? (roles && roles[plan.clip]) || null : null;
     const tagEl = document.createElement("div");
     tagEl.className = "stu-tag";
     tagEl.textContent = st.name;
     const tag = new CSS2DObject(tagEl);
-    tag.position.y = plan.k === "laptop" ? 32 : 48;
+    /* plan.kind, not plan.k — `k` is which body to build and has never
+       been "laptop", so the seated student's name tag has always hung
+       at standing height, a head and a half above where she is. */
+    tag.position.y = plan.kind === "laptop" ? 32 : 48;
     g.add(tag);
     world.add(g);
     if (plan.orbit){
       const a0 = i * 0.9;
-      if (plan.clip){ setClipOn(g, plan.clip); stagger(g, plan.clip); }
-      students.push({ g, data: st, orbit: 182.5, orbitA: a0, orbitW: 0.16, clip: plan.clip,
-                      roles: g.userData.anim?.roles,
+      if (clip){ setClipOn(g, clip); stagger(g, clip); }
+      students.push({ g, data: st, orbit: 182.5, orbitA: a0, orbitW: 0.16, clip,
+                      roles,
                       pos: [500 + Math.cos(a0) * 182.5, 500 + Math.sin(a0) * 182.5] });
       return;
     }
     if (plan.at){
       g.position.set(W(plan.at[0]), 0, W(plan.at[1]));
       g.rotation.y = plan.face || 0;
-      if (plan.clip){ setClipOn(g, plan.clip); stagger(g, plan.clip); }
+      if (clip){ setClipOn(g, clip); stagger(g, clip); }
       /* Their roles, same as a roamer gets. Without this line every
          student who stands still — the ones at the doors, the ones on
          the plaza, the ones you are most likely to walk up to and
@@ -4991,7 +5686,7 @@ function buildCast(){
          standing animation was frozen mid-breath, on the lawn and in
          conversation both, and the clip it owned never played once. */
       students.push({ g, data: st, static: true, kind: plan.kind, baseYaw: plan.face || 0,
-                      roles: g.userData.anim?.roles,
+                      roles,
                       phase0: i * 1.7, pos: [...plan.at] });
       return;
     }
@@ -5124,6 +5819,7 @@ const CROWD_FLOOR = 33;
    crowd untested on the only machine that tests anything. */
 const CROWD_FORCE = q.has("crowd") ? Math.max(0, Math.min(CROWD_MAX, +q.get("crowd") || 0)) : null;
 let crowdReady = false, crowdN = 0, crowdNext = 0, crowdDone = false, crowdFps = 60;
+let crowdSpent = false;          /* every distinct body is already out there */
 /* ?crowd fills the quad once every body that is coming has come, so a
    forced crowd shows the whole cohort rather than whichever half
    happened to load first. Called both when the campus is built and when
@@ -5146,7 +5842,7 @@ function fillForcedCrowd(){
     return;
   }
   clearTimeout(lateGiveUp);
-  while (crowdN < CROWD_FORCE) addExtra(crowdN++);
+  while (crowdN < CROWD_FORCE && addExtra(crowdN)) crowdN++;
   crowdDone = true;
 }
 /* ── and when the stragglers finally arrive ───────────────────────────
@@ -5191,37 +5887,37 @@ const VISIT = Math.floor(Math.random() * 1e6);
    people should be three different people, not three throws of the same
    die that might come up the same twice. */
 let castDeck = [];
-let castPass = 0;                      /* how many times the deck has been dealt */
 function nextBody(n){
   const pool = loadedRoaming();
   if (!pool.length) return null;
-  if (n === 0){ castPass = 0; castDeck = []; }
-  if (castDeck.length === 0){
-    castPass++;
-    /* Everybody once, then only the ones a change of clothes can tell
-       apart. Four of the eight roaming bodies own no mesh the wardrobe
-       can dress — alina, nathan, kenta and isla wear what is in their
-       file — so a second copy of one of those is not a similar student,
-       it is the same student twice, down to the pixel. Reported as "too
-       many same people", and photographed: two identical men in red.
-       A second walker at least arrives in a different shirt.
-       Falls back to the whole pool if nothing loaded is dressable,
-       because a repeat beats an empty campus. */
-    const repeatable = pool.filter(k => CAST_DRESSABLE.includes(k));
-    castDeck = (castPass === 1 || !repeatable.length) ? pool.slice() : repeatable.slice();
-    for (let i = castDeck.length - 1; i > 0; i--){
-      const j = Math.floor(Math.random() * (i + 1));
-      [castDeck[i], castDeck[j]] = [castDeck[j], castDeck[i]];
-    }
+  if (n === 0) castDeck = [];
+  /* Asked as the card is dealt rather than as the deck is built: the
+     named cast is built first and takes bodies out of circulation, and
+     a deck shuffled before that happened would deal them again. */
+  const worn = wornFigures();
+  while (castDeck.length){
+    const k = castDeck.pop();
+    if (!worn.has(k)) return k;
+  }
+  /* One pass, and there is no second one. An empty space on the lawn
+     is better than the same student standing in two of them. */
+  const src = pool.filter(k => !worn.has(k));
+  if (!src.length) return null;
+  castDeck = src.slice();
+  for (let i = castDeck.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [castDeck[i], castDeck[j]] = [castDeck[j], castDeck[i]];
   }
   return castDeck.pop();
 }
+/* true if somebody was actually added — the crowd has to be able to
+   tell "not yet" from "there is nobody left who would not be a twin" */
 function addExtra(n){
   const k = nextBody(n);
-  if (!k) return;
+  if (!k) return false;
   const seed = VISIT + n * 37;
   const g = prepFigure(k, CAST_HEIGHT[k] * buildOf(seed), false);
-  if (!g) return;
+  if (!g) return false;
   dressFigure(g, seed);
   g.userData.crowd = true;               /* test/debug: not one of the named */
   world.add(g);
@@ -5230,6 +5926,7 @@ function addExtra(n){
      together are small, and if they do they will have walked apart
      within the minute. */
   makeRoamer(g, ALL_WAYS[Math.floor(Math.random() * ALL_WAYS.length)]);
+  return true;
 }
 function stepCrowd(now, dt, raw){
   /* a slow average, so one stutter — a model finishing its decode, a
@@ -5257,7 +5954,11 @@ function stepCrowd(now, dt, raw){
   if (now < crowdNext) return;
   if (crowdN >= CROWD_MIN && crowdFps < CROWD_FLOOR){ crowdDone = true; return; }
   crowdNext = now + 500;
-  addExtra(crowdN++);
+  /* Out of people rather than out of budget: stop, and say so in the
+     panel, so "3 people" reads as a fact about the cast rather than a
+     performance cap somebody has to go looking for. */
+  if (addExtra(crowdN)) crowdN++;
+  else { crowdDone = true; crowdSpent = true; }
 }
 /* test/debug hook: how many people are on campus, whether more are
    coming, and what they cost to draw. `target` is what this visit drew
@@ -5282,7 +5983,7 @@ window.__crowd = () => ({ n: crowdN, done: crowdDone, fps: crowdFps,
  * bodies, same deck. What arrives is what a machine that could keep up
  * would have shown, all at once instead of over a few seconds. */
 window.__crowdFill = () => {
-  while (crowdN < CROWD_TARGET) addExtra(crowdN++);
+  while (crowdN < CROWD_TARGET && addExtra(crowdN)) crowdN++;
   crowdDone = true;
   return crowdN;
 };
@@ -5355,7 +6056,7 @@ function passingTime(g){
     /* ...and the side may be spelled at either end. Mixamo writes
        LeftHand, Character Creator CC_Base_L_Hand, Renderpeople
        hand_l — and the last of those keys to "handl", which an
-       anchored /hand$/ misses completely. nathan and sophia are both
+       anchored /hand$/ misses completely. nathan and sophia were both
        Renderpeople, so their arms were never scored at all: the search
        fell back to feet alone, which is precisely the case the comment
        below warns about, because a bind pose has its feet together
@@ -5750,10 +6451,11 @@ function stepStudents(dt, now){
         const dx = seat.x - s.pos[0], dy = seat.y - s.pos[1];
         const d = Math.hypot(dx, dy);
         if (d < 3){
+          const cyc = seatCycle(s.roles);
           s.mode = "sitdown";
           s.g.rotation.y = seat.face;
           s.pos[0] = seat.x; s.pos[1] = seat.y;
-          s.until = now + (playOnce(s, s.roles.rise, true) || 1200);
+          s.until = now + (cyc ? playOnce(s, cyc.down, cyc.downRev) || 1200 : 1200);
           s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
           continue;
         }
@@ -5792,8 +6494,9 @@ function stepStudents(dt, now){
           s.anim0 = s.roles.seat;
         }
       } else if (s.mode === "seated"){
+        const cyc = seatCycle(s.roles);
         s.mode = "standup";
-        s.until = now + (playOnce(s, s.roles.rise, false) || 1200);
+        s.until = now + (cyc ? playOnce(s, cyc.up, cyc.upRev) || 1200 : 1200);
       } else {
         s.mode = "walk";
         s.sitAt = now;                /* not again for a while */
@@ -5922,12 +6625,21 @@ function stepStudents(dt, now){
            got up. Sitting is the longer, more legible thing to do; a
            student who would otherwise stand about for four seconds is
            better spent walking to a bench. */
-        const canSit = s.roles?.rise && now - (s.sitAt || -1e9) > SIT_COOL &&
+        const cyc = seatCycle(s.roles);
+        const canSit = cyc && now - (s.sitAt || -1e9) > SIT_COOL &&
                        Math.random() < P_SIT;
         /* On the ground where they stand, or on a bench — decided by
-           where this body's rise clip begins, not by preference. */
-        const onGround = canSit && (s.roles.riseFrom ?? 1) < 0.25;
-        const seat = (canSit && !onGround && s.roles.seat) ? freeSeat(s) : null;
+           where this body's seat cycle bottoms out, not by preference.
+           A reversed stand-up that begins flat on the floor puts them
+           on the grass; a real sit-down that finishes at chair height
+           sends them to a bench. Until the borrowed clip landed only
+           the first of those existed, and every bench on this campus
+           went unused. */
+        const onGround = canSit && cyc.to < 0.25;
+        /* No seated loop is not a reason to stay standing: the pose the
+           sit-down ends on IS a person sitting, and clampWhenFinished
+           holds it. That is what `held` is for. */
+        const seat = (canSit && !onGround) ? freeSeat(s) : null;
         if (seat){
           seat.taken = s;             /* claimed on the way, not on arrival */
           s.seat = seat; s.mode = "toseat"; s.target = null;
@@ -5936,7 +6648,7 @@ function stepStudents(dt, now){
         }
         if (onGround){
           s.mode = "sitdown"; s.target = null;
-          s.until = now + (playOnce(s, s.roles.rise, true) || 1200);
+          s.until = now + (playOnce(s, cyc.down, cyc.downRev) || 1200);
           s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
           continue;
         }
@@ -6460,26 +7172,55 @@ controls.maxDistance = 2600;
 controls.maxPolarAngle = 1.32;
 controls.enablePan = false;
 const ray = new THREE.Raycaster();
+const _tapC = new THREE.Vector3(), _tapS = new THREE.Sphere();
 let downAt = null;
-renderer.domElement.addEventListener("pointerdown", e => { downAt = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener("pointerdown", e => {
+  downAt = [e.clientX, e.clientY, e.pointerType === "touch" ? 14 : 6];
+});
 renderer.domElement.addEventListener("pointerup", e => {
   if (!downAt || convoView) return;
   const moved = Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]);
+  /* Six pixels is a mouse. A finger rolls on the glass as it lifts, and
+     in walk mode every one of those pixels also turns the view, so a
+     tap that was meant to be still arrives as a small drag. Fourteen is
+     still far short of a deliberate swipe. */
+  const slop = downAt[2];
   downAt = null;
-  if (moved > 6) return;
+  if (moved > slop) return;
   const r = renderer.domElement.getBoundingClientRect();
   const ndc = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
   ray.setFromCamera(ndc, camera);
   /* People first, and in walk mode too — everything else here is
      buildings, and a tap that lands on a person means the person. The
      crowd are strangers with no name tag and nothing to say; only the
-     named eight carry a `data` record, so only they answer. */
+     named eight carry a `data` record, so only they answer.
+
+     Aimed at the PERSON rather than at their triangles. Two reasons,
+     one of them a bug and one of them a phone:
+
+     The bug: SkinnedMesh.raycast rejects on `boundingSphere` before it
+     ever looks at a triangle, and on these assets that sphere is a
+     marble at the student's feet — see prepFigure. Eight of eight
+     students in plain view returned zero hits. That is fixed at the
+     source, but a picking test that depends on a per-asset bounding
+     volume being right is a picking test that will break again with
+     the next body somebody drops in.
+
+     The phone: a fingertip is about forty pixels across and a student
+     across the quad is about twenty. Demanding an exact triangle hit
+     on a walking figure is a game of darts. A capsule around them is
+     what the visitor is aiming at anyway. */
   {
     let best = null, bestD = Infinity;
     for (const s of students){
       if (!s.data || !s.g || !s.g.visible) continue;
-      const hit = ray.intersectObject(s.g, true);
-      if (hit.length && hit[0].distance < bestD){ bestD = hit[0].distance; best = s; }
+      const h = s.g.userData.height || 42;
+      s.g.getWorldPosition(_tapC);
+      _tapC.y += h * 0.5;                  /* the middle of them, not their feet */
+      _tapS.set(_tapC, h * 0.55);
+      if (!ray.ray.intersectsSphere(_tapS)) continue;
+      const d = ray.ray.origin.distanceTo(_tapC);
+      if (d < bestD){ bestD = d; best = s; }
     }
     if (best){ convoOpen(best); return; }
   }
@@ -6960,6 +7701,7 @@ function dbgUpdate(now, dt, raw){
     "crowd  " + students.length + " people" +
       (CROWD_FORCE !== null ? "  (forced by ?crowd)" :
        crowdN >= CROWD_TARGET ? "  (all " + CROWD_TARGET + " in)" :
+       crowdSpent ? "  (every body already out — no twins)" :
        crowdDone ? "  (capped at " + crowdFps.toFixed(0) + "fps)" : "  (arriving)") + "\n" +
     "assets " + done.length + "/" + core.length + (bad.length ? "  " + bad.length + " FAILED" : "") +
       (pending ? "  (" + pending + " loading)" : "  all in " + (last / 1000).toFixed(1) + "s") + "\n" +
@@ -7635,7 +8377,7 @@ function facingOf(g){
      reason this is written out: Mixamo writes LeftFoot, Character
      Creator CC_Base_L_Foot, and Renderpeople foot_l — which keys to
      "footl" and slips straight past an anchored /foot$/. nathan and
-     sophia are both Renderpeople, so this returned null for them and
+     sophia were both Renderpeople, so this returned null for them and
      the caller fell back to turning the body by pi. A guess, on the two
      bodies a visitor stands closest to.
      "footend" is excluded so this takes the ankle and not the toe tip,
@@ -7894,6 +8636,39 @@ function convoFrame(dt){
 /* test/debug hooks: the cast, and the conversation they can be pulled
    into. `named` is the eight with a dossier — the crowd are strangers. */
 window.__students = students;
+/* test/debug hook. Whether a student CHOOSES a bench is a probability
+   spread over three minutes of cooldown, so a check that waits for one
+   to happen is measuring the dice. This lets a probe send somebody. */
+window.__seats = SEATS;
+window.__castLib = castLib;   /* test/debug hook: the loaded bodies */
+/* test/debug hook: lend the sit-down to a body that is not cast yet,
+   through the real lendClip. A character being authored has to be
+   judged before it is committed to, and judging it means seeing it
+   move — not reading a bone list. */
+window.__lendTo = (url) => new Promise((ok, no) => gltf.load(url, (g) => {
+  const clip = sitDonor && sitDonor.animations[0];
+  if (!clip) return ok({ err: "the sit donor has not loaded" });
+  const lent = lendClip(clip, g.scene, sitDonor.scene, "Stand To Sit");
+  if (!lent) return ok({ err: "nothing bound" });
+  ok({ gltf: g, clip: lent, tracks: lent.tracks.length,
+       why: poseLooksWrong(lent, g, "sit", sitDonor, clip) });
+}, undefined, (e) => ok({ err: String(e).slice(0, 120) })));
+/* test/debug hook: what the sit-down looks like on a given body, and
+   what the acceptance test made of it. */
+window.__sitCheck = (k, name = "Stand To Sit", expect = "sit") => {
+  const src = castLib[k];
+  const clip = src && src.animations.find(c => c.name === name);
+  /* The donor's own clip is called "mixamo.com" — the name it is given
+     is the one it gets on the RECEIVER. */
+  const donor = name === "Stand To Sit" ? sitDonor : castLib.walker;
+  const dclip = donor && (name === "Stand To Sit"
+    ? donor.animations[0] : donor.animations.find(c => c.name === name));
+  if (!src) return { has: false, why: "not loaded", clips: [], roles: null };
+  return { has: !!clip,
+           why: clip ? poseLooksWrong(clip, src, expect, donor, dclip) : "no clip",
+           clips: src.animations.map(c => c.name),
+           roles: rolesOf(k, src) };
+};
 /* test/debug hook: advance the crowd without painting.
  *
  * Everything the students decide, they decide on arriving at a

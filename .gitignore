@@ -9,3 +9,12 @@ __pycache__/
 
 # Character sheets and probe renders — regenerate with tools/character-sheet.mjs
 .shots/
+
+# A character being judged is not yet a character being shipped.
+# Deliveries under inspection sit in assets/inbox_* so the checkers can
+# reach them over the probe server without 18MB of candidate entering
+# history; *.probe.mjs are the throwaway harnesses that photograph
+# them. Both are recreated per delivery and belong to the session, not
+# the repository.
+assets/inbox_*
+*.probe.mjs
