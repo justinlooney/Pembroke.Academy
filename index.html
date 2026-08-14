@@ -1863,7 +1863,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v61";
+const BUILD = "pembroke-v62";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -4005,8 +4005,6 @@ function mkPerson(jacketColor, seed){
    authored characters raised the bar.                                  */
 const CAST_FILES = {
   walker:  "assets/stu_walker.glb",     /* 50k tris, 7 mocap clips      */
-  ariel:   "assets/stu_ariel.glb",      /* 35k tris, one walk cycle     */
-  woman:   "assets/stu_woman.glb",      /* ferried in by the courier    */
   /* Brought in together to be judged on the quad rather than in a log.
      isla walks but arrives at 183k triangles and leans on the courier's
      simplifier. kenta, nadia and sophia came in the same wave and are
@@ -4027,6 +4025,8 @@ const CAST_FILES = {
   char4:   "assets/stu_char4.glb",      /* 200k tris, the lightest yet   */
   char5:   "assets/stu_char5.glb",      /* 200k tris, the first man      */
   char6:   "assets/stu_char6.glb",      /* 200k tris, the lightest, 2.99 */
+  char7:   "assets/stu_char7.glb",      /* 200k tris, the third man      */
+  char8:   "assets/stu_char8.glb",      /* 200k tris, the sixth woman    */
 };
 /* ── who has to be here before the doors open ─────────────────────────
    Twelve rigged files is 31MB, all of it decoded on the main thread
@@ -4042,8 +4042,8 @@ const CAST_FILES = {
    seconds after you do is a student walking in, which is what this
    looks like anyway.
 
-     first           walker ariel skate tutor
-     after           woman isla hero char2 char3 char4 char5 char6
+     first           walker skate tutor
+     after           isla hero char2 char3 char4 char5 char6 char7 char8
 
    Which bodies come first is a question about variety, not only about
    megabytes, and the first list got it wrong. Of the four ROAMING
@@ -4094,7 +4094,7 @@ const CAST_FILES = {
    from more than one person at all.                                    */
 /* ── who arrives first is drawn, not written down ─────────────────────
    A fixed first wave means the same seven bodies every visit, and the
-   ones that load late — isla, woman, the authored four — are the ones a visitor
+   ones that load late — isla and the authored eight — are the ones a visitor
    rarely meets at all. The crowd was already randomised in every other
    respect: clothes, build, start point, which body a named student
    wears. The one thing still fixed was which bodies were in the room
@@ -4123,18 +4123,24 @@ const CAST_FILES = {
    NAME — Priya, Sofia and Amara need Idle, Sitting Talking and Jogging,
    and no other body has them. The loiterers and the skater are there
    because nothing else can stand in for what they do. */
-const CAST_MB = { walker: 1.84, ariel: 1.66,
-                  isla: 0.88, woman: 2.75,   /* the courier rebuilt her heavier */
+const CAST_MB = { walker: 1.84,
+                  isla: 0.88,
                   skate: 1.27, tutor: 0.32,
                   /* every authored body is past CAST_BUDGET on
                      purpose: the first wave is the critical path and
                      these are its whole weight class — they arrive
                      with the late wave */
                   hero: 5.40, char2: 3.86, char3: 4.72, char4: 3.31,
-                  char5: 3.43, char6: 2.99 };
+                  char5: 3.43, char6: 2.99, char7: 3.26, char8: 3.51 };
 /* Measured, not guessed: these are the six bodies with a shirt mesh the
    wardrobe can find. See the note above about the ten that have none. */
-const CAST_DRESSABLE = ["walker", "ariel", "woman"];
+/* One body left that the wardrobe can dress, and it no longer matters:
+   the author does not want the dresser, and the authored cast is eight
+   distinct people rather than one body in eight shirts. Kept as a list
+   rather than deleted because drawFirstWave still guarantees a
+   dressable body in the opening wave, and walker satisfies it from the
+   core. Ripping out dressFigure and its tinting is a separate change. */
+const CAST_DRESSABLE = ["walker"];
 /* Which models read as women across a lawn. A fact about the MODEL —
    which one to dress a student in — and nothing more.
  *
@@ -4144,8 +4150,8 @@ const CAST_DRESSABLE = ["walker", "ariel", "woman"];
  * put walker×3 + sophia×2 and walker×2 + kenta + tutor + woman + sophia
  * on the quad — reported from a phone as "none of the female characters
  * are present", which is very nearly what the numbers say. */
-const CAST_FEM = new Set(["woman", "ariel", "isla",
-                          "hero", "char2", "char3", "char4"]);
+const CAST_FEM = new Set(["isla",
+                          "hero", "char2", "char3", "char4", "char8"]);
 const CAST_BUDGET = 3.0;
 function drawFirstWave(){
   const core = ["walker", "skate", "tutor"].filter(k => CAST_FILES[k]);
@@ -4216,20 +4222,19 @@ function drawFirstWave(){
 /* A teenager is shorter, and the height is doing as much work here as
    any of the colours — see buildOf, which varies each figure another
    ±11% on top of these. */
-const CAST_HEIGHT = { walker: 42, woman: 41,
-                      ariel: 40,
+const CAST_HEIGHT = { walker: 42,
                       tutor: 41, skate: 42,
                       isla: 40,
                       hero: 42, char2: 41, char3: 40, char4: 41, char5: 43,
-                      char6: 42 };
+                      char6: 42, char7: 43, char8: 40 };
 /* Which bodies can be given a waypoint and told to walk it, and which
    are only good for standing about. Ten that walk against a crowd
    that caps at ten: the round robin runs out of new people only on the
    eleventh, and by then they are scattered over sixty-eight
    waypoints. */
-const ROAMING = ["walker", "woman", "ariel",
+const ROAMING = ["walker",
                  "isla", "hero", "char2", "char3", "char4", "char5",
-                 "char6"];
+                 "char6", "char7", "char8"];
 /* Drawn here rather than beside drawFirstWave, because it reads ROAMING
    and a const cannot be read before it is declared — putting the call
    next to the function threw on load, which is a blank campus. */
@@ -4696,7 +4701,9 @@ function prepFigure(k, height, live, clipIx = 0){
 
      mixamorigLeftUpLeg            walker, tutor
      LeftUpLeg_3                   isla
-     CC_Base_L_Thigh_04            woman, ariel
+     CC_Base_L_Thigh_04            nobody now — woman and ariel retired,
+                                   but the next Character Creator body
+                                   will spell its bones this way
      rp_nathan_..._upperleg_l_074  nobody, since nathan retired — the
                                    parsing stays, because the next
                                    Renderpeople scan will spell its
@@ -5679,8 +5686,8 @@ const P_LINGER = 0.3;
    wave settles if they are off screen. A visible body-swap is a
    glitch; an invisible one is a student who went in wearing one thing
    and came out wearing another, which is what buildings are for. */
-const AUTHORED_F = ["char4", "char2", "char3", "hero"];   /* lightest first */
-const AUTHORED_M = ["char6", "char5"];  /* lightest first */
+const AUTHORED_F = ["char4", "char8", "char2", "char3", "hero"];  /* lightest first */
+const AUTHORED_M = ["char6", "char7", "char5"];  /* lightest first */
 const AUTHORED = [...AUTHORED_F, ...AUTHORED_M];
 function upgradeBody(s){
   if (!s.data || s.static || s.orbit || s.seat) return false;

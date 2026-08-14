@@ -59,20 +59,20 @@ Standing_Up     https://drive.google.com/file/d/101SKrfyvhBdwGS4ngvrEx-xKJ3qmipd
 # the hips said standing-up, and only the render said which second of it
 # was which.
 
-# ── a finished character ─────────────────────────────────────────────
-# A block can also be a single link to a GLB that is already a rigged,
-# animated character. Those skip Blender entirely: there is nothing to
-# assemble, and putting a finished character through the FBX pipeline
-# can only risk what it already has. It is still shrunk before it lands.
+# ── woman and ariel are gone ─────────────────────────────────────────
+# Their blocks stood here — the finished-GLB courier path and the
+# walking-test body — removed WITH the bodies, as always: an inbox
+# block is a promise to rebuild. Retired for characters 7 and 8, and
+# they were the worst two left by a distance: woman 64.4 bytes a
+# triangle across 16 mesh pieces, ariel 43.0 across 14, both resting
+# more than 120 degrees from their binds so neither could ever donate
+# motion. An authored character costs 12.5 bytes a triangle.
 #
-# FBX and GLB cannot be mixed in one block — a finished GLB brings its
-# own skeleton, so a Mixamo clip has nothing to bind to. Separate them
-# into their own "# out:" blocks.
-#
-# This one is 80MB as downloaded, which is why it comes this way rather
-# than through a browser upload.
-# out: assets/stu_woman.glb
-Realistic_Woman_Walking  https://drive.google.com/file/d/1BoerD9I8YcpZGE7WNvQBCzj-WvRw0-JH/view
+# The finished-GLB path itself still works and is worth remembering:
+# a block can be a single link to an already-rigged animated GLB,
+# which skips Blender entirely. FBX and GLB cannot be mixed in one
+# block — a finished GLB brings its own skeleton, so a Mixamo clip has
+# nothing to bind to.
 
 # alina is gone — her block with her, as always: an inbox block is a
 # promise to rebuild. Retired at 3.04MB, undressable, resting 120
@@ -119,6 +119,41 @@ Walking_Woman  https://drive.google.com/file/d/1eWh_xTiL2N1iHNA6YElJ_9Q_C9F2jbys
 # They were retired for the two authored characters (stu_hero,
 # stu_char2) — the ones the borrowed sit-down could never reach.
 
+
+# ── walker's clips, freed from walker ────────────────────────────────
+# Four clips exist on this campus only because walker carries them:
+# Idle (4.0s), Sitting Talking (44.1s), Standing Up (6.1s) and Jogging
+# (2.6s). They cannot be lent to anyone, because his rest pose sits 90
+# degrees from his bind on all fourteen clip-driven bones and lendClip
+# carries each bone's change FROM ITS OWN REST — so a delta measured
+# against a rest that is not neutral means something different on the
+# receiver. Rendered: the woman hunched, isla bent backwards.
+#
+# The clips themselves are fine. The links below are the SAME four
+# already listed in walker's block above, downloaded WITHOUT skin, so
+# each is a Mixamo skeleton at its own neutral rest plus the motion —
+# exactly what assets/clip_sit.glb is, and that donor lends perfectly
+# to all twelve bodies. Built as clip_ files they become everyone's,
+# and walker becomes an ordinary body that can be retired like any
+# other.
+#
+# Nothing new to download — the same links, built as donors.
+
+# out: assets/clip_idle.glb
+Idle            https://drive.google.com/file/d/1aw-oEHfcGVtozFy2JLQXy8NecFK7zaXx/view
+
+# out: assets/clip_talk.glb
+Sitting_Talking https://drive.google.com/file/d/1LPSnmgWqpgAT1SCbs7wCBH1k2hSgQVtx/view
+
+# out: assets/clip_stand.glb
+Standing_Up     https://drive.google.com/file/d/101SKrfyvhBdwGS4ngvrEx-xKJ3qmipdA/view
+
+# out: assets/clip_jog.glb
+Jogging         https://drive.google.com/file/d/1rmy0p7tQJ6viFVL5QBkQ1KCkqYIrG8bF/view
+
+# Standing Up carries travel (0.77 of a body) — it is the one clip that
+# moves as it plays, and the campus drives position itself. Keep In
+# Place ticked, or the seated cycle drifts.
 
 # ── the male walk pool ───────────────────────────────────────────────
 # Same design as the female pool below, for the men. Character 5 walks
