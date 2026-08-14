@@ -112,19 +112,9 @@ Walking_Woman  https://drive.google.com/file/d/1eWh_xTiL2N1iHNA6YElJ_9Q_C9F2jbys
 # out: assets/stu_nathan.glb
 Nathan_003  https://drive.google.com/file/d/1FPBq7Sfw9CHT7QlochIFUlM7iFy3MRV6/view
 
-# ── someone who stands still ─────────────────────────────────────────
-# Her bones are named ..._idling_... and her clip runs 488 frames: this
-# is an IDLE, not a walk, which makes her useless as a roamer and ideal
-# as a loiterer. 16,555 triangles against stu_anim's 179,598 for the
-# same job of standing near a door.
-# out: assets/stu_sophia.glb
-Sophia_003  https://drive.google.com/file/d/1Mpt2wtc4HQT9SlpnL810uqb2_ilFVm87/view
-
-# ── the expensive one ────────────────────────────────────────────────
-# 75MB, 46 textures, 28 materials, a full Character Creator anatomy
-# down to the tearlines — thin-character.mjs strips most of that. Her
-# textures are specular-glossiness, which the loader cannot read; the
-# courier now converts on arrival. Judge her on what she costs once
-# she is through.
-# out: assets/stu_nadia.glb
-Realistic_Female  https://drive.google.com/file/d/1r1Nt3ebMnR0LZpRiF0zLSOGZWatAypuK/view
+# ── sophia and nadia are gone ────────────────────────────────────────
+# Their build blocks stood here. Removed WITH the bodies, because an
+# inbox block is a promise to rebuild: leave it and the next courier
+# run resurrects a file the roster no longer knows, 4.5MB of nobody.
+# They were retired for the two authored characters (stu_hero,
+# stu_char2) — the ones the borrowed sit-down could never reach.

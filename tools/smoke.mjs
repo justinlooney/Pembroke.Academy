@@ -719,7 +719,7 @@ try {
      same man stood on the quad three times over. Fixed by asking for
      the POSE instead. This is the check that keeps it fixed. */
   const looks = await crowdPage.evaluate(() => {
-    const FEM = new Set(["woman", "alina", "ariel", "isla", "nadia", "sophia"]);
+    const FEM = new Set(["woman", "alina", "ariel", "isla"]);
     const figs = (window.__students || []).map(s => s.g && s.g.userData.figure).filter(Boolean);
     return { total: figs.length, women: figs.filter(f => FEM.has(f)).length,
              tally: figs.join(",") };

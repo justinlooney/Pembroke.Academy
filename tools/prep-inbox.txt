@@ -15,22 +15,11 @@
 # Nothing is committed. What comes back from Mixamo goes in
 # tools/mixamo-inbox.txt, which is the file that does commit.
 
-# ── the two the borrowed sit-down cannot reach ───────────────────────
-# Every other body on the campus takes it. These two bind their bones
-# and still come out wrong — rendered, and unmistakable: nadia with her
-# arms over her head, sophia balanced on one leg. Their files rest in a
-# pose the donor's rest does not correspond to, which is the one thing
-# a name table cannot fix and an auto-rigger can.
-#
-# Neither needs thinning: 45,094 and 16,475 triangles against the
-# script's 60,000 budget. What they need is to stop being glTF, which
-# Mixamo refuses before it looks inside, and for nadia to stop being
-# eighteen separate meshes, which it also refuses.
-#
-# The names here were the wrong way round on the first run and the
-# fetch said so: the link called nadia arrived at 320K and the one
-# called sophia at 4.1M, against 4,215,428 and 325,160 bytes on disk.
-# A link carries no name, so the only check available is the size of
-# what comes back — worth doing, and worth printing.
-sophia  https://drive.google.com/file/d/1Ash6ZBwS06zABx3drQSO8fLMlGnGlRqv/view
-nadia   https://drive.google.com/file/d/1ixDssTHFDwjbo6YDGHXB71GF7mxuUbKQ/view
+# ── nothing queued ───────────────────────────────────────────────────
+# nadia and sophia sat here waiting for Mixamo's auto-rigger — the two
+# the borrowed sit-down could not reach, rendered wrong through a rig
+# that bound cleanly. The route was overtaken: both were replaced
+# outright by authored characters whose rest equals their bind
+# (stu_hero, stu_char2), which fixes at the source what the auto-rigger
+# would have patched after the fact. The machinery below still works;
+# queue the next candidate the same way, one name and one link.

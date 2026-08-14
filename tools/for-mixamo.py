@@ -29,7 +29,7 @@ and Blender 4.0's glTF importer refuses one outright —
 Decompress it first. gltf-transform reads meshopt and, told nothing
 about compression on the way out, writes plain:
 
-    gltf-transform copy assets/stu_nadia.glb /tmp/nadia.glb
+    gltf-transform copy assets/stu_alina.glb /tmp/alina.glb
 
 .github/workflows/prep.yml does this for you, which is the way to run
 any of this without a Blender to hand.

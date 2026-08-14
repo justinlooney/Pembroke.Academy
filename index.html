@@ -1863,7 +1863,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v51";
+const BUILD = "pembroke-v52";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -3977,9 +3977,8 @@ const CAST_FILES = {
      kenta is the cheapest body here by a distance and the only newcomer
      whose skeleton is Mixamo-named, so he can take the standing idle;
      isla walks but arrives at 183k triangles and leans on the courier's
-     simplifier; nadia is a full Character Creator anatomy and the one
-     to watch on weight. sophia is not a roamer at all — her bones are
-     named ..._idling_... and her clip runs 488 frames. */
+     simplifier. nadia and sophia came in the same wave and are gone
+     now — see the note above NO_LENDING for what they measured. */
   /* kenta reads paler than the rest of the cast, and that is his
      texture rather than anything the renderer is doing: measured, his
      base map averages rgb 174,159,154 at a saturation of 0.15 where
@@ -3992,16 +3991,14 @@ const CAST_FILES = {
      triangles for 0.24MB. Fixing it means a better texture, not code. */
   kenta:   "assets/stu_kenta.glb",      /* 22k tris, mixamo-named, walks */
   isla:    "assets/stu_isla.glb",       /* walks; heavy until simplified */
-  nadia:   "assets/stu_nadia.glb",      /* character creator, 46 maps    */
-  sophia:  "assets/stu_sophia.glb",     /* 16k tris, 20 seconds of idle  */
   tutor:   "assets/stu_tutor.glb",      /*  6k tris, a 25s standing loop */
   skate:   "assets/stu_skater.glb",
 };
 /* ── who has to be here before the doors open ─────────────────────────
-   Thirteen rigged files is 19MB, all of it decoded on the main thread
-   before a phone can draw anything. But only seven of them are needed
-   to build the campus you arrive on: the named eight, the skater and
-   the loiterers. The other six exist solely for the crowd — and the
+   Eleven rigged files is 15MB, all of it decoded on the main thread
+   before a phone can draw anything. But only a handful are needed
+   to build the campus you arrive on: the named cast, the skater and
+   the loiterer. The rest exist solely for the crowd — and the
    crowd deliberately does not start arriving until the campus has
    finished loading, so making the campus wait for them is waiting for
    people who are not allowed in yet.
@@ -4011,8 +4008,8 @@ const CAST_FILES = {
    seconds after you do is a student walking in, which is what this
    looks like anyway.
 
-     first           walker ariel kenta nathan sophia skate tutor
-     after           woman alina isla nadia
+     first           walker ariel kenta nathan skate tutor
+     after           woman alina isla
 
    Which bodies come first is a question about variety, not only about
    megabytes, and the first list got it wrong. Of the four ROAMING
@@ -4063,18 +4060,19 @@ const CAST_FILES = {
    from more than one person at all.                                    */
 /* ── who arrives first is drawn, not written down ─────────────────────
    A fixed first wave means the same seven bodies every visit, and the
-   four that load late — isla, woman, alina, nadia — are the ones a
-   visitor rarely meets at all. The crowd was already randomised in
-   every other respect: clothes, build, start point, which body a named
-   student wears. The one thing still fixed was which bodies were in the
-   room to be dealt from.
+   ones that load late — isla, woman, alina — are the ones a visitor
+   rarely meets at all. The crowd was already randomised in every other
+   respect: clothes, build, start point, which body a named student
+   wears. The one thing still fixed was which bodies were in the room
+   to be dealt from.
 
    It cannot be a plain shuffle, for two reasons that pull against each
    other. The first wave IS the critical path, so a free draw could put
-   nadia's 4.22MB in front of the campus a visitor is waiting to walk
-   on. And it has to contain somebody the wardrobe can dress, or the
-   opening crowd is mannequins again — which is exactly the fault that
-   put ariel here in the first place.
+   the heaviest roamer in front of the campus a visitor is waiting to
+   walk on (when this was written that was nadia at 4.22MB; today it is
+   alina at 3.04). And it has to contain somebody the wardrobe can
+   dress, or the opening crowd is mannequins again — which is exactly
+   the fault that put ariel here in the first place.
 
    So: a fixed core, then a draw under a byte budget with a dressability
    guarantee.
@@ -4090,11 +4088,11 @@ const CAST_FILES = {
    and no other body has them. The loiterers and the skater are there
    because nothing else can stand in for what they do. */
 const CAST_MB = { walker: 1.84, ariel: 1.66, kenta: 0.24, nathan: 0.34,
-                  isla: 0.88, woman: 2.64, alina: 3.04, nadia: 4.22,
-                  sophia: 0.33, skate: 1.27, tutor: 0.32 };
+                  isla: 0.88, woman: 2.64, alina: 3.04,
+                  skate: 1.27, tutor: 0.32 };
 /* Measured, not guessed: these are the six bodies with a shirt mesh the
    wardrobe can find. See the note above about the ten that have none. */
-const CAST_DRESSABLE = ["walker", "ariel", "woman", "nadia"];
+const CAST_DRESSABLE = ["walker", "ariel", "woman"];
 /* Which models read as women across a lawn. A fact about the MODEL —
    which one to dress a student in — and nothing more.
  *
@@ -4104,10 +4102,10 @@ const CAST_DRESSABLE = ["walker", "ariel", "woman", "nadia"];
  * put walker×3 + sophia×2 and walker×2 + kenta + tutor + woman + sophia
  * on the quad — reported from a phone as "none of the female characters
  * are present", which is very nearly what the numbers say. */
-const CAST_FEM = new Set(["woman", "alina", "ariel", "isla", "nadia", "sophia"]);
+const CAST_FEM = new Set(["woman", "alina", "ariel", "isla"]);
 const CAST_BUDGET = 3.0;
 function drawFirstWave(){
-  const core = ["walker", "sophia", "skate", "tutor"].filter(k => CAST_FILES[k]);
+  const core = ["walker", "skate", "tutor"].filter(k => CAST_FILES[k]);
   const pool = ROAMING.filter(k => k !== "walker" && CAST_FILES[k]);
   for (let i = pool.length - 1; i > 0; i--){
     const j = Math.floor(Math.random() * (i + 1));
@@ -4122,7 +4120,8 @@ function drawFirstWave(){
      Drawn at RANDOM from those that fit, not cheapest-first. Cheapest
      is deterministic, and it showed: eight visits produced two distinct
      waves, six of them identical, because ariel is always the cheapest
-     dressable that fits. nadia at 4.22MB never fits and stays late. */
+     dressable that fits. (Measured when nadia was on the roster; the
+     mechanism is the point, not her.) */
   const picks = [];
   let spent = 0;
   const dressable = pool.filter(k => CAST_DRESSABLE.includes(k) &&
@@ -4138,9 +4137,9 @@ function drawFirstWave(){
    *
      One is what the rules above produce whenever the dressable draw
      lands on `woman` at 2.64MB: she spends the budget outright, the
-     fill can only afford kenta and nathan, and ariel, isla, alina and
-     nadia all arrive late. The named cast is built at that moment, so
-     four students who want a woman's body have exactly one to share —
+     fill can only afford kenta and nathan, and ariel, isla and alina
+     all arrive late. The named cast is built at that moment, so the
+     students who want a woman's body have exactly one to share —
      which is the identical-twins complaint wearing different clothes.
      The cheapest second is isla at 0.88MB, and she walks. */
   const women = () => picks.filter(k => CAST_FEM.has(k)).length;
@@ -4176,23 +4175,22 @@ function drawFirstWave(){
 const CAST_HEIGHT = { walker: 42, woman: 41,
                       alina: 40, ariel: 40, nathan: 43,
                       tutor: 41, skate: 42,
-                      kenta: 41, isla: 40, nadia: 41, sophia: 40 };
+                      kenta: 41, isla: 40 };
 /* Which bodies can be given a waypoint and told to walk it, and which
    are only good for standing about. Eight that walk against a crowd
    that caps at ten: the round robin runs out of new people only on the
    ninth, and by then they are scattered over sixty-eight waypoints. */
 const ROAMING = ["walker", "woman", "alina", "nathan", "ariel",
-                 "kenta", "isla", "nadia"];
+                 "kenta", "isla"];
 /* Drawn here rather than beside drawFirstWave, because it reads ROAMING
    and a const cannot be read before it is declared — putting the call
    next to the function threw on load, which is a blank campus. */
 const CAST_FIRST = drawFirstWave();
 console.info("cast: first wave this visit — " + CAST_FIRST.join(", "));
-/* sophia joins the standers rather than the walkers, because that is
-   what she came with: 488 frames of idle and no gait at all. She is
-   also 16k triangles against stu_anim's 179,598 for the same job, which
-   is the heaviest figure on this campus doing the least. */
-const LOITERING = ["tutor", "sophia"];
+/* One loiterer now. sophia stood here — 488 frames of idle, no gait —
+   until her replacement arrived and she went the way of gent and mia:
+   tutor does the same job of standing near a door for 0.32MB. */
+const LOITERING = ["tutor"];
 /* Asked at the moment a figure is built, never pruned. Bodies now
    arrive in two waves, so a list filtered once at startup would be
    permanently missing the six that come in later — and every extra
@@ -4643,8 +4641,8 @@ function prepFigure(k, height, live, clipIx = 0){
 
      mixamorigLeftUpLeg            walker, kenta, tutor
      LeftUpLeg_3                   isla
-     CC_Base_L_Thigh_04            woman, alina, ariel, nadia
-     rp_nathan_..._upperleg_l_074  nathan, sophia
+     CC_Base_L_Thigh_04            woman, alina, ariel
+     rp_nathan_..._upperleg_l_074  nathan
 
    — and both foreign schemes are perfectly regular, so this is a table
    rather than a rewrite. Measured after it: 53 of the donor's 69
@@ -5090,10 +5088,10 @@ const STAND_CHAIN = ["hips", "spine", "leftupleg", "leftfoot",
                      "rightupleg", "rightfoot"];
 /* ── did the receiver end up in the same shape as the donor? ──────────
    A lent clip can bind every bone it needs and still be nonsense. Two
-   of them are: nadia comes out with her arms over her head and sophia
+   of them were: nadia came out with her arms over her head and sophia
    balanced on one leg, both binding 53 joints out of 69, because their
-   files rest in a pose that does not correspond to the donor's rest
-   and the delta then means something different on them.
+   files rested in a pose that did not correspond to the donor's rest
+   and the delta then meant something different on them.
 
    The first version of this check was a pair of thresholds picked by
    eye — the pelvis must drop, the feet must stay down — and it let
@@ -5117,9 +5115,10 @@ const STAND_CHAIN = ["hips", "spine", "leftupleg", "leftfoot",
    what differs most between rigs and what matters least to whether a
    sit reads — measured, comparing hands rejected kenta at 0.36 and
    isla at 0.67 of a body, both of whom had been rendered sitting
-   perfectly well. Both broken bodies fail on their feet anyway:
-   sophia balances on one leg and nadia lifts a knee to her chest, and
-   that is the same fault that makes them look wrong. */
+   perfectly well. Both broken bodies failed on their feet anyway:
+   sophia balanced on one leg and nadia lifted a knee to her chest,
+   the same fault that made them look wrong. Both are gone now, but
+   the joints chosen here were chosen by that evidence. */
 const POSE_JOINTS = ["leftfoot", "rightfoot", "hips"];
 const POSE_SAMPLES = 10;
 const POSE_TOLERANCE = 0.35;      /* of standing hip height */
@@ -5201,27 +5200,24 @@ function poseLooksWrong(clip, src, expect, from, fromClip){
   if (expect === "stand" && lo < 0.6) return "hips fall to " + lo.toFixed(2) + " for an idle";
   return null;
 }
-/* ── the two that are named rather than measured ──────────────────────
-   nadia and sophia rest in a pose the donor's rest does not correspond
-   to. Rendered through this exact code path, nadia comes out with her
-   arms over her head and sophia balanced on one leg, both binding 53
-   joints out of 69.
+/* ── bodies excluded from lending by name ─────────────────────────────
+   Empty now, and it once held the reason this set exists: nadia and
+   sophia rested in a pose the donor's rest did not correspond to, and
+   rendered through this exact code path nadia came out with her arms
+   over her head, sophia balanced on one leg — both binding 53 of 69
+   joints, both passing every measurement that was tried. Comparing
+   where the hands end up rejected isla at 0.67 of a body before it
+   rejected nadia at 1.11, and isla sits perfectly well; a threshold
+   between those numbers would have been fitted to two bodies, not a
+   test. So known-bad bodies get excluded HERE, by name, with the
+   reason written down.
 
-   They are NAMED here, which is not what I wanted. The measurement was
-   tried and it cannot do this job: comparing where the hands end up
-   rejects isla at 0.67 of a body before it rejects nadia at 1.11, and
-   isla sits perfectly well — she is simply built differently and
-   wearing heels. A threshold set between those two numbers would be
-   fitted to the two bodies I happen to have looked at, not a test of
-   anything, and this file has been wrong that way before.
-
-   So the structural check below keeps the job it can actually do —
-   catching a clip that has gone wrong, which is how the inPlaceClip
-   bug was found — and the two known-bad bodies are excluded by name,
-   with the reason written down. Both are queued for Mixamo's
-   auto-rigger (tools/prep-inbox.txt); when they come back Mixamo-named
-   this list should be emptied and the pictures taken again. */
-const NO_LENDING = new Set(["nadia", "sophia"]);
+   The auto-rigger route was prepared for them (tools/prep-inbox.txt)
+   and then overtaken: both were replaced outright by authored
+   characters whose rest equals their bind. If a future body passes the
+   structural check below and still renders wrong, its name goes in
+   this set — that is what the set is for. */
+const NO_LENDING = new Set([]);
 let sitDonor = null;
 /* ── what each body is short of, and who can lend it ──────────────────
    Three clips, one mechanism. The sit-down comes from its own donor;
@@ -5299,10 +5295,10 @@ function lendSitDown(){
         no.push(k + " (bones)"); continue;
       }
       /* ...and then LOOK at it, because binding is not the same as
-         working. nadia and sophia bind 53 joints apiece and come out
+         working. nadia and sophia bound 53 joints apiece and came out
          twisted, standing on one leg with their arms over their heads —
-         their files rest in a pose the donor's rest does not correspond
-         to, and no count of matched bones says so. Rendered to find it;
+         their files rested in a pose the donor's rest did not correspond
+         to, and no count of matched bones said so. Rendered to find it;
          measured here so it cannot ship. */
       const why = poseLooksWrong(lent, src, job.expect, job.from, job.clip);
       if (why){ no.push(k + " (" + why + ")"); continue; }
@@ -6060,7 +6056,7 @@ function passingTime(g){
     /* ...and the side may be spelled at either end. Mixamo writes
        LeftHand, Character Creator CC_Base_L_Hand, Renderpeople
        hand_l — and the last of those keys to "handl", which an
-       anchored /hand$/ misses completely. nathan and sophia are both
+       anchored /hand$/ misses completely. nathan and sophia were both
        Renderpeople, so their arms were never scored at all: the search
        fell back to feet alone, which is precisely the case the comment
        below warns about, because a bind pose has its feet together
@@ -8381,7 +8377,7 @@ function facingOf(g){
      reason this is written out: Mixamo writes LeftFoot, Character
      Creator CC_Base_L_Foot, and Renderpeople foot_l — which keys to
      "footl" and slips straight past an anchored /foot$/. nathan and
-     sophia are both Renderpeople, so this returned null for them and
+     sophia were both Renderpeople, so this returned null for them and
      the caller fell back to turning the body by pi. A guess, on the two
      bodies a visitor stands closest to.
      "footend" is excluded so this takes the ankle and not the toe tip,
