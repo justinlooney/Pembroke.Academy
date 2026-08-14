@@ -23,6 +23,12 @@
 
    ?nosw unregisters and clears. Worth having: a wedged service worker is
    otherwise miserable to get rid of. */
+/* Resolved when the service worker is controlling this page, or when
+   waiting any longer costs more than it saves. The model loader awaits
+   it; see the note beside the register call below. */
+let swReady;
+window.__swReady = new Promise((ok) => { swReady = ok; });
+if (!("serviceWorker" in navigator)) swReady();
 if ("serviceWorker" in navigator){
   if (new URLSearchParams(location.search).has("nosw")){
     /* Unregistering does not release the page that is already running:
@@ -45,6 +51,7 @@ if ("serviceWorker" in navigator){
         location.reload();
       }
     })();
+    swReady();            /* no worker wanted — nothing to wait for */
   } else {
     sessionStorage.removeItem("nosw");
     navigator.serviceWorker.register("sw.js").catch(() => {});
@@ -60,13 +67,47 @@ if ("serviceWorker" in navigator){
       ?.postMessage({ type: "version" });
     askSW();
     navigator.serviceWorker.ready.then(askSW).catch(() => {});
+    /* Models wait for the worker to take control — see the gate in the
+       loader below. A page that starts fetching before the worker is
+       controlling bypasses it entirely, so nothing it downloads enters
+       the cache and the NEXT visit downloads it all again. That used
+       to be hidden: three render-blocking CDN requests delayed the
+       first model by thirteen seconds, which was plenty of time for
+       the worker to install. Removing them exposed it — measured as
+       19 models refetched on a return visit. */
+    if (navigator.serviceWorker.controller) swReady();
+    else {
+      /* controllerchange, NOT serviceWorker.ready. `ready` resolves when
+         a worker is ACTIVE, which happens before it has claimed this
+         page — measured: the gate opened on ready, twenty models were
+         fetched past an uncontrolling worker, and the return visit
+         downloaded them all again exactly as before. The event that
+         means "the worker is now answering for this page" is
+         controllerchange, which clients.claim() in activate fires. */
+      navigator.serviceWorker.addEventListener("controllerchange", swReady);
+      /* but never hostage to it: a worker that fails to claim must cost
+         a slow first visit, not a campus that never loads */
+      setTimeout(swReady, 8000);
+    }
   }
 }
 </script>
-<script src="https://cdn.tailwindcss.com"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- One stylesheet from our own origin, and nothing else ahead of it.
+     What stood here: a synchronous <script> pulling Tailwind's CDN
+     build, and a Google Fonts stylesheet. The first is not a
+     stylesheet at all — it is Tailwind's COMPILER, which downloads,
+     then reads all 481KB of this document, then generates CSS, on the
+     main thread, before anything can render. The second is a
+     round-trip to fonts.googleapis.com for a stylesheet that then
+     asks fonts.gstatic.com for the files.
+     Three third-party round trips, all render-blocking, all ahead of
+     our own code. Now: 27KB of CSS built from the 262 utility classes
+     this page actually uses, with the 26 latin/latin-ext woff2 faces
+     served from assets/fonts. Same look, no compiler, no CDN, and it
+     caches under the service worker like everything else — which also
+     means the campus finally renders correctly offline, where before
+     it came up unstyled. -->
+<link rel="stylesheet" href="assets/site.css">
 <style>
 /* ══════════════════════════════════════════════════════════════════
    PEMBROKE ACADEMY — DESIGN SYSTEM
@@ -1863,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v62";
+const BUILD = "pembroke-v64";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -2501,6 +2542,13 @@ const assetLog = [];
 window.__assets = assetLog;   /* test/debug hook */
 {
   const rawLoad = gltf.load.bind(gltf);
+  /* Every model waits for the worker to be in charge. Without this the
+     first visit downloads the campus straight past the worker, caching
+     nothing, and the second visit downloads it all over again — 19
+     models, measured, the moment the page got fast enough to beat the
+     worker's activation. The wait is only ever paid on a first visit:
+     once a controller exists the promise is already resolved. */
+  const gate = window.__swReady || Promise.resolve();
   gltf.load = (url, onLoad, onProgress, onError) => {
     const rec = { name: url.split("/").pop(), t0: performance.now(), ms: null,
                   /* Late arrivals are logged like everything else — ?debug
@@ -2509,12 +2557,14 @@ window.__assets = assetLog;   /* test/debug hook */
                      deferring them would achieve nothing. */
                   late: !!gltf.__late };
     assetLog.push(rec);
-    rawLoad(url,
+    /* the flag above is read synchronously, so a deferred start cannot
+       mislabel a load as late */
+    gate.then(() => rawLoad(url,
       (g) => { rec.ms = performance.now() - rec.t0; if (onLoad) onLoad(g); },
       onProgress,
       (e) => { rec.ms = performance.now() - rec.t0; rec.err = true;
                rec.why = ((e && (e.message || e.type)) || "failed").slice(0, 28);
-               if (onError) onError(e); });
+               if (onError) onError(e); }));
   };
 }
 
@@ -3212,8 +3262,20 @@ const TREE_TARGET_H = { oak: 50, elm: 64, pine: 54, maple: 58 };
    source scene to clone geometry out of it, so one load serves both. */
 const floraCache = new Map();
 const loadFlora = (url, use) => {
-  if (!floraCache.has(url))
+  if (!floraCache.has(url)){
+    /* Planted as fast as it arrives, but never counted as something the
+       campus is WAITING for. Flora is 5.1MB across seven files — trees,
+       plantpack, the maples, fern, cypress, lavender, daffodils — and
+       every one of them used to gate "the campus is ready", which gates
+       the crowd ramp in turn. A quad you can walk on with the trees
+       still arriving is a quad you can walk on; a quad that makes you
+       wait for its last fern is not. Fetched immediately, marked late,
+       so nothing downstream holds for them. */
+    const wasLate = gltf.__late;
+    gltf.__late = true;
     floraCache.set(url, new Promise((ok) => gltf.load(url, ok, undefined, () => ok(null))));
+    gltf.__late = wasLate;
+  }
   floraCache.get(url).then(g => { if (g) use(g); });
 };
 ["oak", "elm", "pine", "maple"].forEach(sp => {
@@ -4027,6 +4089,7 @@ const CAST_FILES = {
   char6:   "assets/stu_char6.glb",      /* 200k tris, the lightest, 2.99 */
   char7:   "assets/stu_char7.glb",      /* 200k tris, the third man      */
   char8:   "assets/stu_char8.glb",      /* 200k tris, the sixth woman    */
+  char9:   "assets/stu_char9.glb",      /* 200k tris, 12.3 bytes a tri   */
 };
 /* ── who has to be here before the doors open ─────────────────────────
    Twelve rigged files is 31MB, all of it decoded on the main thread
@@ -4043,7 +4106,7 @@ const CAST_FILES = {
    looks like anyway.
 
      first           walker skate tutor
-     after           isla hero char2 char3 char4 char5 char6 char7 char8
+     after           isla hero char2 char3 char4 char5 char6 char7 char8 char9
 
    Which bodies come first is a question about variety, not only about
    megabytes, and the first list got it wrong. Of the four ROAMING
@@ -4131,7 +4194,8 @@ const CAST_MB = { walker: 1.84,
                      these are its whole weight class — they arrive
                      with the late wave */
                   hero: 5.40, char2: 3.86, char3: 4.72, char4: 3.31,
-                  char5: 3.43, char6: 2.99, char7: 3.26, char8: 3.51 };
+                  char5: 3.43, char6: 2.99, char7: 3.26, char8: 3.51,
+                  char9: 3.01 };
 /* Measured, not guessed: these are the six bodies with a shirt mesh the
    wardrobe can find. See the note above about the ten that have none. */
 /* One body left that the wardrobe can dress, and it no longer matters:
@@ -4151,7 +4215,7 @@ const CAST_DRESSABLE = ["walker"];
  * on the quad — reported from a phone as "none of the female characters
  * are present", which is very nearly what the numbers say. */
 const CAST_FEM = new Set(["isla",
-                          "hero", "char2", "char3", "char4", "char8"]);
+                          "hero", "char2", "char3", "char4", "char8", "char9"]);
 const CAST_BUDGET = 3.0;
 function drawFirstWave(){
   const core = ["walker", "skate", "tutor"].filter(k => CAST_FILES[k]);
@@ -4211,10 +4275,24 @@ function drawFirstWave(){
      should be a quarter of a megabyte rather than three. A draw that
      ignored this once put a 3MB body in the first wave and took it
      to 9.34MB. */
+  /* ONE roaming body is the floor now, not three.
+   *
+     The floor of three was written when the cheap legacy bodies
+     existed: kenta at 0.24MB, ariel at 1.66, woman at 2.64. Taking the
+     cheapest three regardless of budget cost about a megabyte. Those
+     bodies have all been retired for authored characters, and nothing
+     is under 2.99MB any more — so the same rule quietly started
+     dragging two 3MB characters onto the critical path, measured at
+     10.56MB in the first wave against about five before.
+
+     Three was there so the cohort would read as more than one person
+     before the late wave landed. That reason is gone: buildCast is
+     resumable now, so the students who could not be built at first
+     wave are built the moment their bodies arrive, seconds later. */
   const rest = pool.filter(k => !picks.includes(k))
                    .sort((a, b) => (CAST_MB[a] || 9) - (CAST_MB[b] || 9));
   for (const k of rest){
-    if (picks.length >= 3) break;
+    if (picks.length >= 1) break;
     picks.push(k);
   }
   return core.concat(picks);
@@ -4226,7 +4304,7 @@ const CAST_HEIGHT = { walker: 42,
                       tutor: 41, skate: 42,
                       isla: 40,
                       hero: 42, char2: 41, char3: 40, char4: 41, char5: 43,
-                      char6: 42, char7: 43, char8: 40 };
+                      char6: 42, char7: 43, char8: 40, char9: 41 };
 /* Which bodies can be given a waypoint and told to walk it, and which
    are only good for standing about. Ten that walk against a crowd
    that caps at ten: the round robin runs out of new people only on the
@@ -4234,7 +4312,7 @@ const CAST_HEIGHT = { walker: 42,
    waypoints. */
 const ROAMING = ["walker",
                  "isla", "hero", "char2", "char3", "char4", "char5",
-                 "char6", "char7", "char8"];
+                 "char6", "char7", "char8", "char9"];
 /* Drawn here rather than beside drawFirstWave, because it reads ROAMING
    and a const cannot be read before it is declared — putting the call
    next to the function threw on load, which is a blank campus. */
@@ -5502,6 +5580,10 @@ function lendSitDown(){
     gltf.__late = true;
     const settled = () => {
       if (--lateOutstanding !== 0) return;
+      /* The rest of the named cast, now that there are bodies to build
+         them from. Students skipped at the first wave for want of a
+         body get built here rather than missing the whole visit. */
+      buildCast();
       upgradeNamedCast();       /* before the top-up claims the bodies as extras */
       topUpForcedCrowd();
     };
@@ -5686,7 +5768,7 @@ const P_LINGER = 0.3;
    wave settles if they are off screen. A visible body-swap is a
    glitch; an invisible one is a student who went in wearing one thing
    and came out wearing another, which is what buildings are for. */
-const AUTHORED_F = ["char4", "char8", "char2", "char3", "hero"];  /* lightest first */
+const AUTHORED_F = ["char9", "char4", "char8", "char2", "char3", "hero"];  /* lightest first */
 const AUTHORED_M = ["char6", "char7", "char5"];  /* lightest first */
 const AUTHORED = [...AUTHORED_F, ...AUTHORED_M];
 function upgradeBody(s){
@@ -5832,13 +5914,22 @@ function attendance(){
   }
   return who;
 }
+/* Attendance is drawn ONCE. buildCast now runs twice — at the first
+   wave and again when the late one settles — and a fresh draw on the
+   second pass would send students to lectures they had already been
+   seen walking out of. */
+let ATTENDANCE = null;
+let SCENERY_CAST = false;   /* the skater and the loiterers, placed once */
 function buildCast(){
-  const present = attendance();
+  const present = ATTENDANCE || (ATTENDANCE = attendance());
   STUDENT_ROSTER.forEach((st, i) => {
     if (!present[i]) return;             /* in a lecture */
+    if (CAST_USED.has(st.name)) return;  /* already on the campus */
     const plan = CAST_PLAN[i];
     const k = bodyFor(plan.k, st.looks, plan.needs);
-    if (!k) return;                      /* nothing loaded at all */
+    if (!k) return;                      /* nothing loaded YET — the
+       second pass will build them once the late wave lands, which is
+       what lets the first wave be small enough to arrive quickly */
     /* Dressed off this visit's seed, so Elowen is not wearing the same
        shirt she wore last time either. Her name, her lines and where
        she is going are hers; her clothes are not. */
@@ -5911,6 +6002,15 @@ function buildCast(){
        quick. */
     if (plan.jog && s.gait2 !== "Jogging") s.speed *= 1.5;
   });
+  /* Everything below runs ONCE, however many times buildCast is called.
+     It is called twice now — first wave, then again when the late wave
+     lands, so students who had no body to wear at the first pass are
+     built rather than missing the visit. The named loop above is
+     guarded by CAST_USED; these are not, and the second pass duly put
+     a second skater on the forecourt. Caught by the suite: "no body is
+     on the campus twice — skatex2". */
+  if (SCENERY_CAST) return;
+  SCENERY_CAST = true;
   /* An uncommissioned regular, carving laps — down at the athletics
      forecourt, where a skateboard belongs and where he is not making up
      a sixth of everything visible from the fountain. */

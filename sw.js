@@ -6,13 +6,12 @@
  * Cache API so a returning student walks onto the quad immediately,
  * and the campus survives its host going down.
  *
- * Three.js is vendored under assets/vendor/three, so the engine and the
- * campus are cached on the same terms and the site runs with no network
- * at all. What it will not do offline is look right: Tailwind and the
- * fonts are still cross-origin, so an offline visit renders unstyled.
- * Vendoring those is a separate change — the CDN's Tailwind and the npm
- * browser build are different major versions, so swapping them needs
- * looking at, not just a green test.
+ * Three.js is vendored under assets/vendor/three, and so now are the
+ * styles: assets/site.css carries the compiled utilities and the
+ * @font-face rules, with the woff2 files beside it. Nothing this page
+ * needs is cross-origin any more, so an offline visit renders properly
+ * rather than unstyled — which was the standing caveat here for as
+ * long as Tailwind came from a CDN.
  *
  * Deliberately NOT a precache: pulling 39MB during install would make
  * a first visit worse to make later ones better, and most of that
@@ -24,17 +23,16 @@
  *   navigations      network-first — a new deploy must win over a stale copy
  *   same-origin art  cache-first   — immutable for a given VERSION
  *
- * Everything cross-origin — Tailwind, the fonts — is left alone. It is
- * already immutable in the HTTP cache, so mediating it buys nothing
- * while adding real ways to fail: a response that arrived via a redirect
- * cannot legally be returned from a worker, and CDNs redirect. A script
- * that dies that way takes the whole page with it. Not touching them is
- * the feature.
+ * Anything cross-origin is left alone — there is nothing left that the
+ * page needs, but the rule stays because mediating other people's
+ * origins adds real ways to fail: a response that arrived via a
+ * redirect cannot legally be returned from a worker, and CDNs redirect.
+ * A script that dies that way takes the whole page with it.
  *
  * BUMP VERSION whenever anything under assets/ changes, or returning
  * visitors keep the old models forever.
  */
-const VERSION = "pembroke-v62";
+const VERSION = "pembroke-v64";
 const SHELL = VERSION + "-shell";
 const DEPOT = VERSION + "-assets";
 
@@ -49,7 +47,7 @@ async function plain(res){
 }
 
 // The page itself — small, and needed before anything else can happen.
-const SHELL_FILES = ["./", "./index.html"];
+const SHELL_FILES = ["./", "./index.html", "./assets/site.css"];
 
 /* Precache one URL, or fail the install. Failing is the point: see below. */
 async function keep(cache, url){
@@ -113,7 +111,7 @@ self.addEventListener("activate", (e) => {
 
 /* .js is in here for assets/vendor/three — the engine is served from our
    own origin now, so it caches on the same terms as the models. */
-const isArt = (url) => /\/assets\/.+\.(glb|png|jpe?g|webp|svg|js)$/i.test(url.pathname);
+const isArt = (url) => /\/assets\/.+\.(glb|png|jpe?g|webp|svg|js|css|woff2)$/i.test(url.pathname);
 
 async function cacheFirst(req, cacheName){
   const cache = await caches.open(cacheName);
