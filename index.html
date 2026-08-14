@@ -5896,6 +5896,7 @@ function fillForcedCrowd(force){
     return;
   }
   clearTimeout(lateGiveUp);
+  lateGiveUp = 0;      /* the guard above reads this as "a timer is armed" */
   while (crowdN < CROWD_FORCE && addExtra(crowdN)) crowdN++;
   crowdDone = true;
 }

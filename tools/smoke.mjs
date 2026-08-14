@@ -690,15 +690,18 @@ try {
       const preOpen = window.__convo.on();
       let sawUp = false;
       const wUp = () => sawUp = true;
-      el.addEventListener("pointerup", wUp, true);
-      const ev = (t, x, y) => el.dispatchEvent(new PointerEvent(t, { pointerId: 1,
-        pointerType: "touch", isPrimary: true, clientX: x, clientY: y,
-        bubbles: true, cancelable: true }));
       const x = c.left + (p.x * 0.5 + 0.5) * c.width;
       const y = c.top + (-p.y * 0.5 + 0.5) * c.height;
-      /* a couple of pixels of drift, because a finger has some */
-      ev("pointerdown", x, y); ev("pointerup", x + 3, y + 2);
-      el.removeEventListener("pointerup", wUp, true);
+      el.addEventListener("pointerup", wUp, true);
+      try {
+        const ev = (t, xx, yy) => el.dispatchEvent(new PointerEvent(t, { pointerId: 1,
+          pointerType: "touch", isPrimary: true, clientX: xx, clientY: yy,
+          bubbles: true, cancelable: true }));
+        /* a couple of pixels of drift, because a finger has some */
+        ev("pointerdown", x, y); ev("pointerup", x + 3, y + 2);
+      } finally {
+        el.removeEventListener("pointerup", wUp, true);
+      }
       const opened = window.__convo.on();
       const who = document.getElementById("convo-name")?.textContent;
       if (opened) window.__convo.close();
