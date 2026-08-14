@@ -682,6 +682,21 @@ try {
       }
       const el = document.querySelector("#stage canvas");
       const c = el.getBoundingClientRect();
+      /* A fingertip needs something to land on. In the compact layout
+         the canvas is a ~150px letterbox showing the whole quad, and a
+         loiterer at a far door projects a few pixels tall — Marcus
+         failed there twice at the same pixel while answering fine in
+         the fullscreen layout. The check's job is "picking works", and
+         it already skips what a person could not tap (indoors, off
+         screen, somebody in front); too-small-to-aim-at is the same
+         category. Fourteen pixels is the tap slop the app itself grants
+         a touch. */
+      const headP = s.g.getWorldPosition(new THREE.Vector3());
+      const feetN = headP.clone().project(cam);
+      headP.y += (s.g.userData.height || 42);
+      const headN = headP.project(cam);
+      const tallPx = Math.abs(headN.y - feetN.y) * 0.5 * c.height;
+      if (tallPx < 14) return { skip: "a few pixels tall from here" };
       /* Diagnostics that name the failure, learned from a run this
          check failed 0-for-5 and a probe minutes later passed 5-for-5
          on identical code. If it happens again, the answer to "did the
@@ -707,9 +722,10 @@ try {
       if (opened) window.__convo.close();
       return { opened, who, fig: s.g.userData.figure,
                client: `${Math.round(x)},${Math.round(y)}`,
-               preOpen, sawUp,
+               preOpen, sawUp, tallPx: Math.round(tallPx),
                rect: `${Math.round(c.left)},${Math.round(c.top)} ` +
-                     `${Math.round(c.width)}x${Math.round(c.height)}` };
+                     `${Math.round(c.width)}x${Math.round(c.height)}` +
+                     ` (backing ${el.width}x${el.height})` };
     }, nm).catch((e) => ({ err: String(e).slice(0, 80) }));
     if (r.skip || r.gone){ skipped.push(nm); continue; }
     /* Answering as somebody else is a miss too — it means the ray found
