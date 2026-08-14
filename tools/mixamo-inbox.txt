@@ -93,12 +93,10 @@ Realistic_Trees  https://drive.google.com/file/d/1KbKXm6qk3JgzJ0KLGjmKqCw6hx6-z-
 # which is more than three of the current cast manage.
 # ══════════════════════════════════════════════════════════════════
 
-# ── the light one ────────────────────────────────────────────────────
-# 22,042 triangles in a 1.1MB zip, and MIXAMO-NAMED — the only newcomer
-# whose skeleton can take the standing idle. Cheapest body on the
-# campus by some distance.
-# out: assets/stu_kenta.glb
-Walking_Man  https://drive.google.com/file/d/1LXZQqv6Nis3XEIwgh_QmqkGaZ3KIsAez/view
+# ── kenta is gone ────────────────────────────────────────────────────
+# His rebuild block stood here — removed WITH the body, as always.
+# Retired pale and normal-mapless when character 5 landed: the first
+# authored man, 3.43MB against kenta's 0.24, and worth it.
 
 # ── the walking woman ────────────────────────────────────────────────
 # A real walk, textured, but 183,564 triangles — three and a half times
@@ -121,22 +119,39 @@ Walking_Woman  https://drive.google.com/file/d/1eWh_xTiL2N1iHNA6YElJ_9Q_C9F2jbys
 # They were retired for the two authored characters (stu_hero,
 # stu_char2) — the ones the borrowed sit-down could never reach.
 
-# ── the authored characters' gait ────────────────────────────────────
-# Two downloads animate all three authored bodies at once — stu_hero,
-# stu_char2 and stu_char3 all speak StudentProductionRigV4, and a
-# clip_ donor is lent to every rig dialect on campus anyway. In Mixamo:
+
+# ── the male walk pool ───────────────────────────────────────────────
+# Same design as the female pool below, for the men. Character 5 walks
+# with isla's borrowed stride until this lands — it binds cleanly, but
+# a male walk will read better. One block, one link:
 #
-#   search "Walking"  → Download: FBX Binary, WITH SKIN, 30fps,
-#                       and TICK "In Place" first
-#   search "Idle"     → Download: FBX Binary, WITH SKIN, 30fps
+#   pick any character, search "Male Walk" or "Walking" (masculine
+#   ones read well), TICK "In Place" → FBX Binary, WITH SKIN, 30fps
 #
-# Put both on Drive, share as "Anyone with the link", then remove the
-# leading "# " from the four lines below and paste the links in place
-# of PASTE-LINK-HERE. Commit; the courier builds skinless donors
-# (skeleton + motion, ~50KB each) and the campus lends them at load.
+# # out: assets/clip_walkm_1.glb
+# Male_Walk_1   PASTE-LINK-HERE
+
+# ── the female walk pool ─────────────────────────────────────────────
+# Every donor here is lent to EVERY female body, and each spawn draws
+# one walk at random from her whole list — shared, random,
+# interchangeable. clip_walkf_1 already exists (isla's own walk,
+# stripped to skeleton + motion); each block below adds a new stride
+# to the pool. In Mixamo, per walk:
 #
-# # out: assets/clip_walk.glb
-# Walking   PASTE-LINK-HERE
+#   pick any character, search a walk — good spread:
+#     "Walking" · "Catwalk Walk" · "Sassy Walking" · "Happy Walking"
+#   TICK "In Place" → Download: FBX Binary, WITH SKIN, 30fps
 #
-# # out: assets/clip_idle.glb
-# Idle      PASTE-LINK-HERE
+# Put each on Drive as "Anyone with the link", un-comment a block,
+# paste the link, commit. The courier builds the ~50KB donor; then the
+# FEM_WALKS list in index.html gains the filename (one line — say the
+# word and it is done).
+#
+# # out: assets/clip_walkf_2.glb
+# Pool_Walk_2   PASTE-LINK-HERE
+#
+# # out: assets/clip_walkf_3.glb
+# Pool_Walk_3   PASTE-LINK-HERE
+#
+# # out: assets/clip_walkf_4.glb
+# Pool_Walk_4   PASTE-LINK-HERE
