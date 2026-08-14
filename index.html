@@ -8645,13 +8645,20 @@ window.__castLib = castLib;   /* test/debug hook: the loaded bodies */
    through the real lendClip. A character being authored has to be
    judged before it is committed to, and judging it means seeing it
    move — not reading a bone list. */
-window.__lendTo = (url) => new Promise((ok, no) => gltf.load(url, (g) => {
-  const clip = sitDonor && sitDonor.animations[0];
-  if (!clip) return ok({ err: "the sit donor has not loaded" });
-  const lent = lendClip(clip, g.scene, sitDonor.scene, "Stand To Sit");
+window.__lendTo = (url, donorKey, clipName, expect = "sit") =>
+  new Promise((ok, no) => gltf.load(url, (g) => {
+  /* default: the sit donor, which is how every body has been judged.
+     Named: any loaded body, so kenta's walk can be auditioned on a
+     candidate without waiting for a download that may not be needed. */
+  const donor = donorKey ? castLib[donorKey] : sitDonor;
+  if (!donor) return ok({ err: (donorKey || "the sit donor") + " has not loaded" });
+  const clip = clipName ? donor.animations.find(c => c.name === clipName)
+                        : donor.animations[0];
+  if (!clip) return ok({ err: "no clip " + (clipName || "[0]") + " on " + (donorKey || "donor") });
+  const lent = lendClip(clip, g.scene, donor.scene, clip.name);
   if (!lent) return ok({ err: "nothing bound" });
   ok({ gltf: g, clip: lent, tracks: lent.tracks.length,
-       why: poseLooksWrong(lent, g, "sit", sitDonor, clip) });
+       why: poseLooksWrong(lent, g, expect, donor, clip) });
 }, undefined, (e) => ok({ err: String(e).slice(0, 120) })));
 /* test/debug hook: what the sit-down looks like on a given body, and
    what the acceptance test made of it. */
