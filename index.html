@@ -1863,7 +1863,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v56";
+const BUILD = "pembroke-v57";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -3974,7 +3974,6 @@ const CAST_FILES = {
   walker:  "assets/stu_walker.glb",     /* 50k tris, 7 mocap clips      */
   ariel:   "assets/stu_ariel.glb",      /* 35k tris, one walk cycle     */
   woman:   "assets/stu_woman.glb",      /* ferried in by the courier    */
-  alina:   "assets/stu_alina.glb",      /* ferried in by the courier    */
   /* Brought in together to be judged on the quad rather than in a log.
      kenta is the cheapest body here by a distance and the only newcomer
      whose skeleton is Mixamo-named, so he can take the standing idle;
@@ -4003,6 +4002,7 @@ const CAST_FILES = {
   hero:    "assets/stu_hero.glb",       /* 300k tris, PhotoHero          */
   char2:   "assets/stu_char2.glb",      /* 200k tris, yellow sweater     */
   char3:   "assets/stu_char3.glb",      /* 200k tris, pink top           */
+  char4:   "assets/stu_char4.glb",      /* 200k tris, the lightest yet   */
 };
 /* ── who has to be here before the doors open ─────────────────────────
    Eleven rigged files is 15MB, all of it decoded on the main thread
@@ -4019,7 +4019,7 @@ const CAST_FILES = {
    looks like anyway.
 
      first           walker ariel kenta skate tutor
-     after           woman alina isla hero char2 char3
+     after           woman isla hero char2 char3 char4
 
    Which bodies come first is a question about variety, not only about
    megabytes, and the first list got it wrong. Of the four ROAMING
@@ -4070,7 +4070,7 @@ const CAST_FILES = {
    from more than one person at all.                                    */
 /* ── who arrives first is drawn, not written down ─────────────────────
    A fixed first wave means the same seven bodies every visit, and the
-   ones that load late — isla, woman, alina — are the ones a visitor
+   ones that load late — isla, woman, the authored four — are the ones a visitor
    rarely meets at all. The crowd was already randomised in every other
    respect: clothes, build, start point, which body a named student
    wears. The one thing still fixed was which bodies were in the room
@@ -4079,8 +4079,9 @@ const CAST_FILES = {
    It cannot be a plain shuffle, for two reasons that pull against each
    other. The first wave IS the critical path, so a free draw could put
    the heaviest roamer in front of the campus a visitor is waiting to
-   walk on (when this was written that was nadia at 4.22MB; today it is
-   alina at 3.04). And it has to contain somebody the wardrobe can
+   walk on (nadia at 4.22MB when this was written; the crown has since
+   passed twice as the heavy bodies retired). And it has to contain
+   somebody the wardrobe can
    dress, or the opening crowd is mannequins again — which is exactly
    the fault that put ariel here in the first place.
 
@@ -4099,12 +4100,12 @@ const CAST_FILES = {
    and no other body has them. The loiterers and the skater are there
    because nothing else can stand in for what they do. */
 const CAST_MB = { walker: 1.84, ariel: 1.66, kenta: 0.24,
-                  isla: 0.88, woman: 2.64, alina: 3.04,
+                  isla: 0.88, woman: 2.64,
                   skate: 1.27, tutor: 0.32,
                   /* all three past CAST_BUDGET on purpose: the first
                      wave is the critical path and these are its whole
                      weight class — they arrive with the late wave */
-                  hero: 5.40, char2: 3.86, char3: 4.72 };
+                  hero: 5.40, char2: 3.86, char3: 4.72, char4: 3.31 };
 /* Measured, not guessed: these are the six bodies with a shirt mesh the
    wardrobe can find. See the note above about the ten that have none. */
 const CAST_DRESSABLE = ["walker", "ariel", "woman"];
@@ -4117,8 +4118,8 @@ const CAST_DRESSABLE = ["walker", "ariel", "woman"];
  * put walker×3 + sophia×2 and walker×2 + kenta + tutor + woman + sophia
  * on the quad — reported from a phone as "none of the female characters
  * are present", which is very nearly what the numbers say. */
-const CAST_FEM = new Set(["woman", "alina", "ariel", "isla",
-                          "hero", "char2", "char3"]);
+const CAST_FEM = new Set(["woman", "ariel", "isla",
+                          "hero", "char2", "char3", "char4"]);
 const CAST_BUDGET = 3.0;
 function drawFirstWave(){
   const core = ["walker", "skate", "tutor"].filter(k => CAST_FILES[k]);
@@ -4153,8 +4154,7 @@ function drawFirstWave(){
    *
      One is what the rules above produce whenever the dressable draw
      lands on `woman` at 2.64MB: she spends the budget outright, the
-     fill can only afford kenta, and ariel, isla and alina all arrive
-     late. The named cast is built at that moment, so the students who
+     fill can only afford kenta, and ariel and isla arrive late. The named cast is built at that moment, so the students who
      want a woman's body have exactly one to share — which is the
      identical-twins complaint wearing different clothes. The cheapest
      second is isla at 0.88MB, and she walks. */
@@ -4176,7 +4176,8 @@ function drawFirstWave(){
      CHEAPEST remaining rather than the next shuffled one, because this
      is the one step allowed to exceed the budget and the overshoot
      should be a quarter of a megabyte rather than three. A draw that
-     ignored this put alina in the first wave and took it to 9.34MB. */
+     ignored this once put a 3MB body in the first wave and took it
+     to 9.34MB. */
   const rest = pool.filter(k => !picks.includes(k))
                    .sort((a, b) => (CAST_MB[a] || 9) - (CAST_MB[b] || 9));
   for (const k of rest){
@@ -4189,16 +4190,16 @@ function drawFirstWave(){
    any of the colours — see buildOf, which varies each figure another
    ±11% on top of these. */
 const CAST_HEIGHT = { walker: 42, woman: 41,
-                      alina: 40, ariel: 40,
+                      ariel: 40,
                       tutor: 41, skate: 42,
                       kenta: 41, isla: 40,
-                      hero: 42, char2: 41, char3: 40 };
+                      hero: 42, char2: 41, char3: 40, char4: 41 };
 /* Which bodies can be given a waypoint and told to walk it, and which
    are only good for standing about. Eight that walk against a crowd
    that caps at ten: the round robin runs out of new people only on the
    ninth, and by then they are scattered over sixty-eight waypoints. */
-const ROAMING = ["walker", "woman", "alina", "ariel",
-                 "kenta", "isla", "hero", "char2", "char3"];
+const ROAMING = ["walker", "woman", "ariel",
+                 "kenta", "isla", "hero", "char2", "char3", "char4"];
 /* Drawn here rather than beside drawFirstWave, because it reads ROAMING
    and a const cannot be read before it is declared — putting the call
    next to the function threw on load, which is a blank campus. */
@@ -4665,7 +4666,7 @@ function prepFigure(k, height, live, clipIx = 0){
 
      mixamorigLeftUpLeg            walker, kenta, tutor
      LeftUpLeg_3                   isla
-     CC_Base_L_Thigh_04            woman, alina, ariel
+     CC_Base_L_Thigh_04            woman, ariel
      rp_nathan_..._upperleg_l_074  nobody, since nathan retired — the
                                    parsing stays, because the next
                                    Renderpeople scan will spell its
