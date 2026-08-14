@@ -3996,7 +3996,7 @@ const CAST_FILES = {
   char6:   "assets/stu_char6.glb",      /* 200k tris, the lightest, 2.99 */
 };
 /* ── who has to be here before the doors open ─────────────────────────
-   Eleven rigged files is 15MB, all of it decoded on the main thread
+   Twelve rigged files is 31MB, all of it decoded on the main thread
    before a phone can draw anything. But only a handful are needed
    to build the campus you arrive on: the named cast, the skater and
    the loiterer. The rest exist solely for the crowd — and the
@@ -4190,9 +4190,10 @@ const CAST_HEIGHT = { walker: 42, woman: 41,
                       hero: 42, char2: 41, char3: 40, char4: 41, char5: 43,
                       char6: 42 };
 /* Which bodies can be given a waypoint and told to walk it, and which
-   are only good for standing about. Eight that walk against a crowd
+   are only good for standing about. Ten that walk against a crowd
    that caps at ten: the round robin runs out of new people only on the
-   ninth, and by then they are scattered over sixty-eight waypoints. */
+   eleventh, and by then they are scattered over sixty-eight
+   waypoints. */
 const ROAMING = ["walker", "woman", "ariel",
                  "isla", "hero", "char2", "char3", "char4", "char5",
                  "char6"];
