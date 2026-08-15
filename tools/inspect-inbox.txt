@@ -34,9 +34,9 @@
 # this code is written in cannot reach Drive at all. Put a link here
 # when there is one to look at.
 
-# ── which character is this, and is he a he? ─────────────────────────
-# Two bodies on the roster were described as male on delivery and read
-# female when rendered — char4 and char11 — so the cast is 7 women to 3
-# men where it was meant to be nearer even. This is the file that is
-# believed to be a man. The render settles it.
-maybe_male   https://drive.google.com/file/d/1yIBPpoklPTOlZbRc4nQkrrX_yApFCOt1/view
+# ── answered ────────────────────────────────────────────────────────
+# A link stood here to settle whether a body was male, because two
+# delivered as men had rendered as women. It is character 14, and he
+# is: varsity jacket, short hair, 3.49MB. He arrived directly and is
+# on the roster. The link is removed rather than left, because a link
+# in this file is a request to go and look at it.
