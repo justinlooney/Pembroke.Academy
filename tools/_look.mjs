@@ -15,7 +15,7 @@ await new Promise(ok=>srv.listen(8327,ok));
 const b=await chromium.launch({args:["--use-gl=swiftshader","--enable-unsafe-swiftshader","--disable-dev-shm-usage"]});
 const pg=await b.newPage({viewport:{width:1100,height:700}});
 pg.on("pageerror",e=>console.log("PAGE ERROR:",String(e).slice(0,180)));
-await pg.goto("http://localhost:8327/index.html",{waitUntil:"load"});
+await pg.goto("http://localhost:8327/index.html",{waitUntil:"load",timeout:300000});
 await pg.waitForFunction(()=>window.__app&&window.__app.camera,null,{timeout:180000});
 // wait for the hall itself to land
 for(let i=0;i<60;i++){
@@ -38,7 +38,7 @@ for (const [name, pos, look] of shots){
     controls.update();
   },[pos,look]);
   await pg.waitForTimeout(2500);
-  await pg.screenshot({path: resolve(ROOT,".shots","site-"+name+".png")});
+  await pg.screenshot({path: resolve(ROOT,".shots","site-"+name+".png"), timeout: 180000});
   console.log("  .shots/site-"+name+".png");
 }
 await b.close(); srv.close();
