@@ -51,15 +51,16 @@ blocks, cur = [], None
 # push that armed four clip donors rebuilt the walking woman to the
 # identical bytes and reported success having built nothing.
 #
-# The consequence at the top of the file is that the header comment
-# belongs to the first block. That is bounded and one block wide, where
-# the old behaviour was wrong for every block in the file.
-gap = 1
+# The file header is not any block's introduction — it is the
+# instructions for the file — so it is deliberately owned by nobody.
+# Editing it builds nothing, which is right: it changes no link.
+gap = None
 for lineno, raw in enumerate(open(src, encoding="utf-8"), 1):
     line = raw.rstrip("\n")
     out = re.match(r"^\s*#\s*out:\s*(\S+)", line)
     if out:
-        cur = {"out": out.group(1), "files": [], "from": gap, "to": lineno}
+        cur = {"out": out.group(1), "files": [],
+               "from": lineno if gap is None else gap, "to": lineno}
         blocks.append(cur)
         gap = lineno + 1
         continue
@@ -72,7 +73,8 @@ for lineno, raw in enumerate(open(src, encoding="utf-8"), 1):
     name, url = parts[0], parts[1]
     if cur is None:
         # links before any "# out:" still deserve somewhere to go
-        cur = {"out": "assets/stu_walker.glb", "files": [], "from": gap, "to": lineno}
+        cur = {"out": "assets/stu_walker.glb", "files": [],
+               "from": lineno if gap is None else gap, "to": lineno}
         blocks.append(cur)
     fid = re.search(r"/d/([^/]+)", url) or re.search(r"[?&]id=([^&]+)", url)
     if not fid:

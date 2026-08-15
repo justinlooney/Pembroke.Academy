@@ -12,6 +12,14 @@
 # discarded. That is what keeps four 50MB characters from becoming four
 # near-identical students at four times the weight.
 #
+# A COMMENT BELONGS TO THE BLOCK BELOW IT, not the one above. Only the
+# blocks a commit edited are rebuilt, and the run of comment and blank
+# lines introducing a block counts as part of it — so a note written
+# under one block and above the next asks for the NEXT one. Written the
+# other way round once: a note added above "# out: assets/clip_idle.glb"
+# rebuilt the walking student instead, and the run went green having
+# built nothing anybody asked for.
+#
 # The name becomes the clip name; underscores become spaces.
 # Share every file as "Anyone with the link" or the fetch will say so.
 # Tick "In Place" on Mixamo where it is offered: the campus drives
