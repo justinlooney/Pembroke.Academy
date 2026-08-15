@@ -1904,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v73";
+const BUILD = "pembroke-v74";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -5737,11 +5737,22 @@ function lendSitDown(){
      library and reachable by nobody already standing on the quad. */
   const done = () => {
     if (++castReady < first.length + 1 + FEM_WALKS.length + LOOSE_CLIPS.length) return;
+    /* Lend FIRST, then ask who can walk. loadedRoaming() counts bodies
+       that have a GAIT, and no body on this campus arrives with one any
+       more — every stride is lent from clip_walkf_1.glb. So asking
+       before lending asks whether anybody can walk before anybody has
+       been taught, the answer is nobody, and this guard used to abort
+       the whole campus: "no rigged body loaded — no students", zero
+       people on a quad whose bodies had all arrived intact.
+
+       It survived until now because isla came down with her own walk
+       and satisfied the guard single-handed. She is retired, and the
+       guard went from load-bearing-by-accident to fatal. */
+    lendSitDown();
     if (!loadedRoaming().length && !loadedLoitering().length){
       console.error("no rigged body loaded — no students");
       return;
     }
-    lendSitDown();
     /* Claimed before the campus is built, not after. buildCast ends by
        offering to fill a ?crowd quad, and if the count were still zero
        at that moment it would fill from the first wave alone — which is
