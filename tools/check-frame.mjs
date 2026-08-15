@@ -127,6 +127,20 @@ const r = await page.evaluate(() => {
      plus a third again for the mip chain. */
   let texBytes = 0;
   const byTex = new Map();
+  /* WHERE a texture came from. The page draws a great many for itself —
+     every stone wall rasterises an SVG for day and night and derives a
+     normal and a roughness map from it — and those live in no file, so
+     an audit that reads assets/ cannot see one of them. */
+  const byOrigin = {};
+  const originOf = (t) => {
+    const im = t.image;
+    if (!im) return "no image";
+    const c = im.constructor && im.constructor.name;
+    if (c === "HTMLCanvasElement" || c === "OffscreenCanvas") return "canvas the page drew";
+    if (im.src && /^data:/.test(im.src)) return "data: URI (rasterised SVG)";
+    if (im.src) return "fetched file";
+    return c || "unknown";
+  };
   for (const t of texes){
     const im = t.image;
     const w = im?.width || im?.videoWidth || 0, h = im?.height || im?.videoHeight || 0;
@@ -135,6 +149,10 @@ const r = await page.evaluate(() => {
     texBytes += bytes;
     const k = w + "x" + h;
     byTex.set(k, (byTex.get(k) || 0) + bytes);
+    const o = originOf(t);
+    (byOrigin[o] = byOrigin[o] || { mb: 0, n: 0 });
+    byOrigin[o].mb += bytes / 1048576;
+    byOrigin[o].n++;
   }
   /* and per bucket, so "the people" can be weighed against "the halls" */
   const texByBucket = {};
@@ -164,6 +182,7 @@ const r = await page.evaluate(() => {
     materials: mats.size,
     textures: texes.size,
     texMB: +(texBytes / 1048576).toFixed(1),
+    byOrigin,
     byTex: [...byTex].map(([k, v]) => [k, +(v / 1048576).toFixed(1)])
                      .sort((a, b) => b[1] - a[1]),
     texByBucket: Object.fromEntries(Object.entries(texByBucket)
