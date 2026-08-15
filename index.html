@@ -1904,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v82";
+const BUILD = "pembroke-v83";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -9503,7 +9503,11 @@ document.getElementById("daynight").addEventListener("click", () => {
 });
 
 /* ── ignition ────────────────────────────────────────────────────── */
-window.__app = { selectSector, openInterior, camera, controls, world, THREE };   /* test/debug hooks */
+/* renderer too: renderer.info is the only count of what the LAST
+   FRAME actually cost that is not a guess reconstructed by walking
+   the scene graph. */
+window.__app = { selectSector, openInterior, camera, controls, world, THREE,
+                 renderer };   /* test/debug hooks */
 aerialHome();          /* now that #stage has a real size, frame for it */
 applyMode();
 renderChips();
