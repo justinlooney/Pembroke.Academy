@@ -1,0 +1,163 @@
+#!/usr/bin/env node
+/**
+ * Pembroke Academy — where does a frame actually go?
+ *
+ *     node tools/check-frame.mjs
+ *
+ * NOT a frame rate. This runs on a software rasterizer that draws the
+ * campus at about a tenth of a frame a second, and this repository has
+ * twice had an investigation measure the harness and report it as the
+ * campus — "students crawl" and "nobody is walking" were both the
+ * rasterizer. An fps number from here is worse than no number, because
+ * somebody will act on it.
+ *
+ * So this counts the things that are the same on any GPU and that a
+ * frame is actually made of:
+ *
+ *   DRAW CALLS    the number of times the CPU tells the GPU to draw.
+ *                 On a phone this is usually the ceiling, not triangles.
+ *   TRIANGLES     what the vertex stage chews through, and again in
+ *                 every shadow pass.
+ *   SHADOWS       a shadow map re-draws the casters from the light. A
+ *                 caster nobody sees the shadow of is paid for twice
+ *                 for nothing.
+ *   PROGRAMS      each distinct shader is a compile at load and a state
+ *                 change in the frame.
+ *   TEXTURES      what has to fit in VRAM, and what a phone evicts.
+ *
+ * Everything is attributed to the part of the campus it belongs to, so
+ * "the buildings" and "the people" and "the flora" can be compared
+ * rather than argued about.
+ */
+import { chromium } from "playwright";
+import { createServer } from "node:http";
+import { readFile } from "node:fs/promises";
+import { existsSync, statSync } from "node:fs";
+import { resolve, extname, sep } from "node:path";
+
+const ROOT = resolve(new URL("..", import.meta.url).pathname);
+const PORT = 8317;
+const MIME = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
+               ".glb": "model/gltf-binary", ".png": "image/png", ".woff2": "font/woff2" };
+
+const srv = createServer(async (req, res) => {
+  const p = resolve(ROOT, decodeURIComponent(req.url.split("?")[0]).slice(1) || "index.html");
+  if (!p.startsWith(ROOT + sep) && p !== ROOT) return res.writeHead(403).end();
+  if (!existsSync(p) || !statSync(p).isFile()) return res.writeHead(404).end();
+  res.writeHead(200, { "content-type": MIME[extname(p)] || "application/octet-stream" });
+  res.end(await readFile(p));
+});
+await new Promise((ok) => srv.listen(PORT, ok));
+
+const browser = await chromium.launch({ args: ["--use-gl=swiftshader",
+  "--enable-unsafe-swiftshader", "--disable-dev-shm-usage"] });
+const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+await page.goto(`http://localhost:${PORT}/index.html?crowd`, { waitUntil: "load" });
+await page.waitForFunction(() => window.__crowd && window.__crowd().ready &&
+  window.__students.length > 0, null, { timeout: 600000 });
+await page.evaluate(() => window.__crowdFill());
+await page.waitForTimeout(4000);
+
+const r = await page.evaluate(() => {
+  const { world, camera, renderer, THREE } = window.__app;
+  const scene = world.parent || world;
+
+  /* Which part of the campus an object belongs to. Walked up the parent
+     chain, because the interesting groupings are the ones the code
+     built — flora is instanced under a group, a body is a figure. */
+  const bucketOf = (o) => {
+    for (let n = o; n; n = n.parent){
+      const nm = (n.name || "") + " " + (n.userData?.figure || "");
+      if (n.userData?.figure) return "people";
+      if (/tree|flora|plant|shrub|hedge|fern|maple|oak|elm|pine|cypress|lavender|daff/i.test(nm))
+        return "flora";
+      if (/hall|building|cathedral|chapel|reshall|dorm|ballpark|stadium|university|gate|tower/i.test(nm))
+        return "buildings";
+      if (/bench|lamp|car|prop|sign|fence|path|walk|road/i.test(nm)) return "props";
+      if (/ground|terrain|lawn|grass|sky|water/i.test(nm)) return "ground";
+    }
+    return "other";
+  };
+
+  const B = {}, add = (b, k, v) => { (B[b] = B[b] || {})[k] = (B[b][k] || 0) + v; };
+  const mats = new Set(), texes = new Set();
+  let shadowTris = 0, shadowDraws = 0;
+
+  camera.updateMatrixWorld(true);
+  const frustum = new THREE.Frustum().setFromProjectionMatrix(
+    new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+
+  scene.traverse((o) => {
+    if (!o.isMesh && !o.isInstancedMesh && !o.isSkinnedMesh) return;
+    if (!o.visible) return;
+    const g = o.geometry;
+    if (!g || !g.attributes.position) return;
+    const per = (g.index ? g.index.count : g.attributes.position.count) / 3;
+    const n = o.isInstancedMesh ? o.count : 1;
+    const tris = per * n;
+    const b = bucketOf(o);
+    add(b, "draws", o.isInstancedMesh ? 1 : 1);
+    add(b, "tris", tris);
+    add(b, "meshes", 1);
+    if (o.isInstancedMesh) add(b, "instances", n);
+    if (o.castShadow){ shadowTris += tris; shadowDraws++; add(b, "shadowTris", tris); }
+    /* in view from where the camera actually is */
+    if (o.boundingSphere || g.boundingSphere){
+      const s = (g.boundingSphere || o.boundingSphere).clone();
+      s.applyMatrix4(o.matrixWorld);
+      if (frustum.intersectsSphere(s)){ add(b, "inViewDraws", 1); add(b, "inViewTris", tris); }
+    }
+    for (const m of [].concat(o.material)){
+      if (!m) continue;
+      mats.add(m);
+      for (const k in m) if (m[k] && m[k].isTexture) texes.add(m[k]);
+    }
+  });
+
+  let texBytes = 0;
+  for (const t of texes){
+    const im = t.image;
+    const w = im?.width || im?.videoWidth || 0, h = im?.height || im?.videoHeight || 0;
+    if (w && h) texBytes += w * h * 4 * (t.generateMipmaps === false ? 1 : 1.33);
+  }
+
+  const info = renderer.info;
+  return {
+    buckets: B,
+    render: { calls: info.render.calls, tris: info.render.triangles },
+    programs: info.programs?.length ?? null,
+    materials: mats.size,
+    textures: texes.size,
+    texMB: +(texBytes / 1048576).toFixed(1),
+    shadowTris, shadowDraws,
+    shadowMap: renderer.shadowMap.enabled ? renderer.shadowMap.type : "off",
+    lights: (() => { let n = 0; scene.traverse(o => { if (o.isLight) n++; }); return n; })(),
+    shadowLights: (() => { let n = 0; scene.traverse(o => { if (o.isLight && o.castShadow) n++; }); return n; })(),
+    people: window.__students.filter(s => s.g && s.g.visible && !s.inside).length,
+    pixelRatio: renderer.getPixelRatio(),
+    size: (() => { const v = new THREE.Vector2(); renderer.getSize(v); return `${v.x}x${v.y}`; })(),
+  };
+});
+
+const n = (x) => (x || 0).toLocaleString();
+const m = (x) => ((x || 0) / 1e6).toFixed(2) + "M";
+console.log(`renderer   ${r.size} at pixelRatio ${r.pixelRatio}`);
+console.log(`draw calls ${n(r.render.calls)}   triangles ${m(r.render.tris)}   (three.js own count for the last frame)`);
+console.log(`programs   ${r.programs}   materials ${r.materials}   textures ${r.textures} (~${r.texMB}MB decoded)`);
+console.log(`lights     ${r.lights}, of which ${r.shadowLights} cast shadows (${r.shadowMap})`);
+console.log(`shadows    ${n(r.shadowDraws)} casters, ${m(r.shadowTris)} triangles re-drawn per shadow pass`);
+console.log(`people out ${r.people}`);
+console.log("");
+const head = ["", "meshes", "draws", "triangles", "in view", "tris in view", "shadow tris"];
+const rows = Object.entries(r.buckets)
+  .sort((a, b) => (b[1].tris || 0) - (a[1].tris || 0))
+  .map(([k, v]) => [k, n(v.meshes), n(v.draws), m(v.tris),
+                    n(v.inViewDraws), m(v.inViewTris), m(v.shadowTris)]);
+const w = head.map((_, i) => Math.max(head[i].length, ...rows.map(x => (x[i] || "").length)));
+const line = (c) => c.map((x, i) => String(x || "").padEnd(w[i])).join("  ");
+console.log(line(head));
+console.log(w.map(x => "─".repeat(x)).join("  "));
+rows.forEach(x => console.log(line(x)));
+
+await browser.close();
+srv.close();
