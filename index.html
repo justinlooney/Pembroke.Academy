@@ -1904,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v77";
+const BUILD = "pembroke-v78";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -4242,8 +4242,8 @@ const CAST_MB = {
                      ON_SCREEN_MB, and a third does not. The skater
                      skates off after fifteen seconds and gives his
                      1.27MB back, which is what makes room for the
-                     second: 39 of the 45 possible pairs fit once he is
-                     gone, against 13 while he is out. */
+                     second: all 45 possible pairs fit once he is gone,
+                     against 13 while he is out. */
                   char2: 3.86, char3: 4.72, char4: 3.31,
                   char5: 3.43, char6: 2.99, char7: 3.26, char8: 3.51,
                   char9: 3.01, char10: 3.68, char11: 4.01 };
@@ -4272,8 +4272,22 @@ const CAST_FEM = new Set(["char2", "char3", "char4", "char8", "char9",
    skater included, because the ceiling is about what comes down the
    wire and the wire does not care which of them is a student.
 
-   Seven megabytes, and the draw fills it with as many DIFFERENT people
-   as fit. That is the whole rule now. What it replaced was a 3.0MB
+   8.73MB, and the draw fills it with as many DIFFERENT people as fit.
+   That is the whole rule now.
+
+   The number is not a round one because it is measured rather than
+   chosen: 8.73MB is char3 and char11 together, the heaviest pair on
+   the roster, so every one of the 45 possible pairs of students can be
+   drawn. A cap of 8.0 excluded six of them and ALL SIX contained
+   char3 — he is 4.72MB, 200k triangles like everybody else but
+   160,626 vertices against the ~114,000 the rest need for the same
+   geometry, which is UV and normal seams tearing the mesh apart. Fix
+   that export and this number could come back down to 8.0 with all 45
+   still fitting; until then the cap carries his defect.
+
+   The skater is out for the first fifteen seconds only, so for that
+   window the students have 7.46MB and 13 of the 45 pairs fit. After he
+   goes they have all of it. What it replaced was a 3.0MB
    budget with two exemptions written over it — a guaranteed dressable
    body, and two women "allowed to overrun the budget to get there" —
    which meant the number was never the number: the wave was measured at
@@ -4289,7 +4303,7 @@ const CAST_FEM = new Set(["char2", "char3", "char4", "char8", "char9",
    and go from buildings — buildCast is resumable, so a student with no
    body at the first pass is built the moment theirs lands rather than
    missing the visit. */
-const ON_SCREEN_MB = 8.0;
+const ON_SCREEN_MB = 8.73;
 /* Which bodies are being drawn RIGHT NOW, and what they weigh together.
    Distinct bodies, not figures: a body is downloaded and decoded once
    and every figure wearing it shares that, so two students in the same
