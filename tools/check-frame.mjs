@@ -62,21 +62,23 @@ const r = await page.evaluate(() => {
   const { world, camera, renderer, THREE } = window.__app;
   const scene = world.parent || world;
 
-  /* Which part of the campus an object belongs to. Walked up the parent
-     chain, because the interesting groupings are the ones the code
-     built — flora is instanced under a group, a body is a figure. */
-  const bucketOf = (o) => {
-    for (let n = o; n; n = n.parent){
-      const nm = (n.name || "") + " " + (n.userData?.figure || "");
-      if (n.userData?.figure) return "people";
-      if (/tree|flora|plant|shrub|hedge|fern|maple|oak|elm|pine|cypress|lavender|daff/i.test(nm))
-        return "flora";
-      if (/hall|building|cathedral|chapel|reshall|dorm|ballpark|stadium|university|gate|tower/i.test(nm))
-        return "buildings";
-      if (/bench|lamp|car|prop|sign|fence|path|walk|road/i.test(nm)) return "props";
-      if (/ground|terrain|lawn|grass|sky|water/i.test(nm)) return "ground";
+  /* Attribute by the SCENE GRAPH, not by guessing at names. The first
+     version matched names with a regex and put 399 of 475 meshes in
+     "other", which is a breakdown that breaks nothing down. The campus
+     builds its groups deliberately; the group an object hangs under is
+     the answer, and the top-level child of the world is the coarsest
+     honest bucket there is. */
+  const topOf = (o) => {
+    let last = o;
+    for (let n = o; n && n !== scene; n = n.parent){
+      if (n.parent === scene || n.parent === world) last = n;
     }
-    return "other";
+    return last;
+  };
+  const bucketOf = (o) => {
+    if (o.userData?.figure) return "people: " + o.userData.figure;
+    const t = topOf(o);
+    return (t.name || t.type || "unnamed") + (t === o ? " (loose)" : "");
   };
 
   const B = {}, add = (b, k, v) => { (B[b] = B[b] || {})[k] = (B[b][k] || 0) + v; };
@@ -114,12 +116,41 @@ const r = await page.evaluate(() => {
     }
   });
 
+  /* Texture memory attributed the same way. This is the number a phone
+     actually feels: a 3.5MB character file becomes 63.8MB of RGBA in
+     VRAM, and the on-screen ceiling counts the 3.5 rather than the
+     63.8. Sizes are the DECODED footprint — width x height x RGBA,
+     plus a third again for the mip chain. */
   let texBytes = 0;
+  const byTex = new Map();
   for (const t of texes){
     const im = t.image;
     const w = im?.width || im?.videoWidth || 0, h = im?.height || im?.videoHeight || 0;
-    if (w && h) texBytes += w * h * 4 * (t.generateMipmaps === false ? 1 : 1.33);
+    if (!w || !h) continue;
+    const bytes = w * h * 4 * (t.generateMipmaps === false ? 1 : 1.33);
+    texBytes += bytes;
+    const k = w + "x" + h;
+    byTex.set(k, (byTex.get(k) || 0) + bytes);
   }
+  /* and per bucket, so "the people" can be weighed against "the halls" */
+  const texByBucket = {};
+  const seen = new Set();
+  scene.traverse((o) => {
+    if (!o.visible || !(o.isMesh || o.isInstancedMesh || o.isSkinnedMesh)) return;
+    const b = bucketOf(o);
+    for (const mm of [].concat(o.material)){
+      if (!mm) continue;
+      for (const k in mm){
+        const t = mm[k];
+        if (!t || !t.isTexture || seen.has(t)) continue;
+        seen.add(t);
+        const im = t.image;
+        const w = im?.width || im?.videoWidth || 0, h = im?.height || im?.videoHeight || 0;
+        if (!w || !h) continue;
+        texByBucket[b] = (texByBucket[b] || 0) + w * h * 4 * 1.33;
+      }
+    }
+  });
 
   const info = renderer.info;
   return {
@@ -129,6 +160,10 @@ const r = await page.evaluate(() => {
     materials: mats.size,
     textures: texes.size,
     texMB: +(texBytes / 1048576).toFixed(1),
+    byTex: [...byTex].map(([k, v]) => [k, +(v / 1048576).toFixed(1)])
+                     .sort((a, b) => b[1] - a[1]),
+    texByBucket: Object.fromEntries(Object.entries(texByBucket)
+                   .map(([k, v]) => [k, +(v / 1048576).toFixed(1)])),
     shadowTris, shadowDraws,
     shadowMap: renderer.shadowMap.enabled ? renderer.shadowMap.type : "off",
     lights: (() => { let n = 0; scene.traverse(o => { if (o.isLight) n++; }); return n; })(),
@@ -148,16 +183,20 @@ console.log(`lights     ${r.lights}, of which ${r.shadowLights} cast shadows (${
 console.log(`shadows    ${n(r.shadowDraws)} casters, ${m(r.shadowTris)} triangles re-drawn per shadow pass`);
 console.log(`people out ${r.people}`);
 console.log("");
-const head = ["", "meshes", "draws", "triangles", "in view", "tris in view", "shadow tris"];
+const head = ["", "meshes", "draws", "triangles", "in view", "tris in view", "shadow tris", "texture MB"];
 const rows = Object.entries(r.buckets)
   .sort((a, b) => (b[1].tris || 0) - (a[1].tris || 0))
   .map(([k, v]) => [k, n(v.meshes), n(v.draws), m(v.tris),
-                    n(v.inViewDraws), m(v.inViewTris), m(v.shadowTris)]);
+                    n(v.inViewDraws), m(v.inViewTris), m(v.shadowTris),
+                    (r.texByBucket[k] || 0).toFixed(1)]);
 const w = head.map((_, i) => Math.max(head[i].length, ...rows.map(x => (x[i] || "").length)));
 const line = (c) => c.map((x, i) => String(x || "").padEnd(w[i])).join("  ");
 console.log(line(head));
 console.log(w.map(x => "─".repeat(x)).join("  "));
 rows.forEach(x => console.log(line(x)));
+console.log("\ntexture memory by resolution — the decoded footprint, not the file size");
+for (const [dim, mb] of r.byTex)
+  console.log(`   ${String(mb).padStart(7)}MB  ${dim}`);
 
 await browser.close();
 srv.close();
