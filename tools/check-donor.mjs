@@ -76,46 +76,34 @@ const browser = await chromium.launch({ args: ["--use-gl=swiftshader",
   "--enable-unsafe-swiftshader", "--disable-dev-shm-usage"] });
 const page = await browser.newPage({ viewport: { width: 900, height: 700 } });
 page.on("pageerror", (e) => console.log("  page error:", String(e).slice(0, 160)));
-await page.goto(`http://localhost:${PORT}/index.html?crowd`, { waitUntil: "load" });
-/* Wait for the cast to STOP GROWING, not for some number of bodies to
-   have arrived. The first run judged four donors against four
-   receivers — isla, skate, tutor and walker — because twenty seconds
-   was not enough for the authored characters, and a donor judged
-   against a quarter of the cast has not been judged. */
-const waitForCast = async () => {
-  await page.waitForFunction(() => window.__castLib &&
-    Object.keys(window.__castLib).length >= 3, null, { timeout: 180000 });
-  let last = -1, still = 0;
-  while (still < 4){
-    await page.waitForTimeout(3000);
-    const n = await page.evaluate(() => Object.keys(window.__castLib).length);
-    still = n === last ? still + 1 : 0;
-    last = n;
-  }
-};
-await waitForCast();
+await page.goto(`http://localhost:${PORT}/index.html`, { waitUntil: "load" });
+/* Every body in the roster, not every body that happens to have
+   spawned. __lendTo loads the receiver by URL, so it does not care
+   whether the campus has cast that person yet — and waiting for the
+   crowd got four receivers out of thirteen, because the authored
+   characters are traded in at invisible moments that never come in a
+   headless tab. A donor judged against a quarter of the cast has not
+   been judged. */
+const ready = () => page.waitForFunction(() => window.__castFiles &&
+  Object.keys(window.__castFiles).length > 0, null, { timeout: 180000 });
+await ready();
 
-/* Every body the campus actually loaded, and the file each came
-   out of — guessing the filename from the key 404s on the ones
-   named differently, which reads as a broken body. */
-const bodies = await page.evaluate(() => Object.keys(window.__castLib)
-  .filter(k => window.__castFiles[k]).sort()
-  .map(k => [k, window.__castFiles[k]]));
+const bodies = await page.evaluate(() => Object.entries(window.__castFiles).sort());
 console.log("receivers:", bodies.map(b => b[0]).join(", "), "\n");
 
-let bad = 0;
+let bad = 0, pairings = 0;
 for (const donor of donors){
-  /* A fresh page per donor. __lendTo loads a whole body per pairing and
-     nothing frees them, so the tab died partway through the fifth donor
-     with "Target page, context or browser has been closed" — which
-     looks like a donor fault and is a harness leak. */
-  if (donor !== donors[0]){
-    await page.goto(`http://localhost:${PORT}/index.html?crowd`, { waitUntil: "load" });
-    await waitForCast();
-  }
   const expect = expectOf(donor);
   console.log(`── ${basename(donor)}   (should end ${expect}) ──`);
   for (const [k, url] of bodies){
+    /* A fresh page every so often. Each pairing loads a whole body and
+       nothing frees it, so the tab died partway through the fifth donor
+       with "Target page, context or browser has been closed" — which
+       reads as a donor fault and is a harness leak. */
+    if (++pairings % 10 === 0){
+      await page.goto(`http://localhost:${PORT}/index.html`, { waitUntil: "load" });
+      await ready();
+    }
     const r = await page.evaluate(([u, d, e]) => window.__lendTo(u, d, null, e),
       [url, donor, expect]);
     /* poseLooksWrong returns null when it finds nothing wrong, and a
