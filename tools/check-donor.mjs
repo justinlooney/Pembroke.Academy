@@ -53,11 +53,14 @@ if (!donors.length){
   process.exit(1);
 }
 
-/* Whether a clip ends standing or seated changes what poseLooksWrong
-   will accept — a sit that ends upright is a failure and an idle that
-   ends folded is one too. Read from the name, which is the only thing
-   a donor file carries. */
-const expectOf = (p) => /talk|sit/.test(basename(p)) ? "sit" : "stand";
+/* What SHAPE the clip should have, which is not the same as what it is
+   called. Getting this wrong rejects a working donor for doing its job:
+   Standing Up was failed for "hips fall to 0.08 for an idle" (it starts
+   seated, which is the point) and Sitting Talking for "the hips never
+   drop" (they are already down — it is a seated loop, not a sit). Four
+   shapes, and every donor in the file is one of them. */
+const SHAPE = { clip_sit: "sit", clip_stand: "rise", clip_talk: "seated" };
+const expectOf = (p) => SHAPE[basename(p, ".glb")] || "stand";
 
 const srv = createServer(async (req, res) => {
   const p = resolve(ROOT, decodeURIComponent(req.url.split("?")[0]).slice(1) || "index.html");
@@ -74,11 +77,23 @@ const browser = await chromium.launch({ args: ["--use-gl=swiftshader",
 const page = await browser.newPage({ viewport: { width: 900, height: 700 } });
 page.on("pageerror", (e) => console.log("  page error:", String(e).slice(0, 160)));
 await page.goto(`http://localhost:${PORT}/index.html?crowd`, { waitUntil: "load" });
-await page.waitForFunction(() => window.__castLib &&
-  Object.keys(window.__castLib).length >= 3, null, { timeout: 180000 });
-/* Let the rest of the cast finish arriving; a body still downloading is
-   not evidence of anything. */
-await page.waitForTimeout(20000);
+/* Wait for the cast to STOP GROWING, not for some number of bodies to
+   have arrived. The first run judged four donors against four
+   receivers — isla, skate, tutor and walker — because twenty seconds
+   was not enough for the authored characters, and a donor judged
+   against a quarter of the cast has not been judged. */
+const waitForCast = async () => {
+  await page.waitForFunction(() => window.__castLib &&
+    Object.keys(window.__castLib).length >= 3, null, { timeout: 180000 });
+  let last = -1, still = 0;
+  while (still < 4){
+    await page.waitForTimeout(3000);
+    const n = await page.evaluate(() => Object.keys(window.__castLib).length);
+    still = n === last ? still + 1 : 0;
+    last = n;
+  }
+};
+await waitForCast();
 
 /* Every body the campus actually loaded, and the file each came
    out of — guessing the filename from the key 404s on the ones
@@ -90,6 +105,14 @@ console.log("receivers:", bodies.map(b => b[0]).join(", "), "\n");
 
 let bad = 0;
 for (const donor of donors){
+  /* A fresh page per donor. __lendTo loads a whole body per pairing and
+     nothing frees them, so the tab died partway through the fifth donor
+     with "Target page, context or browser has been closed" — which
+     looks like a donor fault and is a harness leak. */
+  if (donor !== donors[0]){
+    await page.goto(`http://localhost:${PORT}/index.html?crowd`, { waitUntil: "load" });
+    await waitForCast();
+  }
   const expect = expectOf(donor);
   console.log(`── ${basename(donor)}   (should end ${expect}) ──`);
   for (const [k, url] of bodies){

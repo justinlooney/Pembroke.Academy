@@ -5372,6 +5372,13 @@ function poseLooksWrong(clip, src, expect, from, fromClip, tol = POSE_TOLERANCE)
   if (expect === "sit" && mine[0].hips - mine[mine.length - 1].hips < 0.25)
     return "the hips never drop";
   if (expect === "seated" && hi > 0.75) return "hips reach " + hi.toFixed(2) + ", not seated";
+  /* Standing Up is the sit run backwards: it BEGINS with the hips down
+     and ends with them up, so both of the tests either side of this one
+     reject it correctly and for the wrong reason — "the hips never
+     drop" and "hips fall to 0.08 for an idle" were both true of a clip
+     doing its job. A rise has its own shape and needs its own test. */
+  if (expect === "rise" && mine[mine.length - 1].hips - mine[0].hips < 0.25)
+    return "the hips never rise";
   if (expect === "stand" && lo < 0.6) return "hips fall to " + lo.toFixed(2) + " for an idle";
   return null;
 }
