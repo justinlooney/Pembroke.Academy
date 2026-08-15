@@ -1904,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v66";
+const BUILD = "pembroke-v67";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -4066,7 +4066,18 @@ function mkPerson(jacketColor, seed){
    his single-mesh scan could never be dressed. Retired when the
    authored characters raised the bar.                                  */
 const CAST_FILES = {
-  walker:  "assets/stu_walker.glb",     /* 50k tris, 7 mocap clips      */
+  /* ── walker is gone ────────────────────────────────────────────────
+     The body this campus was built on, and the last one here that came
+     out of Blender rather than out of a character pipeline. Retired
+     once his four clips were rebuilt as skinless donors: Idle, Sitting
+     Talking and Jogging are now everybody's, which was the only thing
+     keeping him. He rested 90 degrees from his bind on all fourteen
+     clip-driven bones, so he could lend nothing and every clip he
+     owned was owned by him alone — three named students had to ask for
+     him BY NAME, which put the same man on the quad three times over
+     and shut five women out of the named cast. 1.84MB, 50k triangles,
+     and the only body the wardrobe could tint.
+     His inbox block went with him, as always. */
   /* Brought in together to be judged on the quad rather than in a log.
      isla walks but arrives at 183k triangles and leans on the courier's
      simplifier. kenta, nadia and sophia came in the same wave and are
@@ -4090,6 +4101,7 @@ const CAST_FILES = {
   char7:   "assets/stu_char7.glb",      /* 200k tris, the third man      */
   char8:   "assets/stu_char8.glb",      /* 200k tris, the sixth woman    */
   char9:   "assets/stu_char9.glb",      /* 200k tris, 12.3 bytes a tri   */
+  char10:  "assets/stu_char10.glb",     /* 200k tris, walker's successor */
 };
 /* ── who has to be here before the doors open ─────────────────────────
    Twelve rigged files is 31MB, all of it decoded on the main thread
@@ -4105,8 +4117,9 @@ const CAST_FILES = {
    seconds after you do is a student walking in, which is what this
    looks like anyway.
 
-     first           walker skate tutor
-     after           isla hero char2 char3 char4 char5 char6 char7 char8 char9
+     first           skate tutor
+     after           isla hero char2 char3 char4 char5 char6 char7 char8
+                     char9 char10
 
    Which bodies come first is a question about variety, not only about
    megabytes, and the first list got it wrong. Of the four ROAMING
@@ -4175,19 +4188,21 @@ const CAST_FILES = {
    So: a fixed core, then a draw under a byte budget with a dressability
    guarantee.
 
-     core        walker, and the two who are not roamers
+     core        the two who are not roamers
      budget      2.6MB of roaming bodies beyond the core — what the
                  original written list cost, kept as the line the
                  first wave must not cross
                  plus room for one more small one
      guarantee   at least one dressable body in the draw
 
-   walker is in the core because three named students ask for him BY
-   NAME — Priya, Sofia and Amara need Idle, Sitting Talking and Jogging,
-   and no other body has them. The loiterers and the skater are there
-   because nothing else can stand in for what they do. */
-const CAST_MB = { walker: 1.84,
-                  isla: 0.88,
+   walker used to be in the core because three named students asked for
+   him BY NAME — Priya, Sofia and Amara need Idle, Sitting Talking and
+   Jogging, and no other body had them. All three clips are lent from
+   skinless donors now, so those students ask for a CAPABILITY and any
+   body that has been lent it can answer; walker is retired and the core
+   is down to the loiterers and the skater, who are there because
+   nothing else can stand in for what they do. */
+const CAST_MB = { isla: 0.88,
                   skate: 1.27, tutor: 0.32,
                   /* every authored body is past CAST_BUDGET on
                      purpose: the first wave is the critical path and
@@ -4195,16 +4210,16 @@ const CAST_MB = { walker: 1.84,
                      with the late wave */
                   hero: 5.40, char2: 3.86, char3: 4.72, char4: 3.31,
                   char5: 3.43, char6: 2.99, char7: 3.26, char8: 3.51,
-                  char9: 3.01 };
+                  char9: 3.01, char10: 3.68 };
 /* Measured, not guessed: these are the six bodies with a shirt mesh the
    wardrobe can find. See the note above about the ten that have none. */
-/* One body left that the wardrobe can dress, and it no longer matters:
-   the author does not want the dresser, and the authored cast is eight
-   distinct people rather than one body in eight shirts. Kept as a list
-   rather than deleted because drawFirstWave still guarantees a
-   dressable body in the opening wave, and walker satisfies it from the
-   core. Ripping out dressFigure and its tinting is a separate change. */
-const CAST_DRESSABLE = ["walker"];
+/* Nobody. The last dressable body was walker and he is retired, so the
+   wardrobe now has nothing to tint — which costs this campus nothing,
+   because the author does not want the dresser and the authored cast
+   is ten distinct people rather than one body in ten shirts.
+   drawFirstWave reads this list and simply finds it empty; ripping out
+   dressFigure and its tinting is still a separate change. */
+const CAST_DRESSABLE = [];
 /* Which models read as women across a lawn. A fact about the MODEL —
    which one to dress a student in — and nothing more.
  *
@@ -4215,20 +4230,22 @@ const CAST_DRESSABLE = ["walker"];
  * on the quad — reported from a phone as "none of the female characters
  * are present", which is very nearly what the numbers say. */
 const CAST_FEM = new Set(["isla",
-                          "hero", "char2", "char3", "char4", "char8", "char9"]);
+                          "hero", "char2", "char3", "char4", "char8", "char9",
+                          "char10"]);
 const CAST_BUDGET = 3.0;
 function drawFirstWave(){
-  const core = ["walker", "skate", "tutor"].filter(k => CAST_FILES[k]);
-  const pool = ROAMING.filter(k => k !== "walker" && CAST_FILES[k]);
+  const core = ["skate", "tutor"].filter(k => CAST_FILES[k]);
+  const pool = ROAMING.filter(k => CAST_FILES[k]);
   for (let i = pool.length - 1; i > 0; i--){
     const j = Math.floor(Math.random() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
-  /* A dressable body first, so the budget can never be spent before a
-     shirt has been bought. walker is dressable and always in the core,
-     but one is not enough: measured, a quad drawn from walker alone
-     yields five shirt colours where six are wanted, and walker plus one
-     more yields eight.
+  /* A dressable body first, so the budget could never be spent before a
+     shirt had been bought. CAST_DRESSABLE is empty now — walker was the
+     last one and he is retired — so this step finds nothing and does
+     nothing. Kept because it is the guarantee, not the body: put a
+     dressable character back on the roster and the first wave starts
+     honouring it again without anybody remembering to.
 
      Drawn at RANDOM from those that fit, not cheapest-first. Cheapest
      is deterministic, and it showed: eight visits produced two distinct
@@ -4300,19 +4317,18 @@ function drawFirstWave(){
 /* A teenager is shorter, and the height is doing as much work here as
    any of the colours — see buildOf, which varies each figure another
    ±11% on top of these. */
-const CAST_HEIGHT = { walker: 42,
-                      tutor: 41, skate: 42,
+const CAST_HEIGHT = { tutor: 41, skate: 42,
                       isla: 40,
                       hero: 42, char2: 41, char3: 40, char4: 41, char5: 43,
-                      char6: 42, char7: 43, char8: 40, char9: 41 };
+                      char6: 42, char7: 43, char8: 40, char9: 41,
+                      char10: 41 };
 /* Which bodies can be given a waypoint and told to walk it, and which
    are only good for standing about. Ten that walk against a crowd
    that caps at ten: the round robin runs out of new people only on the
    eleventh, and by then they are scattered over sixty-eight
    waypoints. */
-const ROAMING = ["walker",
-                 "isla", "hero", "char2", "char3", "char4", "char5",
-                 "char6", "char7", "char8", "char9"];
+const ROAMING = ["isla", "hero", "char2", "char3", "char4", "char5",
+                 "char6", "char7", "char8", "char9", "char10"];
 /* Drawn here rather than beside drawFirstWave, because it reads ROAMING
    and a const cannot be read before it is declared — putting the call
    next to the function threw on load, which is a blank campus. */
@@ -4618,7 +4634,10 @@ function prepFigure(k, height, live, clipIx = 0){
   if (!src) return null;
   const root = skeletonClone(src.scene);
   let standMixer = null, standRec = null;
-  if (k !== "walker" && src.animations.length){
+  /* Was "k !== walker &&": he arrived with his own idle already
+     playing and re-driving it here fought that. He is retired; every
+     body left either came with clips or was lent them. */
+  if (src.animations.length){
     const mixer = new THREE.AnimationMixer(root);
     /* This character came down with four clips, and playing the first
        one every time wasted three of them — four figures standing about
@@ -5007,7 +5026,8 @@ function lendClip(clip, target, srcRoot, name, fps = 30, writeHips = true){
    playback, so a body that reads as walking here also walks at the
    right speed.
 
-   The original walker is the exception and keeps its hand-named clips,
+   walker was the exception and kept its hand-named clips (he is retired
+   now, and this paragraph is the record of why the rule has one),
    because it has seven of them and they are known good. */
 const ROLE_CACHE = {};
 /* ── which clip is a person sitting down? ─────────────────────────────
@@ -5142,10 +5162,12 @@ function seatCycle(R){
 function rolesOf(k, src){
   if (ROLE_CACHE[k]) return ROLE_CACHE[k];
   const sit = seatRoles(src);
-  if (k === "walker")
-    return (ROLE_CACHE[k] = { gaits: GAITS, idle: "Idle", start: "Start Walking",
-                              seat: sit.seat, rise: sit.rise, riseFrom: sit.riseFrom,
-                              sit: sit.sit, sitTo: sit.sitTo });
+  /* walker had a hand-written entry here — his seven clips are the only
+     ones on this campus with names worth trusting, so his roles were
+     declared rather than derived. He is retired, and with him the last
+     body whose abilities were asserted instead of measured. Everything
+     below is measurement, which is what let the authored characters
+     join without anybody adding a line. */
   const scored = src.animations
     .filter(c => c.duration > 0.2)                 /* an eye-blink is not a clip */
     .map(c => ({ name: c.name, cadence: (c.userData?.cycles || 0) / c.duration }));
@@ -5261,6 +5283,48 @@ const SIT_CHAIN = ["hips", "spine", "leftupleg", "leftleg", "leftfoot",
    have to have a spine and legs to stand on. */
 const STAND_CHAIN = ["hips", "spine", "leftupleg", "leftfoot",
                      "rightupleg", "rightfoot"];
+/* ── the clips that used to be walker's alone ─────────────────────────
+   Three clips existed on this campus only because one body carried
+   them, and that body could not lend: walker was assembled from eight
+   FBX downloads in Blender and his rest sits 90 degrees from his bind
+   on all fourteen clip-driven bones, so a delta measured from it means
+   something else on anybody else. Rendered, his Idle stood the woman in
+   a hunch and bent isla over backwards — and the numeric gate passed
+   both.
+
+   These are the SAME Mixamo motions, rebuilt through the courier as
+   skinless donors: each one a Mixamo skeleton at its own neutral rest
+   plus the motion, which is exactly what clip_sit.glb is and why that
+   one lends to everybody. Judged before being wired to anything, by
+   tools/check-donor.mjs, against all thirteen bodies.
+
+   assets/clip_stand.glb came down with them and is deliberately NOT
+   here. It is a real stand-up, where seatCycle currently rises by
+   playing the sit-down backwards — a genuine improvement, but the two
+   clips hand over at different moments (riseFrom against sitTo) and
+   getting that wrong pops a student out of a bench. It wants its own
+   render, not a ride on this one. */
+const LOOSE_CLIPS = [
+  /* Nine of the eleven roaming bodies have no idle at all, and a body
+     with nothing to do standing still NEVER STOPS WALKING — holdStill
+     and passingTime exist to paper over exactly that. */
+  { url: "assets/clip_idle.glb", name: "Idle",
+    chain: STAND_CHAIN, expect: "stand", hips: false,
+    wanted: (R) => !R.idle },
+  /* The forty-four second seated loop. Without it everybody else holds
+     the sit's last frame, capped at 34 seconds — a statue, sitting
+     down, which is the thing the seat machinery was built to remove. */
+  { url: "assets/clip_talk.glb", name: "Sitting Talking",
+    chain: SIT_CHAIN, expect: "seated",
+    wanted: (R) => !R.seat },
+  /* Asked for BY NAME: Amara is the one student written to run the
+     campus. It stays out of the gait pool on purpose — reachable by
+     name, never dealt at random, or the quad fills with joggers. */
+  { url: "assets/clip_jog.glb", name: "Jogging",
+    chain: STAND_CHAIN, expect: "stand", tol: 0.5, hips: false,
+    wanted: (R) => !R.gaits.includes("Jogging") },
+];
+const looseDonors = new Map();
 /* ── did the receiver end up in the same shape as the donor? ──────────
    A lent clip can bind every bone it needs and still be nonsense. Two
    of them were: nadia came out with her arms over her head and sophia
@@ -5402,23 +5466,31 @@ function poseLooksWrong(clip, src, expect, from, fromClip, tol = POSE_TOLERANCE)
 const NO_LENDING = new Set([]);
 let sitDonor = null;
 /* ── what each body is short of, and who can lend it ──────────────────
-   Three clips, one mechanism. The sit-down comes from its own donor;
-   the other two come from walker, who is the only body on this campus
-   whose download carried more than a walk.
+   Every clip on this campus that a body did not come down with is lent,
+   and every one of them now comes from a SKINLESS DONOR — a skeleton at
+   its own neutral rest plus one motion. That was not true until walker
+   was retired, and the difference is the whole reason he could be:
 
      Stand To Sit    nobody had one. Without it every student sits on
                      the grass and ten benches go unused.
-     Idle            six of the eight roaming bodies have none, and a
+     Idle            nine of the eleven roaming bodies have none, and a
                      body with nothing to do standing still NEVER
                      STOPS WALKING — that is what holdStill and
                      passingTime exist to paper over. It is also why
                      Priya, who asks for a body that can stand about,
                      could only ever be walker.
-     Sitting Talking only walker owns the forty-four second seated
-                     loop, so everybody else holds the sit's last frame
-                     — capped at 34 seconds, because a held pose is the
-                     statue this was all supposed to remove, sitting
-                     down. */
+     Sitting Talking the forty-four second seated loop. Without it a
+                     body holds the sit's last frame — capped at 34
+                     seconds, because a held pose is the statue this was
+                     all supposed to remove, sitting down.
+     Jogging         asked for by name by the one student written to
+                     run the campus.
+
+   The last three were walker's, and could not leave him: his rest sits
+   90 degrees from his bind on all fourteen clip-driven bones, so a
+   delta measured from it means something else on the receiver. The
+   courier rebuilt the same four Mixamo motions as clip_ donors, which
+   is what LOOSE_CLIPS lends. */
 function lendable(){
   return [
     { name: "Stand To Sit", from: sitDonor, clip: sitDonor && sitDonor.animations[0],
@@ -5454,6 +5526,14 @@ function lendable(){
       clip: d.animations && d.animations[0],
       chain: STAND_CHAIN, expect: "stand", tol: 0.5, hips: false,
       wanted: (R, k) => CAST_FEM.has(k) })),
+    /* ── and the three that were walker's ─────────────────────────────
+       Last in the list on purpose. Every job here asks the ROLES what a
+       body is short of, and the roles are recomputed after each lend —
+       so the idle has to be offered after the walk, or a body that is
+       about to receive a stride is judged on the gait list it had
+       before. */
+    ...LOOSE_CLIPS.map(c => ({ ...c, from: looseDonors.get(c.url),
+      clip: looseDonors.get(c.url)?.animations[0] })),
     /* ── not from walker, and here is why ─────────────────────────────
        Idle and Sitting Talking were lent from him and both were WRONG:
        woman stood hunched with her head down, isla bent over backwards
@@ -5569,7 +5649,7 @@ function lendSitDown(){
      MOMENT — a sit-down that lands afterwards would be owned by the
      library and reachable by nobody already standing on the quad. */
   const done = () => {
-    if (++castReady < first.length + 1 + FEM_WALKS.length) return;
+    if (++castReady < first.length + 1 + FEM_WALKS.length + LOOSE_CLIPS.length) return;
     if (!loadedRoaming().length && !loadedLoitering().length){
       console.error("no rigged body loaded — no students");
       return;
@@ -5625,6 +5705,14 @@ function lendSitDown(){
   FEM_WALKS.forEach(url => gltf.load(url, (g) => { femWalkDonors.push(g); done(); },
     undefined, (err) => {
       console.warn("cast: " + url + " did not load — one fewer walk in the pool", err);
+      done();
+    }));
+  /* Same terms again: alongside the first wave, counted, and a donor
+     that does not arrive costs one clip rather than the campus. Their
+     combined weight is 380KB against the 1.84MB body they replace. */
+  LOOSE_CLIPS.forEach(c => gltf.load(c.url, (g) => { looseDonors.set(c.url, g); done(); },
+    undefined, (err) => {
+      console.warn("cast: " + c.url + " did not load — nobody gets " + c.name, err);
       done();
     }));
 }
@@ -5749,6 +5837,14 @@ function stagger(g, nm){
 }
 /* Three gaits, drawn per figure rather than assigned, so the mix changes
    between visits instead of being the same three people every time. */
+/* walker's three walks, by name. He is retired and nobody else carries
+   a clip with any of these names, so this is no longer a usable pool —
+   it is the LAST RESORT for a body whose role list came back empty,
+   and reaching it now means the body will be asked for a clip it does
+   not have and will simply stand still. That is the honest outcome:
+   every roaming body is lent a stride before it is ever built, so a
+   body with no gaits is a body something went wrong for, and standing
+   still is how it should read rather than a name pulled out of a hat. */
 const GAITS = ["Standard Walk", "Strut Walking", "Walk Forward"];
 /* Put a figure on the ring and let them walk it. Shared by the named
    cast and by the crowd behind them, so the two move under identical
@@ -5775,7 +5871,8 @@ const P_LINGER = 0.3;
    wave settles if they are off screen. A visible body-swap is a
    glitch; an invisible one is a student who went in wearing one thing
    and came out wearing another, which is what buildings are for. */
-const AUTHORED_F = ["char9", "char4", "char8", "char2", "char3", "hero"];  /* lightest first */
+const AUTHORED_F = ["char9", "char4", "char8", "char10", "char2", "char3",
+                    "hero"];  /* lightest first: 3.01 3.31 3.51 3.68 3.86 4.72 5.40 */
 const AUTHORED_M = ["char6", "char7", "char5"];  /* lightest first */
 const AUTHORED = [...AUTHORED_F, ...AUTHORED_M];
 function upgradeBody(s){

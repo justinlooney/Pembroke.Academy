@@ -26,66 +26,23 @@
 # playback from how fast a student is really walking, so a clip that also
 # carries travel fights it and the feet skate.
 
-# ── the walking student ──────────────────────────────────────────────
-# Four Mixamo downloads, all of them "with skin" (28–60MB each, where an
-# animation-only file is under a megabyte). Strut Walking brings the body;
-# the other three lend their motion and leave their meshes behind.
-# out: assets/stu_walker.glb
-Strut_Walking   https://drive.google.com/file/d/1x8owCwUUbV5V93FqTmOyHsZjzhGy4_2u/view
-Jogging         https://drive.google.com/file/d/1rmy0p7tQJ6viFVL5QBkQ1KCkqYIrG8bF/view
-Start_Walking   https://drive.google.com/file/d/1qBwL5SqfvNm-F0IKx-vNpK_esieMpTgS/view
-Walk_Forward    https://drive.google.com/file/d/1bdGGSIPtRIBZsssxPMuLSHixs781OT1B/view
-# and three more, downloaded WITHOUT skin — which is why these are
-# kilobytes where the four above are tens of megabytes. Idle is the one
-# that matters most: without it a student who reaches a door has to keep
-# striding, because the only alternative is freezing mid-step.
-Idle            https://drive.google.com/file/d/1aw-oEHfcGVtozFy2JLQXy8NecFK7zaXx/view
-Standard_Walk   https://drive.google.com/file/d/1rJdHfnkXFza8BcSSoweajDVVwYZs4FB-/view
-Sitting_Talking https://drive.google.com/file/d/1LPSnmgWqpgAT1SCbs7wCBH1k2hSgQVtx/view
-# Standing up, which with Sitting_Talking above completes the whole
-# seated cycle: sit down is this clip played backwards (timeScale -1),
-# the seated loop is Sitting_Talking, and standing up is this. One
-# download rather than three.
+# ── walker is gone ──────────────────────────────────────────────────
+# His rebuild block stood here — seven Mixamo downloads, four of them
+# tens of megabytes — and is removed WITH the body, as always, because
+# an inbox block is a promise to rebuild: leave it and the next courier
+# run resurrects a file the roster no longer knows, 1.84MB of nobody.
 #
-Standing_Up     https://drive.google.com/file/d/101SKrfyvhBdwGS4ngvrEx-xKJ3qmipdA/view
-# Snatch.fbx was landed here and then removed, having been rendered:
+# Retired once the four clips he was carrying were rebuilt as skinless
+# donors (clip_idle, clip_talk, clip_stand, clip_jog, below). Those
+# clips were the only reason to keep him: his rest sits 90 degrees from
+# his bind on all fourteen clip-driven bones, so he could lend nothing,
+# and three named students had to ask for him BY NAME to get an idle, a
+# seated loop or a jog — which put the same man on the quad three times
+# over and shut five women out of the named cast. The clips belong to
+# everybody now. Character 10 took his place on the roster.
 #
-#   0.00s  deep crouch      0.48s  rising, bent forward
-#   0.96s  standing         1.20s  crouch again — the LOOP, not the motion
-#
-# One direction, crouch to standing in about a second. It reads as a sit
-# and a stand in Mixamo's preview because that preview loops: crouch,
-# stand, snap back, over and over. Not a pair of clips, and not usable
-# as one — reversed it is a 1.2 second drop into a squat, which is too
-# fast to read as sitting and ends in a squat rather than a seat.
-#
-# Standing Up beats it for the ground sit on both counts: it begins at
-# floor level rather than mid-squat, and takes 6.1 seconds, which is
-# what a person lowering themselves actually looks like.
-#
-# Worth keeping the shape of that check: the name said weightlifting,
-# the hips said standing-up, and only the render said which second of it
-# was which.
-
-# ── woman and ariel are gone ─────────────────────────────────────────
-# Their blocks stood here — the finished-GLB courier path and the
-# walking-test body — removed WITH the bodies, as always: an inbox
-# block is a promise to rebuild. Retired for characters 7 and 8, and
-# they were the worst two left by a distance: woman 64.4 bytes a
-# triangle across 16 mesh pieces, ariel 43.0 across 14, both resting
-# more than 120 degrees from their binds so neither could ever donate
-# motion. An authored character costs 12.5 bytes a triangle.
-#
-# The finished-GLB path itself still works and is worth remembering:
-# a block can be a single link to an already-rigged animated GLB,
-# which skips Blender entirely. FBX and GLB cannot be mixed in one
-# block — a finished GLB brings its own skeleton, so a Mixamo clip has
-# nothing to bind to.
-
-# alina is gone — her block with her, as always: an inbox block is a
-# promise to rebuild. Retired at 3.04MB, undressable, resting 120
-# degrees off her bind, when character 4 took her place at 3.31MB
-# with a clean rig.
+# The four links are not lost with him: they are the same four listed
+# in the clip_ blocks below, which is where they always belonged.
 
 # ── a collection ─────────────────────────────────────────────────────
 # A zip of several models is merged into one file with its parts named,
@@ -128,49 +85,45 @@ Walking_Woman  https://drive.google.com/file/d/1eWh_xTiL2N1iHNA6YElJ_9Q_C9F2jbys
 # stu_char2) — the ones the borrowed sit-down could never reach.
 
 
-# ── walker's clips, freed from walker ────────────────────────────────
-# Four clips exist on this campus only because walker carries them:
-# Idle (4.0s), Sitting Talking (44.1s), Standing Up (6.1s) and Jogging
-# (2.6s). They cannot be lent to anyone, because his rest pose sits 90
-# degrees from his bind on all fourteen clip-driven bones and lendClip
+# ── the four clips, freed from walker ────────────────────────────────
+# Built, landed, and wired: Idle (4.0s), Sitting Talking (44.1s) and
+# Jogging (2.6s) are lent to every rigged body on the campus, and
+# walker — who used to be the only body carrying them — is retired.
+# Standing Up (6.1s) is built and deliberately not wired yet; seatCycle
+# still rises by playing the sit-down backwards, and handing over to a
+# real stand-up means matching riseFrom against sitTo, which wants its
+# own render rather than a ride on somebody else's change.
+#
+# They could not be lent from walker himself. His rest pose sits 90
+# degrees from his bind on all fourteen clip-driven bones, and lendClip
 # carries each bone's change FROM ITS OWN REST — so a delta measured
-# against a rest that is not neutral means something different on the
-# receiver. Rendered: the woman hunched, isla bent backwards.
+# against a rest that is not neutral means something else on the
+# receiver. Rendered: the woman hunched, isla bent backwards, and the
+# numeric gate passed both.
 #
-# The clips themselves are fine. The links below are the SAME four
-# already listed in walker's block above, downloaded WITHOUT skin, so
-# each is a Mixamo skeleton at its own neutral rest plus the motion —
-# exactly what assets/clip_sit.glb is, and that donor lends perfectly
-# to all twelve bodies. Built as clip_ files they become everyone's,
-# and walker becomes an ordinary body that can be retired like any
-# other.
+# The links below are the SAME four that were in walker's block,
+# downloaded WITHOUT skin, so each is a Mixamo skeleton at its own
+# neutral rest plus the motion — exactly what assets/clip_sit.glb is,
+# and that donor lends perfectly to every body. Two things had to
+# change before they would build: mixamo-to-glb.py demanded a mesh and
+# rejected all four with "re-download it with skin" (backwards for an
+# out named clip_, since the workflow deletes every mesh from it
+# seconds later), and mixamo-plan.py handed the note above a block to
+# the block above IT, so the run that armed these four rebuilt the
+# walking woman instead and went green having built nothing.
 #
-# The same links, built as donors — no new downloads IF the courier can
-# export an armature that carries no mesh. The first attempt could not:
-# mixamo-to-glb.py demanded a mesh and rejected all four with "re-
-# download it with skin", which is backwards for an out named clip_,
-# since the workflow deletes every mesh from it seconds later. The
-# guard now applies only to characters.
-#
-# If Blender turns out to drop a meshless armature's animation on
-# export, the fallback is to re-download these four WITH SKIN — the
-# large files — and let the clip_ stripping do its job. The courier log
-# will say which, and the donor is checked before anything is wired to
-# it.
+# Judged against all thirteen bodies by tools/check-donor.mjs before
+# anything was wired to them.
 
-# Re-armed: the plan used to hand this note to the block ABOVE.
 # out: assets/clip_idle.glb
 Idle            https://drive.google.com/file/d/1aw-oEHfcGVtozFy2JLQXy8NecFK7zaXx/view
 
-# Re-armed with clip_idle.
 # out: assets/clip_talk.glb
 Sitting_Talking https://drive.google.com/file/d/1LPSnmgWqpgAT1SCbs7wCBH1k2hSgQVtx/view
 
-# Re-armed with clip_idle.
 # out: assets/clip_stand.glb
 Standing_Up     https://drive.google.com/file/d/101SKrfyvhBdwGS4ngvrEx-xKJ3qmipdA/view
 
-# Re-armed with clip_idle.
 # out: assets/clip_jog.glb
 Jogging         https://drive.google.com/file/d/1rmy0p7tQJ6viFVL5QBkQ1KCkqYIrG8bF/view
 
