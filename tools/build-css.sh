@@ -9,15 +9,22 @@
 # sat ahead of our own code. This builds the same result once, here.
 #
 # Run it whenever a new utility class appears in index.html. If a class
-# is used but missing from site.css, it simply has no effect — which is
-# quiet, so tools/check-css.mjs fails the build instead.
+# is used but missing from site.css it simply has no effect — an
+# element that quietly looks wrong, with nothing in the console — so
+# tools/check-css.mjs exists to fail the build instead, and runs in CI.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
 cd "$WORK"
-npm install tailwindcss@3 --no-audit --no-fund --silent
+# Pinned, not "@3". A floating range resolves to whatever the latest
+# 3.x is on the day you run it, and a minor bump rewrites the minified
+# output — so the committed assets/site.css would drift from the
+# version that produced it and every rebuild would land a large noisy
+# diff. This is the version the committed file was built with, and it
+# reproduces it byte for byte.
+npm install tailwindcss@3.4.19 --no-audit --no-fund --silent
 cat > tw.config.js <<CFG
 module.exports = {
   content: ["$ROOT/index.html"],
