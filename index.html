@@ -8983,12 +8983,25 @@ window.__castLib = castLib;   /* test/debug hook: the loaded bodies */
    through the real lendClip. A character being authored has to be
    judged before it is committed to, and judging it means seeing it
    move — not reading a bone list. */
-window.__lendTo = (url, donorKey, clipName, expect = "sit") =>
+window.__lendTo = async (url, donorKey, clipName, expect = "sit") => {
+  /* A donor that is not on the campus yet. Four of them arrived at
+     once when walker's clips were rebuilt as clip_ files, and every
+     one had to be judged BEFORE being wired to anything — the whole
+     reason they exist is that the last donor lent a hunch. Naming a
+     .glb loads it here rather than requiring it be cast first. */
+  const extra = /\.glb$/i.test(donorKey || "")
+    ? await new Promise((ok) => gltf.load(donorKey, ok, undefined, () => ok(null)))
+    : null;
+  if (/\.glb$/i.test(donorKey || "") && !extra)
+    return { err: donorKey + " would not load" };
+  return __lendWith(url, extra, donorKey, clipName, expect);
+};
+const __lendWith = (url, extra, donorKey, clipName, expect) =>
   new Promise((ok, no) => gltf.load(url, (g) => {
   /* default: the sit donor, which is how every body has been judged.
      Named: any loaded body, so kenta's walk can be auditioned on a
      candidate without waiting for a download that may not be needed. */
-  const donor = donorKey ? castLib[donorKey] : sitDonor;
+  const donor = extra || (donorKey ? castLib[donorKey] : sitDonor);
   if (!donor) return ok({ err: (donorKey || "the sit donor") + " has not loaded" });
   const clip = clipName ? donor.animations.find(c => c.name === clipName)
                         : donor.animations[0];
@@ -8998,6 +9011,48 @@ window.__lendTo = (url, donorKey, clipName, expect = "sit") =>
   ok({ gltf: g, clip: lent, tracks: lent.tracks.length,
        why: poseLooksWrong(lent, g, expect, donor, clip) });
 }, undefined, (e) => ok({ err: String(e).slice(0, 120) })));
+/* test/debug hook: park a lent figure in front of the camera and hold
+   it at one moment of the clip, so the harness can photograph the page.
+ *
+ * The numbers have twice passed a clip that was obviously wrong on
+ * sight — walker's Idle stood the woman in a hunch and bent isla over
+ * backwards, and poseLooksWrong called both clean. So a donor is not
+ * judged until somebody has looked at it, and looking at it has to
+ * happen through THIS lendClip, on THESE bodies, or it is a picture of
+ * something else. */
+let __poseRig = null;
+window.__poseAt = (url, donorUrl, clipName, t, expect = "stand") =>
+  window.__lendTo(url, donorUrl, clipName, expect).then((r) => {
+    if (r.err) return r;
+    if (__poseRig){ world.remove(__poseRig.holder); __poseRig.mix.stopAllAction(); }
+    const root = r.gltf.scene;
+    /* Scaled and floored the way prepFigure does it — by the bounding
+       box, not by any number in the file — so the figure is the size
+       the campus draws people at and its feet are ON the ground. A
+       clip that sinks a body through the floor is one of the faults
+       being looked for, and it cannot be seen on a figure floating in
+       a void at whatever scale it was exported. */
+    root.updateMatrixWorld(true);
+    const bb = new THREE.Box3().setFromObject(root);
+    const sc = 42 / Math.max(1e-6, bb.max.y - bb.min.y);
+    const holder = new THREE.Group();
+    root.scale.setScalar(sc);
+    root.position.set(-(bb.min.x + bb.max.x) / 2 * sc, -bb.min.y * sc,
+                      -(bb.min.z + bb.max.z) / 2 * sc);
+    holder.add(root);
+    /* Straight in front of the camera, facing it. */
+    const c = camera.position, look = controls.target;
+    const dx = c.x - look.x, dz = c.z - look.z;
+    const d = Math.hypot(dx, dz) || 1;
+    holder.position.set(c.x - dx / d * 70, 0, c.z - dz / d * 70);
+    holder.rotation.y = Math.atan2(dx, dz);
+    world.add(holder);
+    const mix = new THREE.AnimationMixer(root);
+    mix.clipAction(r.clip).play();
+    mix.setTime(t);
+    __poseRig = { holder, mix };
+    return { ok: true, tracks: r.tracks, why: r.why, dur: r.clip.duration };
+  });
 /* test/debug hook: what the sit-down looks like on a given body, and
    what the acceptance test made of it. */
 window.__sitCheck = (k, name = "Stand To Sit", expect = "sit") => {
