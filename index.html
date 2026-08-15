@@ -1904,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v76";
+const BUILD = "pembroke-v77";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -4239,9 +4239,11 @@ const CAST_MB = {
                   skate: 1.27,
                   /* Measured, and the only numbers the first-wave
                      ceiling has to work with. Two of these fit under
-                     ON_SCREEN_MB beside the skater and a third does
-                     not, which is the whole shape of the opening
-                     visit. */
+                     ON_SCREEN_MB, and a third does not. The skater
+                     skates off after fifteen seconds and gives his
+                     1.27MB back, which is what makes room for the
+                     second: 39 of the 45 possible pairs fit once he is
+                     gone, against 13 while he is out. */
                   char2: 3.86, char3: 4.72, char4: 3.31,
                   char5: 3.43, char6: 2.99, char7: 3.26, char8: 3.51,
                   char9: 3.01, char10: 3.68, char11: 4.01 };
@@ -4287,7 +4289,7 @@ const CAST_FEM = new Set(["char2", "char3", "char4", "char8", "char9",
    and go from buildings — buildCast is resumable, so a student with no
    body at the first pass is built the moment theirs lands rather than
    missing the visit. */
-const ON_SCREEN_MB = 7.5;
+const ON_SCREEN_MB = 8.0;
 /* Which bodies are being drawn RIGHT NOW, and what they weigh together.
    Distinct bodies, not figures: a body is downloaded and decoded once
    and every figure wearing it shares that, so two students in the same
@@ -6225,15 +6227,37 @@ function buildCast(){
   /* An uncommissioned regular, carving laps — down at the athletics
      forecourt, where a skateboard belongs and where he is not making up
      a sixth of everything visible from the fountain. */
-  /* Some days he is not out either. He laps the forecourt endlessly, so
-     when he is there he is there for the whole visit. */
+  /* Some days he is not out at all, and when he is he skates off after
+     fifteen seconds.
+   *
+     He used to lap the forecourt for the whole visit, and under a
+     ceiling on what is DRAWN that is 1.27MB nobody else can have —
+     permanently, from the first frame, spent on a figure going in
+     circles. Fifteen seconds is long enough to be seen and to read as
+     somebody passing through, and what it buys is a whole extra
+     student for the rest of the visit: with him gone the students have
+     the entire 8MB, which is 32 of the 45 possible pairs instead of 6.
+
+     He is removed rather than hidden — his room is only free if the
+     ceiling can see it is free, and onScreenBodies() counts what is in
+     `students`. */
   const sk = (castLib.skate && (CROWD_FORCE !== null || Math.random() < 0.5))
     ? prepFigure("skate", 0, true) : null;
   if (sk){
     world.add(sk);
-    students.push({ g: sk, orbit: 84, orbitA: 3.6, orbitW: -0.6, skate: true,
-                    roles: sk.userData.anim?.roles, cx: 500, cy: 1120,
-                    pos: [500 + Math.cos(3.6) * 84, 1120 + Math.sin(3.6) * 84] });
+    const rec = { g: sk, orbit: 84, orbitA: 3.6, orbitW: -0.6, skate: true,
+                  roles: sk.userData.anim?.roles, cx: 500, cy: 1120,
+                  pos: [500 + Math.cos(3.6) * 84, 1120 + Math.sin(3.6) * 84] };
+    students.push(rec);
+    setTimeout(() => {
+      const i = students.indexOf(rec);
+      if (i < 0) return;
+      students.splice(i, 1);
+      world.remove(sk);
+      for (let j = castMixers.length - 1; j >= 0; j--)
+        if (castMixers[j].g === sk) castMixers.splice(j, 1);
+      topUpCrowd();            /* his 1.27MB is somebody else's now */
+    }, 15000);
   }
   /* Three more of the second rigged character — a genuinely different
      body rather than the walker re-dressed, which is worth more than any
