@@ -1904,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v86";
+const BUILD = "pembroke-v87";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -4269,19 +4269,16 @@ const CAST_FILES = {
    body that has been lent it can answer; walker is retired and the core
    is down to the loiterers and the skater, who are there because
    nothing else can stand in for what they do. */
-const CAST_MB = {
-                  skate: 1.27,
-                  /* Measured, and the only numbers the first-wave
-                     ceiling has to work with. Two of these fit under
-                     ON_SCREEN_MB, and a third does not. The skater
-                     skates off after fifteen seconds and gives his
-                     1.27MB back, which is what makes room for the
-                     second: all 45 possible pairs fit once he is gone,
-                     against 13 while he is out. */
-                  char2: 3.86, char4: 3.31,
-                  char5: 3.43, char6: 2.99, char7: 3.26, char8: 3.51,
-                  char9: 3.01, char10: 3.68, char11: 4.01, char14: 3.49,
-                  char15: 3.96, char16: 3.54 };
+const CAST_MB = { skate: 1.27,
+                  /* Every authored body at 1024 textures: 2.55 to 3.51MB,
+                     where they were 2.99 to 4.72. The download is the smaller
+                     half of that change — each also went from 63.8MB of
+                     decoded texture to 16.0, and it is the 16 a phone feels.
+                     These numbers gate the on-screen ceiling, so they are
+                     measured from the files rather than remembered. */
+                  char2: 2.77, char4: 2.67, char5: 2.81, char6: 2.55,
+                  char7: 2.62, char8: 2.73, char9: 2.58, char10: 2.77,
+                  char11: 3.51, char14: 2.88, char15: 3.13, char16: 2.67 };
 /* Measured, not guessed: these are the six bodies with a shirt mesh the
    wardrobe can find. See the note above about the ten that have none. */
 /* Nobody. The last dressable body was walker and he is retired, so the
