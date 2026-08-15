@@ -1904,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v81";
+const BUILD = "pembroke-v82";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -4295,11 +4295,16 @@ const CAST_FEM = new Set(["char2", "char4", "char8", "char9",
    where the rest need about 114,000 is UV and normal seams tearing the
    mesh apart.
 
-   She has since been replaced by char15 at 3.96MB, so the heaviest
-   pair on the roster is now char11 and char15 at 7.97MB. The cap is
-   left at 8.73 because that is the number that was asked for; 7.97
-   would draw the same 45 of 45 and carry three quarters of a megabyte
-   less on the screen.
+   She has since been replaced by char15 at 3.96MB, and the cap came
+   down with her: 7.98MB clears char11 and char15 at 7.97, which is the
+   heaviest pair the roster can deal. Every one of the 66 possible
+   pairs still fits — the cap tracks the roster rather than the worst
+   body that was ever on it.
+
+   Twelve students at 3.0 to 4.0MB each means the ceiling buys two of
+   them and cannot buy three: the lightest trio is 9.26MB. Two is the
+   number, and it is a fact about how heavy a body is rather than a
+   choice about how busy the campus should look.
 
    The skater is out for the first fifteen seconds only, so for that
    window the students have 7.46MB and 13 of the 45 pairs fit. After he
@@ -4319,7 +4324,7 @@ const CAST_FEM = new Set(["char2", "char4", "char8", "char9",
    and go from buildings — buildCast is resumable, so a student with no
    body at the first pass is built the moment theirs lands rather than
    missing the visit. */
-const ON_SCREEN_MB = 8.73;
+const ON_SCREEN_MB = 7.98;
 /* Which bodies are being drawn RIGHT NOW, and what they weigh together.
    Distinct bodies, not figures: a body is downloaded and decoded once
    and every figure wearing it shares that, so two students in the same
