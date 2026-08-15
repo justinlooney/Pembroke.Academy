@@ -60,6 +60,31 @@ await page.goto(`http://localhost:${PORT}/index.html?crowd`,
 await page.waitForFunction(() => window.__crowd && window.__crowd().ready &&
   window.__students.length > 0, null, { timeout: 600000 });
 await page.evaluate(() => window.__crowdFill());
+/* ...and wait for the OUTER WORLD, which is the whole reason a previous
+   run could not see the residence hall. Landmarks are fetched after the
+   campus reports ready, deliberately and one at a time, so a measurement
+   taken at "ready" is taken before the biggest scenery in the campus has
+   arrived: the hall went from 106.4MB of texture to 16.0 and the total
+   moved by 0.1MB, because it was in neither reading.
+
+   Bounded, and it says so when it gives up — an audit that quietly
+   measured half a campus is what this is fixing. */
+const outer = await page.evaluate(async () => {
+  const want = ["reshall", "ballpark", "university", "trees", "plantpack"];
+  for (let i = 0; i < 120; i++){
+    const log = window.__assets || [];
+    const missing = want.filter(w => !log.some(a => a.name.includes(w) && a.ms != null));
+    if (!missing.length) return { ok: true, waited: i * 2 };
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  const log = window.__assets || [];
+  return { ok: false, waited: 240,
+           missing: want.filter(w => !log.some(a => a.name.includes(w) && a.ms != null)) };
+});
+console.log(outer.ok
+  ? `outer world complete after ${outer.waited}s`
+  : `OUTER WORLD INCOMPLETE after ${outer.waited}s — missing ${outer.missing.join(", ")}; ` +
+    `the totals below are short by whatever those weigh`);
 await page.waitForTimeout(4000);
 
 const r = await page.evaluate(() => {
