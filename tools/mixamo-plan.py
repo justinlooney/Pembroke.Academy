@@ -42,15 +42,27 @@ if not os.path.isfile(src):
     sys.exit(1)
 
 blocks, cur = [], None
+# A block owns its "# out:" line, its links, and the run of comment and
+# blank lines ABOVE it — because that is where the notes about a block
+# are written. Attributing that run downwards instead (each block
+# reaching to the line before the next "# out:") is what --since used to
+# do, and it silently sent an edit to the wrong block: the note above
+# "# out: assets/clip_idle.glb" counted as part of stu_isla.glb, so a
+# push that armed four clip donors rebuilt the walking woman to the
+# identical bytes and reported success having built nothing.
+#
+# The consequence at the top of the file is that the header comment
+# belongs to the first block. That is bounded and one block wide, where
+# the old behaviour was wrong for every block in the file.
+gap = 1
 for lineno, raw in enumerate(open(src, encoding="utf-8"), 1):
     line = raw.rstrip("\n")
     out = re.match(r"^\s*#\s*out:\s*(\S+)", line)
     if out:
-        cur = {"out": out.group(1), "files": [], "from": lineno, "to": lineno}
+        cur = {"out": out.group(1), "files": [], "from": gap, "to": lineno}
         blocks.append(cur)
+        gap = lineno + 1
         continue
-    if cur is not None:
-        cur["to"] = lineno
     if re.match(r"^\s*(#|$)", line):
         continue
     parts = line.split()
@@ -60,13 +72,15 @@ for lineno, raw in enumerate(open(src, encoding="utf-8"), 1):
     name, url = parts[0], parts[1]
     if cur is None:
         # links before any "# out:" still deserve somewhere to go
-        cur = {"out": "assets/stu_walker.glb", "files": [], "from": lineno, "to": lineno}
+        cur = {"out": "assets/stu_walker.glb", "files": [], "from": gap, "to": lineno}
         blocks.append(cur)
     fid = re.search(r"/d/([^/]+)", url) or re.search(r"[?&]id=([^&]+)", url)
     if not fid:
         print(f"[inbox] {name}: no Drive file id in {url}")
         sys.exit(1)
     cur["files"].append((name, fid.group(1)))
+    cur["to"] = lineno
+    gap = lineno + 1
 
 live = [b for b in blocks if b["files"]]
 

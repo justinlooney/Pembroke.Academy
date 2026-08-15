@@ -150,15 +150,19 @@ Walking_Woman  https://drive.google.com/file/d/1eWh_xTiL2N1iHNA6YElJ_9Q_C9F2jbys
 # will say which, and the donor is checked before anything is wired to
 # it.
 
+# Re-armed: the plan used to hand this note to the block ABOVE.
 # out: assets/clip_idle.glb
 Idle            https://drive.google.com/file/d/1aw-oEHfcGVtozFy2JLQXy8NecFK7zaXx/view
 
+# Re-armed with clip_idle.
 # out: assets/clip_talk.glb
 Sitting_Talking https://drive.google.com/file/d/1LPSnmgWqpgAT1SCbs7wCBH1k2hSgQVtx/view
 
+# Re-armed with clip_idle.
 # out: assets/clip_stand.glb
 Standing_Up     https://drive.google.com/file/d/101SKrfyvhBdwGS4ngvrEx-xKJ3qmipdA/view
 
+# Re-armed with clip_idle.
 # out: assets/clip_jog.glb
 Jogging         https://drive.google.com/file/d/1rmy0p7tQJ6viFVL5QBkQ1KCkqYIrG8bF/view
 
