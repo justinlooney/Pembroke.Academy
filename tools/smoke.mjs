@@ -23,6 +23,7 @@ const PORT = 8099;
 const MIME = {
   ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript",
   ".css": "text/css", ".glb": "model/gltf-binary", ".png": "image/png",
+  ".woff2": "font/woff2", ".jpg": "image/jpeg", ".webp": "image/webp",
   ".svg": "image/svg+xml", ".md": "text/markdown",
 };
 
@@ -98,20 +99,12 @@ const browser = await chromium.launch({
 const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
 const page = await context.newPage();
 
-/* Three.js is served from our own origin now, so it is never stubbed —
-   the vendored copy is exactly what this test must exercise. Only the
-   remaining cross-origin decoration is stood in for, and only when
-   SMOKE_OFFLINE says the network is unavailable. */
-const offline = process.env.SMOKE_OFFLINE;
-if (offline){
-  await page.route("https://cdn.tailwindcss.com", route =>
-    route.fulfill({ path: join(offline, "@tailwindcss/browser/dist/index.global.js"),
-                    contentType: "text/javascript" }));
-  await page.route("https://fonts.googleapis.com/**", route =>
-    route.fulfill({ body: "", contentType: "text/css" }));
-  await page.route("https://fonts.gstatic.com/**", route => route.abort());
-}
-
+/* Nothing is stubbed any more. Three.js was vendored first, and the
+   styles have followed: assets/site.css and assets/fonts come from our
+   own origin, so what this test exercises is exactly what ships.
+   SMOKE_OFFLINE stood in for Tailwind's CDN build and the Google Fonts
+   stylesheet, because the campus could not render without them and CI
+   has no reliable route to either. There is no third party left. */
 
 const errors = [];
 
@@ -368,13 +361,13 @@ try {
      import left pointing at a CDN, or one file missing from the
      precache manifest, and offline quietly stops working while every
      other check stays green. */
-  /* Drop the earlier routes first. The SMOKE_OFFLINE stubs fulfil
-     Tailwind and the fonts, and adding a catch-all alongside them does
-     not reliably override — so "every cross-origin request refused"
-     would have been true in CI, where no stubs exist, and quietly false
-     on a firewalled machine, where they do. A check that means two
-     different things depending on the environment is worse than no
-     check. */
+  /* Drop the earlier routes first, so the catch-all below is the only
+     thing answering. It mattered more when SMOKE_OFFLINE fulfilled
+     Tailwind and the fonts: a catch-all alongside those stubs did not
+     reliably override them, so "every cross-origin request refused"
+     was true in CI and quietly false on a firewalled machine. Nothing
+     cross-origin is needed now, so the honest expected result here is
+     no attempts at all. */
   await page.unrouteAll({ behavior: "ignoreErrors" });
   await page.route(u => new URL(u).origin !== `http://localhost:${PORT}`,
                    route => { offsite.push(route.request().url()); route.abort(); });

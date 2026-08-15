@@ -73,6 +73,13 @@ jobs:
       - name: Does a standing figure stay where it was put?
         run: node tools/check-breath.mjs
 
+      # assets/site.css is compiled from the classes the page used the
+      # day it was built. A class added afterwards simply does nothing —
+      # no error, no failed request, just an element quietly missing its
+      # styling. This is the only thing that would notice.
+      - name: Does every utility class still have a rule?
+        run: node tools/check-css.mjs
+
       - name: Drive the campus
         run: node tools/smoke.mjs
 

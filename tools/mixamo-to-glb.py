@@ -109,10 +109,20 @@ if not rigs:
     sys.exit(1)
 rig = rigs[0]
 meshes = [o for o in char_objs if o.type == "MESH"]
-if not meshes:
+# An out named clip_* is an ANIMATION DONOR: the workflow deletes every
+# mesh, material and texture from it seconds after this script writes
+# it. Demanding a mesh in order to throw it away is backwards, and it
+# cost a courier run — the four clips that free walker from being the
+# only body with an idle are animation-only downloads by nature, and
+# this guard rejected all four with "re-download it with skin". For a
+# character the guard stays: a person without a mesh is not a person.
+CLIP_ONLY = os.path.basename(dst).startswith("clip_")
+if not meshes and not CLIP_ONLY:
     print(f"[mixamo] {os.path.basename(src_files[0])} has a skeleton but no mesh. "
           f"Re-download it with skin.")
     sys.exit(1)
+if CLIP_ONLY and not meshes:
+    print("[mixamo] clip donor: skeleton and motion only, which is what a donor is")
 
 bones = len(rig.data.bones)
 char_ns = namespace_of(rig)
