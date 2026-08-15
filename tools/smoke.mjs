@@ -691,6 +691,21 @@ try {
      single evaluate() aims the second through the first one's
      viewport — which read as two students refusing to answer when all
      eight in fact do. */
+  /* Wait for somebody to be OUT before tapping. The campus draws two
+     students now, one of whom may be in a building, so a single glance
+     can find nobody tappable and hollow the check out — which is
+     exactly the silent pass this suite has been bitten by twice.
+     A visitor waits for someone to come out; so does this. */
+  await crowdPage.evaluate(async () => {
+    for (let t = 0; t < 300; t++){
+      const out = (window.__students || [])
+        .filter(s => s.data && s.g && s.g.visible && !s.inside).length;
+      if (out) return out;
+      window.__sim(30, 1 / 30);
+      if (t % 20 === 0) await new Promise(r => setTimeout(r, 0));
+    }
+    return 0;
+  }).catch(() => 0);
   const named = await crowdPage.evaluate(() =>
     (window.__students || []).filter(s => s.data && s.g).map(s => s.data.name))
     .catch(() => []);
@@ -790,7 +805,11 @@ try {
                      `${Math.round(c.width)}x${Math.round(c.height)}` +
                      ` (backing ${el.width}x${el.height})` };
     }, nm).catch((e) => ({ err: String(e).slice(0, 80) }));
-    if (r.skip || r.gone){ skipped.push(nm); continue; }
+    /* WITH the reason. "2 skipped" said the check tested nothing and
+       not why, and the why is the whole diagnosis: indoors is the
+       campus working, off screen after the camera walked to them is
+       not. */
+    if (r.skip || r.gone){ skipped.push(nm + " — " + (r.skip || "gone")); continue; }
     /* Answering as somebody else is a miss too — it means the ray found
        a different person, which is the failure this cannot afford to
        call a pass. */
@@ -821,9 +840,10 @@ try {
   const answered = named.length - skipped.length - miss.length;
   step("tapping a student opens a conversation", answered >= 1 && miss.length === 0,
        miss.length ? "no answer from " + miss.join(", ")
-       : answered < 1 ? `nobody could be tapped at all (${skipped.length} skipped) — the check tested nothing`
+       : answered < 1 ? `nobody could be tapped at all — the check tested nothing. ` +
+                        `skipped: ${skipped.join("; ") || "none"}`
        : `${answered} of ${named.length} named students answered` +
-         (skipped.length ? ` (${skipped.length} indoors or off screen)` : ""));
+         (skipped.length ? ` (${skipped.length} skipped: ${skipped.join("; ")})` : ""));
 
   /* Five of the eight roaming bodies are women, and a phone reported
      "none of the female characters are present" — which the numbers
