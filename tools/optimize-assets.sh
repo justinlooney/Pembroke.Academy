@@ -33,7 +33,7 @@ command -v "$GLTF"    >/dev/null || { echo "gltf-transform not found — npm i -
 TIERS="
 university         90000        0        1024   east district, across the drive
 ballpark           80000        0        1024   southwest, never approached
-reshall            140000       0        2048   west lawn, walked past
+reshall            120000       0        1024   west lawn, walked UP TO — a node sits on its footprint
 cathedral2         500000       0        2048   ENTERABLE — light touch only
 "
 

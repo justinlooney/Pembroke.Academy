@@ -1904,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v84";
+const BUILD = "pembroke-v85";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -3062,8 +3062,16 @@ BUILDINGS.forEach(spec => {
      clean facade toward the quad, replacing the procedural west range */
   /* Queued with the rest of the outer world rather than fetched on
      sight. 2.68MB that used to land at 97 seconds, ahead of people. */
+  /* The hall is a BROAD FACADE now, not a deep block: 204 x 105 at its
+     full height where the old one was 135 x 184. maxFoot is a cap, and
+     loadLandmark honours it by shrinking — leave it at 150 and this
+     building stands 70 units tall instead of 96, which reads as a model
+     that came out wrong rather than a deliberate size. Widened to its
+     own proportions with a little room, and the depth brought in to
+     match, so the collider it derives is the shape of the building
+     rather than of the slot the last one left. */
   OUTER.push(["assets/reshall.glb", {
-    plane: [140, 330], height: 96, rotY: 0, maxFoot: [150, 200], sink: 2.4,
+    plane: [140, 330], height: 96, rotY: 0, maxFoot: [215, 130], sink: 2.4,
     collider: "auto", vista: "Pembroke Residence Hall",
   }]);
   /* terracotta refectory */

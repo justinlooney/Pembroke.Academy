@@ -35,8 +35,10 @@ published; anyone wanting the original should go to the source links here.
 - **University campus aerial scan** — supplied via the project owner (original source/author
   to be confirmed for attribution). Adapted: meshopt + WebP 2K; placed as the neighboring
   district east of campus. `university.glb`
-- **"New Colgate University Dorm"** — https://sketchfab.com/3d-models/new-colgate-university-dorm-739c5d0b2742436db74fdecec9480425
-  by **akhazaee** (https://sketchfab.com/akhazaee), **CC-BY-4.0**. Adapted: construction apron
-  cropped away, meshopt + WebP 2K; stands as Pembroke's west residence hall. `reshall.glb`
+- **Pembroke Residence Hall** — supplied via the project owner, generated from their own
+  building pipeline. LOD1: 120,000 triangles, one material, 1024x1024 base colour,
+  metallic/roughness and normal, meshopt + WebP. `reshall.glb`
+  (It replaced "New Colgate University Dorm" from Sketchfab, which is no longer
+  distributed here — a different building, not a re-export of the same one.)
 - **"Baseball stadium 3d drone survey - Pix4d"** — by **KCraw** (https://sketchfab.com/goldenhornet),
   **CC-BY-4.0**. Adapted: meshopt + WebP 2K; Pembroke Field, southwest athletics district. `ballpark.glb`
