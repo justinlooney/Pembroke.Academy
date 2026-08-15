@@ -25,9 +25,9 @@ import { resolve, extname, basename } from "node:path";
 
 const ROOT = resolve(new URL("..", import.meta.url).pathname);
 const args = process.argv.slice(2);
-/* A flag'"'"'s VALUE is not a file. Filtering only on the leading dashes
-   left "96" and "72" in the list and the run ended with two renders and
-   two lines of "could not load 96". */
+/* The VALUE of a flag is not a file. Filtering only on the leading
+   dashes left "96" and "72" in the list, and the run ended with two
+   renders and two lines of "could not load 96". */
 const flagVals = new Set();
 args.forEach((a, i) => { if (a.startsWith("--")) flagVals.add(i + 1); });
 const files = args.filter((a, i) => !a.startsWith("--") && !flagVals.has(i));
