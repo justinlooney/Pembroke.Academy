@@ -1904,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v75";
+const BUILD = "pembroke-v76";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -6404,6 +6404,7 @@ const VISIT = Math.floor(Math.random() * 1e6);
    people should be three different people, not three throws of the same
    die that might come up the same twice. */
 let castDeck = [];
+let castBlockedByCeiling = false;
 function nextBody(n){
   const pool = loadedRoaming();
   if (!pool.length) return null;
@@ -6417,7 +6418,16 @@ function nextBody(n){
      the deck and then refused is a body nobody gets: the deck is dealt
      once and there is no second pass. */
   const drawn = onScreenBodies();
-  const ok = (k) => !worn.has(k) && roomOnScreen(k, drawn);
+  const free = (k) => !worn.has(k);
+  const ok = (k) => free(k) && roomOnScreen(k, drawn);
+  /* WHY an empty hand came back, because the two reasons are opposites.
+     "Nobody left who would not be a twin" is permanent and the ramp
+     should stop for good. "Somebody is left but there is no room for
+     them" lasts until the next student walks into a building, and
+     stopping for good on that one pins the campus at whoever happened
+     to be out when the ceiling filled — measured as two people for
+     four minutes, the same two. */
+  castBlockedByCeiling = pool.some(k => free(k) && !ok(k));
   while (castDeck.length){
     const k = castDeck.pop();
     if (ok(k)) return k;
@@ -6510,7 +6520,7 @@ function stepCrowd(now, dt, raw){
      panel, so "3 people" reads as a fact about the cast rather than a
      performance cap somebody has to go looking for. */
   if (addExtra(crowdN)) crowdN++;
-  else { crowdDone = true; crowdSpent = true; }
+  else if (!castBlockedByCeiling){ crowdDone = true; crowdSpent = true; }
 }
 /* test/debug hook: how many people are on campus, whether more are
    coming, and what they cost to draw. `target` is what this visit drew
@@ -6536,9 +6546,20 @@ window.__crowd = () => ({ n: crowdN, done: crowdDone, fps: crowdFps,
  * would have shown, all at once instead of over a few seconds. */
 window.__crowdFill = () => {
   while (crowdN < CROWD_TARGET && addExtra(crowdN)) crowdN++;
-  crowdDone = true;
+  /* Not done if the only thing stopping it is the ceiling — room comes
+     back the moment somebody walks indoors, and this is the campus at
+     its fullest, not the campus for ever. */
+  if (!castBlockedByCeiling) crowdDone = true;
   return crowdN;
 };
+/* Bring somebody out if there is room for them. Called when a student
+   goes indoors, which is the moment room appears: the ceiling caps who
+   is ON SCREEN, so the cast rotates through the buildings rather than
+   the campus being whoever won the first draw. */
+function topUpCrowd(){
+  if (!crowdReady || crowdN >= CROWD_TARGET) return;
+  if (addExtra(crowdN)) crowdN++;
+}
 /* Crossfade rather than cut. A student who reaches a door and snaps from
    mid-stride to standing reads as a glitch; a quarter-second blend reads
    as someone arriving. */
@@ -6960,6 +6981,7 @@ function stepStudents(dt, now){
         if (gap < 10){
           s.mode = "inside";
           s.inside = true;
+          topUpCrowd();          /* their room on the screen is free now */
           s.until = now + INSIDE_MS[0] + Math.random() * (INSIDE_MS[1] - INSIDE_MS[0]);
           s.g.visible = false;
           continue;
