@@ -8995,7 +8995,24 @@ window.__castFiles = CAST_FILES;
    through the real lendClip. A character being authored has to be
    judged before it is committed to, and judging it means seeing it
    move — not reading a bone list. */
-window.__lendTo = async (url, donorKey, clipName, expect = "sit") => {
+/* Free a body this hook loaded. Nothing else in the campus needs it —
+   every real body is loaded once and kept forever — but a harness that
+   lends six donors to thirteen bodies loads seventy-eight of them, and
+   the tab died after seven: 2048-square textures on a software
+   rasterizer, none of them released. It read as a donor fault. */
+function __dropLoaded(g){
+  if (!g) return;
+  g.scene.traverse(o => {
+    if (!o.isMesh) return;
+    o.geometry.dispose();
+    for (const m of [].concat(o.material)){
+      if (!m) continue;
+      for (const k in m) if (m[k] && m[k].isTexture) m[k].dispose();
+      m.dispose();
+    }
+  });
+}
+window.__lendTo = async (url, donorKey, clipName, expect = "sit", keep = false) => {
   /* A donor that is not on the campus yet. Four of them arrived at
      once when walker's clips were rebuilt as clip_ files, and every
      one had to be judged BEFORE being wired to anything — the whole
@@ -9006,7 +9023,12 @@ window.__lendTo = async (url, donorKey, clipName, expect = "sit") => {
     : null;
   if (/\.glb$/i.test(donorKey || "") && !extra)
     return { err: donorKey + " would not load" };
-  return __lendWith(url, extra, donorKey, clipName, expect);
+  const r = await __lendWith(url, extra, donorKey, clipName, expect);
+  /* The donor is dropped either way — only the RECEIVER is wanted
+     afterwards, and then only when the caller is going to draw it. */
+  if (extra) __dropLoaded(extra);
+  if (!keep) __dropLoaded(r.gltf);
+  return r;
 };
 const __lendWith = (url, extra, donorKey, clipName, expect) =>
   new Promise((ok, no) => gltf.load(url, (g) => {
@@ -9034,7 +9056,7 @@ const __lendWith = (url, extra, donorKey, clipName, expect) =>
  * something else. */
 let __poseRig = null;
 window.__poseAt = (url, donorUrl, clipName, t, expect = "stand") =>
-  window.__lendTo(url, donorUrl, clipName, expect).then((r) => {
+  window.__lendTo(url, donorUrl, clipName, expect, true).then((r) => {
     if (r.err) return r;
     if (__poseRig){ world.remove(__poseRig.holder); __poseRig.mix.stopAllAction(); }
     const root = r.gltf.scene;
