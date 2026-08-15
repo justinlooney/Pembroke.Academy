@@ -1904,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v72";
+const BUILD = "pembroke-v73";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -9205,6 +9205,12 @@ window.__castFiles = CAST_FILES;
    weighs, so a harness can check the limit rather than trust it. */
 window.__onScreenCap = ON_SCREEN_MB;
 window.__castMB = CAST_MB;
+/* ...and who reads as a woman across a lawn. The harness kept its own
+   copy of this list and the copy went stale — it still named four
+   bodies that had been retired and none of the last four to land, so
+   the gender check was counting a cohort that did not exist. A fact
+   with two homes has one that is wrong. */
+window.__castFem = [...CAST_FEM];
 /* test/debug hook: lend the sit-down to a body that is not cast yet,
    through the real lendClip. A character being authored has to be
    judged before it is committed to, and judging it means seeing it
