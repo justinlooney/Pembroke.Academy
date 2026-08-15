@@ -1904,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v70";
+const BUILD = "pembroke-v71";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -4226,7 +4226,7 @@ const CAST_MB = {
                   skate: 1.27,
                   /* Measured, and the only numbers the first-wave
                      ceiling has to work with. Two of these fit under
-                     FIRST_WAVE_MB beside the skater and a third does
+                     ON_SCREEN_MB beside the skater and a third does
                      not, which is the whole shape of the opening
                      visit. */
                   char2: 3.86, char3: 4.72, char4: 3.31,
@@ -4274,12 +4274,41 @@ const CAST_FEM = new Set(["char2", "char3", "char4", "char8", "char9",
    and go from buildings — buildCast is resumable, so a student with no
    body at the first pass is built the moment theirs lands rather than
    missing the visit. */
-const FIRST_WAVE_MB = 7.0;
+const ON_SCREEN_MB = 7.5;
+/* Which bodies are being drawn RIGHT NOW, and what they weigh together.
+   Distinct bodies, not figures: a body is downloaded and decoded once
+   and every figure wearing it shares that, so two students in the same
+   body cost what one costs. (No-twins means that does not happen on
+   this campus, but the ceiling should be counting the real thing.)
+   A student inside a building is not drawn and does not count — going
+   indoors is what frees the room for somebody else to come out, which
+   is exactly the rotation this ceiling is meant to produce. */
+function onScreenBodies(){
+  const out = new Set();
+  for (const s of students){
+    if (s.inside || !s.g || !s.g.visible) continue;
+    const f = s.g.userData && s.g.userData.figure;
+    if (f) out.add(f);
+  }
+  return out;
+}
+function onScreenMB(bodies){
+  let mb = 0;
+  for (const k of (bodies || onScreenBodies())) mb += CAST_MB[k] || 0;
+  return mb;
+}
+/* Is there room to draw this body as well? Already on screen costs
+   nothing more. */
+function roomOnScreen(k, bodies){
+  const now = bodies || onScreenBodies();
+  if (now.has(k)) return true;
+  return onScreenMB(now) + (CAST_MB[k] || 9) <= ON_SCREEN_MB;
+}
 function drawFirstWave(){
   const core = ["skate"].filter(k => CAST_FILES[k]);
   const picks = [];
   let spent = core.reduce((a, k) => a + (CAST_MB[k] || 0), 0);
-  const fits = (k) => spent + (CAST_MB[k] || 9) <= FIRST_WAVE_MB;
+  const fits = (k) => spent + (CAST_MB[k] || 9) <= ON_SCREEN_MB;
   const take = (k) => { picks.push(k); spent += CAST_MB[k] || 0; };
 
   /* Drawn at RANDOM from those that fit, not cheapest-first. Cheapest
@@ -4308,7 +4337,7 @@ function drawFirstWave(){
     const room = spent - (drop ? CAST_MB[drop] || 0 : 0);
     const her = pool.filter(k => CAST_FEM.has(k) && !picks.includes(k))
                     .sort((a, b) => (CAST_MB[a] || 9) - (CAST_MB[b] || 9))
-                    .find(k => room + (CAST_MB[k] || 9) <= FIRST_WAVE_MB);
+                    .find(k => room + (CAST_MB[k] || 9) <= ON_SCREEN_MB);
     if (her){
       if (drop){ picks.splice(picks.indexOf(drop), 1); spent -= CAST_MB[drop] || 0; }
       take(her);
@@ -4324,7 +4353,7 @@ function drawFirstWave(){
     const cheapest = pool.slice().sort((a, b) => (CAST_MB[a] || 9) - (CAST_MB[b] || 9))[0];
     if (cheapest){
       take(cheapest);
-      console.warn("cast: nobody fits the " + FIRST_WAVE_MB + "MB first wave — " +
+      console.warn("cast: nobody fits the " + ON_SCREEN_MB + "MB first wave — " +
                    "taking " + cheapest + " at " + CAST_MB[cheapest] + "MB anyway");
     }
   }
@@ -4520,7 +4549,14 @@ function wornFigures(){
 function drawBody(pool, looks){
   if (!pool.length) return null;
   const worn = wornFigures();
-  const free = pool.filter(x => !worn.has(x));
+  /* The named cast obeys the ceiling too. It is drawn before the crowd,
+     so leaving it out would let the eight spend the whole allowance
+     before a single extra arrived — and the ceiling would then be a
+     rule about strangers rather than about what is on the screen.
+     A student who cannot be built now is built when there is room:
+     buildCast is resumable and runs again as the late wave settles. */
+  const drawn = onScreenBodies();
+  const free = pool.filter(x => !worn.has(x) && roomOnScreen(x, drawn));
   if (!free.length) return null;               /* everyone left is already out */
   const want = looks ? free.filter(x => CAST_FEM.has(x) === (looks === "f")) : [];
   const from = want.length ? want : free;
@@ -5919,8 +5955,17 @@ function upgradeBody(s){
   if (AUTHORED.includes(s.g?.userData?.figure)) return false;   /* already upgraded */
   const worn = wornFigures();
   const from = s.data.looks === "f" ? AUTHORED_F : AUTHORED_M;
+  /* An upgrade swaps one body for another, so the room it needs is the
+     new body's LESS the one being given up — which roomOnScreen gets
+     right on its own for a student who is indoors (they are not drawn,
+     so they are not counted), and which matters for one on the lawn. */
+  const drawn = onScreenBodies();
+  const freed = (!s.inside && s.g?.visible && s.g.userData?.figure)
+    ? s.g.userData.figure : null;
+  if (freed) drawn.delete(freed);
   const pick = from.filter(k => castLib[k] && !worn.has(k) &&
-                                rolesOf(k, castLib[k]).gaits.length);
+                                rolesOf(k, castLib[k]).gaits.length &&
+                                roomOnScreen(k, drawn));
   if (!pick.length) return false;
   const k = pick[Math.floor(Math.random() * pick.length)];
   const seed = VISIT + Math.floor(Math.random() * 9999);
@@ -6343,13 +6388,19 @@ function nextBody(n){
      named cast is built first and takes bodies out of circulation, and
      a deck shuffled before that happened would deal them again. */
   const worn = wornFigures();
+  /* ...and there has to be room to DRAW them. The ceiling is checked
+     here rather than after the card is dealt, because a body popped off
+     the deck and then refused is a body nobody gets: the deck is dealt
+     once and there is no second pass. */
+  const drawn = onScreenBodies();
+  const ok = (k) => !worn.has(k) && roomOnScreen(k, drawn);
   while (castDeck.length){
     const k = castDeck.pop();
-    if (!worn.has(k)) return k;
+    if (ok(k)) return k;
   }
   /* One pass, and there is no second one. An empty space on the lawn
      is better than the same student standing in two of them. */
-  const src = pool.filter(k => !worn.has(k));
+  const src = pool.filter(ok);
   if (!src.length) return null;
   castDeck = src.slice();
   for (let i = castDeck.length - 1; i > 0; i--){
@@ -6899,6 +6950,17 @@ function stepStudents(dt, now){
     }
     if (s.mode === "inside"){
       if (now < s.until) continue;      /* not drawn, not stepped, not there */
+      /* The ceiling decides when they come out, not only the clock.
+         While they were in there somebody else may have taken the room
+         their body needs, so they wait for it — which is the rotation
+         the ceiling exists to produce rather than a queue nobody
+         asked for. Checked BEFORE the upgrade, because upgradeBody may
+         put them in a different body and this is about the one they
+         are wearing now. */
+      if (!roomOnScreen(s.g?.userData?.figure)){
+        s.until = now + 4000;
+        continue;
+      }
       s.mode = "walk";
       s.inside = false;
       /* the invisible moment: whoever went in may come out wearing the
@@ -9126,6 +9188,10 @@ window.__castLib = castLib;   /* test/debug hook: the loaded bodies */
    cast and 404s on the ones whose file is named differently — which
    reads as a broken body rather than a broken guess. */
 window.__castFiles = CAST_FILES;
+/* test/debug hooks: what the on-screen ceiling is and what each body
+   weighs, so a harness can check the limit rather than trust it. */
+window.__onScreenCap = ON_SCREEN_MB;
+window.__castMB = CAST_MB;
 /* test/debug hook: lend the sit-down to a body that is not cast yet,
    through the real lendClip. A character being authored has to be
    judged before it is committed to, and judging it means seeing it
