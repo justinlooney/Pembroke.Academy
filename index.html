@@ -1904,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v78";
+const BUILD = "pembroke-v79";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -4127,7 +4127,15 @@ const CAST_FILES = {
      depended on her: she lent no motion and no student asked for her by
      name. Character 11 takes her place at 4.01MB and 200k. */
   char2:   "assets/stu_char2.glb",      /* 200k tris, yellow sweater     */
-  char3:   "assets/stu_char3.glb",      /* 200k tris, pink top           */
+  /* ── char3 is gone ─────────────────────────────────────────────────
+     Retired for her EXPORT, not her body: 4.72MB where the rest of the
+     cast lands near 3.5, because 199,998 triangles came with 160,626
+     vertices against the ~114,000 everybody else needs for the same
+     geometry. UV and normal seams tearing the mesh apart, and meshopt
+     pays for every one of them — position, normal, tangent, UV, joints
+     and weights. She alone set the on-screen ceiling: at 8.0MB six
+     pairs of students could not be drawn and all six were hers.
+     Character 15 replaces her at 3.96MB and 118,304 vertices. */
   char4:   "assets/stu_char4.glb",      /* 200k tris, the lightest yet   */
   char5:   "assets/stu_char5.glb",      /* 200k tris, the first man      */
   char6:   "assets/stu_char6.glb",      /* 200k tris, the lightest, 2.99 */
@@ -4136,6 +4144,7 @@ const CAST_FILES = {
   char9:   "assets/stu_char9.glb",      /* 200k tris, 12.3 bytes a tri   */
   char10:  "assets/stu_char10.glb",     /* 200k tris, walker's successor */
   char11:  "assets/stu_char11.glb",     /* 200k tris, hero's successor   */
+  char15:  "assets/stu_char15.glb",     /* 200k tris, 0.59 verts a tri   */
 };
 /* ── who has to be here before the doors open ─────────────────────────
    Twelve rigged files is 31MB, all of it decoded on the main thread
@@ -4152,8 +4161,8 @@ const CAST_FILES = {
    looks like anyway.
 
      first           skate
-     after           char2 char3 char4 char5 char6 char7 char8
-                     char9 char10 char11
+     after           char2 char4 char5 char6 char7 char8 char9
+                     char10 char11 char15
 
    Which bodies come first is a question about variety, not only about
    megabytes, and the first list got it wrong. Of the four ROAMING
@@ -4244,9 +4253,9 @@ const CAST_MB = {
                      1.27MB back, which is what makes room for the
                      second: all 45 possible pairs fit once he is gone,
                      against 13 while he is out. */
-                  char2: 3.86, char3: 4.72, char4: 3.31,
+                  char2: 3.86, char4: 3.31,
                   char5: 3.43, char6: 2.99, char7: 3.26, char8: 3.51,
-                  char9: 3.01, char10: 3.68, char11: 4.01 };
+                  char9: 3.01, char10: 3.68, char11: 4.01, char15: 3.96 };
 /* Measured, not guessed: these are the six bodies with a shirt mesh the
    wardrobe can find. See the note above about the ten that have none. */
 /* Nobody. The last dressable body was walker and he is retired, so the
@@ -4265,8 +4274,8 @@ const CAST_DRESSABLE = [];
  * put walker×3 + sophia×2 and walker×2 + kenta + tutor + woman + sophia
  * on the quad — reported from a phone as "none of the female characters
  * are present", which is very nearly what the numbers say. */
-const CAST_FEM = new Set(["char2", "char3", "char4", "char8", "char9",
-                          "char10", "char11"]);
+const CAST_FEM = new Set(["char2", "char4", "char8", "char9",
+                          "char10", "char11", "char15"]);
 /* ── what a visitor downloads in people before the campus is usable ───
    A HARD CEILING over every rigged body in the opening wave, the
    skater included, because the ceiling is about what comes down the
@@ -4275,15 +4284,19 @@ const CAST_FEM = new Set(["char2", "char3", "char4", "char8", "char9",
    8.73MB, and the draw fills it with as many DIFFERENT people as fit.
    That is the whole rule now.
 
-   The number is not a round one because it is measured rather than
-   chosen: 8.73MB is char3 and char11 together, the heaviest pair on
-   the roster, so every one of the 45 possible pairs of students can be
-   drawn. A cap of 8.0 excluded six of them and ALL SIX contained
-   char3 — he is 4.72MB, 200k triangles like everybody else but
-   160,626 vertices against the ~114,000 the rest need for the same
-   geometry, which is UV and normal seams tearing the mesh apart. Fix
-   that export and this number could come back down to 8.0 with all 45
-   still fitting; until then the cap carries his defect.
+   The number is measured rather than chosen: it was set to char3 and
+   char11 together, the heaviest pair the roster could deal, so that
+   every one of the 45 possible pairs of students can be drawn. A cap
+   of 8.0 excluded six pairs and ALL SIX were char3's — 4.72MB for the
+   same 200k triangles everybody else ships, because 160,626 vertices
+   where the rest need about 114,000 is UV and normal seams tearing the
+   mesh apart.
+
+   She has since been replaced by char15 at 3.96MB, so the heaviest
+   pair on the roster is now char11 and char15 at 7.97MB. The cap is
+   left at 8.73 because that is the number that was asked for; 7.97
+   would draw the same 45 of 45 and carry three quarters of a megabyte
+   less on the screen.
 
    The skater is out for the first fifteen seconds only, so for that
    window the students have 7.46MB and 13 of the 45 pairs fit. After he
@@ -4392,16 +4405,16 @@ function drawFirstWave(){
    any of the colours — see buildOf, which varies each figure another
    ±11% on top of these. */
 const CAST_HEIGHT = { skate: 42,
-                      char2: 41, char3: 40, char4: 41, char5: 43,
+                      char2: 41, char4: 41, char5: 43,
                       char6: 42, char7: 43, char8: 40, char9: 41,
-                      char10: 41, char11: 41 };
+                      char10: 41, char11: 41, char15: 40 };
 /* Which bodies can be given a waypoint and told to walk it, and which
    are only good for standing about. Ten that walk against a crowd
    that caps at ten: the round robin runs out of new people only on the
    eleventh, and by then they are scattered over sixty-eight
    waypoints. */
-const ROAMING = ["char2", "char3", "char4", "char5", "char6",
-                 "char7", "char8", "char9", "char10", "char11"];
+const ROAMING = ["char2", "char4", "char5", "char6", "char7",
+                 "char8", "char9", "char10", "char11", "char15"];
 /* Drawn here rather than beside drawFirstWave, because it reads ROAMING
    and a const cannot be read before it is declared — putting the call
    next to the function threw on load, which is a blank campus. */
@@ -5985,8 +5998,8 @@ const P_LINGER = 0.3;
    wave settles if they are off screen. A visible body-swap is a
    glitch; an invisible one is a student who went in wearing one thing
    and came out wearing another, which is what buildings are for. */
-const AUTHORED_F = ["char9", "char4", "char8", "char10", "char2", "char11",
-                    "char3"];  /* lightest first: 3.01 3.31 3.51 3.68 3.86 4.01 4.72 */
+const AUTHORED_F = ["char9", "char4", "char8", "char10", "char2", "char15",
+                    "char11"];  /* lightest first: 3.01 3.31 3.51 3.68 3.86 3.96 4.01 */
 const AUTHORED_M = ["char6", "char7", "char5"];  /* lightest first */
 const AUTHORED = [...AUTHORED_F, ...AUTHORED_M];
 function upgradeBody(s){
