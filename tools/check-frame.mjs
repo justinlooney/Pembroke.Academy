@@ -198,6 +198,9 @@ const line = (c) => c.map((x, i) => String(x || "").padEnd(w[i])).join("  ");
 console.log(line(head));
 console.log(w.map(x => "─".repeat(x)).join("  "));
 rows.forEach(x => console.log(line(x)));
+console.log("\ntexture memory by ORIGIN — a canvas the page drew, or an image it fetched");
+for (const [k, v] of Object.entries(r.byOrigin || {}))
+  console.log(`   ${String(v.mb.toFixed(1)).padStart(7)}MB  ${String(v.n).padStart(3)} textures  ${k}`);
 console.log("\ntexture memory by resolution — the decoded footprint, not the file size");
 for (const [dim, mb] of r.byTex)
   console.log(`   ${String(mb).padStart(7)}MB  ${dim}`);
