@@ -137,7 +137,18 @@ Walking_Woman  https://drive.google.com/file/d/1eWh_xTiL2N1iHNA6YElJ_9Q_C9F2jbys
 # and walker becomes an ordinary body that can be retired like any
 # other.
 #
-# Nothing new to download — the same links, built as donors.
+# The same links, built as donors — no new downloads IF the courier can
+# export an armature that carries no mesh. The first attempt could not:
+# mixamo-to-glb.py demanded a mesh and rejected all four with "re-
+# download it with skin", which is backwards for an out named clip_,
+# since the workflow deletes every mesh from it seconds later. The
+# guard now applies only to characters.
+#
+# If Blender turns out to drop a meshless armature's animation on
+# export, the fallback is to re-download these four WITH SKIN — the
+# large files — and let the clip_ stripping do its job. The courier log
+# will say which, and the donor is checked before anything is wired to
+# it.
 
 # out: assets/clip_idle.glb
 Idle            https://drive.google.com/file/d/1aw-oEHfcGVtozFy2JLQXy8NecFK7zaXx/view
