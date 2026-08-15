@@ -1904,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v69";
+const BUILD = "pembroke-v70";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -4224,10 +4224,11 @@ const CAST_FILES = {
    nothing else can stand in for what they do. */
 const CAST_MB = {
                   skate: 1.27,
-                  /* every authored body is past CAST_BUDGET on
-                     purpose: the first wave is the critical path and
-                     these are its whole weight class — they arrive
-                     with the late wave */
+                  /* Measured, and the only numbers the first-wave
+                     ceiling has to work with. Two of these fit under
+                     FIRST_WAVE_MB beside the skater and a third does
+                     not, which is the whole shape of the opening
+                     visit. */
                   char2: 3.86, char3: 4.72, char4: 3.31,
                   char5: 3.43, char6: 2.99, char7: 3.26, char8: 3.51,
                   char9: 3.01, char10: 3.68, char11: 4.01 };
@@ -4251,87 +4252,81 @@ const CAST_DRESSABLE = [];
  * are present", which is very nearly what the numbers say. */
 const CAST_FEM = new Set(["char2", "char3", "char4", "char8", "char9",
                           "char10", "char11"]);
-const CAST_BUDGET = 3.0;
+/* ── what a visitor downloads in people before the campus is usable ───
+   A HARD CEILING over every rigged body in the opening wave, the
+   skater included, because the ceiling is about what comes down the
+   wire and the wire does not care which of them is a student.
+
+   Seven megabytes, and the draw fills it with as many DIFFERENT people
+   as fit. That is the whole rule now. What it replaced was a 3.0MB
+   budget with two exemptions written over it — a guaranteed dressable
+   body, and two women "allowed to overrun the budget to get there" —
+   which meant the number was never the number: the wave was measured at
+   10.56MB on a budget of three. A ceiling with licences to exceed it is
+   not a ceiling.
+
+   Nobody is drawn twice, here or anywhere: CAST_USED spends a body the
+   moment it is worn, across the named cast and the crowd together. So
+   filling the wave with as many as fit IS filling it with as many
+   distinct people as fit.
+
+   Everyone else arrives in the late wave and joins in as students come
+   and go from buildings — buildCast is resumable, so a student with no
+   body at the first pass is built the moment theirs lands rather than
+   missing the visit. */
+const FIRST_WAVE_MB = 7.0;
 function drawFirstWave(){
   const core = ["skate"].filter(k => CAST_FILES[k]);
+  const picks = [];
+  let spent = core.reduce((a, k) => a + (CAST_MB[k] || 0), 0);
+  const fits = (k) => spent + (CAST_MB[k] || 9) <= FIRST_WAVE_MB;
+  const take = (k) => { picks.push(k); spent += CAST_MB[k] || 0; };
+
+  /* Drawn at RANDOM from those that fit, not cheapest-first. Cheapest
+     is deterministic, and it showed: eight visits produced two distinct
+     waves, six of them identical, because one body was always the
+     cheapest that fits. */
   const pool = ROAMING.filter(k => CAST_FILES[k]);
   for (let i = pool.length - 1; i > 0; i--){
     const j = Math.floor(Math.random() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
-  /* A dressable body first, so the budget could never be spent before a
-     shirt had been bought. CAST_DRESSABLE is empty now — walker was the
-     last one and he is retired — so this step finds nothing and does
-     nothing. Kept because it is the guarantee, not the body: put a
-     dressable character back on the roster and the first wave starts
-     honouring it again without anybody remembering to.
+  for (const k of pool) if (fits(k)) take(k);
 
-     Drawn at RANDOM from those that fit, not cheapest-first. Cheapest
-     is deterministic, and it showed: eight visits produced two distinct
-     waves, six of them identical, because ariel is always the cheapest
-     dressable that fits. (Measured when nadia was on the roster; the
-     mechanism is the point, not her.) */
-  const picks = [];
-  let spent = 0;
-  const dressable = pool.filter(k => CAST_DRESSABLE.includes(k) &&
-                                     (CAST_MB[k] || 9) <= CAST_BUDGET);
-  if (dressable.length){
-    const pick = dressable[Math.floor(Math.random() * dressable.length)];
-    picks.push(pick);
-    spent += CAST_MB[pick] || 0;
+  /* At least one woman, if one fits at all. Two was the old rule and it
+     is what the ceiling cannot always pay for: bodies cost about three
+     and a half megabytes each now, where the roster used to hold a
+     0.24MB man and a 1.66MB woman. Reported from a phone once as "none
+     of the female characters are present", which two measured visits
+     bore out, so the guarantee stays as far as the ceiling allows.
+     Swapped for the most expensive man rather than added, because
+     adding is how the old budget came to mean nothing. */
+  if (!picks.some(k => CAST_FEM.has(k))){
+    const men = picks.filter(k => !CAST_FEM.has(k))
+                     .sort((a, b) => (CAST_MB[b] || 0) - (CAST_MB[a] || 0));
+    const drop = men[0];
+    const room = spent - (drop ? CAST_MB[drop] || 0 : 0);
+    const her = pool.filter(k => CAST_FEM.has(k) && !picks.includes(k))
+                    .sort((a, b) => (CAST_MB[a] || 9) - (CAST_MB[b] || 9))
+                    .find(k => room + (CAST_MB[k] || 9) <= FIRST_WAVE_MB);
+    if (her){
+      if (drop){ picks.splice(picks.indexOf(drop), 1); spent -= CAST_MB[drop] || 0; }
+      take(her);
+    }
   }
-  /* TWO women in the first wave, not one, and allowed to overrun the
-     budget to get there — the same licence the floor-of-three step
-     below takes, for a more visible reason.
-   *
-     One is what the rules above produce whenever the dressable draw
-     lands on `woman` at 2.64MB: she spends the budget outright, the
-     fill can afford little else, and the rest arrive late. The named
-     cast is built at that moment, so the students who want a woman's
-     body have exactly one to share — which is the identical-twins
-     complaint wearing different clothes. (Written when woman and isla
-     were on the roster. Every body costs about the same now, so the
-     draw no longer has a cheap woman to reach for — the rule is what
-     keeps two of them in the wave regardless.) */
-  const women = () => picks.filter(k => CAST_FEM.has(k)).length;
-  if (women() < 2){
-    const next = pool.filter(k => !picks.includes(k) && CAST_FEM.has(k))
-                     .sort((a, b) => (CAST_MB[a] || 9) - (CAST_MB[b] || 9))[0];
-    if (next){ picks.push(next); spent += CAST_MB[next] || 0; }
-  }
-  for (const k of pool){
-    if (picks.includes(k)) continue;
-    const mb = CAST_MB[k] || 0;
-    if (spent + mb > CAST_BUDGET) continue;
-    picks.push(k);
-    spent += mb;
-  }
-  /* Three roaming bodies is the floor: the cohort has to read as more
-     than one person even before the late wave lands. Taking the
-     CHEAPEST remaining rather than the next shuffled one, because this
-     is the one step allowed to exceed the budget and the overshoot
-     should be a quarter of a megabyte rather than three. A draw that
-     ignored this once put a 3MB body in the first wave and took it
-     to 9.34MB. */
-  /* ONE roaming body is the floor now, not three.
-   *
-     The floor of three was written when the cheap legacy bodies
-     existed: kenta at 0.24MB, ariel at 1.66, woman at 2.64. Taking the
-     cheapest three regardless of budget cost about a megabyte. Those
-     bodies have all been retired for authored characters, and nothing
-     is under 2.99MB any more — so the same rule quietly started
-     dragging two 3MB characters onto the critical path, measured at
-     10.56MB in the first wave against about five before.
 
-     Three was there so the cohort would read as more than one person
-     before the late wave landed. That reason is gone: buildCast is
-     resumable now, so the students who could not be built at first
-     wave are built the moment their bodies arrive, seconds later. */
-  const rest = pool.filter(k => !picks.includes(k))
-                   .sort((a, b) => (CAST_MB[a] || 9) - (CAST_MB[b] || 9));
-  for (const k of rest){
-    if (picks.length >= 1) break;
-    picks.push(k);
+  /* One roaming body is the floor, and it is the ONE thing allowed
+     past the ceiling — a campus that opens with nobody on it reads as
+     broken rather than quiet, and every body costs about half the
+     ceiling so this can only fire if the roster changes shape under
+     it. Cheapest, so the overshoot is as small as it can be. */
+  if (!picks.length){
+    const cheapest = pool.slice().sort((a, b) => (CAST_MB[a] || 9) - (CAST_MB[b] || 9))[0];
+    if (cheapest){
+      take(cheapest);
+      console.warn("cast: nobody fits the " + FIRST_WAVE_MB + "MB first wave — " +
+                   "taking " + cheapest + " at " + CAST_MB[cheapest] + "MB anyway");
+    }
   }
   return core.concat(picks);
 }
