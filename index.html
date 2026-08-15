@@ -1108,7 +1108,7 @@ git push -u origin main</pre>
         <div>
           <span class="font-serif-d italic text-[13px] text-slate-400">"Lux, Mathesis, Machina"</span> — Light, Learning, and the Machine.
           <div class="mt-1">Progress is inscribed to your browser's <code class="font-mono-d text-[10.5px]">localStorage</code> ledger — it survives every visit.</div>
-          <div class="mt-1 text-slate-600">3D, adapted, <a class="underline hover:text-slate-400" href="http://creativecommons.org/licenses/by/4.0/">CC-BY-4.0</a> unless noted: "<a class="underline hover:text-slate-400" href="https://sketchfab.com/tabitown">Cathedral</a>" by tabitown · "Skater" by Mateusz Woliński (<a class="underline hover:text-slate-400" href="http://creativecommons.org/licenses/by-nc/4.0/">CC-BY-NC-4.0</a>) · "New Colgate University Dorm" · "Baseball stadium 3d drone survey" by KCraw · university campus aerial scan and sugar maple supplied by the project owner · flora by Miguel-Angel, PropShop™, EFX, Joanne Viertel &amp; Batuhan13. Full list in assets/CREDITS.md.</div>
+          <div class="mt-1 text-slate-600">3D, adapted, <a class="underline hover:text-slate-400" href="http://creativecommons.org/licenses/by/4.0/">CC-BY-4.0</a> unless noted: "<a class="underline hover:text-slate-400" href="https://sketchfab.com/tabitown">Cathedral</a>" by tabitown · "New Colgate University Dorm" · "Baseball stadium 3d drone survey" by KCraw · university campus aerial scan and sugar maple supplied by the project owner · flora by Miguel-Angel, PropShop™, EFX, Joanne Viertel &amp; Batuhan13. Full list in assets/CREDITS.md.</div>
         </div>
         <button id="reset-ledger" class="chip rounded-full px-4 py-1.5 text-[11px] uppercase tracking-[.15em] text-slate-400 hover:text-red-300 hover:border-red-400/50">Reset ledger</button>
       </footer>
@@ -1904,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v89";
+const BUILD = "pembroke-v90";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -4193,7 +4193,6 @@ const CAST_FILES = {
      tutor stood by a door for 0.32MB, which was a bargain while almost
      no body owned an idle. Every authored body is lent one from
      clip_idle.glb now, so the job needs no dedicated body. */
-  skate:   "assets/stu_skater.glb",
   /* The authored characters: made FOR this campus, delivered as
      approved web masters and landed byte-identical. All three rest at
      exactly their bind, which is what lets them wear borrowed motion —
@@ -4242,9 +4241,8 @@ const CAST_FILES = {
    seconds after you do is a student walking in, which is what this
    looks like anyway.
 
-     first           skate
-     after           char2 char4 char5 char6 char7 char8 char9
-                     char10 char11 char14 char15 char16
+     first           whoever the draw takes, under the ceiling
+     after            everybody else
 
    Which bodies come first is a question about variety, not only about
    megabytes, and the first list got it wrong. Of the four ROAMING
@@ -4312,7 +4310,7 @@ const CAST_FILES = {
    So: a fixed core, then a draw under a byte budget with a dressability
    guarantee.
 
-     core        the skater, the only one who is not a roamer
+     core        empty — every body roams now
      budget      2.6MB of roaming bodies beyond the core — what the
                  original written list cost, kept as the line the
                  first wave must not cross
@@ -4326,7 +4324,7 @@ const CAST_FILES = {
    body that has been lent it can answer; walker is retired and the core
    is down to the loiterers and the skater, who are there because
    nothing else can stand in for what they do. */
-const CAST_MB = { skate: 1.27,
+const CAST_MB = {
                   /* Every authored body at 1024 textures: 2.55 to 3.51MB,
                      where they were 2.99 to 4.72. The download is the smaller
                      half of that change — each also went from 63.8MB of
@@ -4356,41 +4354,33 @@ const CAST_DRESSABLE = [];
  * are present", which is very nearly what the numbers say. */
 const CAST_FEM = new Set(["char2", "char4", "char8", "char9",
                           "char10", "char11", "char15"]);
-/* ── what a visitor downloads in people before the campus is usable ───
-   A HARD CEILING over every rigged body in the opening wave, the
-   skater included, because the ceiling is about what comes down the
-   wire and the wire does not care which of them is a student.
+/* ── what a visitor holds in people at any moment ─────────────────────
+   A HARD CEILING on the TEXTURE MEMORY of the bodies being drawn.
 
-   8.73MB, and the draw fills it with as many DIFFERENT people as fit.
-   That is the whole rule now.
+   It used to count file bytes, and that was the wrong quantity all
+   along — it just took the 1024 pass to make it obvious. A body is
+   2.55 to 3.51MB on disk and every single one is 16.0MB decoded, so a
+   file-size ceiling now discriminates between bodies that cost the
+   GPU exactly the same. Worse, it was measuring the thing that was
+   never the problem: the frame audit put 1,296 draw calls and 4.52M
+   triangles — unremarkable — against 138MB of decoded texture, and it
+   is texture a phone runs out of. Download is already governed, by the
+   first-wave draw below.
 
-   The number is measured rather than chosen: it was set to char3 and
-   char11 together, the heaviest pair the roster could deal, so that
-   every one of the 45 possible pairs of students can be drawn. A cap
-   of 8.0 excluded six pairs and ALL SIX were char3's — 4.72MB for the
-   same 200k triangles everybody else ships, because 160,626 vertices
-   where the rest need about 114,000 is UV and normal seams tearing the
-   mesh apart.
+   So the unit is MEGABYTES OF DECODED TEXTURE, width x height x RGBA
+   plus a third for the mip chain, summed over the DISTINCT bodies on
+   screen. Distinct because a body is decoded once and shared: two
+   students in one body cost what one costs. A student inside a
+   building is not drawn and does not count, which is what makes the
+   rotation work — going indoors frees the room for somebody else to
+   come out.
 
-   She has since been replaced by char15 at 3.96MB, and the cap came
-   down with her: 7.98MB clears char11 and char15 at 7.97, which is the
-   heaviest pair the roster can deal. Every one of the 66 possible
-   pairs still fits — the cap tracks the roster rather than the worst
-   body that was ever on it.
-
-   Twelve students at 3.0 to 4.0MB each means the ceiling buys two of
-   them and cannot buy three: the lightest trio is 9.26MB. Two is the
-   number, and it is a fact about how heavy a body is rather than a
-   choice about how busy the campus should look.
-
-   The skater is out for the first fifteen seconds only, so for that
-   window the students have 7.46MB and 13 of the 45 pairs fit. After he
-   goes they have all of it. What it replaced was a 3.0MB
-   budget with two exemptions written over it — a guaranteed dressable
-   body, and two women "allowed to overrun the budget to get there" —
-   which meant the number was never the number: the wave was measured at
-   10.56MB on a budget of three. A ceiling with licences to exceed it is
-   not a ceiling.
+   48MB, which is three students. Every authored body is three
+   1024-square maps, so the arithmetic is simply 16MB a head and the
+   ceiling is a headcount wearing different units. Three is what the
+   old file ceiling already reached for its lighter combinations (25 of
+   220 trios fitted at 7.98MB); it is now uniform rather than an
+   accident of which files happened to compress well.
 
    Nobody is drawn twice, here or anywhere: CAST_USED spends a body the
    moment it is worn, across the named cast and the crowd together. So
@@ -4401,7 +4391,26 @@ const CAST_FEM = new Set(["char2", "char4", "char8", "char9",
    and go from buildings — buildCast is resumable, so a student with no
    body at the first pass is built the moment theirs lands rather than
    missing the visit. */
-const ON_SCREEN_MB = 7.98;
+const ON_SCREEN_MB = 48;
+/* What each body costs the GPU once decoded, in megabytes. Every
+   authored character ships three 1024-square maps — base colour,
+   metallic/roughness and normal — which is 1024*1024*4 bytes each plus
+   a third again for the mip chain: 16.0MB a head.
+ *
+   Written down rather than measured at runtime because the ceiling has
+   to answer BEFORE a body is loaded — the draw decides who to fetch,
+   and a texture that has not arrived has no size. Keep this in step
+   with what the files actually carry; tools/check-frame.mjs prints the
+   decoded footprint per resolution and will show the drift. */
+const BODY_VRAM_MB = 16.0;
+/* And a SEPARATE budget for the opening download, in file megabytes.
+   These were one number until the ceiling changed units, and for a
+   moment they still were — which would have had the first wave spend a
+   48MB allowance on files averaging 2.8MB and fetch the entire cast
+   before the campus drew anything. Two different questions: how much
+   comes down the wire before a visitor sees the place, and how much the
+   GPU holds while they are looking at it. */
+const FIRST_WAVE_MB = 8.0;
 /* Which bodies are being drawn RIGHT NOW, and what they weigh together.
    Distinct bodies, not figures: a body is downloaded and decoded once
    and every figure wearing it shares that, so two students in the same
@@ -4421,7 +4430,7 @@ function onScreenBodies(){
 }
 function onScreenMB(bodies){
   let mb = 0;
-  for (const k of (bodies || onScreenBodies())) mb += CAST_MB[k] || 0;
+  for (const k of (bodies || onScreenBodies())) mb += BODY_VRAM_MB;
   return mb;
 }
 /* Is there room to draw this body as well? Already on screen costs
@@ -4429,13 +4438,15 @@ function onScreenMB(bodies){
 function roomOnScreen(k, bodies){
   const now = bodies || onScreenBodies();
   if (now.has(k)) return true;
-  return onScreenMB(now) + (CAST_MB[k] || 9) <= ON_SCREEN_MB;
+  return onScreenMB(now) + BODY_VRAM_MB <= ON_SCREEN_MB;
 }
 function drawFirstWave(){
-  const core = ["skate"].filter(k => CAST_FILES[k]);
+  /* Nobody: every body on this campus roams now. The skater was the
+     last fixture and he is retired. */
+  const core = [];
   const picks = [];
   let spent = core.reduce((a, k) => a + (CAST_MB[k] || 0), 0);
-  const fits = (k) => spent + (CAST_MB[k] || 9) <= ON_SCREEN_MB;
+  const fits = (k) => spent + (CAST_MB[k] || 9) <= FIRST_WAVE_MB;
   const take = (k) => { picks.push(k); spent += CAST_MB[k] || 0; };
 
   /* Drawn at RANDOM from those that fit, not cheapest-first. Cheapest
@@ -4464,7 +4475,7 @@ function drawFirstWave(){
     const room = spent - (drop ? CAST_MB[drop] || 0 : 0);
     const her = pool.filter(k => CAST_FEM.has(k) && !picks.includes(k))
                     .sort((a, b) => (CAST_MB[a] || 9) - (CAST_MB[b] || 9))
-                    .find(k => room + (CAST_MB[k] || 9) <= ON_SCREEN_MB);
+                    .find(k => room + (CAST_MB[k] || 9) <= FIRST_WAVE_MB);
     if (her){
       if (drop){ picks.splice(picks.indexOf(drop), 1); spent -= CAST_MB[drop] || 0; }
       take(her);
@@ -4480,7 +4491,7 @@ function drawFirstWave(){
     const cheapest = pool.slice().sort((a, b) => (CAST_MB[a] || 9) - (CAST_MB[b] || 9))[0];
     if (cheapest){
       take(cheapest);
-      console.warn("cast: nobody fits the " + ON_SCREEN_MB + "MB first wave — " +
+      console.warn("cast: nobody fits the " + FIRST_WAVE_MB + "MB first wave — " +
                    "taking " + cheapest + " at " + CAST_MB[cheapest] + "MB anyway");
     }
   }
@@ -4489,7 +4500,7 @@ function drawFirstWave(){
 /* A teenager is shorter, and the height is doing as much work here as
    any of the colours — see buildOf, which varies each figure another
    ±11% on top of these. */
-const CAST_HEIGHT = { skate: 42,
+const CAST_HEIGHT = {
                       char2: 41, char4: 41, char5: 43,
                       char6: 42, char7: 43, char8: 40, char9: 41,
                       char10: 41, char11: 41, char14: 43, char15: 40,
@@ -6338,57 +6349,28 @@ function buildCast(){
      on the campus twice — skatex2". */
   if (SCENERY_CAST) return;
   SCENERY_CAST = true;
-  /* An uncommissioned regular, carving laps — down at the athletics
-     forecourt, where a skateboard belongs and where he is not making up
-     a sixth of everything visible from the fountain. */
-  /* Some days he is not out at all, and when he is he skates off after
-     fifteen seconds.
-   *
-     He used to lap the forecourt for the whole visit, and under a
-     ceiling on what is DRAWN that is 1.27MB nobody else can have —
-     permanently, from the first frame, spent on a figure going in
-     circles. Fifteen seconds is long enough to be seen and to read as
-     somebody passing through, and what it buys is a whole extra
-     student for the rest of the visit: with him gone the students have
-     the entire 8MB, which is 32 of the 45 possible pairs instead of 6.
+  /* ── the skater is gone ────────────────────────────────────────────
+     An uncommissioned regular who carved laps of the athletics
+     forecourt, and the last body on this campus that somebody else
+     made.
 
-     He is removed rather than hidden — his room is only free if the
-     ceiling can see it is free, and onScreenBodies() counts what is in
-     `students`. */
-  const sk = (castLib.skate && (CROWD_FORCE !== null || Math.random() < 0.5))
-    ? prepFigure("skate", 0, true) : null;
-  if (sk){
-    world.add(sk);
-    const rec = { g: sk, orbit: 84, orbitA: 3.6, orbitW: -0.6, skate: true,
-                  roles: sk.userData.anim?.roles, cx: 500, cy: 1120,
-                  pos: [500 + Math.cos(3.6) * 84, 1120 + Math.sin(3.6) * 84] };
-    students.push(rec);
-    setTimeout(() => {
-      const i = students.indexOf(rec);
-      if (i < 0) return;
-      students.splice(i, 1);
-      world.remove(sk);
-      for (let j = castMixers.length - 1; j >= 0; j--)
-        if (castMixers[j].g === sk) castMixers.splice(j, 1);
-      /* AND GIVE THE MEMORY BACK. Taking him out of the scene graph
-         does not: WebGL holds a texture until something disposes it,
-         so the first version of this freed his 1.27MB of DOWNLOAD
-         budget and left 69.2MB of decoded texture resident for the
-         rest of the visit, for a figure nobody can see any more. He
-         carries thirteen 1024-square maps — more than two students put
-         together, and half of everything the campus had fetched.
-         Measured: 138.3MB of texture with him gone from the lawn and
-         still in memory.
+     He was already down to fifteen seconds, which was the admission
+     that he did not earn a whole visit. What settled it is what those
+     fifteen seconds cost: THIRTEEN 1024-square maps, 69.2MB of texture
+     uploaded to the GPU during the opening seconds — the exact window
+     when the campus is still streaming and a phone has least to spare —
+     and then thrown away. Maximum cost at the moment of maximum
+     pressure, for the shortest benefit on the campus.
 
-         Safe because he is placed exactly once — SCENERY_CAST guards
-         that — and he is not in ROAMING, so no draw can deal him. The
-         library entry goes too, which makes that structural rather
-         than something a later change has to remember. */
-      disposeFigure(sk);
-      delete castLib.skate;
-      topUpCrowd();            /* his room on the screen is somebody else's */
-    }, 15000);
-  }
+     And the licence. Every other asset here is CC-BY-4.0 or the
+     project owner's own; he alone was CC-BY-NC-4.0, so one skateboarder
+     restricted commercial use of the entire site. That is a strange
+     thing to carry for a figure going in circles.
+
+     His disposal machinery went with him, and it was right: removing a
+     figure from the scene graph frees nothing, because WebGL holds a
+     texture until something disposes it. disposeFigure survives for
+     whatever needs it next. */
   /* Three more of the second rigged character — a genuinely different
      body rather than the walker re-dressed, which is worth more than any
      amount of recolouring. Their download carries no gait, so they are
@@ -9392,6 +9374,7 @@ window.__castFiles = CAST_FILES;
    weighs, so a harness can check the limit rather than trust it. */
 window.__onScreenCap = ON_SCREEN_MB;
 window.__castMB = CAST_MB;
+window.__bodyVram = BODY_VRAM_MB;
 /* ...and who reads as a woman across a lawn. The harness kept its own
    copy of this list and the copy went stale — it still named four
    bodies that had been retired and none of the last four to land, so

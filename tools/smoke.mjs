@@ -510,23 +510,27 @@ try {
      stopped because the ceiling said so passes, whatever the count. */
   const outOf = bodiesHere.filter(a => a.ok).length;
   const room = await crowdPage.evaluate(() => {
-    const cap = window.__onScreenCap, mb = window.__castMB || {};
+    /* The ceiling counts DECODED TEXTURE now, not file bytes. Every
+       authored body is three 1024-square maps — 16MB a head, whatever
+       its file happens to compress to — so a file-size reading would
+       have discriminated between bodies that cost the GPU the same. */
+    const cap = window.__onScreenCap, per = window.__bodyVram || 16;
     const drawn = new Set();
     for (const s of window.__students){
       if (s.inside || !s.g || !s.g.visible) continue;
       const f = s.g.userData && s.g.userData.figure;
       if (f) drawn.add(f);
     }
-    let used = 0;
-    for (const k of drawn) used += mb[k] || 0;
-    /* anybody loaded, not drawn, and light enough to have fitted */
-    /* Only bodies the crowd can DEAL. The skater is in CAST_FILES and
-       is not one of them — placed once, and gone after fifteen seconds —
-       so counting him as a candidate failed a campus that was full:
-       "2 bodies drawn, 6MB of 7.98MB — skate would have fitted". */
+    const used = drawn.size * per;
+    /* Anybody loaded, not drawn, and with room to have been drawn.
+       Only bodies the crowd can DEAL: the skater used to be in
+       CAST_FILES and was never one of them, and counting him as a
+       candidate failed a campus that was full — "2 bodies drawn, 6MB
+       of 7.98MB — skate would have fitted". He is retired now; reading
+       ROAMING is what keeps the next fixture from doing it again. */
     const spare = (window.__roaming || [])
       .filter(k => window.__castLib[k] && !drawn.has(k))
-      .filter(k => used + (mb[k] || 9) <= cap + 1e-9);
+      .filter(() => used + per <= cap + 1e-9);
     return { cap, used: +used.toFixed(2), n: drawn.size, spare };
   }).catch(() => null);
   if (cohortJudged)
