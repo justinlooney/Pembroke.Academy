@@ -520,7 +520,11 @@ try {
     let used = 0;
     for (const k of drawn) used += mb[k] || 0;
     /* anybody loaded, not drawn, and light enough to have fitted */
-    const spare = Object.keys(window.__castFiles)
+    /* Only bodies the crowd can DEAL. The skater is in CAST_FILES and
+       is not one of them — placed once, and gone after fifteen seconds —
+       so counting him as a candidate failed a campus that was full:
+       "2 bodies drawn, 6MB of 7.98MB — skate would have fitted". */
+    const spare = (window.__roaming || [])
       .filter(k => window.__castLib[k] && !drawn.has(k))
       .filter(k => used + (mb[k] || 9) <= cap + 1e-9);
     return { cap, used: +used.toFixed(2), n: drawn.size, spare };
@@ -647,20 +651,36 @@ try {
      the same two people going in and out for ever. */
   const overTime = await crowdPage.evaluate(async () => {
     const seen = new Set();
+    let wentIn = 0;
+    const wasIn = new Set();
     for (let t = 0; t < 240; t++){
       window.__sim(30, 1 / 30);
       for (const s of window.__students){
-        if (s.inside || !s.g || !s.g.visible) continue;
+        if (s.inside){
+          if (!wasIn.has(s)){ wasIn.add(s); wentIn++; }
+          continue;
+        }
+        wasIn.delete(s);
+        if (!s.g || !s.g.visible) continue;
         const f = s.g.userData && s.g.userData.figure;
         if (f) seen.add(f);
       }
       if (t % 20 === 0) await new Promise(r => setTimeout(r, 0));
     }
-    return [...seen].sort();
+    /* How many OTHER bodies were even available to rotate in. Without
+       this, "2 different people in four minutes" cannot be told apart
+       from "only 2 bodies finished decoding on this runner", and those
+       want opposite responses: one is a bug in the campus, the other is
+       a slow machine. */
+    const loaded = (window.__roaming || []).filter(k => window.__castLib[k]);
+    return { seen: [...seen].sort(), loaded: loaded.length, wentIn };
   }).catch(() => null);
   if (cohortJudged)
-  step("the cohort is varied over a visit", !!overTime && overTime.length >= 3,
-       overTime ? `${overTime.length} different people in four minutes: ${overTime.join("+")}`
+  step("the cohort is varied over a visit",
+       !!overTime && (overTime.seen.length >= 3 || overTime.loaded < 3),
+       overTime ? `${overTime.seen.length} different people in four minutes ` +
+                  `(${overTime.seen.join("+")}); ${overTime.loaded} bodies were loaded ` +
+                  `and ${overTime.wentIn} trip(s) indoors happened`
                 : "could not watch the campus");
   if (cohortJudged)
   step("the cohort is varied", !!c && c.bodies.split("+").length >= 1,
@@ -866,7 +886,7 @@ try {
      meets both over a few minutes, which is what they actually
      experience. */
   const FEMSET = new Set(await crowdPage.evaluate(() => window.__castFem || []).catch(() => []));
-  const met = overTime || [];
+  const met = (overTime && overTime.seen) || [];
   if (cohortJudged)
   step("the campus is not all one gender",
        met.filter(f => FEMSET.has(f)).length >= 1 &&

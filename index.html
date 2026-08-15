@@ -1904,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v83";
+const BUILD = "pembroke-v84";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -9305,6 +9305,12 @@ window.__castMB = CAST_MB;
    the gender check was counting a cohort that did not exist. A fact
    with two homes has one that is wrong. */
 window.__castFem = [...CAST_FEM];
+/* ...and which of them the crowd can actually DEAL. The skater is in
+   CAST_FILES and is not one: he is placed once, laps the forecourt and
+   leaves after fifteen seconds. A harness that treats every file as a
+   candidate concludes he "would have fitted" and fails a campus that is
+   full. */
+window.__roaming = [...ROAMING];
 /* test/debug hook: lend the sit-down to a body that is not cast yet,
    through the real lendClip. A character being authored has to be
    judged before it is committed to, and judging it means seeing it
