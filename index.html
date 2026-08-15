@@ -1904,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v85";
+const BUILD = "pembroke-v86";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -3062,17 +3062,32 @@ BUILDINGS.forEach(spec => {
      clean facade toward the quad, replacing the procedural west range */
   /* Queued with the rest of the outer world rather than fetched on
      sight. 2.68MB that used to land at 97 seconds, ahead of people. */
-  /* The hall is a BROAD FACADE now, not a deep block: 204 x 105 at its
-     full height where the old one was 135 x 184. maxFoot is a cap, and
-     loadLandmark honours it by shrinking — leave it at 150 and this
-     building stands 70 units tall instead of 96, which reads as a model
-     that came out wrong rather than a deliberate size. Widened to its
-     own proportions with a little room, and the depth brought in to
-     match, so the collider it derives is the shape of the building
-     rather than of the slot the last one left. */
+  /* ── siting the hall ──────────────────────────────────────────────
+     A BROAD FACADE, not the deep block that stood here: 204 x 105 at
+     full height against the old 135 x 184. Three things follow, and
+     none of them is the texture work that brought it in.
+
+     IT TURNS. The path at x=212 is called the residence front in the
+     code that lays it, and a hall whose long wall runs east-west shows
+     that path its gable end. rotY swings the facade round to face it,
+     which is also what makes the footprint fit: 105 x 204 rotated sits
+     inside the plot the old block left, where 204 x 105 does not.
+     loadLandmark applies rotY BEFORE it measures, so maxFoot is the
+     turned shape — [130, 215], not [215, 130].
+
+     IT MOVES. Left at [140, 330] the building stood ON its own front
+     walk and on the forecourt drive that sweeps in off the ring road.
+     [149, 374] clears the walk by ten units and the forecourt by
+     eleven, and every node of both survives outside the walls —
+     checked against all 268 coordinate pairs in this file, not by eye.
+
+     maxFoot IS A CAP, honoured by shrinking. Set it below the true
+     footprint and the hall stands short rather than being clipped: at
+     150 this one would have reached 70 units instead of 96 and read as
+     a model that came out wrong. */
   OUTER.push(["assets/reshall.glb", {
-    plane: [140, 330], height: 96, rotY: 0, maxFoot: [215, 130], sink: 2.4,
-    collider: "auto", vista: "Pembroke Residence Hall",
+    plane: [149, 374], height: 96, rotY: Math.PI / 2, maxFoot: [130, 215],
+    sink: 2.4, collider: "auto", vista: "Pembroke Residence Hall",
   }]);
   /* terracotta refectory */
   stoneBox(amb, { x: 700, y: 330, w: 110, d: 72, h: 46, windows: "lancet", seed: 18, accent: "#f0b47a", noRoof: true });
