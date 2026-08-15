@@ -41,7 +41,19 @@ const browser = await chromium.launch({ args: ["--use-gl=swiftshader",
   "--enable-unsafe-swiftshader", "--disable-dev-shm-usage"] });
 const page = await browser.newPage({ viewport: { width: 1100, height: 720 } });
 await page.goto(`http://localhost:${PORT}/index.html?crowd`, { waitUntil: "load" });
-await page.waitForFunction(() => window.__students, null, { timeout: 180000 });
+/* Wait for the campus to be BUILT, not merely for the hook to exist.
+   window.__students is an empty array from the first frame, so waiting
+   on it returns instantly and the first version of this measured a page
+   that had loaded one body of eleven: it reported a peak of 0MB over
+   two minutes and called the ceiling held. A limit that passes on an
+   empty campus is not measuring the limit. */
+await page.waitForFunction(() => window.__crowd && window.__crowd().ready &&
+  window.__students.length > 0, null, { timeout: 600000 });
+/* Then ask for the fullest campus the ceiling allows. ?crowd means
+   "show me everything you would show", and the ramp is frame-rate
+   governed — a software rasterizer never reaches the frame rate that
+   lets it finish, so the ramp is skipped rather than waited on. */
+await page.evaluate(() => window.__crowdFill());
 
 /* The campus decides everything at a waypoint, and a headless tab draws
    about a tenth of a frame a second — so the simulation is stepped
