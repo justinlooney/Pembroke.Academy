@@ -73,28 +73,36 @@ const browser = await chromium.launch({ args: ["--use-gl=swiftshader",
   "--enable-unsafe-swiftshader", "--disable-dev-shm-usage"] });
 const page = await browser.newPage({ viewport: { width: 900, height: 700 } });
 page.on("pageerror", (e) => console.log("  page error:", String(e).slice(0, 160)));
-await page.goto(`http://localhost:${PORT}/index.html`, { waitUntil: "load" });
+await page.goto(`http://localhost:${PORT}/index.html?crowd`, { waitUntil: "load" });
 await page.waitForFunction(() => window.__castLib &&
   Object.keys(window.__castLib).length >= 3, null, { timeout: 180000 });
 /* Let the rest of the cast finish arriving; a body still downloading is
    not evidence of anything. */
 await page.waitForTimeout(20000);
 
-const bodies = await page.evaluate(() => Object.keys(window.__castLib).sort());
-console.log("receivers:", bodies.join(", "), "\n");
+/* Every body the campus actually loaded, and the file each came
+   out of — guessing the filename from the key 404s on the ones
+   named differently, which reads as a broken body. */
+const bodies = await page.evaluate(() => Object.keys(window.__castLib)
+  .filter(k => window.__castFiles[k]).sort()
+  .map(k => [k, window.__castFiles[k]]));
+console.log("receivers:", bodies.map(b => b[0]).join(", "), "\n");
 
 let bad = 0;
 for (const donor of donors){
   const expect = expectOf(donor);
   console.log(`── ${basename(donor)}   (should end ${expect}) ──`);
-  for (const k of bodies){
-    const url = `assets/stu_${k}.glb`;
+  for (const [k, url] of bodies){
     const r = await page.evaluate(([u, d, e]) => window.__lendTo(u, d, null, e),
       [url, donor, expect]);
-    const ok = !r.err && r.why === "clean";
+    /* poseLooksWrong returns null when it finds nothing wrong, and a
+       sentence when it does. Testing for a "clean" string instead
+       failed every pairing including the ones that were fine. */
+    const ok = !r.err && !r.why;
     if (!ok) bad++;
     console.log(`  ${ok ? "ok  " : "FAIL"} ${k.padEnd(8)} ` +
-      (r.err ? "ERR " + r.err : `${String(r.tracks).padStart(2)} tracks · ${r.why}`));
+      (r.err ? "ERR " + r.err
+             : `${String(r.tracks).padStart(2)} tracks · ${r.why || "clean"}`));
     if (only || r.err) continue;
     /* Four moments, evenly spread, so a clip that is right at the ends
        and wrong in the middle cannot hide between two samples. */

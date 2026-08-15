@@ -8979,6 +8979,11 @@ window.__students = students;
    to happen is measuring the dice. This lets a probe send somebody. */
 window.__seats = SEATS;
 window.__castLib = castLib;   /* test/debug hook: the loaded bodies */
+/* test/debug hook: which file each body came out of. A harness that
+   guesses "assets/stu_" + key + ".glb" gets it right for most of the
+   cast and 404s on the ones whose file is named differently — which
+   reads as a broken body rather than a broken guess. */
+window.__castFiles = CAST_FILES;
 /* test/debug hook: lend the sit-down to a body that is not cast yet,
    through the real lendClip. A character being authored has to be
    judged before it is committed to, and judging it means seeing it
