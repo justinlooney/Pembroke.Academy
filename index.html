@@ -1904,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v88";
+const BUILD = "pembroke-v89";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -2750,6 +2750,22 @@ const PIERS = [];        /* [wx, wz, height, rot?] — instanced after build */
 function noteMat(sector, ...mats){
   if (!sector) return;
   (hallMats[sector] = hallMats[sector] || []).push(...mats);
+}
+/* Free what a figure holds on the GPU. Removing an object from the
+   scene graph unhooks it from rendering and frees nothing — geometry,
+   materials and textures live until disposed, and a texture is the
+   expensive one by two orders of magnitude. */
+function disposeFigure(root){
+  if (!root) return;
+  root.traverse(o => {
+    if (!o.isMesh && !o.isSkinnedMesh) return;
+    if (o.geometry) o.geometry.dispose();
+    for (const m of [].concat(o.material)){
+      if (!m) continue;
+      for (const k in m) if (m[k] && m[k].isTexture) m[k].dispose();
+      m.dispose();
+    }
+  });
 }
 function stoneBox(parent, o){
   /* o: {x,y,w,d,h,parapet,windows,ivy,arch,clock,accent,seed,sector,noRoof,noCollide} */
@@ -6354,7 +6370,23 @@ function buildCast(){
       world.remove(sk);
       for (let j = castMixers.length - 1; j >= 0; j--)
         if (castMixers[j].g === sk) castMixers.splice(j, 1);
-      topUpCrowd();            /* his 1.27MB is somebody else's now */
+      /* AND GIVE THE MEMORY BACK. Taking him out of the scene graph
+         does not: WebGL holds a texture until something disposes it,
+         so the first version of this freed his 1.27MB of DOWNLOAD
+         budget and left 69.2MB of decoded texture resident for the
+         rest of the visit, for a figure nobody can see any more. He
+         carries thirteen 1024-square maps — more than two students put
+         together, and half of everything the campus had fetched.
+         Measured: 138.3MB of texture with him gone from the lawn and
+         still in memory.
+
+         Safe because he is placed exactly once — SCENERY_CAST guards
+         that — and he is not in ROAMING, so no draw can deal him. The
+         library entry goes too, which makes that structural rather
+         than something a later change has to remember. */
+      disposeFigure(sk);
+      delete castLib.skate;
+      topUpCrowd();            /* his room on the screen is somebody else's */
     }, 15000);
   }
   /* Three more of the second rigged character — a genuinely different
