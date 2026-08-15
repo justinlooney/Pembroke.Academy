@@ -45,6 +45,17 @@ const MIME = { ".html": "text/html", ".js": "text/javascript",
 
 const args = process.argv.slice(2).filter(a => !a.startsWith("--"));
 const only = process.argv.includes("--numbers");     /* skip the pictures */
+/* --on char2,isla — judge against these receivers instead of all of
+   them. The full matrix is six donors across thirteen bodies, and an
+   authored body is 3.7MB of 2048-square textures decoded by a software
+   rasterizer: measured at about three minutes a pairing, so seventy-
+   eight of them is four hours. That is not a check anybody runs.
+   The campus gates every lend through poseLooksWrong at load time
+   anyway — an unjudged pairing cannot ship a broken pose, it simply
+   does not get the clip — so this is about seeing a representative
+   body, not about exhausting the roster. */
+const onArg = (process.argv.find(a => a.startsWith("--on=")) || "").slice(5);
+const onlyOn = onArg ? new Set(onArg.split(",")) : null;
 const donors = (args.length ? args : readdirSync(resolve(ROOT, "assets"))
   .filter(f => /^clip_.*\.glb$/.test(f)).sort().map(f => "assets/" + f))
   .map(p => p.replace(/^\.?\//, ""));
@@ -88,7 +99,8 @@ const ready = () => page.waitForFunction(() => window.__castFiles &&
   Object.keys(window.__castFiles).length > 0, null, { timeout: 180000 });
 await ready();
 
-const bodies = await page.evaluate(() => Object.entries(window.__castFiles).sort());
+const bodies = (await page.evaluate(() => Object.entries(window.__castFiles).sort()))
+  .filter(([k]) => !onlyOn || onlyOn.has(k));
 console.log("receivers:", bodies.map(b => b[0]).join(", "), "\n");
 
 let bad = 0, pairings = 0;
