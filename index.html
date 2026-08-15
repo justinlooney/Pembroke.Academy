@@ -1904,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v68";
+const BUILD = "pembroke-v69";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -4057,7 +4057,9 @@ function mkPerson(jacketColor, seed){
              body simply does not stop
      start   the first stride out of a standstill, if it has one
 
-   Models by their authors under CC-BY-4.0:
+   Models by their authors under CC-BY-4.0. Both are retired now and
+   their files are gone; the credit stays because the campus was built
+   on their motion and two of the donors still carry it:
      stu_tutor    "Animated Instructor Avatar" by sagefreeman
      stu_ariel    "walking test"   by Oussama.Lamrani
    stu_nathan, a scanned figure supplied by the site owner, served from
@@ -4084,8 +4086,20 @@ const CAST_FILES = {
      gone now — kenta pale and normal-mapless (retired for character 5,
      the first authored man), the other two for resting in poses their
      binds did not correspond to. */
-  isla:    "assets/stu_isla.glb",       /* walks; heavy until simplified */
-  tutor:   "assets/stu_tutor.glb",      /*  6k tris, a 25s standing loop */
+  /* ── isla and tutor are gone ───────────────────────────────────────
+     The last two legacy bodies, and the campus is authored now but for
+     the skater.
+
+     isla was the walking woman: 0.88MB, a real stride, and for a long
+     time the only body that could lend one — every authored character
+     wore her walk. That is exactly what made her hard to remove, and
+     the answer was already in the assets: clip_walkf_1.glb is her own
+     stride cut down to a skeleton and its motion, 27KB. The Borrowed
+     Walk comes from that file now, so the stride outlived the body.
+
+     tutor stood by a door for 0.32MB, which was a bargain while almost
+     no body owned an idle. Every authored body is lent one from
+     clip_idle.glb now, so the job needs no dedicated body. */
   skate:   "assets/stu_skater.glb",
   /* The authored characters: made FOR this campus, delivered as
      approved web masters and landed byte-identical. All three rest at
@@ -4124,8 +4138,8 @@ const CAST_FILES = {
    seconds after you do is a student walking in, which is what this
    looks like anyway.
 
-     first           skate tutor
-     after           isla char2 char3 char4 char5 char6 char7 char8
+     first           skate
+     after           char2 char3 char4 char5 char6 char7 char8
                      char9 char10 char11
 
    Which bodies come first is a question about variety, not only about
@@ -4176,9 +4190,8 @@ const CAST_FILES = {
    the cohort one removal away from failing the check that it is drawn
    from more than one person at all.                                    */
 /* ── who arrives first is drawn, not written down ─────────────────────
-   A fixed first wave means the same seven bodies every visit, and the
-   ones that load late — isla and the authored eight — are the ones a visitor
-   rarely meets at all. The crowd was already randomised in every other
+   A fixed first wave means the same bodies every visit, and the ones
+   that load late are the ones a visitor rarely meets at all. The crowd was already randomised in every other
    respect: clothes, build, start point, which body a named student
    wears. The one thing still fixed was which bodies were in the room
    to be dealt from.
@@ -4195,7 +4208,7 @@ const CAST_FILES = {
    So: a fixed core, then a draw under a byte budget with a dressability
    guarantee.
 
-     core        the two who are not roamers
+     core        the skater, the only one who is not a roamer
      budget      2.6MB of roaming bodies beyond the core — what the
                  original written list cost, kept as the line the
                  first wave must not cross
@@ -4209,8 +4222,8 @@ const CAST_FILES = {
    body that has been lent it can answer; walker is retired and the core
    is down to the loiterers and the skater, who are there because
    nothing else can stand in for what they do. */
-const CAST_MB = { isla: 0.88,
-                  skate: 1.27, tutor: 0.32,
+const CAST_MB = {
+                  skate: 1.27,
                   /* every authored body is past CAST_BUDGET on
                      purpose: the first wave is the critical path and
                      these are its whole weight class — they arrive
@@ -4236,12 +4249,11 @@ const CAST_DRESSABLE = [];
  * put walker×3 + sophia×2 and walker×2 + kenta + tutor + woman + sophia
  * on the quad — reported from a phone as "none of the female characters
  * are present", which is very nearly what the numbers say. */
-const CAST_FEM = new Set(["isla",
-                          "char2", "char3", "char4", "char8", "char9",
+const CAST_FEM = new Set(["char2", "char3", "char4", "char8", "char9",
                           "char10", "char11"]);
 const CAST_BUDGET = 3.0;
 function drawFirstWave(){
-  const core = ["skate", "tutor"].filter(k => CAST_FILES[k]);
+  const core = ["skate"].filter(k => CAST_FILES[k]);
   const pool = ROAMING.filter(k => CAST_FILES[k]);
   for (let i = pool.length - 1; i > 0; i--){
     const j = Math.floor(Math.random() * (i + 1));
@@ -4274,11 +4286,13 @@ function drawFirstWave(){
    *
      One is what the rules above produce whenever the dressable draw
      lands on `woman` at 2.64MB: she spends the budget outright, the
-     fill can afford little else, and ariel and isla arrive late. The
-     named cast is built at that moment, so the students who
-     want a woman's body have exactly one to share — which is the
-     identical-twins complaint wearing different clothes. The cheapest
-     second is isla at 0.88MB, and she walks. */
+     fill can afford little else, and the rest arrive late. The named
+     cast is built at that moment, so the students who want a woman's
+     body have exactly one to share — which is the identical-twins
+     complaint wearing different clothes. (Written when woman and isla
+     were on the roster. Every body costs about the same now, so the
+     draw no longer has a cheap woman to reach for — the rule is what
+     keeps two of them in the wave regardless.) */
   const women = () => picks.filter(k => CAST_FEM.has(k)).length;
   if (women() < 2){
     const next = pool.filter(k => !picks.includes(k) && CAST_FEM.has(k))
@@ -4324,8 +4338,7 @@ function drawFirstWave(){
 /* A teenager is shorter, and the height is doing as much work here as
    any of the colours — see buildOf, which varies each figure another
    ±11% on top of these. */
-const CAST_HEIGHT = { tutor: 41, skate: 42,
-                      isla: 40,
+const CAST_HEIGHT = { skate: 42,
                       char2: 41, char3: 40, char4: 41, char5: 43,
                       char6: 42, char7: 43, char8: 40, char9: 41,
                       char10: 41, char11: 41 };
@@ -4334,27 +4347,32 @@ const CAST_HEIGHT = { tutor: 41, skate: 42,
    that caps at ten: the round robin runs out of new people only on the
    eleventh, and by then they are scattered over sixty-eight
    waypoints. */
-const ROAMING = ["isla", "char2", "char3", "char4", "char5",
-                 "char6", "char7", "char8", "char9", "char10", "char11"];
+const ROAMING = ["char2", "char3", "char4", "char5", "char6",
+                 "char7", "char8", "char9", "char10", "char11"];
 /* Drawn here rather than beside drawFirstWave, because it reads ROAMING
    and a const cannot be read before it is declared — putting the call
    next to the function threw on load, which is a blank campus. */
 const CAST_FIRST = drawFirstWave();
 console.info("cast: first wave this visit — " + CAST_FIRST.join(", "));
-/* One loiterer now. sophia stood here — 488 frames of idle, no gait —
-   until her replacement arrived and she went the way of gent and mia:
-   tutor does the same job of standing near a door for 0.32MB. */
-const LOITERING = ["tutor"];
+/* Nobody, and nobody is needed. This list existed because loitering
+   takes an IDLE and almost no body had one — sophia carried 488 frames
+   of it and nothing else, then tutor did the same job for 0.32MB. Every
+   authored body is lent Idle from clip_idle.glb now, so standing by a
+   door is something the whole cast can do and a body kept solely to do
+   it is 0.32MB of nothing. Kept as a list rather than deleted: put a
+   body here whose only talent is standing still and it is used for
+   that, ahead of taking a roamer off the lawn. */
+const LOITERING = [];
 /* Asked at the moment a figure is built, never pruned. Bodies now
    arrive in two waves, so a list filtered once at startup would be
    permanently missing the six that come in later — and every extra
    after the sixth would be built from nothing. */
 /* Loaded is not enough: a roamer with no gait glides like a statue.
-   The authored bodies arrive with no clips and BORROW their walk from
-   isla, so between their arrival and hers there is a window where the
-   body exists and cannot walk. Nobody wears a body in that window —
-   the moment the walk lands, lendSitDown clears ROLE_CACHE and the
-   body joins the pool on the next draw. */
+   Every body arrives with no clips at all and BORROWS its walk from
+   clip_walkf_1.glb, so between a body landing and its donor landing
+   there is a window where the body exists and cannot walk. Nobody
+   wears a body in that window — the moment the walk lands, lendSitDown
+   clears ROLE_CACHE and the body joins the pool on the next draw. */
 const loadedRoaming = () => ROAMING.filter(k => castLib[k] &&
   rolesOf(k, castLib[k]).gaits.length);
 const loadedLoitering = () => LOITERING.filter(k => castLib[k]);
@@ -4531,7 +4549,13 @@ function bodyFor(k, looks, needs){
        for stu_anim by name — 179,598 triangles to hold still by a door,
        the heaviest figure on the campus doing the least. Whoever is
        standing about today does it instead. */
-    const pool = k === "any" ? loadedRoaming() : loadedLoitering();
+    /* Falls back to the roamers, which is now the normal case rather
+       than the exception: LOITERING is empty and every roaming body is
+       lent an idle, so "somebody standing by a door" is a job the whole
+       cast can take. Without the fallback these students would be dealt
+       no body at all and simply not appear. */
+    const pool = k === "any" ? loadedRoaming()
+               : (loadedLoitering().length ? loadedLoitering() : loadedRoaming());
     /* The need comes first and the look second: a student who cannot
        hold the pose their plan calls for is a frozen figure, which is
        worse than a mismatched one. */
@@ -5280,7 +5304,7 @@ const SIT_DONOR = "assets/clip_sit.glb";
    manifest, not a glob, because probing for files that do not exist
    is a console full of 404s and a failed asset check. */
 const FEM_WALKS = ["assets/clip_walkf_1.glb"];
-const femWalkDonors = [];
+const femWalkDonors = new Map();   /* url -> the loaded donor */
 /* What a body has to have before it can be handed a sit-down: a
    pelvis, a spine to fold, and two legs that bend in two places and
    end in a foot. Everything else in the clip is decoration. */
@@ -5521,9 +5545,13 @@ function lendable(){
        heaviest body here — but the number she set the line by was real
        and the line is still the right one.) The sit gate keeps its own
        number. */
-    { name: "Borrowed Walk", from: castLib.isla,
-      clip: castLib.isla && castLib.isla.animations.find(
-        c => c.name === "Armature|Walking_Woman|baselayer"),
+    /* Taken from the DONOR cut out of her, not from her body. Same
+       motion, same rest, 27KB instead of 0.88MB — and it is what let
+       her be retired: every roaming body needs a stride before it can
+       be built, so a walk that lived on a body made that body
+       undeletable. Nothing on this campus is lent by a body any more. */
+    { name: "Borrowed Walk", from: femWalkDonors.get(FEM_WALKS[0]),
+      clip: femWalkDonors.get(FEM_WALKS[0])?.animations[0],
       chain: STAND_CHAIN, expect: "stand", tol: 0.5, hips: false,
       wanted: (R) => !R.gaits.length },
     /* ── the pool, one job per donor ──────────────────────────────────
@@ -5531,9 +5559,14 @@ function lendable(){
        with a walk included, so isla can wear a stranger's stride too.
        Each spawn then draws from the body's whole gait list at random:
        shared, random, interchangeable, per the design brief. */
-    ...femWalkDonors.map((d, i) => ({
-      name: "Female Walk " + (i + 1), from: d,
-      clip: d.animations && d.animations[0],
+    /* Keyed by the manifest, not by arrival. These load in parallel and
+       an array filled by whichever finished first named the same file
+       "Female Walk 1" on one visit and "Female Walk 2" on the next —
+       harmless while the pool holds one donor, a body silently
+       collecting the same stride twice as soon as it holds more. */
+    ...FEM_WALKS.map((url, i) => ({
+      name: "Female Walk " + (i + 1), from: femWalkDonors.get(url),
+      clip: femWalkDonors.get(url)?.animations[0],
       chain: STAND_CHAIN, expect: "stand", tol: 0.5, hips: false,
       wanted: (R, k) => CAST_FEM.has(k) })),
     /* ── and the three that were walker's ─────────────────────────────
@@ -5712,7 +5745,7 @@ function lendSitDown(){
   });
   /* the walk pool loads on the same terms: alongside, counted, and a
      missing donor is one fewer stride rather than a broken campus */
-  FEM_WALKS.forEach(url => gltf.load(url, (g) => { femWalkDonors.push(g); done(); },
+  FEM_WALKS.forEach(url => gltf.load(url, (g) => { femWalkDonors.set(url, g); done(); },
     undefined, (err) => {
       console.warn("cast: " + url + " did not load — one fewer walk in the pool", err);
       done();

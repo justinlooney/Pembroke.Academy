@@ -63,12 +63,16 @@ Realistic_Trees  https://drive.google.com/file/d/1KbKXm6qk3JgzJ0KLGjmKqCw6hx6-z-
 # Retired pale and normal-mapless when character 5 landed: the first
 # authored man, 3.43MB against kenta's 0.24, and worth it.
 
-# ── the walking woman ────────────────────────────────────────────────
-# A real walk, textured, but 183,564 triangles — three and a half times
-# the walker. The courier simplifies anything past 60k, which lands her
-# near 82k. Watch that number when she arrives.
-# out: assets/stu_isla.glb
-Walking_Woman  https://drive.google.com/file/d/1eWh_xTiL2N1iHNA6YElJ_9Q_C9F2jbys/view
+# ── isla is gone ────────────────────────────────────────────────────
+# Her rebuild block stood here — removed WITH the body, as always,
+# because an inbox block is a promise to rebuild.
+#
+# The walking woman: 0.88MB after the courier simplified her from
+# 183,564 triangles to 82,566, and for a long time the only body on
+# this campus that could lend a stride — every authored character wore
+# her walk. That is what made her hard to retire, and the answer was
+# already in assets/: clip_walkf_1.glb is her own walk cut down to a
+# skeleton and its motion, 27KB. The stride outlived the body.
 
 # ── nathan is gone ───────────────────────────────────────────────────
 # His rebuild block stood here — removed WITH the body, as always,
