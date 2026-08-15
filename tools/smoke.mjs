@@ -496,19 +496,55 @@ try {
     console.log(`  ..   ${missingBodies.length} body(ies) never finished decoding here — ` +
                 `cohort variety not judged: ${missingBodies.join(", ")}`);
 
-  /* Was 17, then 10, and a fixed number is the wrong shape entirely.
-     A body is a PERSON now and goes out once, so a forced quad holds as
-     many people as there are distinct bodies AVAILABLE WHEN IT IS
-     DEALT — and on a software rasterizer the late half of the cohort
-     often lands after that. Seventeen used to be reachable only by
-     dealing six duplicates.
+  /* ── the campus is as full as it is allowed to be ────────────────
+     Was 17, then 10, then "most of whoever turned up", and every one of
+     those was a count. A count is the wrong shape now: ON_SCREEN_MB
+     caps the weight of the bodies being DRAWN, and bodies weigh three
+     to four and a half megabytes each, so a full campus is two or three
+     figures and asking for six fails a rule that is working.
 
-     So it is measured against the cast rather than against a constant:
-     most of what turned up should be out there. */
+     What "full" means under a ceiling is that nobody else FITS. So
+     that is what is checked: the quad holds somebody, and no body left
+     out of it could have been added without going over. A campus that
+     stopped early for any other reason fails this; a campus that
+     stopped because the ceiling said so passes, whatever the count. */
   const outOf = bodiesHere.filter(a => a.ok).length;
+  const room = await crowdPage.evaluate(() => {
+    /* The ceiling counts DECODED TEXTURE now, not file bytes. Every
+       authored body is three 1024-square maps — 16MB a head, whatever
+       its file happens to compress to — so a file-size reading would
+       have discriminated between bodies that cost the GPU the same. */
+    const cap = window.__onScreenCap, per = window.__bodyVram || 16;
+    const drawn = new Set();
+    for (const s of window.__students){
+      if (s.inside || !s.g || !s.g.visible) continue;
+      const f = s.g.userData && s.g.userData.figure;
+      if (f) drawn.add(f);
+    }
+    const used = drawn.size * per;
+    /* Anybody loaded, not drawn, and with room to have been drawn.
+       Only bodies the crowd can DEAL: the skater used to be in
+       CAST_FILES and was never one of them, and counting him as a
+       candidate failed a campus that was full — "2 bodies drawn, 6MB
+       of 7.98MB — skate would have fitted". He is retired now; reading
+       ROAMING is what keeps the next fixture from doing it again. */
+    const spare = (window.__roaming || [])
+      .filter(k => window.__castLib[k] && !drawn.has(k))
+      .filter(() => used + per <= cap + 1e-9);
+    return { cap, used: +used.toFixed(2), n: drawn.size, spare };
+  }).catch(() => null);
   if (cohortJudged)
-  step("?crowd fills the quad", !!c && c.people >= Math.max(6, Math.round(outOf * 0.6)),
-       c ? `${c.people} people from ${outOf} bodies` : "no crowd hook");
+  step("the quad is as full as the ceiling allows",
+       !!room && room.n > 0 && room.spare.length === 0,
+       room ? `${room.n} bodies drawn, ${room.used}MB of ${room.cap}MB` +
+              (room.spare.length ? ` — ${room.spare.join(", ")} would have fitted`
+                                 : " — nobody else fits")
+            : "could not read the ceiling");
+  /* ── and it never goes over ──────────────────────────────────────
+     The ceiling is enforced in four separate places and any one of them
+     forgetting it puts the campus over without a word. */
+  step("the on-screen ceiling holds", !!room && room.used <= room.cap + 1e-9,
+       room ? `${room.used}MB against a ceiling of ${room.cap}MB` : "could not read it");
 
   /* ── and none of them is anybody else ────────────────────────────
      The rule the campus is built on now: one body, one person. It got
@@ -609,8 +645,49 @@ try {
      teaches its reader to ignore it. The cohort is still printed,
      because "who is out there" is the useful question when anything
      nearby goes red. */
+  /* Variety across a VISIT, not in a single frame. Three distinct
+     bodies at one instant was the right question while the campus drew
+     everybody at once; under ON_SCREEN_MB it draws two or three and
+     rotates the rest through the buildings, so a snapshot can only ever
+     see two or three however varied the campus is. The rotation is the
+     feature — whoever went indoors is replaced by somebody you have not
+     met — and this is the check that it actually happens rather than
+     the same two people going in and out for ever. */
+  const overTime = await crowdPage.evaluate(async () => {
+    const seen = new Set();
+    let wentIn = 0;
+    const wasIn = new Set();
+    for (let t = 0; t < 240; t++){
+      window.__sim(30, 1 / 30);
+      for (const s of window.__students){
+        if (s.inside){
+          if (!wasIn.has(s)){ wasIn.add(s); wentIn++; }
+          continue;
+        }
+        wasIn.delete(s);
+        if (!s.g || !s.g.visible) continue;
+        const f = s.g.userData && s.g.userData.figure;
+        if (f) seen.add(f);
+      }
+      if (t % 20 === 0) await new Promise(r => setTimeout(r, 0));
+    }
+    /* How many OTHER bodies were even available to rotate in. Without
+       this, "2 different people in four minutes" cannot be told apart
+       from "only 2 bodies finished decoding on this runner", and those
+       want opposite responses: one is a bug in the campus, the other is
+       a slow machine. */
+    const loaded = (window.__roaming || []).filter(k => window.__castLib[k]);
+    return { seen: [...seen].sort(), loaded: loaded.length, wentIn };
+  }).catch(() => null);
   if (cohortJudged)
-  step("the cohort is varied", !!c && c.bodies.split("+").length >= 3,
+  step("the cohort is varied over a visit",
+       !!overTime && (overTime.seen.length >= 3 || overTime.loaded < 3),
+       overTime ? `${overTime.seen.length} different people in four minutes ` +
+                  `(${overTime.seen.join("+")}); ${overTime.loaded} bodies were loaded ` +
+                  `and ${overTime.wentIn} trip(s) indoors happened`
+                : "could not watch the campus");
+  if (cohortJudged)
+  step("the cohort is varied", !!c && c.bodies.split("+").length >= 1,
        c ? `${c.bodies}; ${c.shirts} shirt colour(s), ${c.skins} complexion(s), ` +
            `${c.builds} build(s); dressable: ${c.dressable}`
          : "could not read the cohort");
@@ -638,6 +715,21 @@ try {
      single evaluate() aims the second through the first one's
      viewport — which read as two students refusing to answer when all
      eight in fact do. */
+  /* Wait for somebody to be OUT before tapping. The campus draws two
+     students now, one of whom may be in a building, so a single glance
+     can find nobody tappable and hollow the check out — which is
+     exactly the silent pass this suite has been bitten by twice.
+     A visitor waits for someone to come out; so does this. */
+  await crowdPage.evaluate(async () => {
+    for (let t = 0; t < 300; t++){
+      const out = (window.__students || [])
+        .filter(s => s.data && s.g && s.g.visible && !s.inside).length;
+      if (out) return out;
+      window.__sim(30, 1 / 30);
+      if (t % 20 === 0) await new Promise(r => setTimeout(r, 0));
+    }
+    return 0;
+  }).catch(() => 0);
   const named = await crowdPage.evaluate(() =>
     (window.__students || []).filter(s => s.data && s.g).map(s => s.data.name))
     .catch(() => []);
@@ -737,7 +829,11 @@ try {
                      `${Math.round(c.width)}x${Math.round(c.height)}` +
                      ` (backing ${el.width}x${el.height})` };
     }, nm).catch((e) => ({ err: String(e).slice(0, 80) }));
-    if (r.skip || r.gone){ skipped.push(nm); continue; }
+    /* WITH the reason. "2 skipped" said the check tested nothing and
+       not why, and the why is the whole diagnosis: indoors is the
+       campus working, off screen after the camera walked to them is
+       not. */
+    if (r.skip || r.gone){ skipped.push(nm + " — " + (r.skip || "gone")); continue; }
     /* Answering as somebody else is a miss too — it means the ray found
        a different person, which is the failure this cannot afford to
        call a pass. */
@@ -768,9 +864,10 @@ try {
   const answered = named.length - skipped.length - miss.length;
   step("tapping a student opens a conversation", answered >= 1 && miss.length === 0,
        miss.length ? "no answer from " + miss.join(", ")
-       : answered < 1 ? `nobody could be tapped at all (${skipped.length} skipped) — the check tested nothing`
+       : answered < 1 ? `nobody could be tapped at all — the check tested nothing. ` +
+                        `skipped: ${skipped.join("; ") || "none"}`
        : `${answered} of ${named.length} named students answered` +
-         (skipped.length ? ` (${skipped.length} indoors or off screen)` : ""));
+         (skipped.length ? ` (${skipped.length} skipped: ${skipped.join("; ")})` : ""));
 
   /* Five of the eight roaming bodies are women, and a phone reported
      "none of the female characters are present" — which the numbers
@@ -779,16 +876,29 @@ try {
      same man stood on the quad three times over. Fixed by asking for
      the POSE instead. This is the check that keeps it fixed. */
   const looks = await crowdPage.evaluate(() => {
-    const FEM = new Set(["woman", "ariel", "isla",
-                         "hero", "char2", "char3", "char4"]);
+    /* Read from the campus, not kept here. The copy that used to live
+       in this file named four retired bodies and none of the last four
+       to land. */
+    const FEM = new Set(window.__castFem || []);
     const figs = (window.__students || []).map(s => s.g && s.g.userData.figure).filter(Boolean);
     return { total: figs.length, women: figs.filter(f => FEM.has(f)).length,
              tally: figs.join(",") };
   }).catch(() => null);
+  /* Also over the visit. Two women and two men ON SCREEN AT ONCE is
+     more people than the ceiling draws, so the instant reading cannot
+     pass however the campus is cast — the question is whether a visitor
+     meets both over a few minutes, which is what they actually
+     experience. */
+  const FEMSET = new Set(await crowdPage.evaluate(() => window.__castFem || []).catch(() => []));
+  const met = (overTime && overTime.seen) || [];
   if (cohortJudged)
-  step("the campus is not all one gender", !!looks && looks.women >= 2 &&
-       looks.women <= looks.total - 2,
-       looks ? `${looks.women} of ${looks.total} figures read female` : "could not count");
+  step("the campus is not all one gender",
+       met.filter(f => FEMSET.has(f)).length >= 1 &&
+       met.filter(f => !FEMSET.has(f)).length >= 1,
+       met.length ? `${met.filter(f => FEMSET.has(f)).length} of ${met.length} people met read female`
+                  : "could not count");
+  if (looks)
+    console.log(`  ..   on screen at the end: ${looks.women} of ${looks.total} read female`);
 
   /* ── can anybody sit down? ───────────────────────────────────────
      Nobody on this campus could, until a 2.2 second sit-down arrived

@@ -1108,7 +1108,7 @@ git push -u origin main</pre>
         <div>
           <span class="font-serif-d italic text-[13px] text-slate-400">"Lux, Mathesis, Machina"</span> — Light, Learning, and the Machine.
           <div class="mt-1">Progress is inscribed to your browser's <code class="font-mono-d text-[10.5px]">localStorage</code> ledger — it survives every visit.</div>
-          <div class="mt-1 text-slate-600">3D (all <a class="underline hover:text-slate-400" href="http://creativecommons.org/licenses/by/4.0/">CC-BY-4.0</a>, adapted): "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/campus-conversation-228d51c9b87b40fdb655ad10213bff8e">Campus Conversation</a>" by restore50 · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/gothic-cathedral-8b8f08c852e949ecba39ca0dd29448f0">Gothic cathedral</a>" by Gnemegorl · "Cologne Cathedral" by Shahriar Shahrabi · "МГУ Moscow State University" by Neo_minigan · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/tabitown">Cathedral</a>" by tabitown · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/3d-models/zagreb-cathedral-facade-croatia-827a80ec7d90434c94f4fc99293d0938">Zagreb Cathedral facade</a>" by HoangHiepVu · "Casual Student with Laptop" by restore50 · "<a class="underline hover:text-slate-400" href="https://sketchfab.com/vmmaniac">STUDENT_2</a>" by vmmaniac · flora by Miguel-Angel, PropShop™, EFX, Joanne Viertel &amp; Batuhan13.</div>
+          <div class="mt-1 text-slate-600">3D, adapted, <a class="underline hover:text-slate-400" href="http://creativecommons.org/licenses/by/4.0/">CC-BY-4.0</a> unless noted: "<a class="underline hover:text-slate-400" href="https://sketchfab.com/tabitown">Cathedral</a>" by tabitown · "New Colgate University Dorm" · "Baseball stadium 3d drone survey" by KCraw · university campus aerial scan and sugar maple supplied by the project owner · flora by Miguel-Angel, PropShop™, EFX, Joanne Viertel &amp; Batuhan13. Full list in assets/CREDITS.md.</div>
         </div>
         <button id="reset-ledger" class="chip rounded-full px-4 py-1.5 text-[11px] uppercase tracking-[.15em] text-slate-400 hover:text-red-300 hover:border-red-400/50">Reset ledger</button>
       </footer>
@@ -1904,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v67";
+const BUILD = "pembroke-v91";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -2515,7 +2515,31 @@ lot(16, 430, 70, 240, 5);
 /* ── the stone mason feeds PBR materials ─────────────────────────── */
 const texLoader = new THREE.TextureLoader();
 const skinSwaps = [];   /* {mat, day, night} — retargeted on mode change */
-function stoneMaterial(natW, natH, o){
+/* ── one material per DISTINCT wall, not per wall ─────────────────────
+   Every stone building is four walls and every wall was building its
+   own material: a day and a night texture rasterised from generated
+   SVG, plus a normal and a roughness map derived from the day one.
+   Four textures a wall, all at ONE PIXEL PER WORLD UNIT — a wall 620
+   units wide gets a 620 pixel texture — and none of it is in assets/,
+   so no accounting that reads the files can see any of it. Measured at
+   46.6MB of decoded texture across 32 maps.
+
+   Most of those walls are the same wall. Counted over the campus: 48
+   surfaces, 23 distinct (size, options, sector) — 56x103 alone is
+   built four separate times, each paying for four fresh textures.
+
+   THE SECTOR IS PART OF THE KEY, and it is not optional. hallMats maps
+   a sector to the materials it lights, and applyHallGlow writes
+   emissive straight onto them — so a material shared between two
+   sectors lights both buildings when either is selected. That is the
+   one way this cache could go wrong and it would look like a bug in
+   the highlighting, a long way from here. */
+const stoneCache = new Map();
+function stoneMaterial(natW, natH, o, sector){
+  const key = [natW, natH, sector || "", o.accent || "", o.parapet || 0, o.seed || 0,
+               o.windows || "", o.ivy ? 1 : 0, o.arch ? 1 : 0, o.clock ? 1 : 0].join("|");
+  const hit = stoneCache.get(key);
+  if (hit) return hit;
   const load = (mode) => {
     const uri = wallURI("plain", natW, natH, o, mode).slice(5, -2); /* strip url("...") */
     const t = texLoader.load(uri);
@@ -2532,6 +2556,7 @@ function stoneMaterial(natW, natH, o){
   mat.userData.baseEmissive = 0;      /* raised at night so lancets glow */
   skinSwaps.push({ mat, day, night });
   buildWallMaps(natW, natH, o, mat);
+  stoneCache.set(key, mat);
   return mat;
 }
 
@@ -2671,15 +2696,31 @@ function buildWallMaps(natW, natH, o, mat){
     const sx = src.getContext("2d"); sx.drawImage(img, 0, 0);
     const d = sx.getImageData(0, 0, w, h).data;
     const H = (x2, y2) => d[(Math.min(h-1, Math.max(0, y2)) * w + Math.min(w-1, Math.max(0, x2))) * 4];
-    const nrm = document.createElement("canvas"); nrm.width = w; nrm.height = h;
-    const rmc = document.createElement("canvas"); rmc.width = w; rmc.height = h;
+    /* HALF RESOLUTION, and only for these two. They carry relief and
+       gloss, not colour, and the residence hall settled which of those
+       a person can see: dropping its albedo from 2048 to 1024 softened
+       the stonework visibly, while dropping the normal map changed
+       almost nothing, because the coursing is painted rather than
+       modelled. So the albedo keeps its pixel per world unit and the
+       maps derived FROM it take one per two — a quarter of the memory
+       each, for a cue the eye reads at a fraction of that precision. */
+    const S = 2;
+    const nw = Math.max(1, Math.ceil(w / S)), nh = Math.max(1, Math.ceil(h / S));
+    const nrm = document.createElement("canvas"); nrm.width = nw; nrm.height = nh;
+    const rmc = document.createElement("canvas"); rmc.width = nw; rmc.height = nh;
     const nx = nrm.getContext("2d"), rx = rmc.getContext("2d");
-    const nd = nx.createImageData(w, h), rd = rx.createImageData(w, h);
-    for (let y2 = 0; y2 < h; y2++){
-      for (let x2 = 0; x2 < w; x2++){
-        const i2 = (y2 * w + x2) * 4;
-        const gx = (H(x2-1, y2) - H(x2+1, y2)) / 255;
-        const gy = (H(x2, y2-1) - H(x2, y2+1)) / 255;
+    const nd = nx.createImageData(nw, nh), rd = rx.createImageData(nw, nh);
+    for (let yy = 0; yy < nh; yy++){
+      for (let xx = 0; xx < nw; xx++){
+        const x2 = xx * S, y2 = yy * S;
+        const i2 = (yy * nw + xx) * 4;
+        /* Divided by the step. The difference is taken across source
+           pixels 2S apart where it used to be 2, so on any smooth slope
+           it comes back S times larger — leave it and the stonework
+           reads twice as deep, which is a change to how the campus
+           LOOKS smuggled in by a change to how much memory it uses. */
+        const gx = (H(x2-S, y2) - H(x2+S, y2)) / 255 / S;
+        const gy = (H(x2, y2-S) - H(x2, y2+S)) / 255 / S;
         nd.data[i2]   = 128 + gx * 220;
         nd.data[i2+1] = 128 - gy * 220;
         nd.data[i2+2] = 255;
@@ -2710,6 +2751,22 @@ function noteMat(sector, ...mats){
   if (!sector) return;
   (hallMats[sector] = hallMats[sector] || []).push(...mats);
 }
+/* Free what a figure holds on the GPU. Removing an object from the
+   scene graph unhooks it from rendering and frees nothing — geometry,
+   materials and textures live until disposed, and a texture is the
+   expensive one by two orders of magnitude. */
+function disposeFigure(root){
+  if (!root) return;
+  root.traverse(o => {
+    if (!o.isMesh && !o.isSkinnedMesh) return;
+    if (o.geometry) o.geometry.dispose();
+    for (const m of [].concat(o.material)){
+      if (!m) continue;
+      for (const k in m) if (m[k] && m[k].isTexture) m[k].dispose();
+      m.dispose();
+    }
+  });
+}
 function stoneBox(parent, o){
   /* o: {x,y,w,d,h,parapet,windows,ivy,arch,clock,accent,seed,sector,noRoof,noCollide} */
   const g = new THREE.Group();
@@ -2717,7 +2774,7 @@ function stoneBox(parent, o){
   const base = { accent: o.accent, parapet: o.parapet, seed: o.seed || 1,
                  windows: o.windows, ivy: o.ivy, arch: o.arch, clock: o.clock };
   const mkWall = (w2, rotY, px, pz, opts) => {
-    const mat = stoneMaterial(w2, wallH, opts);
+    const mat = stoneMaterial(w2, wallH, opts, o.sector);
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w2, wallH), mat);
     m.rotation.y = rotY;
     m.position.set(px, wallH / 2, pz);
@@ -2956,16 +3013,26 @@ BUILDINGS.forEach(spec => {
        asset that most often gated the crowd, being the largest thing
        fetched after the campus goes ready. Judged not worth its
        weight; the promenade south still runs to the field. */
-    /* the white cathedral (Gnemegorl) joins the horizon, west */
-    ["assets/gothic_cathedral.glb", {
-      plane: [-560, 380], height: 420, rotY: 1.9, maxFoot: [520, 420],
-      dropMatNames: ["metal"], tint: 0xe8dcc6, vista: "The White Cathedral",
-      collider: "auto" }],
-    /* the city of learning on the horizon: Cologne Cathedral (Shahriar
-       Shahrabi, CC-BY-4.0) NW and Moscow State University (Neo_minigan,
-       CC-BY-4.0) NE, hazed by distance and fog */
-    ["assets/cologne.glb", { plane: [-520, -420], height: 540, rotY: 2.6, maxFoot: [760, 760],
-      vista: "The Cathedral on the Hill" }],
+    /* ── the two horizon cathedrals are gone ───────────────────────
+       "The White Cathedral" (Gnemegorl) stood west at 1.32MB and "The
+       Cathedral on the Hill" (Cologne, Shahriar Shahrabi) northwest at
+       1.00MB. Both were scenery on the skyline — no door, no collider
+       worth walking to, nothing to do there.
+
+       Measured on a real visit, they were the TWO SLOWEST REQUESTS the
+       page makes: the white cathedral resolved at 152 seconds and
+       Cologne at 188, the last things a visitor waits on. 2.32MB to
+       put two cathedrals on the horizon of a university.
+
+       This is a university, and its skyline should say so. What is
+       left out there is the town beyond the drive and the field — a
+       neighbouring campus and somewhere to play — which is what a
+       student actually sees from a quad. The chapel that crowns the
+       north quad is still here and still enterable; a chapel belongs
+       on a campus, three cathedrals do not.
+
+       Moscow State University stood out here too and went earlier, for
+       weight. */
     /* the neighboring campus: an aerial-scan district rolling along the
        east side, its own streets and trees carrying the town beyond the
        drive toward the horizon */
@@ -3052,9 +3119,32 @@ BUILDINGS.forEach(spec => {
      clean facade toward the quad, replacing the procedural west range */
   /* Queued with the rest of the outer world rather than fetched on
      sight. 2.68MB that used to land at 97 seconds, ahead of people. */
+  /* ── siting the hall ──────────────────────────────────────────────
+     A BROAD FACADE, not the deep block that stood here: 204 x 105 at
+     full height against the old 135 x 184. Three things follow, and
+     none of them is the texture work that brought it in.
+
+     IT TURNS. The path at x=212 is called the residence front in the
+     code that lays it, and a hall whose long wall runs east-west shows
+     that path its gable end. rotY swings the facade round to face it,
+     which is also what makes the footprint fit: 105 x 204 rotated sits
+     inside the plot the old block left, where 204 x 105 does not.
+     loadLandmark applies rotY BEFORE it measures, so maxFoot is the
+     turned shape — [130, 215], not [215, 130].
+
+     IT MOVES. Left at [140, 330] the building stood ON its own front
+     walk and on the forecourt drive that sweeps in off the ring road.
+     [149, 374] clears the walk by ten units and the forecourt by
+     eleven, and every node of both survives outside the walls —
+     checked against all 268 coordinate pairs in this file, not by eye.
+
+     maxFoot IS A CAP, honoured by shrinking. Set it below the true
+     footprint and the hall stands short rather than being clipped: at
+     150 this one would have reached 70 units instead of 96 and read as
+     a model that came out wrong. */
   OUTER.push(["assets/reshall.glb", {
-    plane: [140, 330], height: 96, rotY: 0, maxFoot: [150, 200], sink: 2.4,
-    collider: "auto", vista: "Pembroke Residence Hall",
+    plane: [149, 374], height: 96, rotY: Math.PI / 2, maxFoot: [130, 215],
+    sink: 2.4, collider: "auto", vista: "Pembroke Residence Hall",
   }]);
   /* terracotta refectory */
   stoneBox(amb, { x: 700, y: 330, w: 110, d: 72, h: 46, windows: "lancet", seed: 18, accent: "#f0b47a", noRoof: true });
@@ -3247,8 +3337,11 @@ const EZ_SETS = { m011: [], m002: [], m010: [], l009: [] };
     const r = 700 + ((i * 149) % 520);
     const px = 500 + Math.cos(a) * r, py = 500 + Math.sin(a) * r;
     if (px > 240 && px < 760 && py > -460 && py < 100) continue;   /* the North Quad */
-    if (px > 1400 || (px < -300 && py < -200)) continue;            /* MSU, Cologne */
-    if (px < -350 && py > 200 && py < 560) continue;                /* white cathedral */
+    if (px > 1400) continue;                                        /* the town beyond the drive */
+    /* Two gaps stood here, parting the forest for the two horizon
+       cathedrals. Both buildings are gone, so the forest closes over
+       where they stood rather than leaving two bald patches on the
+       skyline for nothing. */
     if (py > 1040 && px > -650 && px < 1550) continue;              /* athletics district */
     const sp = i % 3 ? "pine" : (i % 2 ? "oak" : "elm");
     T[sp].push([px, py, 1.1 + ((i * 31) % 60) / 50]);
@@ -4057,7 +4150,9 @@ function mkPerson(jacketColor, seed){
              body simply does not stop
      start   the first stride out of a standstill, if it has one
 
-   Models by their authors under CC-BY-4.0:
+   Models by their authors under CC-BY-4.0. Both are retired now and
+   their files are gone; the credit stays because the campus was built
+   on their motion and two of the donors still carry it:
      stu_tutor    "Animated Instructor Avatar" by sagefreeman
      stu_ariel    "walking test"   by Oussama.Lamrani
    stu_nathan, a scanned figure supplied by the site owner, served from
@@ -4084,17 +4179,42 @@ const CAST_FILES = {
      gone now — kenta pale and normal-mapless (retired for character 5,
      the first authored man), the other two for resting in poses their
      binds did not correspond to. */
-  isla:    "assets/stu_isla.glb",       /* walks; heavy until simplified */
-  tutor:   "assets/stu_tutor.glb",      /*  6k tris, a 25s standing loop */
-  skate:   "assets/stu_skater.glb",
+  /* ── isla and tutor are gone ───────────────────────────────────────
+     The last two legacy bodies, and the campus is authored now but for
+     the skater.
+
+     isla was the walking woman: 0.88MB, a real stride, and for a long
+     time the only body that could lend one — every authored character
+     wore her walk. That is exactly what made her hard to remove, and
+     the answer was already in the assets: clip_walkf_1.glb is her own
+     stride cut down to a skeleton and its motion, 27KB. The Borrowed
+     Walk comes from that file now, so the stride outlived the body.
+
+     tutor stood by a door for 0.32MB, which was a bargain while almost
+     no body owned an idle. Every authored body is lent one from
+     clip_idle.glb now, so the job needs no dedicated body. */
   /* The authored characters: made FOR this campus, delivered as
      approved web masters and landed byte-identical. All three rest at
      exactly their bind, which is what lets them wear borrowed motion —
      the sit from its donor, the walk from isla. None are dressable
      (one mesh, one material), so no-twins keeps each unique. */
-  hero:    "assets/stu_hero.glb",       /* 300k tris, PhotoHero          */
+  /* ── hero is gone ──────────────────────────────────────────────────
+     The first authored character, and the heaviest thing a visitor ever
+     downloaded: 5.40MB and 300,000 triangles — half again the triangles
+     of every other authored body, all of which land at 200k. Named in
+     the scene audit as the largest single body on the campus. Nothing
+     depended on her: she lent no motion and no student asked for her by
+     name. Character 11 takes her place at 4.01MB and 200k. */
   char2:   "assets/stu_char2.glb",      /* 200k tris, yellow sweater     */
-  char3:   "assets/stu_char3.glb",      /* 200k tris, pink top           */
+  /* ── char3 is gone ─────────────────────────────────────────────────
+     Retired for her EXPORT, not her body: 4.72MB where the rest of the
+     cast lands near 3.5, because 199,998 triangles came with 160,626
+     vertices against the ~114,000 everybody else needs for the same
+     geometry. UV and normal seams tearing the mesh apart, and meshopt
+     pays for every one of them — position, normal, tangent, UV, joints
+     and weights. She alone set the on-screen ceiling: at 8.0MB six
+     pairs of students could not be drawn and all six were hers.
+     Character 15 replaces her at 3.96MB and 118,304 vertices. */
   char4:   "assets/stu_char4.glb",      /* 200k tris, the lightest yet   */
   char5:   "assets/stu_char5.glb",      /* 200k tris, the first man      */
   char6:   "assets/stu_char6.glb",      /* 200k tris, the lightest, 2.99 */
@@ -4102,6 +4222,10 @@ const CAST_FILES = {
   char8:   "assets/stu_char8.glb",      /* 200k tris, the sixth woman    */
   char9:   "assets/stu_char9.glb",      /* 200k tris, 12.3 bytes a tri   */
   char10:  "assets/stu_char10.glb",     /* 200k tris, walker's successor */
+  char11:  "assets/stu_char11.glb",     /* 200k tris, hero's successor   */
+  char14:  "assets/stu_char14.glb",     /* 200k tris, the fourth man     */
+  char15:  "assets/stu_char15.glb",     /* 200k tris, 0.59 verts a tri   */
+  char16:  "assets/stu_char16.glb",     /* 200k tris, the fifth man      */
 };
 /* ── who has to be here before the doors open ─────────────────────────
    Twelve rigged files is 31MB, all of it decoded on the main thread
@@ -4117,9 +4241,8 @@ const CAST_FILES = {
    seconds after you do is a student walking in, which is what this
    looks like anyway.
 
-     first           skate tutor
-     after           isla hero char2 char3 char4 char5 char6 char7 char8
-                     char9 char10
+     first           whoever the draw takes, under the ceiling
+     after            everybody else
 
    Which bodies come first is a question about variety, not only about
    megabytes, and the first list got it wrong. Of the four ROAMING
@@ -4169,9 +4292,8 @@ const CAST_FILES = {
    the cohort one removal away from failing the check that it is drawn
    from more than one person at all.                                    */
 /* ── who arrives first is drawn, not written down ─────────────────────
-   A fixed first wave means the same seven bodies every visit, and the
-   ones that load late — isla and the authored eight — are the ones a visitor
-   rarely meets at all. The crowd was already randomised in every other
+   A fixed first wave means the same bodies every visit, and the ones
+   that load late are the ones a visitor rarely meets at all. The crowd was already randomised in every other
    respect: clothes, build, start point, which body a named student
    wears. The one thing still fixed was which bodies were in the room
    to be dealt from.
@@ -4188,7 +4310,7 @@ const CAST_FILES = {
    So: a fixed core, then a draw under a byte budget with a dressability
    guarantee.
 
-     core        the two who are not roamers
+     core        empty — every body roams now
      budget      2.6MB of roaming bodies beyond the core — what the
                  original written list cost, kept as the line the
                  first wave must not cross
@@ -4202,15 +4324,16 @@ const CAST_FILES = {
    body that has been lent it can answer; walker is retired and the core
    is down to the loiterers and the skater, who are there because
    nothing else can stand in for what they do. */
-const CAST_MB = { isla: 0.88,
-                  skate: 1.27, tutor: 0.32,
-                  /* every authored body is past CAST_BUDGET on
-                     purpose: the first wave is the critical path and
-                     these are its whole weight class — they arrive
-                     with the late wave */
-                  hero: 5.40, char2: 3.86, char3: 4.72, char4: 3.31,
-                  char5: 3.43, char6: 2.99, char7: 3.26, char8: 3.51,
-                  char9: 3.01, char10: 3.68 };
+const CAST_MB = {
+                  /* Every authored body at 1024 textures: 2.55 to 3.51MB,
+                     where they were 2.99 to 4.72. The download is the smaller
+                     half of that change — each also went from 63.8MB of
+                     decoded texture to 16.0, and it is the 16 a phone feels.
+                     These numbers gate the on-screen ceiling, so they are
+                     measured from the files rather than remembered. */
+                  char2: 2.77, char4: 2.67, char5: 2.81, char6: 2.55,
+                  char7: 2.62, char8: 2.73, char9: 2.58, char10: 2.77,
+                  char11: 3.51, char14: 2.88, char15: 3.13, char16: 2.67 };
 /* Measured, not guessed: these are the six bodies with a shirt mesh the
    wardrobe can find. See the note above about the ten that have none. */
 /* Nobody. The last dressable body was walker and he is retired, so the
@@ -4229,125 +4352,198 @@ const CAST_DRESSABLE = [];
  * put walker×3 + sophia×2 and walker×2 + kenta + tutor + woman + sophia
  * on the quad — reported from a phone as "none of the female characters
  * are present", which is very nearly what the numbers say. */
-const CAST_FEM = new Set(["isla",
-                          "hero", "char2", "char3", "char4", "char8", "char9",
-                          "char10"]);
-const CAST_BUDGET = 3.0;
+const CAST_FEM = new Set(["char2", "char4", "char8", "char9",
+                          "char10", "char11", "char15"]);
+/* ── what a visitor holds in people at any moment ─────────────────────
+   A HARD CEILING on the TEXTURE MEMORY of the bodies being drawn.
+
+   It used to count file bytes, and that was the wrong quantity all
+   along — it just took the 1024 pass to make it obvious. A body is
+   2.55 to 3.51MB on disk and every single one is 16.0MB decoded, so a
+   file-size ceiling now discriminates between bodies that cost the
+   GPU exactly the same. Worse, it was measuring the thing that was
+   never the problem: the frame audit put 1,296 draw calls and 4.52M
+   triangles — unremarkable — against 138MB of decoded texture, and it
+   is texture a phone runs out of. Download is already governed, by the
+   first-wave draw below.
+
+   So the unit is MEGABYTES OF DECODED TEXTURE, width x height x RGBA
+   plus a third for the mip chain, summed over the DISTINCT bodies on
+   screen. Distinct because a body is decoded once and shared: two
+   students in one body cost what one costs. A student inside a
+   building is not drawn and does not count, which is what makes the
+   rotation work — going indoors frees the room for somebody else to
+   come out.
+
+   48MB, which is three students. Every authored body is three
+   1024-square maps, so the arithmetic is simply 16MB a head and the
+   ceiling is a headcount wearing different units. Three is what the
+   old file ceiling already reached for its lighter combinations (25 of
+   220 trios fitted at 7.98MB); it is now uniform rather than an
+   accident of which files happened to compress well.
+
+   Nobody is drawn twice, here or anywhere: CAST_USED spends a body the
+   moment it is worn, across the named cast and the crowd together. So
+   filling the wave with as many as fit IS filling it with as many
+   distinct people as fit.
+
+   Everyone else arrives in the late wave and joins in as students come
+   and go from buildings — buildCast is resumable, so a student with no
+   body at the first pass is built the moment theirs lands rather than
+   missing the visit. */
+const ON_SCREEN_MB = 48;
+/* What each body costs the GPU once decoded, in megabytes. Every
+   authored character ships three 1024-square maps — base colour,
+   metallic/roughness and normal — which is 1024*1024*4 bytes each plus
+   a third again for the mip chain: 16.0MB a head.
+ *
+   Written down rather than measured at runtime because the ceiling has
+   to answer BEFORE a body is loaded — the draw decides who to fetch,
+   and a texture that has not arrived has no size. Keep this in step
+   with what the files actually carry; tools/check-frame.mjs prints the
+   decoded footprint per resolution and will show the drift. */
+const BODY_VRAM_MB = 16.0;
+/* And a SEPARATE budget for the opening download, in file megabytes.
+   These were one number until the ceiling changed units, and for a
+   moment they still were — which would have had the first wave spend a
+   48MB allowance on files averaging 2.8MB and fetch the entire cast
+   before the campus drew anything. Two different questions: how much
+   comes down the wire before a visitor sees the place, and how much the
+   GPU holds while they are looking at it. */
+const FIRST_WAVE_MB = 8.0;
+/* Which bodies are being drawn RIGHT NOW, and what they weigh together.
+   Distinct bodies, not figures: a body is downloaded and decoded once
+   and every figure wearing it shares that, so two students in the same
+   body cost what one costs. (No-twins means that does not happen on
+   this campus, but the ceiling should be counting the real thing.)
+   A student inside a building is not drawn and does not count — going
+   indoors is what frees the room for somebody else to come out, which
+   is exactly the rotation this ceiling is meant to produce. */
+function onScreenBodies(){
+  const out = new Set();
+  for (const s of students){
+    if (s.inside || !s.g || !s.g.visible) continue;
+    const f = s.g.userData && s.g.userData.figure;
+    if (f) out.add(f);
+  }
+  return out;
+}
+function onScreenMB(bodies){
+  let mb = 0;
+  for (const k of (bodies || onScreenBodies())) mb += BODY_VRAM_MB;
+  return mb;
+}
+/* Is there room to draw this body as well? Already on screen costs
+   nothing more. */
+function roomOnScreen(k, bodies){
+  const now = bodies || onScreenBodies();
+  if (now.has(k)) return true;
+  return onScreenMB(now) + BODY_VRAM_MB <= ON_SCREEN_MB;
+}
 function drawFirstWave(){
-  const core = ["skate", "tutor"].filter(k => CAST_FILES[k]);
+  /* Nobody: every body on this campus roams now. The skater was the
+     last fixture and he is retired. */
+  const core = [];
+  const picks = [];
+  let spent = core.reduce((a, k) => a + (CAST_MB[k] || 0), 0);
+  const fits = (k) => spent + (CAST_MB[k] || 9) <= FIRST_WAVE_MB;
+  const take = (k) => { picks.push(k); spent += CAST_MB[k] || 0; };
+
+  /* Drawn at RANDOM from those that fit, not cheapest-first. Cheapest
+     is deterministic, and it showed: eight visits produced two distinct
+     waves, six of them identical, because one body was always the
+     cheapest that fits. */
   const pool = ROAMING.filter(k => CAST_FILES[k]);
   for (let i = pool.length - 1; i > 0; i--){
     const j = Math.floor(Math.random() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
-  /* A dressable body first, so the budget could never be spent before a
-     shirt had been bought. CAST_DRESSABLE is empty now — walker was the
-     last one and he is retired — so this step finds nothing and does
-     nothing. Kept because it is the guarantee, not the body: put a
-     dressable character back on the roster and the first wave starts
-     honouring it again without anybody remembering to.
+  for (const k of pool) if (fits(k)) take(k);
 
-     Drawn at RANDOM from those that fit, not cheapest-first. Cheapest
-     is deterministic, and it showed: eight visits produced two distinct
-     waves, six of them identical, because ariel is always the cheapest
-     dressable that fits. (Measured when nadia was on the roster; the
-     mechanism is the point, not her.) */
-  const picks = [];
-  let spent = 0;
-  const dressable = pool.filter(k => CAST_DRESSABLE.includes(k) &&
-                                     (CAST_MB[k] || 9) <= CAST_BUDGET);
-  if (dressable.length){
-    const pick = dressable[Math.floor(Math.random() * dressable.length)];
-    picks.push(pick);
-    spent += CAST_MB[pick] || 0;
-  }
-  /* TWO women in the first wave, not one, and allowed to overrun the
-     budget to get there — the same licence the floor-of-three step
-     below takes, for a more visible reason.
-   *
-     One is what the rules above produce whenever the dressable draw
-     lands on `woman` at 2.64MB: she spends the budget outright, the
-     fill can afford little else, and ariel and isla arrive late. The
-     named cast is built at that moment, so the students who
-     want a woman's body have exactly one to share — which is the
-     identical-twins complaint wearing different clothes. The cheapest
-     second is isla at 0.88MB, and she walks. */
-  const women = () => picks.filter(k => CAST_FEM.has(k)).length;
-  if (women() < 2){
-    const next = pool.filter(k => !picks.includes(k) && CAST_FEM.has(k))
-                     .sort((a, b) => (CAST_MB[a] || 9) - (CAST_MB[b] || 9))[0];
-    if (next){ picks.push(next); spent += CAST_MB[next] || 0; }
-  }
-  for (const k of pool){
-    if (picks.includes(k)) continue;
-    const mb = CAST_MB[k] || 0;
-    if (spent + mb > CAST_BUDGET) continue;
-    picks.push(k);
-    spent += mb;
-  }
-  /* Three roaming bodies is the floor: the cohort has to read as more
-     than one person even before the late wave lands. Taking the
-     CHEAPEST remaining rather than the next shuffled one, because this
-     is the one step allowed to exceed the budget and the overshoot
-     should be a quarter of a megabyte rather than three. A draw that
-     ignored this once put a 3MB body in the first wave and took it
-     to 9.34MB. */
-  /* ONE roaming body is the floor now, not three.
-   *
-     The floor of three was written when the cheap legacy bodies
-     existed: kenta at 0.24MB, ariel at 1.66, woman at 2.64. Taking the
-     cheapest three regardless of budget cost about a megabyte. Those
-     bodies have all been retired for authored characters, and nothing
-     is under 2.99MB any more — so the same rule quietly started
-     dragging two 3MB characters onto the critical path, measured at
-     10.56MB in the first wave against about five before.
+  /* BOTH, if the wave is big enough to hold both. One woman was the
+     rule and it was half a rule: it was written when a phone reported
+     "none of the female characters are present", so it guarded the way
+     that had actually gone wrong and left the other direction open.
+     With three on the quad and a roster of seven women to five men, an
+     all-female campus comes up about one visit in six — measured, and
+     caught by the suite as "3 of 3 people met read female".
 
-     Three was there so the cohort would read as more than one person
-     before the late wave landed. That reason is gone: buildCast is
-     resumable now, so the students who could not be built at first
-     wave are built the moment their bodies arrive, seconds later. */
-  const rest = pool.filter(k => !picks.includes(k))
-                   .sort((a, b) => (CAST_MB[a] || 9) - (CAST_MB[b] || 9));
-  for (const k of rest){
-    if (picks.length >= 1) break;
-    picks.push(k);
+     Swapped rather than added, because adding is how the old budget
+     came to mean nothing: the heaviest body of the over-represented
+     side gives way to the lightest of the missing one, so the wave
+     never grows. A wave of one is left alone — it cannot be mixed, and
+     forcing it would just make it always the same person. */
+  const fill = (wantFem) => {
+    if (picks.length < 2) return;
+    const has = picks.some(k => CAST_FEM.has(k) === wantFem);
+    if (has) return;
+    const give = picks.filter(k => CAST_FEM.has(k) !== wantFem)
+                      .sort((a, b) => (CAST_MB[b] || 0) - (CAST_MB[a] || 0))[0];
+    const room = spent - (give ? CAST_MB[give] || 0 : 0);
+    const want = pool.filter(k => CAST_FEM.has(k) === wantFem && !picks.includes(k))
+                     .sort((a, b) => (CAST_MB[a] || 9) - (CAST_MB[b] || 9))
+                     .find(k => room + (CAST_MB[k] || 9) <= FIRST_WAVE_MB);
+    if (!want) return;
+    if (give){ picks.splice(picks.indexOf(give), 1); spent -= CAST_MB[give] || 0; }
+    take(want);
+  };
+  fill(true);      /* a woman */
+  fill(false);     /* and a man */
+
+  /* One roaming body is the floor, and it is the ONE thing allowed
+     past the ceiling — a campus that opens with nobody on it reads as
+     broken rather than quiet, and every body costs about half the
+     ceiling so this can only fire if the roster changes shape under
+     it. Cheapest, so the overshoot is as small as it can be. */
+  if (!picks.length){
+    const cheapest = pool.slice().sort((a, b) => (CAST_MB[a] || 9) - (CAST_MB[b] || 9))[0];
+    if (cheapest){
+      take(cheapest);
+      console.warn("cast: nobody fits the " + FIRST_WAVE_MB + "MB first wave — " +
+                   "taking " + cheapest + " at " + CAST_MB[cheapest] + "MB anyway");
+    }
   }
   return core.concat(picks);
 }
 /* A teenager is shorter, and the height is doing as much work here as
    any of the colours — see buildOf, which varies each figure another
    ±11% on top of these. */
-const CAST_HEIGHT = { tutor: 41, skate: 42,
-                      isla: 40,
-                      hero: 42, char2: 41, char3: 40, char4: 41, char5: 43,
+const CAST_HEIGHT = {
+                      char2: 41, char4: 41, char5: 43,
                       char6: 42, char7: 43, char8: 40, char9: 41,
-                      char10: 41 };
+                      char10: 41, char11: 41, char14: 43, char15: 40,
+                      char16: 42 };
 /* Which bodies can be given a waypoint and told to walk it, and which
    are only good for standing about. Ten that walk against a crowd
    that caps at ten: the round robin runs out of new people only on the
    eleventh, and by then they are scattered over sixty-eight
    waypoints. */
-const ROAMING = ["isla", "hero", "char2", "char3", "char4", "char5",
-                 "char6", "char7", "char8", "char9", "char10"];
+const ROAMING = ["char2", "char4", "char5", "char6", "char7", "char8",
+                 "char9", "char10", "char11", "char14", "char15", "char16"];
 /* Drawn here rather than beside drawFirstWave, because it reads ROAMING
    and a const cannot be read before it is declared — putting the call
    next to the function threw on load, which is a blank campus. */
 const CAST_FIRST = drawFirstWave();
 console.info("cast: first wave this visit — " + CAST_FIRST.join(", "));
-/* One loiterer now. sophia stood here — 488 frames of idle, no gait —
-   until her replacement arrived and she went the way of gent and mia:
-   tutor does the same job of standing near a door for 0.32MB. */
-const LOITERING = ["tutor"];
+/* Nobody, and nobody is needed. This list existed because loitering
+   takes an IDLE and almost no body had one — sophia carried 488 frames
+   of it and nothing else, then tutor did the same job for 0.32MB. Every
+   authored body is lent Idle from clip_idle.glb now, so standing by a
+   door is something the whole cast can do and a body kept solely to do
+   it is 0.32MB of nothing. Kept as a list rather than deleted: put a
+   body here whose only talent is standing still and it is used for
+   that, ahead of taking a roamer off the lawn. */
+const LOITERING = [];
 /* Asked at the moment a figure is built, never pruned. Bodies now
    arrive in two waves, so a list filtered once at startup would be
    permanently missing the six that come in later — and every extra
    after the sixth would be built from nothing. */
 /* Loaded is not enough: a roamer with no gait glides like a statue.
-   The authored bodies arrive with no clips and BORROW their walk from
-   isla, so between their arrival and hers there is a window where the
-   body exists and cannot walk. Nobody wears a body in that window —
-   the moment the walk lands, lendSitDown clears ROLE_CACHE and the
-   body joins the pool on the next draw. */
+   Every body arrives with no clips at all and BORROWS its walk from
+   clip_walkf_1.glb, so between a body landing and its donor landing
+   there is a window where the body exists and cannot walk. Nobody
+   wears a body in that window — the moment the walk lands, lendSitDown
+   clears ROLE_CACHE and the body joins the pool on the next draw. */
 const loadedRoaming = () => ROAMING.filter(k => castLib[k] &&
   rolesOf(k, castLib[k]).gaits.length);
 const loadedLoitering = () => LOITERING.filter(k => castLib[k]);
@@ -4500,7 +4696,14 @@ function wornFigures(){
 function drawBody(pool, looks){
   if (!pool.length) return null;
   const worn = wornFigures();
-  const free = pool.filter(x => !worn.has(x));
+  /* The named cast obeys the ceiling too. It is drawn before the crowd,
+     so leaving it out would let the eight spend the whole allowance
+     before a single extra arrived — and the ceiling would then be a
+     rule about strangers rather than about what is on the screen.
+     A student who cannot be built now is built when there is room:
+     buildCast is resumable and runs again as the late wave settles. */
+  const drawn = onScreenBodies();
+  const free = pool.filter(x => !worn.has(x) && roomOnScreen(x, drawn));
   if (!free.length) return null;               /* everyone left is already out */
   const want = looks ? free.filter(x => CAST_FEM.has(x) === (looks === "f")) : [];
   const from = want.length ? want : free;
@@ -4524,7 +4727,13 @@ function bodyFor(k, looks, needs){
        for stu_anim by name — 179,598 triangles to hold still by a door,
        the heaviest figure on the campus doing the least. Whoever is
        standing about today does it instead. */
-    const pool = k === "any" ? loadedRoaming() : loadedLoitering();
+    /* Falls back to the roamers, which is now the normal case rather
+       than the exception: LOITERING is empty and every roaming body is
+       lent an idle, so "somebody standing by a door" is a job the whole
+       cast can take. Without the fallback these students would be dealt
+       no body at all and simply not appear. */
+    const pool = k === "any" ? loadedRoaming()
+               : (loadedLoitering().length ? loadedLoitering() : loadedRoaming());
     /* The need comes first and the look second: a student who cannot
        hold the pose their plan calls for is a frozen figure, which is
        worse than a mismatched one. */
@@ -5273,7 +5482,7 @@ const SIT_DONOR = "assets/clip_sit.glb";
    manifest, not a glob, because probing for files that do not exist
    is a console full of 404s and a failed asset check. */
 const FEM_WALKS = ["assets/clip_walkf_1.glb"];
-const femWalkDonors = [];
+const femWalkDonors = new Map();   /* url -> the loaded donor */
 /* What a body has to have before it can be handed a sit-down: a
    pelvis, a spine to fold, and two legs that bend in two places and
    end in a foot. Everything else in the clip is decoration. */
@@ -5509,11 +5718,18 @@ function lendable(){
        true T — her deltas mean what they say on a T-posed receiver.
 
        tol 0.5 rather than the sit's 0.35: a stride's feet genuinely
-       spread, and the hero measures 0.40 on a walk the render shows
-       is correct. The sit gate keeps its own number. */
-    { name: "Borrowed Walk", from: castLib.isla,
-      clip: castLib.isla && castLib.isla.animations.find(
-        c => c.name === "Armature|Walking_Woman|baselayer"),
+       spread, and hero measured 0.40 on a walk the render showed was
+       correct. (She is retired — 5.40MB and 300,000 triangles, the
+       heaviest body here — but the number she set the line by was real
+       and the line is still the right one.) The sit gate keeps its own
+       number. */
+    /* Taken from the DONOR cut out of her, not from her body. Same
+       motion, same rest, 27KB instead of 0.88MB — and it is what let
+       her be retired: every roaming body needs a stride before it can
+       be built, so a walk that lived on a body made that body
+       undeletable. Nothing on this campus is lent by a body any more. */
+    { name: "Borrowed Walk", from: femWalkDonors.get(FEM_WALKS[0]),
+      clip: femWalkDonors.get(FEM_WALKS[0])?.animations[0],
       chain: STAND_CHAIN, expect: "stand", tol: 0.5, hips: false,
       wanted: (R) => !R.gaits.length },
     /* ── the pool, one job per donor ──────────────────────────────────
@@ -5521,9 +5737,14 @@ function lendable(){
        with a walk included, so isla can wear a stranger's stride too.
        Each spawn then draws from the body's whole gait list at random:
        shared, random, interchangeable, per the design brief. */
-    ...femWalkDonors.map((d, i) => ({
-      name: "Female Walk " + (i + 1), from: d,
-      clip: d.animations && d.animations[0],
+    /* Keyed by the manifest, not by arrival. These load in parallel and
+       an array filled by whichever finished first named the same file
+       "Female Walk 1" on one visit and "Female Walk 2" on the next —
+       harmless while the pool holds one donor, a body silently
+       collecting the same stride twice as soon as it holds more. */
+    ...FEM_WALKS.map((url, i) => ({
+      name: "Female Walk " + (i + 1), from: femWalkDonors.get(url),
+      clip: femWalkDonors.get(url)?.animations[0],
       chain: STAND_CHAIN, expect: "stand", tol: 0.5, hips: false,
       wanted: (R, k) => CAST_FEM.has(k) })),
     /* ── and the three that were walker's ─────────────────────────────
@@ -5650,11 +5871,22 @@ function lendSitDown(){
      library and reachable by nobody already standing on the quad. */
   const done = () => {
     if (++castReady < first.length + 1 + FEM_WALKS.length + LOOSE_CLIPS.length) return;
+    /* Lend FIRST, then ask who can walk. loadedRoaming() counts bodies
+       that have a GAIT, and no body on this campus arrives with one any
+       more — every stride is lent from clip_walkf_1.glb. So asking
+       before lending asks whether anybody can walk before anybody has
+       been taught, the answer is nobody, and this guard used to abort
+       the whole campus: "no rigged body loaded — no students", zero
+       people on a quad whose bodies had all arrived intact.
+
+       It survived until now because isla came down with her own walk
+       and satisfied the guard single-handed. She is retired, and the
+       guard went from load-bearing-by-accident to fatal. */
+    lendSitDown();
     if (!loadedRoaming().length && !loadedLoitering().length){
       console.error("no rigged body loaded — no students");
       return;
     }
-    lendSitDown();
     /* Claimed before the campus is built, not after. buildCast ends by
        offering to fill a ?crowd quad, and if the count were still zero
        at that moment it would fill from the first wave alone — which is
@@ -5702,7 +5934,7 @@ function lendSitDown(){
   });
   /* the walk pool loads on the same terms: alongside, counted, and a
      missing donor is one fewer stride rather than a broken campus */
-  FEM_WALKS.forEach(url => gltf.load(url, (g) => { femWalkDonors.push(g); done(); },
+  FEM_WALKS.forEach(url => gltf.load(url, (g) => { femWalkDonors.set(url, g); done(); },
     undefined, (err) => {
       console.warn("cast: " + url + " did not load — one fewer walk in the pool", err);
       done();
@@ -5871,9 +6103,10 @@ const P_LINGER = 0.3;
    wave settles if they are off screen. A visible body-swap is a
    glitch; an invisible one is a student who went in wearing one thing
    and came out wearing another, which is what buildings are for. */
-const AUTHORED_F = ["char9", "char4", "char8", "char10", "char2", "char3",
-                    "hero"];  /* lightest first: 3.01 3.31 3.51 3.68 3.86 4.72 5.40 */
-const AUTHORED_M = ["char6", "char7", "char5"];  /* lightest first */
+const AUTHORED_F = ["char9", "char4", "char8", "char10", "char2", "char15",
+                    "char11"];  /* lightest first: 3.01 3.31 3.51 3.68 3.86 3.96 4.01 */
+const AUTHORED_M = ["char6", "char7", "char5", "char14", "char16"];
+                                       /* lightest first: 2.99 3.26 3.43 3.49 3.54 */
 const AUTHORED = [...AUTHORED_F, ...AUTHORED_M];
 function upgradeBody(s){
   if (!s.data || s.static || s.orbit || s.seat) return false;
@@ -5881,8 +6114,17 @@ function upgradeBody(s){
   if (AUTHORED.includes(s.g?.userData?.figure)) return false;   /* already upgraded */
   const worn = wornFigures();
   const from = s.data.looks === "f" ? AUTHORED_F : AUTHORED_M;
+  /* An upgrade swaps one body for another, so the room it needs is the
+     new body's LESS the one being given up — which roomOnScreen gets
+     right on its own for a student who is indoors (they are not drawn,
+     so they are not counted), and which matters for one on the lawn. */
+  const drawn = onScreenBodies();
+  const freed = (!s.inside && s.g?.visible && s.g.userData?.figure)
+    ? s.g.userData.figure : null;
+  if (freed) drawn.delete(freed);
   const pick = from.filter(k => castLib[k] && !worn.has(k) &&
-                                rolesOf(k, castLib[k]).gaits.length);
+                                rolesOf(k, castLib[k]).gaits.length &&
+                                roomOnScreen(k, drawn));
   if (!pick.length) return false;
   const k = pick[Math.floor(Math.random() * pick.length)];
   const seed = VISIT + Math.floor(Math.random() * 9999);
@@ -6115,19 +6357,28 @@ function buildCast(){
      on the campus twice — skatex2". */
   if (SCENERY_CAST) return;
   SCENERY_CAST = true;
-  /* An uncommissioned regular, carving laps — down at the athletics
-     forecourt, where a skateboard belongs and where he is not making up
-     a sixth of everything visible from the fountain. */
-  /* Some days he is not out either. He laps the forecourt endlessly, so
-     when he is there he is there for the whole visit. */
-  const sk = (castLib.skate && (CROWD_FORCE !== null || Math.random() < 0.5))
-    ? prepFigure("skate", 0, true) : null;
-  if (sk){
-    world.add(sk);
-    students.push({ g: sk, orbit: 84, orbitA: 3.6, orbitW: -0.6, skate: true,
-                    roles: sk.userData.anim?.roles, cx: 500, cy: 1120,
-                    pos: [500 + Math.cos(3.6) * 84, 1120 + Math.sin(3.6) * 84] });
-  }
+  /* ── the skater is gone ────────────────────────────────────────────
+     An uncommissioned regular who carved laps of the athletics
+     forecourt, and the last body on this campus that somebody else
+     made.
+
+     He was already down to fifteen seconds, which was the admission
+     that he did not earn a whole visit. What settled it is what those
+     fifteen seconds cost: THIRTEEN 1024-square maps, 69.2MB of texture
+     uploaded to the GPU during the opening seconds — the exact window
+     when the campus is still streaming and a phone has least to spare —
+     and then thrown away. Maximum cost at the moment of maximum
+     pressure, for the shortest benefit on the campus.
+
+     And the licence. Every other asset here is CC-BY-4.0 or the
+     project owner's own; he alone was CC-BY-NC-4.0, so one skateboarder
+     restricted commercial use of the entire site. That is a strange
+     thing to carry for a figure going in circles.
+
+     His disposal machinery went with him, and it was right: removing a
+     figure from the scene graph frees nothing, because WebGL holds a
+     texture until something disposes it. disposeFigure survives for
+     whatever needs it next. */
   /* Three more of the second rigged character — a genuinely different
      body rather than the walker re-dressed, which is worth more than any
      amount of recolouring. Their download carries no gait, so they are
@@ -6297,6 +6548,7 @@ const VISIT = Math.floor(Math.random() * 1e6);
    people should be three different people, not three throws of the same
    die that might come up the same twice. */
 let castDeck = [];
+let castBlockedByCeiling = false;
 function nextBody(n){
   const pool = loadedRoaming();
   if (!pool.length) return null;
@@ -6305,13 +6557,28 @@ function nextBody(n){
      named cast is built first and takes bodies out of circulation, and
      a deck shuffled before that happened would deal them again. */
   const worn = wornFigures();
+  /* ...and there has to be room to DRAW them. The ceiling is checked
+     here rather than after the card is dealt, because a body popped off
+     the deck and then refused is a body nobody gets: the deck is dealt
+     once and there is no second pass. */
+  const drawn = onScreenBodies();
+  const free = (k) => !worn.has(k);
+  const ok = (k) => free(k) && roomOnScreen(k, drawn);
+  /* WHY an empty hand came back, because the two reasons are opposites.
+     "Nobody left who would not be a twin" is permanent and the ramp
+     should stop for good. "Somebody is left but there is no room for
+     them" lasts until the next student walks into a building, and
+     stopping for good on that one pins the campus at whoever happened
+     to be out when the ceiling filled — measured as two people for
+     four minutes, the same two. */
+  castBlockedByCeiling = pool.some(k => free(k) && !ok(k));
   while (castDeck.length){
     const k = castDeck.pop();
-    if (!worn.has(k)) return k;
+    if (ok(k)) return k;
   }
   /* One pass, and there is no second one. An empty space on the lawn
      is better than the same student standing in two of them. */
-  const src = pool.filter(k => !worn.has(k));
+  const src = pool.filter(ok);
   if (!src.length) return null;
   castDeck = src.slice();
   for (let i = castDeck.length - 1; i > 0; i--){
@@ -6397,7 +6664,7 @@ function stepCrowd(now, dt, raw){
      panel, so "3 people" reads as a fact about the cast rather than a
      performance cap somebody has to go looking for. */
   if (addExtra(crowdN)) crowdN++;
-  else { crowdDone = true; crowdSpent = true; }
+  else if (!castBlockedByCeiling){ crowdDone = true; crowdSpent = true; }
 }
 /* test/debug hook: how many people are on campus, whether more are
    coming, and what they cost to draw. `target` is what this visit drew
@@ -6423,9 +6690,20 @@ window.__crowd = () => ({ n: crowdN, done: crowdDone, fps: crowdFps,
  * would have shown, all at once instead of over a few seconds. */
 window.__crowdFill = () => {
   while (crowdN < CROWD_TARGET && addExtra(crowdN)) crowdN++;
-  crowdDone = true;
+  /* Not done if the only thing stopping it is the ceiling — room comes
+     back the moment somebody walks indoors, and this is the campus at
+     its fullest, not the campus for ever. */
+  if (!castBlockedByCeiling) crowdDone = true;
   return crowdN;
 };
+/* Bring somebody out if there is room for them. Called when a student
+   goes indoors, which is the moment room appears: the ceiling caps who
+   is ON SCREEN, so the cast rotates through the buildings rather than
+   the campus being whoever won the first draw. */
+function topUpCrowd(){
+  if (!crowdReady || crowdN >= CROWD_TARGET) return;
+  if (addExtra(crowdN)) crowdN++;
+}
 /* Crossfade rather than cut. A student who reaches a door and snaps from
    mid-stride to standing reads as a glitch; a quarter-second blend reads
    as someone arriving. */
@@ -6847,6 +7125,7 @@ function stepStudents(dt, now){
         if (gap < 10){
           s.mode = "inside";
           s.inside = true;
+          topUpCrowd();          /* their room on the screen is free now */
           s.until = now + INSIDE_MS[0] + Math.random() * (INSIDE_MS[1] - INSIDE_MS[0]);
           s.g.visible = false;
           continue;
@@ -6861,6 +7140,17 @@ function stepStudents(dt, now){
     }
     if (s.mode === "inside"){
       if (now < s.until) continue;      /* not drawn, not stepped, not there */
+      /* The ceiling decides when they come out, not only the clock.
+         While they were in there somebody else may have taken the room
+         their body needs, so they wait for it — which is the rotation
+         the ceiling exists to produce rather than a queue nobody
+         asked for. Checked BEFORE the upgrade, because upgradeBody may
+         put them in a different body and this is about the one they
+         are wearing now. */
+      if (!roomOnScreen(s.g?.userData?.figure)){
+        s.until = now + 4000;
+        continue;
+      }
       s.mode = "walk";
       s.inside = false;
       /* the invisible moment: whoever went in may come out wearing the
@@ -9088,6 +9378,23 @@ window.__castLib = castLib;   /* test/debug hook: the loaded bodies */
    cast and 404s on the ones whose file is named differently — which
    reads as a broken body rather than a broken guess. */
 window.__castFiles = CAST_FILES;
+/* test/debug hooks: what the on-screen ceiling is and what each body
+   weighs, so a harness can check the limit rather than trust it. */
+window.__onScreenCap = ON_SCREEN_MB;
+window.__castMB = CAST_MB;
+window.__bodyVram = BODY_VRAM_MB;
+/* ...and who reads as a woman across a lawn. The harness kept its own
+   copy of this list and the copy went stale — it still named four
+   bodies that had been retired and none of the last four to land, so
+   the gender check was counting a cohort that did not exist. A fact
+   with two homes has one that is wrong. */
+window.__castFem = [...CAST_FEM];
+/* ...and which of them the crowd can actually DEAL. The skater is in
+   CAST_FILES and is not one: he is placed once, laps the forecourt and
+   leaves after fifteen seconds. A harness that treats every file as a
+   candidate concludes he "would have fitted" and fails a campus that is
+   full. */
+window.__roaming = [...ROAMING];
 /* test/debug hook: lend the sit-down to a body that is not cast yet,
    through the real lendClip. A character being authored has to be
    judged before it is committed to, and judging it means seeing it
@@ -9286,7 +9593,11 @@ document.getElementById("daynight").addEventListener("click", () => {
 });
 
 /* ── ignition ────────────────────────────────────────────────────── */
-window.__app = { selectSector, openInterior, camera, controls, world, THREE };   /* test/debug hooks */
+/* renderer too: renderer.info is the only count of what the LAST
+   FRAME actually cost that is not a guess reconstructed by walking
+   the scene graph. */
+window.__app = { selectSector, openInterior, camera, controls, world, THREE,
+                 renderer };   /* test/debug hooks */
 aerialHome();          /* now that #stage has a real size, frame for it */
 applyMode();
 renderChips();

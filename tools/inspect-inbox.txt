@@ -21,12 +21,22 @@
 #                   means a white mannequin. Three of the current cast
 #                   ship that way, which is what these are replacing.
 
-# ── candidates to replace gent, mia and teen ─────────────────────────
-# Those three carry geometry and nothing else: no images, one material
-# called Bodymat, so the wardrobe paints the whole person one flat skin
-# tone. Invisible across a lawn, unmistakable in a conversation.
-woman_walk    https://drive.google.com/file/d/1eWh_xTiL2N1iHNA6YElJ_9Q_C9F2jbys/view
-japanese_man  https://drive.google.com/file/d/1LXZQqv6Nis3XEIwgh_QmqkGaZ3KIsAez/view
-nathan_003    https://drive.google.com/file/d/1FPBq7Sfw9CHT7QlochIFUlM7iFy3MRV6/view
-sophia_003    https://drive.google.com/file/d/1Mpt2wtc4HQT9SlpnL810uqb2_ilFVm87/view
-realistic_f   https://drive.google.com/file/d/1r1Nt3ebMnR0LZpRiF0zLSOGZWatAypuK/view
+# ── empty ───────────────────────────────────────────────────────────
+# Five links stood here — woman_walk, japanese_man, nathan_003,
+# sophia_003, realistic_f — candidates to replace three bodies that
+# carried geometry and nothing else. Every one of those bodies is
+# retired, and so is every body that replaced them: the campus is cast
+# entirely from characters authored for it, which arrive rigged,
+# textured and already judged.
+#
+# The workflow stays because the question it answers still comes up —
+# "is this rig usable before I commit 4MB of it?" — and the sandbox
+# this code is written in cannot reach Drive at all. Put a link here
+# when there is one to look at.
+
+# ── answered ────────────────────────────────────────────────────────
+# A link stood here to settle whether a body was male, because two
+# delivered as men had rendered as women. It is character 14, and he
+# is: varsity jacket, short hair, 3.49MB. He arrived directly and is
+# on the roster. The link is removed rather than left, because a link
+# in this file is a request to go and look at it.
