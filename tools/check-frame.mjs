@@ -52,7 +52,11 @@ await new Promise((ok) => srv.listen(PORT, ok));
 const browser = await chromium.launch({ args: ["--use-gl=swiftshader",
   "--enable-unsafe-swiftshader", "--disable-dev-shm-usage"] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-await page.goto(`http://localhost:${PORT}/index.html?crowd`, { waitUntil: "load" });
+/* Generous: a software rasterizer under contention from another
+   headless browser has taken well over the 30s default, and the run
+   then dies on a timeout that says nothing about the campus. */
+await page.goto(`http://localhost:${PORT}/index.html?crowd`,
+  { waitUntil: "load", timeout: 300000 });
 await page.waitForFunction(() => window.__crowd && window.__crowd().ready &&
   window.__students.length > 0, null, { timeout: 600000 });
 await page.evaluate(() => window.__crowdFill());
