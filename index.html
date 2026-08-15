@@ -1904,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v90";
+const BUILD = "pembroke-v91";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -4460,27 +4460,35 @@ function drawFirstWave(){
   }
   for (const k of pool) if (fits(k)) take(k);
 
-  /* At least one woman, if one fits at all. Two was the old rule and it
-     is what the ceiling cannot always pay for: bodies cost about three
-     and a half megabytes each now, where the roster used to hold a
-     0.24MB man and a 1.66MB woman. Reported from a phone once as "none
-     of the female characters are present", which two measured visits
-     bore out, so the guarantee stays as far as the ceiling allows.
-     Swapped for the most expensive man rather than added, because
-     adding is how the old budget came to mean nothing. */
-  if (!picks.some(k => CAST_FEM.has(k))){
-    const men = picks.filter(k => !CAST_FEM.has(k))
-                     .sort((a, b) => (CAST_MB[b] || 0) - (CAST_MB[a] || 0));
-    const drop = men[0];
-    const room = spent - (drop ? CAST_MB[drop] || 0 : 0);
-    const her = pool.filter(k => CAST_FEM.has(k) && !picks.includes(k))
-                    .sort((a, b) => (CAST_MB[a] || 9) - (CAST_MB[b] || 9))
-                    .find(k => room + (CAST_MB[k] || 9) <= FIRST_WAVE_MB);
-    if (her){
-      if (drop){ picks.splice(picks.indexOf(drop), 1); spent -= CAST_MB[drop] || 0; }
-      take(her);
-    }
-  }
+  /* BOTH, if the wave is big enough to hold both. One woman was the
+     rule and it was half a rule: it was written when a phone reported
+     "none of the female characters are present", so it guarded the way
+     that had actually gone wrong and left the other direction open.
+     With three on the quad and a roster of seven women to five men, an
+     all-female campus comes up about one visit in six — measured, and
+     caught by the suite as "3 of 3 people met read female".
+
+     Swapped rather than added, because adding is how the old budget
+     came to mean nothing: the heaviest body of the over-represented
+     side gives way to the lightest of the missing one, so the wave
+     never grows. A wave of one is left alone — it cannot be mixed, and
+     forcing it would just make it always the same person. */
+  const fill = (wantFem) => {
+    if (picks.length < 2) return;
+    const has = picks.some(k => CAST_FEM.has(k) === wantFem);
+    if (has) return;
+    const give = picks.filter(k => CAST_FEM.has(k) !== wantFem)
+                      .sort((a, b) => (CAST_MB[b] || 0) - (CAST_MB[a] || 0))[0];
+    const room = spent - (give ? CAST_MB[give] || 0 : 0);
+    const want = pool.filter(k => CAST_FEM.has(k) === wantFem && !picks.includes(k))
+                     .sort((a, b) => (CAST_MB[a] || 9) - (CAST_MB[b] || 9))
+                     .find(k => room + (CAST_MB[k] || 9) <= FIRST_WAVE_MB);
+    if (!want) return;
+    if (give){ picks.splice(picks.indexOf(give), 1); spent -= CAST_MB[give] || 0; }
+    take(want);
+  };
+  fill(true);      /* a woman */
+  fill(false);     /* and a man */
 
   /* One roaming body is the floor, and it is the ONE thing allowed
      past the ceiling — a campus that opens with nobody on it reads as
