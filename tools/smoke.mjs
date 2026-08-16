@@ -247,14 +247,21 @@ try {
      material on the campus. Each either works or throws. Forced here,
      one at a time, and the campus has to still be drawing at the end;
      a throw inside one lands in `errors` and fails the step below too. */
+  /* Shed synchronously, then wait ONE frame at the end. A rung either
+     throws or it does not, and it throws where it is called — waiting
+     for a repaint between each of the five buys nothing and costs five
+     frames, which on this rasterizer is not a frame's worth of time.
+     The one frame afterwards is the part that matters: it is where a
+     composer left in a bad state, or a material invalidated and not
+     recompilable, would actually fail. */
   const shed = await page.evaluate(async () => {
     const out = [];
     for (let i = 0; i < 12; i++){
       const r = window.__shedRung();
       out.push(r.rung);
-      await new Promise(ok => requestAnimationFrame(() => requestAnimationFrame(ok)));
       if (r.done) break;
     }
+    await new Promise(ok => requestAnimationFrame(() => requestAnimationFrame(ok)));
     return { rungs: window.__rung(), draws: window.__app.renderer.info.render.calls,
              steps: out };
   }).catch(e => ({ err: String(e).split("\n")[0] }));

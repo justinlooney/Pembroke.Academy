@@ -61,29 +61,6 @@ jobs:
       - name: Do the names in the character files line up?
         run: node tools/check-rig-names.mjs
 
-      # Students with no idle clip stand by holding one frame of their
-      # walk, with breathe() adding a rise and a sway on top. That offset
-      # used to accumulate — every body in the cast rotated its head a
-      # full 180° inside a minute, which reached the live site as heads
-      # rolling round and round. The suite below cannot see it: it runs a
-      # few seconds against a software rasterizer, and the fault grew
-      # with frame rate, so it was faintest exactly where we were
-      # looking. This drives a held figure for a simulated minute at
-      # 60fps instead.
-      - name: Does a standing figure stay where it was put?
-        run: node tools/check-breath.mjs
-
-      # Every clip a body wears is LENT — asked for by name, gated on
-      # shape, then handed over. rolesOf then measured the merged list
-      # back from scratch and decided for itself what each one was: two
-      # answers to one question. A role is a pose somebody stands in on
-      # the quad and it exists in no file on disk, only in memory after
-      # the lending — which is why a broken idle went out on all twelve
-      # bodies and came back from a phone as "they just swing around
-      # their torso", with nothing in this suite having an opinion.
-      - name: Is every lent clip doing the job it was lent for?
-        run: node tools/check-roles.mjs
-
       # assets/site.css is compiled from the classes the page used the
       # day it was built. A class added afterwards simply does nothing —
       # no error, no failed request, just an element quietly missing its
@@ -108,3 +85,55 @@ jobs:
           path: smoke-*.png
           if-no-files-found: ignore
           retention-days: 14
+
+  # ── the figures, in their own job ───────────────────────────────────
+  # Both of these load the campus and then load bodies through it again,
+  # and on a software rasterizer that is minutes rather than seconds:
+  # measured here at 5m47 and 4m08. They used to sit in front of the
+  # smoke job, which turned a 25-minute suite into a 45-minute one and
+  # killed it at its own timeout, mid-drive, reported as "cancelled" —
+  # the exact failure the note on that timeout warns about, and caused
+  # by adding to it rather than by raising it.
+  #
+  # They have nothing to say to each other or to the drive, so they run
+  # beside it. The wall clock is then the longer of the two jobs rather
+  # than their sum, and neither one's budget is spent on the other.
+  figures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.56.1
+          npx playwright install --with-deps chromium
+
+      # Students with no idle clip stand by holding one frame of their
+      # walk, with breathe() adding a rise and a sway on top. That offset
+      # used to accumulate — every body in the cast rotated its head a
+      # full 180° inside a minute, which reached the live site as heads
+      # rolling round and round. The drive cannot see it: it runs a few
+      # seconds against a software rasterizer, and the fault grew with
+      # frame rate, so it was faintest exactly where we were looking.
+      # This holds a figure in a LENT pose for a simulated minute at
+      # 60fps instead — lent, because the pose a student is held in does
+      # not exist in any file on disk, which is how the previous version
+      # of this check came to be testing nothing at all.
+      - name: Does a standing figure stay where it was put?
+        run: node tools/check-breath.mjs
+
+      # Every clip a body wears is LENT — asked for by name, gated on
+      # shape, then handed over. rolesOf then measured the merged list
+      # back from scratch and decided for itself what each one was: two
+      # answers to one question. A role is a pose somebody stands in on
+      # the quad and it exists in no file on disk, only in memory after
+      # the lending — which is why a broken idle went out on all twelve
+      # bodies and came back from a phone as "they just swing around
+      # their torso", with nothing in CI having an opinion.
+      - name: Is every lent clip doing the job it was lent for?
+        run: node tools/check-roles.mjs
