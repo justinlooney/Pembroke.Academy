@@ -678,8 +678,8 @@ try {
     /* the halls and their towers, in plane coordinates */
     const BOX = [[150,150,220,160], [645,150,190,140], [140,660,200,150], [640,650,190,170],
                  [238,182,92,92], [668,168,66,66], [212,680,72,72], [700,702,78,78],
-                 /* the North Quad: chapel + its tower, west hall, east hall */
-                 [410,-420,180,100], [472,-452,56,56], [262,-256,104,152], [634,-256,104,152]];
+                 /* the North Quad: the authored cathedral, west hall, east hall */
+                 [440,-610,120,300], [262,-256,104,152], [634,-256,104,152]];
     const bad = [];
     for (const [from, tos] of Object.entries(EDGES)){
       for (const to of tos){
