@@ -9855,6 +9855,16 @@ function convoClose(){
   g.rotation.y = convoHome.rot;
   g.visible = convoHome.vis;
   g.userData.animate = convoHome.animate;
+  /* Put the STANCE back, not just the body. The close-up plays the
+     Talking clip now, and stepStudents never steps a static figure —
+     so a parked student came back from a conversation still gesturing,
+     forever, alone on her plaza: "this one is stuck in a talking cycle
+     and won't stop." A roamer heals itself on its next step; the
+     parked cast has to be re-parked the same way it was built. */
+  const s = students.find(o => o.g === g);
+  if (s && s.static && g.userData.anim?.current === s.roles?.talk){
+    s.held = holdStance(g);
+  }
   convoHomeCull.forEach(([o, was]) => { o.frustumCulled = was; });
   convoHomeCull = [];
   /* Dropped with the view. Holding a bone reference from a figure that
