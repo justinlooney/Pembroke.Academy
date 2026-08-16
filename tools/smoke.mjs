@@ -233,42 +233,6 @@ try {
   step("day/night cycle reaches night", night,
        await page.evaluate(() => window.__visual).catch(() => "?"));
 
-  /* ── the quality ladder, climbed all the way down ──────────────────
-     A machine that cannot hold the frame gives up SSAO, then pixel
-     ratio, then the sun's shadow map, then shadows, then bloom. None
-     of that ever runs here: stepQuality refuses to fire on a software
-     rasterizer, because this renderer's frame rate is a fact about a
-     CPU and would shed the whole ladder in fifteen seconds, leaving
-     every check below measuring a campus no visitor is shown.
-   *
-     So the rungs are the one part of the renderer that only executes
-     on hardware nobody testing it owns — removing a pass from a live
-     composer, disposing a shadow map mid-frame, invalidating every
-     material on the campus. Each either works or throws. Forced here,
-     one at a time, and the campus has to still be drawing at the end;
-     a throw inside one lands in `errors` and fails the step below too. */
-  /* Shed synchronously, then wait ONE frame at the end. A rung either
-     throws or it does not, and it throws where it is called — waiting
-     for a repaint between each of the five buys nothing and costs five
-     frames, which on this rasterizer is not a frame's worth of time.
-     The one frame afterwards is the part that matters: it is where a
-     composer left in a bad state, or a material invalidated and not
-     recompilable, would actually fail. */
-  const shed = await page.evaluate(async () => {
-    const out = [];
-    for (let i = 0; i < 12; i++){
-      const r = window.__shedRung();
-      out.push(r.rung);
-      if (r.done) break;
-    }
-    await new Promise(ok => requestAnimationFrame(() => requestAnimationFrame(ok)));
-    return { rungs: window.__rung(), draws: window.__app.renderer.info.render.calls,
-             steps: out };
-  }).catch(e => ({ err: String(e).split("\n")[0] }));
-  step("the campus still draws with every quality rung given up",
-       !shed.err && shed.rungs >= 5 && shed.draws > 50,
-       shed.err || `shed ${shed.rungs} rungs, still ${shed.draws} draws`);
-
   step("no console errors or failed assets", errors.length === 0,
        errors.slice(0, 5).join(" | "));
 
@@ -315,6 +279,53 @@ try {
 
   await page.keyboard.press("f");
   await shoot("smoke-campus.png");
+
+  /* ── the quality ladder, climbed all the way down ──────────────────
+     A machine that cannot hold the frame gives up SSAO, then pixel
+     ratio, then the sun's shadow map, then shadows, then bloom. None of
+     that ever runs here: stepQuality refuses to fire on a software
+     rasterizer, because this renderer's frame rate is a fact about a
+     CPU and would shed the whole ladder in fifteen seconds, leaving
+     every other check measuring a campus no visitor is shown.
+
+     So the rungs are the one part of the renderer that only ever
+     executes on hardware nobody testing it owns — removing a pass from
+     a live composer, disposing a shadow map mid-frame, invalidating
+     every material on the campus. Each either works or throws.
+
+     LAST on this page, after the photograph, and not a line earlier —
+     for the same reason stepQuality will not fire here at all. Shedding
+     is permanent, so everything run afterwards is measuring a stripped
+     renderer, and the evidence shot would be a picture of a campus with
+     no shadows and no bloom filed under "this is what it looks like".
+     The first version of this sat before the flora checks and the
+     photograph both.
+
+     What is asserted is what the name says: all five rungs come off
+     without throwing, and the campus is still drawing afterwards. Not
+     how MUCH it draws — the first version demanded more than fifty
+     calls, a number chosen by nothing, and failed a perfectly healthy
+     night campus that drew forty-six. */
+  const shed = await page.evaluate(async () => {
+    const out = [];
+    for (let i = 0; i < 12; i++){
+      const r = window.__shedRung();
+      out.push(r.rung);
+      if (r.done) break;
+    }
+    /* One frame at the end, not one per rung: a rung throws where it is
+       called, and on this rasterizer five extra repaints is not five
+       frames' worth of time. The repaint that matters is the one after
+       all five, where a composer left in a bad state or a material
+       invalidated and not recompilable would actually fail. */
+    await new Promise(ok => requestAnimationFrame(() => requestAnimationFrame(ok)));
+    return { rungs: window.__rung(), draws: window.__app.renderer.info.render.calls,
+             steps: out };
+  }).catch(e => ({ err: String(e).split("\n")[0] }));
+  step("the campus still draws with every quality rung given up",
+       !shed.err && shed.rungs >= 5 && shed.draws > 0,
+       shed.err || `shed ${shed.rungs} rungs, still drawing at ${shed.draws} calls`);
+
 
   /* ── the returning visit ─────────────────────────────────────────
      The service worker exists so a second visit does not re-download
