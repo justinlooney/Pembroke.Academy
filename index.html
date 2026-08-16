@@ -778,6 +778,12 @@ body.day .hall-tag{background:linear-gradient(180deg, rgba(24,30,44,.86), rgba(2
   transition:opacity .45s ease;
 }
 #interior.open{opacity:1;pointer-events:auto;}
+/* Inside the REAL nave the world itself is the control — a dragged
+   finger looks around, exactly as outside. The full-bleed overlay was
+   eating that drag before the canvas ever saw it, so in the nave the
+   overlay goes click-through and only its buttons catch the pointer. */
+#interior.open.nave{pointer-events:none;}
+#interior.open.nave .int-btn{pointer-events:auto;}
 /* the room itself is rendered in WebGL; this overlay is HUD only */
 .interior-open #labels2d, .interior-open #quest, .interior-open #walkhud,
 .interior-open #doorprompt, .interior-open #minimap,
@@ -8397,6 +8403,8 @@ function engineOpenInterior(key){
     interiorScenes[key] = key === "cathedral" ? buildCathedralInterior() : buildInteriorScene(key);
   interiorView = key;
   wingEl.classList.add("interior-open");
+  /* the drag-through overlay only inside the real nave — see the CSS */
+  document.getElementById("interior").classList.toggle("nave", key === "cathedral" && !!cathNave);
 }
 function engineCloseInterior(){
   interiorView = null;
@@ -8545,7 +8553,10 @@ renderer.domElement.addEventListener("pointerdown", e => {
   downAt = [e.clientX, e.clientY, e.pointerType === "touch" ? 14 : 6];
 });
 renderer.domElement.addEventListener("pointerup", e => {
-  if (!downAt || convoView) return;
+  /* inside the nave the overlay lets taps through so a finger can look
+     around — but the tap-to-talk ray belongs to the OUTDOOR camera and
+     would find students through the chapel wall */
+  if (!downAt || convoView || interiorView) return;
   const moved = Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]);
   /* Six pixels is a mouse. A finger rolls on the glass as it lifts, and
      in walk mode every one of those pixels also turns the view, so a
