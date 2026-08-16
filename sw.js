@@ -32,7 +32,7 @@
  * BUMP VERSION whenever anything under assets/ changes, or returning
  * visitors keep the old models forever.
  */
-const VERSION = "pembroke-v99";
+const VERSION = "pembroke-v100";
 const SHELL = VERSION + "-shell";
 const DEPOT = VERSION + "-assets";
 
@@ -121,7 +121,9 @@ self.addEventListener("activate", (e) => {
 
 /* .js is in here for assets/vendor/three — the engine is served from our
    own origin now, so it caches on the same terms as the models. */
-const isArt = (url) => /\/assets\/.+\.(glb|png|jpe?g|webp|svg|js|css|woff2)$/i.test(url.pathname);
+/* .spz is the Marble splat interior — 28MB that must download exactly
+   once, on the same cache-first terms as the models */
+const isArt = (url) => /\/assets\/.+\.(glb|spz|png|jpe?g|webp|svg|js|css|woff2)$/i.test(url.pathname);
 
 async function cacheFirst(req, cacheName){
   const cache = await caches.open(cacheName);

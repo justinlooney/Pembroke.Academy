@@ -43,4 +43,13 @@ published; anyone wanting the original should go to the source links here.
   (It replaced "New Colgate University Dorm" from Sketchfab, which is no longer
   distributed here — a different building, not a re-export of the same one.)
 - **"Baseball stadium 3d drone survey - Pix4d"** — by **KCraw** (https://sketchfab.com/goldenhornet),
-  **CC-BY-4.0**. Adapted: meshopt + WebP 2K; Pembroke Field, southwest athletics district. `ballpark.glb`
+  **CC-BY-4.0**. Adapted: meshopt + WebP 2K; Pembroke Field, southwest athletics district. `ballpark.glb`- **The Drosdick Hall Grand Atrium** — supplied via the project owner: a World Labs
+  Marble Gaussian-splat reconstruction of the Grand Atrium Learning Commons,
+  1,920,000 splats, SH degree 0. Serves unmodified as the walk-in interior of
+  Drosdick Hall (the engineering sector), rendered through the vendored Spark
+  library; a companion 85,351-triangle collision mesh (never rendered) supplies
+  floors, stairs and walls. `drosdick_atrium.spz`, `drosdick_collider.glb`
+- **Spark** (https://sparkjs.dev) — Gaussian-splat renderer for three.js, **MIT**,
+  vendored unmodified. `assets/vendor/spark/`
+- **three-mesh-bvh** (https://github.com/gkjohnson/three-mesh-bvh) — BVH-accelerated
+  raycasting, **MIT**, vendored unmodified. `assets/vendor/three-mesh-bvh/`
