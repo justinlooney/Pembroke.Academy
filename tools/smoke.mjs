@@ -220,6 +220,42 @@ try {
   step("the walk-in point is not inside a wall", trapped.length === 0,
        trapped.join(" | ") || "clear of every collider");
 
+  /* Every road, driven along its own curve, against every wall. Four
+     drives ran into buildings for weeks — the ribbon's Catmull-Rom
+     bows outside its control polygon, so points that LOOK clear are
+     not — and it only became visible when the walls grew tall enough
+     to make "beside" read as "into". Sampled here exactly the way
+     ribbonGeom samples it. Walks are excluded on purpose: the south
+     walk threads the gate arch, which straddles it by design. */
+  const roadHits = await page.evaluate(() => {
+    const bad = [];
+    for (const { pts, width } of (window.__drives || [])){
+      const P = [pts[0], ...pts, pts[pts.length - 1]];
+      const half = width / 2 + 3.5 - 6;      /* kerb slack */
+      for (let i = 1; i < P.length - 2; i++){
+        for (let j = 0; j <= 32; j++){
+          const t = j / 32, t2 = t * t, t3 = t2 * t;
+          const C = (a, b, c, d) => 0.5 * ((2 * b) + (-a + c) * t +
+            (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+          const x = C(P[i-1][0], P[i][0], P[i+1][0], P[i+2][0]);
+          const y = C(P[i-1][1], P[i][1], P[i+1][1], P[i+2][1]);
+          for (const c of window.__colliders){
+            const dx = Math.max(c.x - x, 0, x - (c.x + c.w));
+            const dy = Math.max(c.y - y, 0, y - (c.y + c.d));
+            const inside = x >= c.x && x <= c.x + c.w && y >= c.y && y <= c.y + c.d;
+            if (inside || Math.hypot(dx, dy) < half){
+              bad.push(`road at ${x.toFixed(0)},${y.toFixed(0)} vs wall at ${c.x},${c.y}`);
+              if (bad.length > 4) return bad;
+            }
+          }
+        }
+      }
+    }
+    return bad;
+  });
+  step("no road runs into a building", roadHits.length === 0,
+       roadHits.join(" | ") || "every carriageway clears every wall");
+
   /* the chapel lives on the North Quad now — same sector key, new door */
   await page.evaluate(() => { const w = window.__walker; w.x = 500; w.y = -292; w.h = 0; });
   const doored = await page
