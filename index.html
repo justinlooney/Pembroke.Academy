@@ -3542,8 +3542,11 @@ const EZ_SETS = { m011: [], m002: [], m010: [], l009: [] };
   const T = TREE_SETS;
   const E = EZ_SETS;
   /* the ring arc along the oval's north side — photoreal maples up close */
-  [[10,235],[80,235],[100,235],[170,235],[190,235],[260,235],[280,235],[350,235],
-   [35,258],[145,258],[215,258],[325,258]].forEach(([a, r], i) => {
+  /* Halved again, on the author's word: "remove half of the trees on
+     the quad it is too crowded." Twelve stood on this arc; six keep
+     the rhythm — every other position, both radii represented. */
+  [[10,235],[100,235],[190,235],[280,235],
+   [35,258],[215,258]].forEach(([a, r], i) => {
     const rad = a * Math.PI / 180;
     T[i % 3 === 2 ? "elm" : "maple"].push([500 + r * Math.cos(rad), 500 + r * Math.sin(rad), 0.95 + (a % 7) / 16]);
   });
@@ -3833,9 +3836,14 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
      clears every wall by 14, stays off the lawn, the ring and the
      axial walks, and keeps 60 from the next maple. Moved rather than
      deleted: the instruction was half of them, and half is nine. */
-  const TREE2S = [[300,330,1.1],[684,332,1],[268,640,1.05],
-                  [624,712,1.1],[738,418,1.05]];
-  const TSMALL = [[840,300,1],[840,540,1.1],[68,420,1],[586,806,0.95]];
+  /* Halved a second time — "remove half of the trees on the quad it
+     is too crowded." Nine maples became five in the first cut; the
+     quad groups now carry three and two, still spread so no side of
+     the lawn goes bare. The avenues and belts are untouched: the
+     author's reference lines its walks with trees, it is the OPEN
+     ground that wants air. */
+  const TREE2S = [[300,330,1.1],[624,712,1.1],[738,418,1.05]];
+  const TSMALL = [[840,540,1.1],[68,420,1]];
   const BUSHA = [[218,318,1],[302,322,0.9],[698,300,1.05],[782,304,0.95],
                  [196,812,1],[300,820,0.9],[692,826,1.05],[794,830,0.95],
                  [100,246,0.9],[178,248,1],[222,300,0.9],[222,372,1],[100,416,0.95],[178,414,0.9]];
