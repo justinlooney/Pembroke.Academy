@@ -3372,13 +3372,19 @@ BUILDINGS.forEach(spec => {
   stoneBox(amb, { x: 700, y: 330, w: 110, d: 72, h: 80, windows: "lancet", seed: 18, accent: "#f0b47a", noRoof: true });
   gableRoof(amb, { x: 700, y: 330, w: 110, d: 72, z: 80, h: 44, terra: true });
   /* south hall + moderns */
-  /* Moved north-east off two neighbours at once. At 340,795 its west
-     face touched the science hall EXACTLY — a gap of zero, two walls
-     sharing a line — and its south-east corner ran fifteen units into
-     the gatehouse. 370,748 clears the science hall by 30, the
-     gatehouse by 30 and the modern block by 60. */
-  stoneBox(amb, { x: 370, y: 748, w: 140, d: 100, h: 98, windows: "lancet", ivy: true, seed: 19, accent: "#d9c48a", noRoof: true });
-  gableRoof(amb, { x: 370, y: 748, w: 140, d: 100, z: 98, h: 50, copper: true });
+  /* The south hall is GONE, and the arithmetic that removed it is
+     worth keeping. At 340,795 it touched the science hall exactly and
+     ran into the gatehouse. Moved to 370,748 it cleared every
+     BUILDING — and sat across the spine walk (paving x 471-529) and
+     directly on the walk-mode drop point at 500,802: v94 shipped
+     with the player materialising inside its footprint, trapped
+     between its own buttress piers, photographed and reported within
+     the hour. Solving the quadrant properly: any position that
+     clears the science hall, the gatehouse, the modern block AND the
+     walk fails at least one of them — the pocket is smaller than the
+     building. A quadrant that cannot hold a fifth building at proper
+     spacing holds four; the author's reference is generous gaps, not
+     density. Its chimneys went with it. */
   stoneBox(amb, { x: 120, y: 852, w: 190, d: 86, h: 108, parapet: 5, windows: "modern", seed: 20, accent: "#bcd2de" });
   stoneBox(amb, { x: 740, y: 872, w: 160, d: 74, h: 88, parapet: 5, windows: "modern", seed: 21, accent: "#bcd2de" });
   /* chimney stacks along the range ridges, rooftop units on the moderns */
@@ -3392,7 +3398,6 @@ BUILDINGS.forEach(spec => {
       k.position.set(W(px), baseY + h3 + 1.2, W(py)); k.castShadow = true; amb.add(k);
     };
     [[888, 290], [888, 395], [888, 500]].forEach(([px, py]) => chimney(px, py, 136, 24));
-    [[402, 798], [478, 798]].forEach(([px, py]) => chimney(px, py, 128, 22));
     const acMat = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.7, metalness: 0.3 });
     [[168, 880], [242, 902], [788, 894], [852, 906]].forEach(([px, py], i) => {
       const u = new THREE.Mesh(new THREE.BoxGeometry(15, 7, 11), acMat);
