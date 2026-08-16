@@ -1729,55 +1729,70 @@ function wallURI(orient, natW, natH, o, mode){
       g += `<rect x="${bx}" y="${p}" width="6" height="${natH-p-9}" fill="${P.butt}"/>`;
       g += `<rect x="${bx+4.5}" y="${p}" width="1.5" height="${natH-p-9}" fill="${P.buttEdge}"/>`;
     }
-    const top = p + 9, bot = natH - 15, sh = 35;
+    /* Story pitch 48 against a 42-unit figure, where it was 35 — a
+       storey SHORTER than the person standing at the wall, which is
+       the number that made walking up to a hall feel like walking up
+       to a dollhouse. The author's reference photographs measure five
+       to six person-heights to the eaves with stories comfortably
+       taller than the people; the pitch and the glazing now hold that
+       proportion, and win()'s mullion threshold gives the wider
+       lights their tracery for free. Any change here changes
+       wallURIMask's copy too, or the relief maps drift off the
+       stone. */
+    const top = p + 9, bot = natH - 15, sh = 48;
     const stories = Math.max(1, Math.floor((bot - top) / sh));
+    /* Anchored to the BOTTOM. Rows used to hang from the eaves, and on
+       a taller wall the remainder collects at grade — blank stone
+       exactly at the eye level of everyone walking past. Hung from the
+       plinth instead, the spare margin rises to the parapet where
+       nobody is standing. */
     for (let r = 0; r < stories; r++){
-      const wy = top + r*sh + 5;
+      const wy = bot - (stories - r) * sh + 6;
       for (let i = 0; i < n; i++){
         const cx = x0 + i*cell + cell/2;
-        g += win(cx, wy, 12, 25, (i*3 + r*2 + seed) % 4 === 0);
+        g += win(cx, wy, 15, 34, (i*3 + r*2 + seed) % 4 === 0);
       }
       if (r < stories - 1) g += `<rect x="0" y="${top + (r+1)*sh - 1}" width="${natW}" height="1.6" fill="${P.hood}" opacity=".45"/>`;
     }
   } else if (o.windows === "grand"){ /* tall traceried bell-tower lights */
-    const sh = 58;
-    const wy0 = p + (o.clock ? 46 : 12);
+    const sh = 82;
+    const wy0 = p + (o.clock ? 68 : 14);
     const stories = Math.max(1, Math.floor((natH - wy0 - 12) / sh));
     for (let r = 0; r < stories; r++){
       const wy = wy0 + r*sh;
       if (natW >= 78){
-        g += win(natW/2 - 13, wy, 17, 44, false);
-        g += win(natW/2 + 13, wy, 17, 44, false);
+        g += win(natW/2 - 13, wy, 17, 62, false);
+        g += win(natW/2 + 13, wy, 17, 62, false);
       } else {
-        g += win(natW/2, wy, 19, 44, false);
+        g += win(natW/2, wy, 19, 62, false);
       }
     }
     g += `<rect x="2" y="${p}" width="4.5" height="${natH-p-9}" fill="${P.butt}"/>`;
     g += `<rect x="${natW-6.5}" y="${p}" width="4.5" height="${natH-p-9}" fill="${P.butt}"/>`;
   } else if (o.windows === "modern"){ /* ribbon glazing with lit offices */
-    const rows = Math.max(2, Math.floor((natH - p - 26) / 26));
+    const rows = Math.max(2, Math.floor((natH - p - 38) / 38));
     for (let r = 0; r < rows; r++){
-      const wy = p + 10 + r*26;
-      g += `<rect x="8" y="${wy}" width="${natW-16}" height="13" fill="${P.roomBack}"/>`;
-      g += `<rect x="8" y="${wy}" width="${natW-16}" height="3.4" fill="${P.roomCeil}"/>`;
+      const wy = p + 14 + r*38;
+      g += `<rect x="8" y="${wy}" width="${natW-16}" height="20" fill="${P.roomBack}"/>`;
+      g += `<rect x="8" y="${wy}" width="${natW-16}" height="5" fill="${P.roomCeil}"/>`;
       for (let lx = 20; lx < natW - 12; lx += 24){
-        g += `<circle cx="${lx}" cy="${wy + 2}" r="1.1" fill="${P.roomLight}"/>`;
-        g += `<rect x="${lx - 5}" y="${wy + 8.4}" width="10" height="4.6" fill="${P.roomShelf}"/>`;
+        g += `<circle cx="${lx}" cy="${wy + 3}" r="1.4" fill="${P.roomLight}"/>`;
+        g += `<rect x="${lx - 5}" y="${wy + 13}" width="10" height="6.4" fill="${P.roomShelf}"/>`;
       }
-      g += `<rect x="8" y="${wy}" width="${(natW-16) * 0.4}" height="13" fill="#ffffff" opacity="${P.sheen}"/>`;
-      g += `<rect x="8" y="${wy}" width="${natW-16}" height="13" fill="none" stroke="${P.frame}" stroke-width="1"/>`;
+      g += `<rect x="8" y="${wy}" width="${(natW-16) * 0.4}" height="20" fill="#ffffff" opacity="${P.sheen}"/>`;
+      g += `<rect x="8" y="${wy}" width="${natW-16}" height="20" fill="none" stroke="${P.frame}" stroke-width="1"/>`;
       for (let mx = 26; mx < natW - 8; mx += 18){
-        g += `<line x1="${mx}" y1="${wy}" x2="${mx}" y2="${wy+13}" stroke="${P.frame}" stroke-width="1"/>`;
+        g += `<line x1="${mx}" y1="${wy}" x2="${mx}" y2="${wy+20}" stroke="${P.frame}" stroke-width="1"/>`;
       }
     }
   } else if (o.windows === "slits"){ /* turret arrow slits */
-    for (let sy = p + 14; sy < natH - 26; sy += 30){
-      g += `<rect x="${natW/2 - 2}" y="${sy}" width="4" height="15" rx="2" fill="${P.winDark}" stroke="${P.frame}" stroke-width=".8"/>`;
+    for (let sy = p + 20; sy < natH - 30; sy += 44){
+      g += `<rect x="${natW/2 - 2}" y="${sy}" width="4" height="22" rx="2" fill="${P.winDark}" stroke="${P.frame}" stroke-width=".8"/>`;
     }
   }
 
   if (o.clock){ /* the gatehouse clock, white-faced with stone surround */
-    const ccx = natW/2, ccy = p + 26, r = Math.min(11, natW * 0.16);
+    const ccx = natW/2, ccy = p + 34, r = Math.min(15, natW * 0.18);
     g += `<circle cx="${ccx}" cy="${ccy}" r="${r+2.5}" fill="${P.butt}" stroke="${P.frame}" stroke-width="1"/>`;
     g += `<circle cx="${ccx}" cy="${ccy}" r="${r}" fill="${P.clockFace}" stroke="${P.frame}" stroke-width="1.2"/>`;
     g += `<line x1="${ccx}" y1="${ccy}" x2="${ccx}" y2="${ccy - r*0.62}" stroke="#2a241c" stroke-width="1.6"/>`;
@@ -1785,7 +1800,7 @@ function wallURI(orient, natW, natH, o, mode){
   }
 
   if (o.arch){ /* pointed tunnel through the gatehouse, lamplit within */
-    const aw = Math.min(34, natW * 0.42), ah = Math.min(natH - p - 16, 46);
+    const aw = Math.min(34, natW * 0.42), ah = Math.min(natH - p - 16, 70);
     const ax1 = natW/2 - aw/2, ax2 = natW/2 + aw/2, ay = natH - ah, ays = ay + ah*0.3;
     g += `<path d="M ${ax1} ${natH} L ${ax1} ${ays} Q ${ax1} ${ay} ${natW/2} ${ay - 4} Q ${ax2} ${ay} ${ax2} ${ays} L ${ax2} ${natH} Z" fill="url(#tun)" stroke="${P.hood}" stroke-width="2.4"/>`;
     g += `<ellipse cx="${natW/2}" cy="${natH - 6}" rx="${aw*0.32}" ry="7" fill="rgba(255,198,120,.3)"/>`;
@@ -1844,29 +1859,29 @@ function wallURIMask(orient, natW, natH, o){
     for (let i2 = 0; i2 <= n; i2++){
       g += `<rect x="${x0 + i2*cell - 3}" y="${p}" width="6" height="${natH-p-9}" fill="${HI}"/>`;
     }
-    const top = p + 9, bot = natH - 15, sh = 35;
+    const top = p + 9, bot = natH - 15, sh = 48;
     const stories = Math.max(1, Math.floor((bot - top) / sh));
     for (let r = 0; r < stories; r++){
-      const wy = top + r*sh + 5;
-      for (let i2 = 0; i2 < n; i2++) g += win(x0 + i2*cell + cell/2, wy, 12, 25);
+      const wy = bot - (stories - r) * sh + 6;
+      for (let i2 = 0; i2 < n; i2++) g += win(x0 + i2*cell + cell/2, wy, 15, 34);
     }
   } else if (o.windows === "grand"){
-    const sh = 58, wy0 = p + (o.clock ? 46 : 12);
+    const sh = 82, wy0 = p + (o.clock ? 68 : 14);
     const stories = Math.max(1, Math.floor((natH - wy0 - 12) / sh));
     for (let r = 0; r < stories; r++){
       const wy = wy0 + r*sh;
-      if (natW >= 78){ g += win(natW/2 - 13, wy, 17, 44); g += win(natW/2 + 13, wy, 17, 44); }
-      else g += win(natW/2, wy, 19, 44);
+      if (natW >= 78){ g += win(natW/2 - 13, wy, 17, 62); g += win(natW/2 + 13, wy, 17, 62); }
+      else g += win(natW/2, wy, 19, 62);
     }
   } else if (o.windows === "modern"){
-    const rows = Math.max(2, Math.floor((natH - p - 26) / 26));
-    for (let r = 0; r < rows; r++) g += `<rect x="8" y="${p + 10 + r*26}" width="${natW-16}" height="13" fill="${LO}"/>`;
+    const rows = Math.max(2, Math.floor((natH - p - 38) / 38));
+    for (let r = 0; r < rows; r++) g += `<rect x="8" y="${p + 14 + r*38}" width="${natW-16}" height="20" fill="${LO}"/>`;
   } else if (o.windows === "slits"){
-    for (let sy = p + 14; sy < natH - 26; sy += 30)
-      g += `<rect x="${natW/2 - 2}" y="${sy}" width="4" height="15" fill="${LO}"/>`;
+    for (let sy = p + 20; sy < natH - 30; sy += 44)
+      g += `<rect x="${natW/2 - 2}" y="${sy}" width="4" height="22" fill="${LO}"/>`;
   }
   if (o.arch){
-    const aw = Math.min(34, natW * 0.42), ah = Math.min(natH - p - 16, 46);
+    const aw = Math.min(34, natW * 0.42), ah = Math.min(natH - p - 16, 70);
     const ax1 = natW/2 - aw/2, ax2 = natW/2 + aw/2, ay = natH - ah, ays = ay + ah*0.3;
     g += `<path d="M ${ax1} ${natH} L ${ax1} ${ays} Q ${ax1} ${ay} ${natW/2} ${ay - 4} Q ${ax2} ${ay} ${ax2} ${ays} L ${ax2} ${natH} Z" fill="#000000"/>`;
   }
@@ -3080,18 +3095,25 @@ function boxMesh(parent, mat, px, py, w, d, h, yBase = 0){
 
 /* ── the four interactive halls ──────────────────────────────────── */
 const BUILDINGS = [
-  { sector:"lib", label:{x:260, y:230, z:238},
-    hall:{x:150, y:150, w:220, d:160, h:74, roof:44, seed:1},
-    tower:{x:238, y:182, w:92, d:92, h:150, spire:76} },
-  { sector:"eng", label:{x:740, y:220, z:172},
-    hall:{x:645, y:150, w:190, d:140, h:66, roof:36, seed:2},
-    tower:{x:668, y:168, w:66, d:66, h:120, pinnacles:true} },
-  { sector:"sci", label:{x:240, y:735, z:214},
-    hall:{x:140, y:660, w:200, d:150, h:64, roof:36, seed:3},
-    tower:{x:212, y:680, w:72, d:72, h:130, spire:70} },
-  { sector:"adm", label:{x:735, y:735, z:224},
-    hall:{x:640, y:650, w:190, d:170, h:78, roof:42, seed:4},
-    tower:{x:700, y:702, w:78, d:78, h:172, pinnacles:true, clock:true} },
+  /* Heights rescaled to the author's reference photographs, which
+     measure five to six person-heights to the eaves; these halls
+     stood at 2.8 — walking up to one read as a dollhouse. FOOTPRINTS
+     ARE UNTOUCHED: every collider, door, path, and the spacing
+     settled in the last pass hold. The buildings grow only upward,
+     and the facade grammar grows with them instead of stretching the
+     old rows. */
+  { sector:"lib", label:{x:260, y:230, z:390},
+    hall:{x:150, y:150, w:220, d:160, h:133, roof:66, seed:1},
+    tower:{x:238, y:182, w:92, d:92, h:240, spire:110} },
+  { sector:"eng", label:{x:740, y:220, z:270},
+    hall:{x:645, y:150, w:190, d:140, h:119, roof:54, seed:2},
+    tower:{x:668, y:168, w:66, d:66, h:192, pinnacles:true} },
+  { sector:"sci", label:{x:240, y:735, z:340},
+    hall:{x:140, y:660, w:200, d:150, h:115, roof:54, seed:3},
+    tower:{x:212, y:680, w:72, d:72, h:208, spire:100} },
+  { sector:"adm", label:{x:735, y:735, z:350},
+    hall:{x:640, y:650, w:190, d:170, h:140, roof:63, seed:4},
+    tower:{x:700, y:702, w:78, d:78, h:275, pinnacles:true, clock:true} },
 ];
 const hallGroups = {};
 BUILDINGS.forEach(spec => {
@@ -3155,21 +3177,21 @@ BUILDINGS.forEach(spec => {
     cathedralRoot = grp;               /* aerial click-to-enter follows the chapel */
 
     /* the chapel, closing the axis the cathedral used to close */
-    stoneBox(grp, { x: 410, y: -420, w: 180, d: 100, h: 64, parapet: 6,
+    stoneBox(grp, { x: 410, y: -420, w: 180, d: 100, h: 110, parapet: 6,
                     windows: "lancet", ivy: true, noRoof: true,
                     accent: S.color, seed: 7 });
-    gableRoof(grp, { x: 410, y: -420, w: 180, d: 100, z: 64, h: 40 });
-    stoneBox(grp, { x: 472, y: -452, w: 56, d: 56, h: 98, parapet: 5,
+    gableRoof(grp, { x: 410, y: -420, w: 180, d: 100, z: 110, h: 60 });
+    stoneBox(grp, { x: 472, y: -452, w: 56, d: 56, h: 165, parapet: 5,
                     windows: "grand", accent: S.color, seed: 9 });
-    spire(grp, 500, 98, -424, 56, 64);
+    spire(grp, 500, 165, -424, 56, 90);
 
     /* flanking halls, west and east — scenery with the same masonry */
-    stoneBox(amb, { x: 262, y: -256, w: 104, d: 152, h: 56, parapet: 6,
+    stoneBox(amb, { x: 262, y: -256, w: 104, d: 152, h: 95, parapet: 6,
                     windows: "lancet", ivy: true, noRoof: true, seed: 8 });
-    gableRoof(amb, { x: 262, y: -256, w: 104, d: 152, z: 56, h: 30 });
-    stoneBox(amb, { x: 634, y: -256, w: 104, d: 152, h: 56, parapet: 6,
+    gableRoof(amb, { x: 262, y: -256, w: 104, d: 152, z: 95, h: 46 });
+    stoneBox(amb, { x: 634, y: -256, w: 104, d: 152, h: 95, parapet: 6,
                     windows: "lancet", ivy: true, noRoof: true, seed: 11 });
-    gableRoof(amb, { x: 634, y: -256, w: 104, d: 152, z: 56, h: 30 });
+    gableRoof(amb, { x: 634, y: -256, w: 104, d: 152, z: 95, h: 46 });
 
     /* nameplate, in the chapel's gold */
     const el = document.createElement("div");
@@ -3178,7 +3200,7 @@ BUILDINGS.forEach(spec => {
     el.innerHTML = `<div class="t1"><span class="flag"></span>${S.hall}</div>
       <div class="t2">${S.track}</div>`;
     const tag = new CSS2DObject(el);
-    tag.position.set(W(500), 150, W(-360));
+    tag.position.set(W(500), 300, W(-360));
     world.add(tag);
   }
   /* ── the outer world loads lazily: the core campus paints first,
@@ -3306,7 +3328,7 @@ BUILDINGS.forEach(spec => {
   stadiumSign(-360, 1062, "PEMBROKE FIELD", 112);
   stadiumSign(1255, 1072, "PEMBROKE TENNIS CLUB", 136);
   /* dormitory ranges */
-  stoneBox(amb, { x: 856, y: 240, w: 64, d: 310, h: 70, windows: "lancet", seed: 16, accent: "#d9c48a", noRoof: true });
+  stoneBox(amb, { x: 856, y: 240, w: 64, d: 310, h: 118, windows: "lancet", seed: 16, accent: "#d9c48a", noRoof: true });
   gableRoof(amb, { x: 856, y: 240, w: 64, d: 310, z: 70, h: 28, axis: "y" });
   /* the west residence hall: akhazaee's scanned Colgate dorm (CC-BY-4.0),
      clean facade toward the quad, replacing the procedural west range */
@@ -3347,18 +3369,18 @@ BUILDINGS.forEach(spec => {
     sink: 2.4, collider: "auto", vista: "Pembroke Residence Hall",
   }]);
   /* terracotta refectory */
-  stoneBox(amb, { x: 700, y: 330, w: 110, d: 72, h: 46, windows: "lancet", seed: 18, accent: "#f0b47a", noRoof: true });
-  gableRoof(amb, { x: 700, y: 330, w: 110, d: 72, z: 46, h: 30, terra: true });
+  stoneBox(amb, { x: 700, y: 330, w: 110, d: 72, h: 80, windows: "lancet", seed: 18, accent: "#f0b47a", noRoof: true });
+  gableRoof(amb, { x: 700, y: 330, w: 110, d: 72, z: 80, h: 44, terra: true });
   /* south hall + moderns */
   /* Moved north-east off two neighbours at once. At 340,795 its west
      face touched the science hall EXACTLY — a gap of zero, two walls
      sharing a line — and its south-east corner ran fifteen units into
      the gatehouse. 370,748 clears the science hall by 30, the
      gatehouse by 30 and the modern block by 60. */
-  stoneBox(amb, { x: 370, y: 748, w: 140, d: 100, h: 58, windows: "lancet", ivy: true, seed: 19, accent: "#d9c48a", noRoof: true });
-  gableRoof(amb, { x: 370, y: 748, w: 140, d: 100, z: 58, h: 34, copper: true });
-  stoneBox(amb, { x: 120, y: 852, w: 190, d: 86, h: 64, parapet: 5, windows: "modern", seed: 20, accent: "#bcd2de" });
-  stoneBox(amb, { x: 740, y: 872, w: 160, d: 74, h: 52, parapet: 5, windows: "modern", seed: 21, accent: "#bcd2de" });
+  stoneBox(amb, { x: 370, y: 748, w: 140, d: 100, h: 98, windows: "lancet", ivy: true, seed: 19, accent: "#d9c48a", noRoof: true });
+  gableRoof(amb, { x: 370, y: 748, w: 140, d: 100, z: 98, h: 50, copper: true });
+  stoneBox(amb, { x: 120, y: 852, w: 190, d: 86, h: 108, parapet: 5, windows: "modern", seed: 20, accent: "#bcd2de" });
+  stoneBox(amb, { x: 740, y: 872, w: 160, d: 74, h: 88, parapet: 5, windows: "modern", seed: 21, accent: "#bcd2de" });
   /* chimney stacks along the range ridges, rooftop units on the moderns */
   {
     const flueMat = new THREE.MeshStandardMaterial({ color: 0x8a7f6d, roughness: 0.95 });
@@ -3369,17 +3391,17 @@ BUILDINGS.forEach(spec => {
       const k = new THREE.Mesh(new THREE.BoxGeometry(11, 2.4, 11), capMat);
       k.position.set(W(px), baseY + h3 + 1.2, W(py)); k.castShadow = true; amb.add(k);
     };
-    [[888, 290], [888, 395], [888, 500]].forEach(([px, py]) => chimney(px, py, 88, 18));
-    [[402, 798], [478, 798]].forEach(([px, py]) => chimney(px, py, 78, 16));
+    [[888, 290], [888, 395], [888, 500]].forEach(([px, py]) => chimney(px, py, 136, 24));
+    [[402, 798], [478, 798]].forEach(([px, py]) => chimney(px, py, 128, 22));
     const acMat = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.7, metalness: 0.3 });
     [[168, 880], [242, 902], [788, 894], [852, 906]].forEach(([px, py], i) => {
       const u = new THREE.Mesh(new THREE.BoxGeometry(15, 7, 11), acMat);
-      u.position.set(W(px), (i < 2 ? 64 : 52) + 3.5, W(py));
+      u.position.set(W(px), (i < 2 ? 108 : 88) + 3.5, W(py));
       u.castShadow = true; amb.add(u);
     });
   }
   /* gatehouse over the south walk (tunnel jambs collide, center passes) */
-  stoneBox(amb, { x: 456, y: 880, w: 88, d: 46, h: 62, parapet: 7, arch: true, clock: true,
+  stoneBox(amb, { x: 456, y: 880, w: 88, d: 46, h: 104, parapet: 7, arch: true, clock: true,
                   seed: 7, accent: "#d4af6a", noCollide: true });
   COLLIDERS.push({ x: 456, y: 880, w: 26, d: 46 }, { x: 518, y: 880, w: 26, d: 46 });
   /* The pair flanks the gate arch, and only one of them was doing it.
@@ -3387,8 +3409,8 @@ BUILDINGS.forEach(spec => {
      modern block at 120,852, a ninety-six-foot turret growing out of
      a flat parapet roof. Mirrored about the gate's centre line so it
      answers its twin at 536. */
-  stoneBox(amb, { x: 437, y: 874, w: 27, d: 36, h: 96, parapet: 6, windows: "slits", seed: 8, accent: "#d4af6a" });
-  stoneBox(amb, { x: 536, y: 874, w: 27, d: 36, h: 96, parapet: 6, windows: "slits", seed: 9, accent: "#d4af6a" });
+  stoneBox(amb, { x: 437, y: 874, w: 27, d: 36, h: 155, parapet: 6, windows: "slits", seed: 8, accent: "#d4af6a" });
+  stoneBox(amb, { x: 536, y: 874, w: 27, d: 36, h: 155, parapet: 6, windows: "slits", seed: 9, accent: "#d4af6a" });
   /* landscaping: shrub balls flanking the hall doors — all that
      remains of a scheme that once hedged and flower-bedded the lawn
      crossings, and was cleared for standing in the way */
