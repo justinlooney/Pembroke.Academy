@@ -1904,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v92";
+const BUILD = "pembroke-v93";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -2090,7 +2090,26 @@ function stepQuality(now, fpsNow){
      harness would be reporting on a build that does not exist. softGL
      already has its own reduced chain, decided at load. */
   if (softGL) return;
-  if (!assetLog.length || assetLog.some(a => a.ms == null && !a.late)) return;
+  /* Not while ANYTHING is arriving — the late wave included, which the
+     first version excluded because the crowd's guard excludes it, and
+     the two guards are answering different questions. The crowd must
+     not WAIT on the six bodies fetched to feed it; the ladder must not
+     MEASURE while they decode, because a GLB is parsed on the main
+     thread and every one of the twenty-three late bodies is a stall
+     the frame counter reads as a slow GPU. Photographed on a phone:
+     fps 60.0 and "quality rung 5/5 — given up to hold 60" on the same
+     panel — an Adreno that never dropped a frame once the cast was in,
+     stripped to no shadows at 0.75 pixel ratio in its first minute,
+     permanently, by the cost of its own arrival. */
+  if (!assetLog.length || assetLog.some(a => a.ms == null)) return;
+  /* ...and not in the wash of one either. The stall lands BEFORE the
+     arrival is recorded — ms is stamped when the parse finishes — and
+     the smoothed average needs a moment to climb back out. Bodies also
+     keep arriving for as long as the site is open (the cast comes and
+     goes through buildings), so this is a recurring hold, not a
+     startup phase. */
+  const lastIn = Math.max(0, ...assetLog.map(a => a.t0 + (a.ms || 0)));
+  if (now - lastIn < 4000){ rungAt = 0; return; }
   if (fpsNow >= FPS_SHED){ rungAt = 0; return; }
   if (!rungAt){ rungAt = now + RUNG_MS; return; }   /* sustained, not a stutter */
   if (now < rungAt) return;
@@ -4970,13 +4989,34 @@ function prepFigure(k, height, live, clipIx = 0){
   /* Was "k !== walker &&": he arrived with his own idle already
      playing and re-driving it here fought that. He is retired; every
      body left either came with clips or was lent them. */
-  if (src.animations.length){
+  /* Only a clip a person can be left STANDING in — the body's own
+     stills, chosen by what the clip IS rather than where it sits in
+     the list. This picked src.animations[clipIx] for years and was
+     right for exactly as long as the loiterer bodies shipped with
+     idle variations: "four clips, four ways of standing about". The
+     authored cast ships with NO clips, and what fills animations[] is
+     the lent working set in lending order — so animations[0] on every
+     body on this campus is "Stand To Sit". A live loiterer at a door
+     LOOPED it: a man folding into a chair that is not there, standing
+     back up, folding again — photographed and reported, twice, as
+     "stuck in a sitting down over and over again". A non-live one
+     froze 0.7s into it — Priya, mid-bow on the plaza, permanently,
+     the moment the withdrawn Idle stopped papering over her.
+
+     On a body with no stills nothing is built: the stance comes from
+     holdStance() at the build site instead, which holds a gait at its
+     feet-passing frame the way holdStill does for a stopped roamer. */
+  const stanceR = rolesOf(k, src);
+  const stanceTaken = new Set([stanceR.sit, stanceR.rise, stanceR.seat].filter(Boolean));
+  const stills = src.animations.filter(c => !c.userData?.role &&
+      !stanceTaken.has(c.name) && !stanceR.gaits.includes(c.name));
+  if (stills.length){
     const mixer = new THREE.AnimationMixer(root);
     /* This character came down with four clips, and playing the first
        one every time wasted three of them — four figures standing about
        in four different ways is most of what "a different person" means
        at this distance. */
-    const clip = src.animations[clipIx % src.animations.length];
+    const clip = stills[clipIx % stills.length];
     const action = mixer.clipAction(inPlaceClip(clip));
     action.play();
     /* Written down where something outside can read it. The loitering
@@ -6372,7 +6412,20 @@ function makeRoamer(g, startKey, extra, forceGait){
      stands still — which is the truthful thing to do with it, and looks
      better than freezing someone mid-stride. */
   const roles = g.userData.anim?.roles || { gaits: GAITS, idle: "Idle", start: null };
-  const pool = roles.gaits.length ? roles.gaits : GAITS;
+  /* The comment below PROMISES Jogging is never dealt at random, and
+     for as long as the jog was walker's alone the promise kept itself:
+     his roles were hand-written and nobody else had the clip. Then the
+     jog became a donor lent to the whole cast, it lands in every
+     body's gait list — measured: twelve out of twelve — and this line
+     dealt from that list unfiltered. A man drew it one time in two, a
+     woman one in three, and when a jogger stops, holdStill holds a
+     frame of the JOG: a figure pitched forward on the lawn, waiting.
+     So the promise is now enforced where the dealing happens. Amara
+     still gets her run — the forceGait branch below asks the ACTIONS,
+     not this pool. */
+  const dealable = (roles.gaits.length ? roles.gaits : GAITS)
+    .filter(n => n !== "Jogging");
+  const pool = dealable.length ? dealable : (roles.gaits.length ? roles.gaits : GAITS);
   /* A forced gait is honoured if the BODY has the clip, not if the
      body's role list happens to mention it. Those are different
      questions and the difference cost Amara her run: she is the one
@@ -6520,16 +6573,19 @@ function buildCast(){
       g.position.set(W(plan.at[0]), 0, W(plan.at[1]));
       g.rotation.y = plan.face || 0;
       if (clip){ setClipOn(g, clip); stagger(g, clip); }
+      /* No clip answers the plan — Priya asks for an idle and no body
+         on this campus owns one since the lent Idle was withdrawn, and
+         the loiterers never asked for anything. Without a stance these
+         students keep whatever pose the build left, which for a while
+         was 0.7 seconds into the sit-down. holdStance holds a walk at
+         its feet-passing frame instead; `held` puts breathe() on it. */
+      const held = !clip && holdStance(g);
       /* Their roles, same as a roamer gets. Without this line every
          student who stands still — the ones at the doors, the ones on
          the plaza, the ones you are most likely to walk up to and
-         talk to — arrives with s.roles undefined. stepStudents then
-         reads R.idle as absent and calls holdStill, which PAUSES the
-         idle at a single frame. So a body carrying a perfectly good
-         standing animation was frozen mid-breath, on the lawn and in
-         conversation both, and the clip it owned never played once. */
+         talk to — arrives with s.roles undefined. */
       students.push({ g, data: st, static: true, kind: plan.kind, baseYaw: plan.face || 0,
-                      roles,
+                      roles, held, phase: i * 1.7,
                       phase0: i * 1.7, pos: [...plan.at] });
       return;
     }
@@ -7071,6 +7127,29 @@ function release(s){
   const act = a && a.actions[a.current];
   if (act) act.paused = false;
   s.held = false;
+}
+/* holdStill, for a figure that is BUILT standing rather than one that
+   stopped: the students the plan parks at doors and on the plaza, on
+   bodies that own no still clip at all. Same answer as a stopped
+   roamer — a gait held at the frame where the feet pass, breathe() on
+   top — taken at build time, because stepStudents never steps a static
+   figure (`if (s.static) continue`) and whatever pose the build leaves
+   is the pose they keep. Not the jog: a figure pitched into a runner's
+   lean is not somebody waiting by a door. */
+function holdStance(g){
+  const a = g.userData?.anim;
+  const R = a?.roles;
+  if (!a || !R) return false;
+  const gait = (R.gaits || []).filter(n => n !== "Jogging")[0] || (R.gaits || [])[0];
+  if (!gait || !a.actions[gait]) return false;
+  setClipOn(g, gait);
+  const t = passingTime(g);
+  if (t === null) return false;
+  const act = a.actions[gait];
+  act.paused = true;
+  act.time = t;
+  a.mixer.update(0);
+  return true;
 }
 /* Nobody stands like a statue. A held frame plus a slow rise and fall
    through the spine, a little sway, and a head that is not quite level
