@@ -49,11 +49,19 @@ const browser = await chromium.launch({ args: ["--use-gl=swiftshader",
   "--enable-unsafe-swiftshader", "--disable-dev-shm-usage", "--no-sandbox"] });
 const page = await browser.newPage();
 page.on("pageerror", e => console.error("page error: " + e.message));
-await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: "load", timeout: 300000 });
+/* ?crowd=0 forces FULL attendance with no extras. Attendance is drawn
+   at random per visit — eleven in twenty — and the first run of this
+   file sampled a visit where Priya and Sofia were both in a lecture:
+   two parked students judged, exit 1, on a campus with nothing wrong.
+   The flag exists for exactly this ("a random attendance would make
+   that flag mean something different every run"). */
+await page.goto(`http://127.0.0.1:${PORT}/index.html?crowd=0`,
+                { waitUntil: "load", timeout: 300000 });
 /* the named cast is built in waves as bodies land; wait for the parked
-   ones — the population this whole file is about */
+   ones — the population this whole file is about. Four are parked:
+   Marcus and Jun at doors, Priya on the plaza, Sofia on the lawn. */
 await page.waitForFunction(() => window.__convo &&
-  window.__convo.named().filter(s => s.static).length >= 3,
+  window.__convo.named().filter(s => s.static).length >= 4,
   null, { timeout: 300000 }).catch(() => {});
 /* let the mixers write the held poses at least once */
 await page.waitForTimeout(3000);
@@ -106,11 +114,11 @@ for (const r of rows){
 if (bad.length){
   console.error(`\n${bad.length} parked student(s) in a pose no person waits in:\n  ` +
                 bad.join("\n  "));
-} else if (rows.length >= 3){
+} else if (rows.length >= 4){
   console.log(`\nall ${rows.length} parked students hold a pose a person actually holds`);
 } else {
-  console.error(`\ncheck-stance saw only ${rows.length} parked student(s) — ` +
-                `not enough to vouch for the campus.`);
+  console.error(`\ncheck-stance saw only ${rows.length} parked student(s) of the 4 ` +
+                `the plan parks — not enough to vouch for the campus.`);
 }
 await browser.close(); server.close();
-process.exit(bad.length || rows.length < 3 ? 1 : 0);
+process.exit(bad.length || rows.length < 4 ? 1 : 0);
