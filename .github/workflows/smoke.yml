@@ -137,3 +137,16 @@ jobs:
       # their torso", with nothing in CI having an opinion.
       - name: Is every lent clip doing the job it was lent for?
         run: node tools/check-roles.mjs
+
+      # The plan parks students at doors and on the plaza, stepStudents
+      # never steps a static figure, and whatever pose the build leaves
+      # is the pose they hold for the whole visit — right where a
+      # visitor walks up close. The stance picker took animations[0] on
+      # faith, and on an authored body animations[0] is the lent
+      # "Stand To Sit": a loiterer LOOPED it at a door ("stuck in a
+      # sitting down over and over again") and Priya froze 0.7s into
+      # it, mid-bow, on the plaza. This measures the parked skeletons —
+      # head near the top, hips near half height, seated only where the
+      # plan seats them.
+      - name: Is everybody parked somewhere standing like a person?
+        run: node tools/check-stance.mjs
