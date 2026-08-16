@@ -1919,7 +1919,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v95";
+const BUILD = "pembroke-v96";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -2669,6 +2669,11 @@ lot(16, 430, 70, 240, 5);
      from the south-west, curving north past the residence hall, around
      the top of the campus and back down the east side to the gates. */
   const drive = (pts, width = 34) => {
+    /* test/debug hook: the road plan, so a harness can drive the same
+       Catmull-Rom the ribbon does and ask whether any road runs into
+       a building — which four of them did, for weeks, invisibly at
+       the old wall heights. */
+    (window.__drives = window.__drives || []).push({ pts, width });
     const t = asphaltTex.clone();
     t.repeat.set(1, 1); t.needsUpdate = true;
     const mat = new THREE.MeshStandardMaterial({ map: t, roughness: 1 });
@@ -2696,9 +2701,19 @@ lot(16, 430, 70, 240, 5);
       transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })));
     world.add(dash);
   };
-  drive([[-40, 1080], [40, 980], [70, 880], [64, 700], [50, 560],
-         [70, 400], [140, 250], [300, 150], [500, 110], [700, 140],
-         [880, 240], [960, 400], [980, 600], [966, 800], [930, 950],
+  /* Re-routed, numerically. "Roads go straight into building": the
+     old control points ran the carriageway INTO the library by 70
+     units, the engineering hall by 52, the east range by 42 and the
+     moved residence hall by 20 — always had, but at 74-unit walls a
+     road clipping a plinth read as "beside", and at 133 it reads as
+     what it is. These points were solved against every footprint with
+     the ribbon's own Catmull-Rom sampling (the curve bows outside its
+     control polygon, so eyeballing the points is how the old ones
+     happened): every edge now clears every wall, kerb included. */
+  drive([[-40, 1080], [40, 980], [70, 880], [64, 700], [40, 560],
+         [38, 460], [46, 368], [72, 262], [97, 185], [179, 103],
+         [350, 104], [500, 102], [700, 114], [803, 115], [885, 160],
+         [952, 257], [960, 400], [980, 600], [966, 800], [930, 950],
          [880, 1060]]);
   /* the boulevard south from the gatehouse to the stadium forecourt */
   drive([[500, 985], [500, 1050], [498, 1105], [500, 1160]], 46);
@@ -2710,8 +2725,12 @@ lot(16, 430, 70, 240, 5);
   /* service loops to the lots either side */
   drive([[64, 700], [10, 690], [-40, 700]], 24);
   drive([[966, 800], [1020, 790], [1070, 800]], 24);
-  /* the residence hall forecourt, off the drive on the west side */
-  drive([[122, 262], [176, 232], [214, 226]], 22);
+  /* The residence hall forecourt — pointing at the residence hall.
+     The hall moved south to plane 460 two passes ago and this spur
+     kept serving the empty lawn where it used to stand, then ran its
+     far end into the library's corner. It now leaves the re-routed
+     west leg and stops short of the hall's west face. */
+  drive([[38, 460], [56, 461], [68, 460]], 22);
   for (let k = 0; k < 6; k++){     /* zebra crossing where the south walk meets the drive */
     const stripe = new THREE.Mesh(new THREE.PlaneGeometry(34, 3.2), dashMat);
     stripe.rotation.x = -Math.PI / 2;
@@ -4848,7 +4867,15 @@ const CAST_PLAN = [
   { k: "loiter", at: [286, 838], face:  0.2, live: true, pose: 1 }, /* Jun — Alden front.
      He stood at 270,700 — inside the science hall, behind its south
      wall. Out on the front now, facing the quad. */
-  { k: "any", needs: "seat", at: [543, 449], face: -2.4,    /* Sofia  — lawn         */
+  /* Sofia — ON A BENCH. Her plan parked her on open lawn playing the
+     seated loop, and a seated pose holds the hips at bench height —
+     lendClip writes the descent as a vertical drop to sitTo, about
+     nine units up. Under the old slouching Sitting Talking that read
+     as lounging on the grass; the authored Sitting Idle is an upright
+     chair-sit, and she became "a girl sitting on the air". The pose
+     was never wrong — the chair was missing. This is the ring bench
+     at 15 degrees; freeSeat knows to leave it hers. */
+  { k: "any", needs: "seat", at: [614, 530.5], face: 1.309,
     kind: "laptop", clip: "seat" },
   { k: "any" },                                             /* Theo   — roams        */
   /* Amara used to lap the ring at 182 — which, with the player standing
@@ -7530,6 +7557,11 @@ function freeSeat(from){
   let best = null, bestD = SIT_RANGE;
   for (const seat of SEATS){
     if (seat.taken) continue;
+    /* Sofia is parked on this one for the whole visit, and she is
+       static — she never claims it through the roamer machinery, so
+       without this line a roamer sits down in her lap. */
+    if (students.some(o => o.static && o.kind === "laptop" &&
+        Math.hypot(seat.x - o.pos[0], seat.y - o.pos[1]) < 8)) continue;
     const d = Math.hypot(seat.x - from.pos[0], seat.y - from.pos[1]);
     if (d < bestD){ bestD = d; best = seat; }
   }
@@ -8652,10 +8684,18 @@ renderer.domElement.addEventListener("touchend", (e) => {
 }, { passive: true });
 
 function collide(nx, ny){
-  /* Shoulder width. The tightest gap on the main walk measures 48 units,
-     and at r=9 that left barely a body's clearance either side — enough
-     to catch on constantly while moving. */
-  const r = 6;
+  /* Shoulder width — and the CAMERA's, which is the part that was
+     wrong. Buttress piers stand proud of every lancet facade by five
+     units, the colliders are the bare footprint, and the near plane
+     sits two units ahead of the eye: at r=6 a walker hugging a wall
+     put the near plane INSIDE the piers, and the screen went black
+     each time one swept through — reported as "the screen goes in and
+     out of black" and, along the north ring where the walk runs flush
+     against the flanker faces, as the quad being unwalkable. r=10
+     keeps eye plus near plane clear of the deepest relief. The
+     tightest pass is the gate arch at 36: sixteen units of corridor
+     remain, and the tightest open-walk gap of 48 keeps twenty-eight. */
+  const r = 10;
   /* The old fence stopped at the campus edge, which was fine while the
      ways did too. Now that roads and walks run out to the stadium, the
      ballpark, the walker has to be allowed to follow
