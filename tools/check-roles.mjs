@@ -85,7 +85,7 @@ const rows = await page.evaluate(() => window.__roaming.map(k => {
   const r = window.__rolesOf(k);
   const src = window.__castLib[k];
   return r ? { k, gaits: r.gaits, idle: r.idle, seat: r.seat, sit: r.sit,
-               rise: r.rise, sitTo: r.sitTo,
+               rise: r.rise, sitTo: r.sitTo, riseFrom: r.riseFrom, talk: r.talk,
                clips: (src?.animations || []).map(c => c.name) }
            : { k, missing: true };
 }));
@@ -95,12 +95,15 @@ const rows = await page.evaluate(() => window.__roaming.map(k => {
    whole point is that they are recognisable by name at the far end. */
 const LENT_GAIT = /^(Borrowed Walk|Female Walk \d+|Jogging)$/;
 const LENT_SIT = "Stand To Sit";
-const LENT_SEAT = "Sitting Talking";
-const isLent = (n) => LENT_GAIT.test(n) || n === LENT_SIT || n === LENT_SEAT;
+const LENT_SEAT = "Sitting Idle";      /* succeeded "Sitting Talking" */
+const LENT_RISE = "Sit To Stand";
+const LENT_TALK = "Talking";
+const isLent = (n) => LENT_GAIT.test(n) || [LENT_SIT, LENT_SEAT,
+                                            LENT_RISE, LENT_TALK].includes(n);
 
 const bad = [];
 let seen = 0;
-console.log("body      idle            sit             sitTo  seat            gaits");
+console.log("body      idle            sit             sitTo  seat            rise           talk      gaits");
 for (const r of rows){
   if (r.missing){ console.log(r.k.padEnd(10) + "not loaded"); continue; }
   seen++;
@@ -112,6 +115,8 @@ for (const r of rows){
               String(r.sit || "—").padEnd(16) +
               (r.sit ? r.sitTo.toFixed(2) : "—").padEnd(7) +
               String(r.seat || "—").padEnd(16) +
+              String(r.rise || "—").padEnd(15) +
+              String(r.talk || "—").padEnd(10) +
               (r.gaits.join(", ") || "—"));
   if (r.idle && isLent(r.idle))
     bad.push(`${r.k}: idle is "${r.idle}", which was lent as something else`);
@@ -120,6 +125,12 @@ for (const r of rows){
   if (r.clips.includes(LENT_SEAT) && r.seat !== LENT_SEAT && r.sit)
     bad.push(`${r.k}: was lent "${LENT_SEAT}" and its seated loop is ` +
              (r.seat ? `"${r.seat}"` : "empty"));
+  if (r.clips.includes(LENT_RISE) && r.rise !== LENT_RISE)
+    bad.push(`${r.k}: was lent "${LENT_RISE}" and its stand-up is ` +
+             (r.rise ? `"${r.rise}"` : "empty"));
+  if (r.clips.includes(LENT_TALK) && r.talk !== LENT_TALK)
+    bad.push(`${r.k}: was lent "${LENT_TALK}" and its talk is ` +
+             (r.talk ? `"${r.talk}"` : "empty"));
   for (const g of r.gaits)
     if (g === LENT_SIT || g === LENT_SEAT)
       bad.push(`${r.k}: "${g}" is being walked with`);

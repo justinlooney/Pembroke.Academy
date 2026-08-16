@@ -1904,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v93";
+const BUILD = "pembroke-v94";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -3946,9 +3946,17 @@ const SIT_RANGE = 420;            /* how far someone will go for a seat */
    holding that for four minutes is the statue this was supposed to get
    rid of, sitting down. Observed in a probe run: one student seated,
    unmoving, for 180 seconds and still going when the run ended. */
-const SEATED_MS = [45000, 240000];        /* with a loop; ceiling 20 min */
-const HELD_SEAT_MS = [14000, 34000];      /* a held pose wears out fast */
-const SIT_COOL = 180000;          /* before the same student sits again */
+/* Retimed to the author's brief, which replaced the long-dwell design
+   wholesale: "for the walking talking sitting they can do them for
+   5-10 seconds... for the sit they must follow with a sit idle for
+   5-10 seconds. for stand they must walk for 5-10 seconds then they
+   can either go in a door or stand idle or sit again." The old
+   ceilings — twenty minutes seated — were built for a campus with one
+   seated loop and nothing else to cut to; the campus now has a whole
+   cycle to run, and it runs it briskly. */
+const SEATED_MS = [5000, 10000];          /* sit idle, then stand */
+const HELD_SEAT_MS = [5000, 10000];       /* same brief, loop or no loop */
+const SIT_COOL = 20000;           /* a walk's worth before sitting again */
 const P_SIT = 0.35;
 
 /* "Campus Conversation" by restore50 stood here: a scanned group of
@@ -5508,9 +5516,10 @@ function seatRoles(src){
        the meets test below needs and what no declaration knows. Only
        the classification is taken on trust, from the code that chose
        the clip. */
-    if (r.role === "gait") continue;      /* lent to walk with; never a seat */
-    const lo0 = r.role ? r.role === "seat" : r.y0 <= line;
-    const lo1 = r.role ? true             : r.y1 <= line;
+    /* lent to walk with or to talk standing up; never seat material */
+    if (r.role === "gait" || r.role === "talk") continue;
+    const lo0 = r.role ? (r.role === "seat" || r.role === "rise") : r.y0 <= line;
+    const lo1 = r.role ? (r.role === "seat" || r.role === "sit")  : r.y1 <= line;
     if (lo0 && lo1){
       out.seated.add(r.name);
       /* the longest seated loop, so a student settles rather than
@@ -5553,8 +5562,18 @@ function seatRoles(src){
    without one, a stand-up reversed is still the best there is. */
 function seatCycle(R){
   if (!R) return null;
-  if (R.sit)  return { down: R.sit,  downRev: false, up: R.sit,  upRev: true,
-                       to: R.sitTo ?? 0.5 };
+  if (R.sit){
+    /* A real stand-up, when its start agrees with where the sit-down
+       left the hips — the exact handover the old clip_stand.glb was
+       kept out of the campus for. Now the agreement is CHECKED, per
+       body, off the measured heights: within 0.15 of standing hip
+       height and the rise plays; otherwise that body keeps rising by
+       the sit played backwards, which never pops. */
+    const rise = R.rise &&
+      Math.abs((R.riseFrom ?? 1) - (R.sitTo ?? 0.5)) <= 0.15 ? R.rise : null;
+    return { down: R.sit, downRev: false,
+             up: rise || R.sit, upRev: !rise, to: R.sitTo ?? 0.5 };
+  }
   if (R.rise) return { down: R.rise, downRev: true,  up: R.rise, upRev: false,
                        to: R.riseFrom ?? 1 };
   return null;
@@ -5605,7 +5624,11 @@ function rolesOf(k, src){
   /* No idle is not a fault, it is a fact about the download: a body
      with nothing to do when standing simply never stops walking. That
      reads far better than freezing someone mid-stride. */
-  const roles = { gaits, idle: still[0] || null, start: null,
+  /* Talk is declared, never derived: it exists only as a lent clip
+     with the job written on it, and deriving it would be the same
+     second-opinion mistake the seat roles just gave up. */
+  const talk = src.animations.find(c => c.userData?.role === "talk")?.name || null;
+  const roles = { gaits, idle: still[0] || null, start: null, talk,
                   seat: sit.seat, rise: sit.rise, riseFrom: sit.riseFrom,
                   sit: sit.sit, sitTo: sit.sitTo };
   ROLE_CACHE[k] = roles;
@@ -5715,12 +5738,11 @@ const STAND_CHAIN = ["hips", "spine", "leftupleg", "leftfoot",
    one lends to everybody. Judged before being wired to anything, by
    tools/check-donor.mjs, against all thirteen bodies.
 
-   assets/clip_stand.glb came down with them and is deliberately NOT
-   here. It is a real stand-up, where seatCycle currently rises by
-   playing the sit-down backwards — a genuine improvement, but the two
-   clips hand over at different moments (riseFrom against sitTo) and
-   getting that wrong pops a student out of a bench. It wants its own
-   render, not a ride on this one. */
+   A stand-up came down with them (clip_stand.glb) and waited here
+   unwired for exactly the handover worry seatCycle now measures per
+   body: riseFrom against sitTo, within 0.15 or the reversed sit rises
+   instead. The author's own Sit To Stand donor took the role, and the
+   old file left with the other two it arrived with. */
 const LOOSE_CLIPS = [
   /* ── the Idle is withdrawn, for the second time ────────────────────
      Reported from a phone: "they seem to be stuck in a weird idle where
@@ -5748,20 +5770,44 @@ const LOOSE_CLIPS = [
      production rig, or a retarget that solves for the rest difference
      instead of assuming it away.
 
-     assets/clip_idle.glb stays in the repository. It costs 81KB, it is
-     the input either of those routes would start from, and deleting it
-     would only mean fetching it again.
-
      What the campus does without one: a body with nothing to do
      standing still never stops walking, which holdStill and
      passingTime already paper over, and which reads far better than a
      student twisting on the spot. */
-  /* The forty-four second seated loop. Without it everybody else holds
-     the sit's last frame, capped at 34 seconds — a statue, sitting
-     down, which is the thing the seat machinery was built to remove. */
-  { url: "assets/clip_talk.glb", name: "Sitting Talking",
+  /* ── the author's set ──────────────────────────────────────────────
+     Three motions delivered as full Mixamo characters and stripped to
+     skinless donors — sixteen megabytes of skinned body each around a
+     few hundred kilobytes of skeleton and motion. Judged by
+     tools/check-donor.mjs through the campus's own lendClip before
+     being wired here, like everything else on this list.
+
+     They replace the long-dwell design: sit down, hold Sitting Idle
+     for five to ten seconds, stand up through a REAL stand-up rather
+     than the sit played backwards, walk. Meet somebody, Talk for five
+     to ten seconds, walk on. */
+  /* The seated loop. Successor to "Sitting Talking" (clip_talk.glb),
+     which held this role from the day benches became sittable — the
+     brief asks for a sit IDLE after the sit-down, and one seated loop
+     is all the machinery wants. */
+  { url: "assets/clip_sitidle.glb", name: "Sitting Idle",
     chain: SIT_CHAIN, expect: "seated", role: "seat",
     wanted: (R) => !R.seat },
+  /* The real stand-up. seatCycle rose by playing the sit-down
+     backwards since the first bench; the handover guard in seatCycle
+     still decides per body whether this one's start agrees with the
+     sit-down's end, so a rig where they disagree keeps the reversed
+     sit rather than popping off the bench. */
+  { url: "assets/clip_standup.glb", name: "Sit To Stand",
+    chain: SIT_CHAIN, expect: "rise", role: "rise",
+    wanted: (R) => !R.rise },
+  /* Standing and talking — the first STANDING life this campus has
+     had since the Idle was withdrawn, and it survives lending for the
+     reason the Idle could not: gesture is large enough to swamp the
+     rest residual. Role "talk": played only in conversations, never
+     dealt as an idle or a gait. */
+  { url: "assets/clip_talkstand.glb", name: "Talking",
+    chain: STAND_CHAIN, expect: "stand", hips: false, role: "talk",
+    wanted: (R) => !R.talk },
   /* Asked for BY NAME: Amara is the one student written to run the
      campus. It stays out of the gait pool on purpose — reachable by
      name, never dealt at random, or the quad fills with joggers. */
@@ -6332,8 +6378,8 @@ const GAITS = ["Standard Walk", "Strut Walking", "Walk Forward"];
    bug, however well dressed. */
 const MEET = 240;                 /* near enough to have noticed */
 const TALK_GAP = 30;              /* stand this far apart — outside SPACE */
-const TALK_MS = [8000, 20000];
-const LINGER_MS = [1800, 5200];
+const TALK_MS = [5000, 10000];    /* the brief: talk 5-10s, then walk on */
+const LINGER_MS = [5000, 10000];  /* standing about is a stint, not a beat */
 const SOCIAL_COOL = 22000;        /* before this pair, or either, tries again */
 const P_MEET = 0.55;              /* chance of going over, when there is someone */
 const P_LINGER = 0.3;
@@ -7671,7 +7717,12 @@ function stepStudents(dt, now){
           s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
           continue;
         }
-        if (s.roles?.idle && Math.random() < P_LINGER){
+        /* Used to require an idle clip, back when standing still meant
+           playing one. holdStill holds a walk frame with breathe() on
+           top for every body on the campus now, so "stand idle" — one
+           of the brief's three things to do after a walk — is a stint
+           anybody can take. */
+        if (Math.random() < P_LINGER){
           s.mode = "linger";
           s.pauseUntil = now + LINGER_MS[0] + Math.random() * (LINGER_MS[1] - LINGER_MS[0]);
         }
@@ -7736,6 +7787,17 @@ function stepMotion(s, moving, now, dt){
           matchSpeed(s, R.start, s.speed);
         }
         s.anim0 = "moving";
+      } else if (s.mode === "talk" && R.talk){
+        /* a conversation is the one standing state with a clip of its
+           own — gesture is big enough to survive lending, which is
+           exactly what a near-still idle was not. Each talker runs it
+           at their own idleRate so a pair never mirrors. */
+        if (s.held) release(s);
+        setClip(s, R.talk);
+        const act = s.g.userData.anim.actions[R.talk];
+        if (act) act.timeScale = s.idleRate || 1;
+        s.anim0 = R.talk;
+        s.startedAt = undefined;
       } else if (!R.idle && holdStill(s)){
         /* no idle clip on this body — its own walk, held at the frame
            where the feet pass, plus breathing from the render loop */
@@ -9511,8 +9573,13 @@ function convoOpen(s){
      posing afterwards turned him to suit a stance he was about to
      leave, and left him standing at an angle to the person he is
      talking to. */
-  if (s.roles && s.roles.idle){
-    setClipOn(g, s.roles.idle, 0.3);
+  /* Talking first — this IS a conversation, and it is the one clip the
+     campus owns that was authored for exactly this moment. An idle, if
+     a body ever ships its own again, is the fallback; the held walk
+     frame is the fallback's fallback. */
+  const convoClip = (s.roles && (s.roles.talk || s.roles.idle)) || null;
+  if (convoClip){
+    setClipOn(g, convoClip, 0.3);
     /* setClip returns early when the clip is already current, and a
        student standing on the lawn is already in hers. If anything ever
        paused it she would arrive frozen at one frame — which is the one
@@ -9521,7 +9588,7 @@ function convoOpen(s){
        conversation did not. */
     release(s);
   }
-  else holdStill(s);                  /* the eight with only a walk cycle */
+  else holdStill(s);                  /* nobody ships an idle of their own */
   /* Now settle the pose the clip actually asks for, then turn him to
      face the camera by it. */
   g.userData.anim?.mixer?.update(0);
