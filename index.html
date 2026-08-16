@@ -1108,7 +1108,7 @@ git push -u origin main</pre>
         <div>
           <span class="font-serif-d italic text-[13px] text-slate-400">"Lux, Mathesis, Machina"</span> — Light, Learning, and the Machine.
           <div class="mt-1">Progress is inscribed to your browser's <code class="font-mono-d text-[10.5px]">localStorage</code> ledger — it survives every visit.</div>
-          <div class="mt-1 text-slate-600">3D, adapted, <a class="underline hover:text-slate-400" href="http://creativecommons.org/licenses/by/4.0/">CC-BY-4.0</a> unless noted: "<a class="underline hover:text-slate-400" href="https://sketchfab.com/tabitown">Cathedral</a>" by tabitown · "New Colgate University Dorm" · "Baseball stadium 3d drone survey" by KCraw · university campus aerial scan and sugar maple supplied by the project owner · flora by Miguel-Angel, PropShop™, EFX, Joanne Viertel &amp; Batuhan13. Full list in assets/CREDITS.md.</div>
+          <div class="mt-1 text-slate-600">3D, adapted, <a class="underline hover:text-slate-400" href="http://creativecommons.org/licenses/by/4.0/">CC-BY-4.0</a> unless noted: "<a class="underline hover:text-slate-400" href="https://sketchfab.com/tabitown">Cathedral</a>" by tabitown · "New Colgate University Dorm" · "Baseball stadium 3d drone survey" by KCraw · university campus aerial scan, sugar maple, residence hall and cathedral supplied by the project owner · flora by Miguel-Angel, PropShop™, EFX, Joanne Viertel &amp; Batuhan13. Full list in assets/CREDITS.md.</div>
         </div>
         <button id="reset-ledger" class="chip rounded-full px-4 py-1.5 text-[11px] uppercase tracking-[.15em] text-slate-400 hover:text-red-300 hover:border-red-400/50">Reset ledger</button>
       </footer>
@@ -1919,7 +1919,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v97";
+const BUILD = "pembroke-v98";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -2825,6 +2825,10 @@ window.__assets = assetLog;   /* test/debug hook */
    materials so the night cycle can light them from within */
 const glassGlowMats = [];
 let cathedralRoot = null;
+/* the authored cathedral's nave camera, measured off the model when it
+   lands — null until then, and the interior falls back to the
+   procedural nave scene */
+let cathNave = null;
 
 /* The outer world — stadiums, residence hall, horizon cathedrals — is
    scenery rather than somewhere you take a class, so it sits a walk away
@@ -3195,14 +3199,17 @@ BUILDINGS.forEach(spec => {
     world.add(grp);
     cathedralRoot = grp;               /* aerial click-to-enter follows the chapel */
 
-    /* the chapel, closing the axis the cathedral used to close */
-    stoneBox(grp, { x: 410, y: -420, w: 180, d: 100, h: 110, parapet: 6,
-                    windows: "lancet", ivy: true, noRoof: true,
-                    accent: S.color, seed: 7 });
-    gableRoof(grp, { x: 410, y: -420, w: 180, d: 100, z: 110, h: 60 });
-    stoneBox(grp, { x: 472, y: -452, w: 56, d: 56, h: 165, parapet: 5,
-                    windows: "grand", accent: S.color, seed: 9 });
-    spire(grp, 500, 165, -424, 56, 90);
+    /* The chapel is the author's own cathedral now — a 12.8MB model
+       with a real nave inside it, reviewed by render before landing
+       (355k triangles, palette textures decoding to 16.8MB, the cost
+       of one student). The procedural chapel that stood here — a
+       stoneBox, a gable, a tower and a spire — retired with honour;
+       it existed because the campus had nothing better, and now it
+       does. The model arrives with the outer world so it never costs
+       the first paint a byte; until it lands the plot stands empty
+       the way the residence hall's did, and the interior falls back
+       to the procedural nave (see the render loop). */
+    window.__cathedralIn = false;
 
     /* flanking halls, west and east — scenery with the same masonry */
     stoneBox(amb, { x: 262, y: -256, w: 104, d: 152, h: 95, parapet: 6,
@@ -3226,7 +3233,52 @@ BUILDINGS.forEach(spec => {
         then the horizon landmarks and districts stream in (~40MB)
         without contending for first-load bandwidth ─────────────────── */
   const OUTER = [
-    /* The athletics district leads: south beyond the drive, Pembroke
+    /* The chapel leads the queue: it is the one landmark standing on
+       the campus plate itself, closing the north axis in every aerial
+       frame — an empty plot there reads as a hole where the stadium's
+       absence reads as distance. Front door on the south face at
+       plane -320, where the DOORS entry has always pointed; the
+       stained glass is rewritten on arrival (see loadLandmark's
+       glass pass) because KHR transmission re-renders the whole
+       visible scene every frame it is on screen, measured at 355k
+       triangles drawing as a million in review. */
+    ["assets/cathedral.glb", {
+      plane: [500, -460], height: 240, maxFoot: [180, 300], sink: 1.5,
+      collider: "auto", vista: "The Pembroke Chapel",
+      onLoaded: (root) => {
+        /* into the chapel group, so aerial click-to-enter keeps
+           following it — same world transform, different parent */
+        if (cathedralRoot) cathedralRoot.add(root);
+        /* THE GLASS PASS. Five materials arrive with KHR transmission,
+           and any visible transmissive material makes three.js render
+           the whole scene an extra time into a transmission buffer —
+           measured in review: 355k triangles drawing as a million.
+           Stained glass becomes emissive alpha glass instead: it costs
+           nothing, and it is the better material for the job anyway —
+           lancets that glow at dusk, which is what the reference
+           renders show. */
+        root.traverse(o => {
+          const m = o.material;
+          if (!o.isMesh || !m || !(m.transmission > 0)) return;
+          const glass = new THREE.MeshStandardMaterial({
+            map: m.map || null, color: m.color.clone(),
+            emissiveMap: m.emissiveMap || m.map || null,
+            emissive: new THREE.Color(0xffffff),
+            emissiveIntensity: visual === "night" ? 2.4 : 0,
+            transparent: true, opacity: 0.92, roughness: 0.35,
+            side: m.side });
+          o.material = glass;
+          glassGlowMats.push(glass);
+        });
+        /* the nave camera: just inside the south door, eye height,
+           looking down the length toward the apse */
+        const bb = new THREE.Box3().setFromObject(root);
+        const cx = (bb.min.x + bb.max.x) / 2;
+        cathNave = { pos: [cx, 14, bb.max.z - 34], sway: [5, 1.2],
+                     look: [cx, 30, bb.min.z + 40] };
+        window.__cathedralIn = true;
+      } }],
+    /* The athletics district: south beyond the drive, Pembroke
        Stadium dead ahead down the boulevard, Pembroke Field to the
        southwest, the Pembroke Tennis Club southeast. A visitor can walk
        to all three, so they arrive before anything merely scenic. */
@@ -8305,7 +8357,8 @@ function buildCathedralInterior(){
 }
 
 function engineOpenInterior(key){
-  if (!interiorScenes[key]) interiorScenes[key] = key === "cathedral" ? buildCathedralInterior() : buildInteriorScene(key);
+  if (!interiorScenes[key] && !(key === "cathedral" && cathNave))
+    interiorScenes[key] = key === "cathedral" ? buildCathedralInterior() : buildInteriorScene(key);
   interiorView = key;
   wingEl.classList.add("interior-open");
 }
@@ -8732,7 +8785,7 @@ function collide(nx, ny){
      never widened north when the quad did: "still cant walk on quad
      where cathedral is" was a player sliding along an invisible wall
      at the quad's threshold. Bounded just past the chapel tower. */
-  if (nx < -640 || nx > 1560 || ny < -470 || ny > 1520) return true;
+  if (nx < -640 || nx > 1560 || ny < -660 || ny > 1520) return true;
   for (const c of COLLIDERS){
     if (nx > c.x - r && nx < c.x + c.w + r && ny > c.y - r && ny < c.y + c.d + r) return true;
   }
@@ -9082,13 +9135,19 @@ renderer.setAnimationLoop(() => {
   }
   drawMinimap();
   if (interiorView){
-    const cam = interiorScenes[interiorView].userData.cam;
+    /* The chapel's interior is the authored model's own nave once it
+       has landed — the camera stands inside the WORLD, just in from
+       the south door, and the procedural nave scene is only the
+       fallback for the minute before the model arrives (and for the
+       harness, which enters long before the deferred queue runs). */
+    const real = interiorView === "cathedral" && cathNave;
+    const cam = real ? cathNave : interiorScenes[interiorView].userData.cam;
     const sway = Math.sin(now / 5200);
     intCamera.position.set(cam.pos[0] + sway * cam.sway[0], cam.pos[1] + sway * cam.sway[1], cam.pos[2]);
     intCamera.lookAt(cam.look[0], cam.look[1], cam.look[2]);
     intCamera.aspect = camera.aspect;
     intCamera.updateProjectionMatrix();
-    renderer.render(interiorScenes[interiorView], intCamera);
+    renderer.render(real ? world : interiorScenes[interiorView], intCamera);
   } else {
     labelRenderer.render(world, camera);
     composer.render();

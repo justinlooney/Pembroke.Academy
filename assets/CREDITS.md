@@ -34,6 +34,12 @@ published; anyone wanting the original should go to the source links here.
 - **Pembroke Residence Hall** — supplied via the project owner, generated from their own
   building pipeline. LOD1: 120,000 triangles, one material, 1024x1024 base colour,
   metallic/roughness and normal, meshopt + WebP. `reshall.glb`
+- **The Pembroke Chapel** — supplied via the project owner, generated from their own
+  building pipeline: full exterior and walk-in nave, 355,000 triangles, palette-packed
+  textures (16.8MB decoded). Stained glass converted from KHR transmission to emissive
+  alpha at load, for the transmission pass's sake. `cathedral.glb`
+  (It replaced the procedural stoneBox chapel, which replaced the Sketchfab
+  cathedral scan before it.)
   (It replaced "New Colgate University Dorm" from Sketchfab, which is no longer
   distributed here — a different building, not a re-export of the same one.)
 - **"Baseball stadium 3d drone survey - Pix4d"** — by **KCraw** (https://sketchfab.com/goldenhornet),
