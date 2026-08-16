@@ -1904,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v91";
+const BUILD = "pembroke-v92";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -2005,6 +2005,96 @@ function applyFog(){
   world.fog.near = (fogDay ? 900 : 500) * k;
   world.fog.far  = (fogDay ? 3000 : 2400) * k;
 }
+
+/* ── giving something up, when the machine cannot hold the frame ──────
+   Reported from a desktop: "fps is really low", panel reading 5.0 on
+   ANGLE (Intel(R) HD Graphics) with 1523 draws and 8.43M triangles.
+   Nothing in the campus noticed. Quality was decided once, at load,
+   from the renderer STRING — and the only thing that string was ever
+   asked was whether it said swiftshader. An integrated GPU was handed
+   the same archviz post chain as a discrete card.
+
+   A name cannot answer this and a benchmark at load cannot either: what
+   costs is where you are standing and how many people are on the quad,
+   and both change. So it is measured continuously and given up in
+   order of what it costs against what it is worth:
+
+     1  SSAO            a depth pass plus an AO pass plus a blur, at
+                        full resolution, every frame. By some distance
+                        the most expensive thing here and the least
+                        visible on a small or a dim screen.
+     2  pixel ratio 1   a retina desktop is drawing four times the
+                        pixels for a campus seen at arm's length.
+     3  half the sun's  3072² is 9.4M shadow texels re-drawn from 321
+        shadow map      casters. 1536² is a slightly softer edge.
+     4  no shadows      the whole second pass over the scene.
+     5  no bloom, 0.75  the last thing worth having, and then honest
+        pixel ratio     under-sampling.
+
+   One rung at a time, three seconds apart, and never back up: a
+   machine that fell to rung 4 is not going to become a fast machine
+   while somebody looks at a lawn, and a ladder that climbs is a ladder
+   that oscillates — the frame rate improves BECAUSE of the rung it is
+   on, so reading that as "we can afford more now" is a loop. Rungs are
+   sticky for the session, and ?noladder holds the chain at full for
+   anyone measuring what the ladder is worth. ?debug names the rung, so
+   a photograph of a slow machine says which ones it had already given
+   up before it was photographed.
+
+   Not while the campus is still arriving: 39MB of models decode on the
+   main thread, and stripping the renderer because a GLB was being
+   parsed would strip it on every machine, permanently, for a reason
+   that has nothing to do with drawing. */
+const FPS_WANT = 40;             /* below this, sustained, give something up */
+const RUNG_MS = 3000;            /* how long a rung gets before the next one */
+let rung = 0, rungAt = 0;
+const LADDER = [
+  () => { if (ssao){ composer.removePass(ssao); ssao.dispose?.(); ssao = null; } },
+  () => renderer.setPixelRatio(1),
+  () => { sun.shadow.mapSize.set(1536, 1536);
+          sun.shadow.map?.dispose(); sun.shadow.map = null; },
+  () => { renderer.shadowMap.enabled = false;
+          world.traverse(o => { if (o.isMesh && o.material) [].concat(o.material)
+            .forEach(m => m.needsUpdate = true); }); },
+  () => { composer.removePass(bloom); renderer.setPixelRatio(0.75); },
+];
+const NO_LADDER = q.has("noladder");
+function stepQuality(now, fpsNow){
+  if (NO_LADDER || rung >= LADDER.length) return;
+  /* Not on a software rasterizer. Its frame rate is a fact about a CPU
+     drawing pixels one at a time and says nothing about any GPU, so
+     every headless run would shed the whole ladder within fifteen
+     seconds and then measure a campus no visitor is ever shown — the
+     harness would be reporting on a build that does not exist. softGL
+     already has its own reduced chain, decided at load. */
+  if (softGL) return;
+  if (!assetLog.length || assetLog.some(a => a.ms == null && !a.late)) return;
+  if (fpsNow >= FPS_WANT){ rungAt = 0; return; }
+  if (!rungAt){ rungAt = now + RUNG_MS; return; }   /* sustained, not a stutter */
+  if (now < rungAt) return;
+  LADDER[rung++]();
+  rungAt = now + RUNG_MS;
+  resize();                        /* the pixel ratio rungs change the buffers */
+  console.info("campus: below " + FPS_WANT + "fps — quality rung " + rung);
+}
+/* test/debug hook: which rungs have been given up, and a way to give
+   one up on demand.
+ *
+ * The ladder never runs under a software rasterizer — see stepQuality —
+ * which means every harness this project owns is on the one platform
+ * that cannot exercise it, and five pieces of teardown that only ever
+ * run on a visitor's machine are exactly the kind that ship broken.
+ * Removing a pass from a live composer, disposing a shadow map mid-
+ * frame, invalidating every material on the campus: each is a thing
+ * that either works or throws, and this makes it possible to find out
+ * here rather than there. */
+window.__rung = () => rung;
+window.__shedRung = () => {
+  if (rung >= LADDER.length) return { rung, done: true };
+  LADDER[rung++]();
+  resize();
+  return { rung, done: rung >= LADDER.length };
+};
 
 function resize(){
   const w = stageEl.clientWidth || 800, h = stageEl.clientHeight || 600;
@@ -3718,6 +3808,14 @@ gltf.load("assets/lamp.glb", (g) => {
     /* wider pool, gentler falloff — "at night is too dark" */
     const pl = new THREE.PointLight(0xffb45e, 0, 200, 1.7);
     pl.position.set(W(px), 44, W(py));
+    /* Born in whatever state the campus is already in. setVisual
+       early-returns when the mode has not changed, so a lamp built
+       after the first engineSetMode is never told — and a light that
+       is `visible` is in the shader whatever its intensity, which is
+       the whole reason this flag matters. See setVisual. */
+    const isNight = window.__visual === "night";
+    pl.visible = isNight;
+    if (isNight) pl.intensity = 3000;
     world.add(pl);
     lampLights.push(pl);
   });
@@ -4528,11 +4626,13 @@ console.info("cast: first wave this visit — " + CAST_FIRST.join(", "));
 /* Nobody, and nobody is needed. This list existed because loitering
    takes an IDLE and almost no body had one — sophia carried 488 frames
    of it and nothing else, then tutor did the same job for 0.32MB. Every
-   authored body is lent Idle from clip_idle.glb now, so standing by a
-   door is something the whole cast can do and a body kept solely to do
-   it is 0.32MB of nothing. Kept as a list rather than deleted: put a
-   body here whose only talent is standing still and it is used for
-   that, ahead of taking a roamer off the lawn. */
+   authored body holds a frame of its own walk instead — the lent Idle
+   was withdrawn for twisting, and a held frame with breathe() on top
+   is what loitering actually asks for — so standing by a door is
+   something the whole cast can do and a body kept solely to do it is
+   0.32MB of nothing. Kept as a list rather than deleted: put a body
+   here whose only talent is standing still and it is used for that,
+   ahead of taking a roamer off the lawn. */
 const LOITERING = [];
 /* Asked at the moment a figure is built, never pruned. Bodies now
    arrive in two waves, so a list filtered once at startup would be
@@ -4728,10 +4828,12 @@ function bodyFor(k, looks, needs){
        the heaviest figure on the campus doing the least. Whoever is
        standing about today does it instead. */
     /* Falls back to the roamers, which is now the normal case rather
-       than the exception: LOITERING is empty and every roaming body is
-       lent an idle, so "somebody standing by a door" is a job the whole
-       cast can take. Without the fallback these students would be dealt
-       no body at all and simply not appear. */
+       than the exception: LOITERING is empty, and nobody on this campus
+       owns an idle at all since the lent one was withdrawn — so
+       "somebody standing by a door" is a job the whole cast takes by
+       holding a frame of its walk. Without the fallback the students
+       whose plans ask for an idle would be dealt no body and simply not
+       appear. */
     const pool = k === "any" ? loadedRoaming()
                : (loadedLoitering().length ? loadedLoitering() : loadedRoaming());
     /* The need comes first and the look second: a student who cannot
@@ -5309,7 +5411,8 @@ function seatRoles(src){
     const y1 = at(act, Math.max(0, c.duration - Math.min(0.05, c.duration * 0.02)));
     const mid = at(act, c.duration * 0.5);
     act.stop(); mixer.uncacheAction(c);
-    rows.push({ name: c.name, dur: c.duration, y0, y1, mid });
+    rows.push({ name: c.name, dur: c.duration, y0, y1, mid,
+                role: c.userData?.role || null });
   }
   mixer.uncacheRoot(probe);
   if (!rows.length) return out;
@@ -5319,7 +5422,33 @@ function seatRoles(src){
   const line = SEATED_AT * stand;
   let bestSeat = -1;
   for (const r of rows){
-    const lo0 = r.y0 <= line, lo1 = r.y1 <= line;
+    /* ── what it IS is declared; where it MEETS is measured ───────────
+       Every clip a body did not come with was asked for by name and
+       gated on shape before it was handed over, so its job is already
+       known. Reading that job back out of the hips is a second opinion
+       nobody asked for, and it is one threshold — SEATED_AT, a single
+       number — deciding it for twelve rigs with twelve sets of
+       proportions. Measured across the whole cast it currently agrees
+       with the request on every body: sit at 0.43, seated loop found,
+       twelve for twelve. This is a guard on a conclusion that holds,
+       not a repair of one that failed.
+
+       Worth guarding because of what a wrong role costs. Roles are
+       what put a pose on a student, and the last thing to go wrong
+       here went wrong on all twelve at once and was seen on a phone
+       before anything in this repository noticed. A clip that fails to
+       be recognised as the job it was lent for should fall out of the
+       roles entirely; what it must never do is quietly become some
+       other role, because every one of them is a pose somebody stands
+       in on the quad. See tools/check-roles.mjs.
+
+       The MEASUREMENT still decides riseFrom and sitTo, which is what
+       the meets test below needs and what no declaration knows. Only
+       the classification is taken on trust, from the code that chose
+       the clip. */
+    if (r.role === "gait") continue;      /* lent to walk with; never a seat */
+    const lo0 = r.role ? r.role === "seat" : r.y0 <= line;
+    const lo1 = r.role ? true             : r.y1 <= line;
     if (lo0 && lo1){
       out.seated.add(r.name);
       /* the longest seated loop, so a student settles rather than
@@ -5379,7 +5508,8 @@ function rolesOf(k, src){
      join without anybody adding a line. */
   const scored = src.animations
     .filter(c => c.duration > 0.2)                 /* an eye-blink is not a clip */
-    .map(c => ({ name: c.name, cadence: (c.userData?.cycles || 0) / c.duration }));
+    .map(c => ({ name: c.name, cadence: (c.userData?.cycles || 0) / c.duration,
+                 role: c.userData?.role || null }));
   /* The seat clips are excluded from GAITS as well as from still, and
      the reason arrived from a phone: "sometimes people move in the
      seated position". A retargeted sit-down swings the thigh once,
@@ -5389,11 +5519,27 @@ function rolesOf(k, src){
      crossing the lawn folded into a chair. A clip the seat machinery
      claims is never also a way of getting somewhere. */
   const notSeat = (c) => !sit.seated.has(c.name) && c.name !== sit.rise && c.name !== sit.sit;
-  const gaits = scored.filter(c => c.cadence > 0.45 && notSeat(c)).map(c => c.name);
+  const gaits = scored.filter(c => c.role === "gait" ||
+                                   (!c.role && c.cadence > 0.45 && notSeat(c)))
+                      .map(c => c.name);
   /* A seated clip barely swings a thigh, so it scores as "still" and
      would otherwise be handed straight to idle — leaving a student
-     sitting in mid-air every time they stopped walking. */
-  const still = scored.filter(c => c.cadence <= 0.45 && notSeat(c)).map(c => c.name);
+     sitting in mid-air every time they stopped walking.
+
+     And nothing LENT is eligible at all, whatever it measures. An idle
+     is what a body does when it has been asked for nothing, so it can
+     only come from the body's own download: every borrowed clip on
+     this campus was borrowed to do a named job, and one that fails to
+     be recognised as that job must fall out of the roles entirely
+     rather than quietly become the pose a student holds all day.
+
+     Which is not hypothetical about the idle in particular. The role
+     it filled was itself lent, from clip_idle.glb, and it was wrong on
+     every body in the cast — see LOOSE_CLIPS. Withdrawing the donor is
+     what fixed that; this makes the slot it filled one that only a
+     body's own animation can fill. */
+  const still = scored.filter(c => !c.role && c.cadence <= 0.45 && notSeat(c))
+                      .map(c => c.name);
   /* No idle is not a fault, it is a fact about the download: a body
      with nothing to do when standing simply never stops walking. That
      reads far better than freezing someone mid-stride. */
@@ -5514,23 +5660,51 @@ const STAND_CHAIN = ["hips", "spine", "leftupleg", "leftfoot",
    getting that wrong pops a student out of a bench. It wants its own
    render, not a ride on this one. */
 const LOOSE_CLIPS = [
-  /* Nine of the eleven roaming bodies have no idle at all, and a body
-     with nothing to do standing still NEVER STOPS WALKING — holdStill
-     and passingTime exist to paper over exactly that. */
-  { url: "assets/clip_idle.glb", name: "Idle",
-    chain: STAND_CHAIN, expect: "stand", hips: false,
-    wanted: (R) => !R.idle },
+  /* ── the Idle is withdrawn, for the second time ────────────────────
+     Reported from a phone: "they seem to be stuck in a weird idle where
+     they just swing around their torso", with two photographs of a
+     student rotating on planted feet.
+
+     It was withdrawn once before, when it came from walker, and the
+     note read: a near-still idle is almost all rest and almost no
+     change, so the error is the whole clip. I read that as a fact
+     about WALKER — his rest sat 90 degrees from his bind — and rebuilt
+     the clip as a skinless donor at a neutral Mixamo rest, expecting
+     that to settle it. It binds, and poseLooksWrong passes it.
+
+     The mismatch has two sides. lendClip carries the donor's change
+     from its own rest and applies it to THE RECEIVER'S rest, and the
+     receiver is a 24-bone StudentProductionRig, not a Mixamo skeleton.
+     Whatever residual the two rests disagree by is added to every
+     frame — and on a clip whose real motion is a few degrees of weight
+     shift, the residual IS the motion. The walk and the jog survive
+     the same treatment because a stride is large enough to swamp it.
+
+     So this is not a donor that can be fixed by rebuilding: a
+     near-still clip cannot be delta-retargeted between rigs whose
+     rests differ at all. It wants either a clip authored on the
+     production rig, or a retarget that solves for the rest difference
+     instead of assuming it away.
+
+     assets/clip_idle.glb stays in the repository. It costs 81KB, it is
+     the input either of those routes would start from, and deleting it
+     would only mean fetching it again.
+
+     What the campus does without one: a body with nothing to do
+     standing still never stops walking, which holdStill and
+     passingTime already paper over, and which reads far better than a
+     student twisting on the spot. */
   /* The forty-four second seated loop. Without it everybody else holds
      the sit's last frame, capped at 34 seconds — a statue, sitting
      down, which is the thing the seat machinery was built to remove. */
   { url: "assets/clip_talk.glb", name: "Sitting Talking",
-    chain: SIT_CHAIN, expect: "seated",
+    chain: SIT_CHAIN, expect: "seated", role: "seat",
     wanted: (R) => !R.seat },
   /* Asked for BY NAME: Amara is the one student written to run the
      campus. It stays out of the gait pool on purpose — reachable by
      name, never dealt at random, or the quad fills with joggers. */
   { url: "assets/clip_jog.glb", name: "Jogging",
-    chain: STAND_CHAIN, expect: "stand", tol: 0.5, hips: false,
+    chain: STAND_CHAIN, expect: "stand", tol: 0.5, hips: false, role: "gait",
     wanted: (R) => !R.gaits.includes("Jogging") },
 ];
 const looseDonors = new Map();
@@ -5682,12 +5856,13 @@ let sitDonor = null;
 
      Stand To Sit    nobody had one. Without it every student sits on
                      the grass and ten benches go unused.
-     Idle            nine of the eleven roaming bodies have none, and a
-                     body with nothing to do standing still NEVER
-                     STOPS WALKING — that is what holdStill and
-                     passingTime exist to paper over. It is also why
-                     Priya, who asks for a body that can stand about,
-                     could only ever be walker.
+     Idle            withdrawn twice now, and the second time settled
+                     why: a near-still clip cannot be delta-retargeted
+                     between rigs whose rests differ, because the
+                     residual between the rests is larger than the
+                     motion. See LOOSE_CLIPS. A body with nothing to do
+                     standing still never stops walking, which
+                     holdStill and passingTime paper over.
      Sitting Talking the forty-four second seated loop. Without it a
                      body holds the sit's last frame — capped at 34
                      seconds, because a held pose is the statue this was
@@ -5702,8 +5877,13 @@ let sitDonor = null;
    is what LOOSE_CLIPS lends. */
 function lendable(){
   return [
+    /* `role` is what this clip is FOR, and it is carried onto the lent
+       copy so that rolesOf does not have to work it out again from hip
+       heights it has already been told about. See the note above
+       seatRoles: a job asked for by name and gated on shape is not a
+       thing that should then have to audition. */
     { name: "Stand To Sit", from: sitDonor, clip: sitDonor && sitDonor.animations[0],
-      chain: SIT_CHAIN, expect: "sit",
+      chain: SIT_CHAIN, expect: "sit", role: "sit",
       wanted: (R) => !R.sit },
     /* ── the walk, from isla ──────────────────────────────────────────
        The authored characters arrive with no clips at all, and the
@@ -5730,7 +5910,7 @@ function lendable(){
        undeletable. Nothing on this campus is lent by a body any more. */
     { name: "Borrowed Walk", from: femWalkDonors.get(FEM_WALKS[0]),
       clip: femWalkDonors.get(FEM_WALKS[0])?.animations[0],
-      chain: STAND_CHAIN, expect: "stand", tol: 0.5, hips: false,
+      chain: STAND_CHAIN, expect: "stand", tol: 0.5, hips: false, role: "gait",
       wanted: (R) => !R.gaits.length },
     /* ── the pool, one job per donor ──────────────────────────────────
        Every pool walk goes to every female body — the ones that came
@@ -5745,7 +5925,7 @@ function lendable(){
     ...FEM_WALKS.map((url, i) => ({
       name: "Female Walk " + (i + 1), from: femWalkDonors.get(url),
       clip: femWalkDonors.get(url)?.animations[0],
-      chain: STAND_CHAIN, expect: "stand", tol: 0.5, hips: false,
+      chain: STAND_CHAIN, expect: "stand", tol: 0.5, hips: false, role: "gait",
       wanted: (R, k) => CAST_FEM.has(k) })),
     /* ── and the three that were walker's ─────────────────────────────
        Last in the list on purpose. Every job here asks the ROLES what a
@@ -5835,6 +6015,12 @@ function lendSitDown(){
          ever while collecting another copy of the idle every pass.
          It is the same motion; it has the same number of cycles. */
       lent.userData.cycles = job.clip.userData?.cycles ?? gaitCycles(lent);
+      /* What it was lent FOR, so nothing downstream has to guess. The
+         job was chosen by name and gated on shape three lines up;
+         rolesOf then measured the whole merged list back from scratch
+         and decided for itself. Two answers to one question, and only
+         one of them is what anybody asked for. See seatRoles. */
+      lent.userData.role = job.role || null;
       delete ROLE_CACHE[k];                     /* what this body can do just changed */
       got.push(k);
     }
@@ -7861,7 +8047,16 @@ function setVisualBinary(v){
   applyFog();
   stars.visible = !day;
   fireflies.visible = !day;
-  lampLights.forEach(l => l.intensity = day ? 0 : 3000);
+  /* Turned OFF, not turned down. three.js counts a light into the
+     shader by `visible`, never by intensity: eighteen lamps left
+     visible at intensity 0 still compile as NUM_POINT_LIGHTS 18 and
+     are evaluated, per fragment, over the whole daytime campus — a
+     full-screen cost paid for eighteen contributions of exactly
+     nothing. Reported from an Intel HD Graphics desktop at 5fps with
+     1523 draws; this was the largest single thing on that frame that
+     nobody could see. Changing the count makes three recompile the
+     programs once, on the switch, which is where a stall belongs. */
+  lampLights.forEach(l => { l.intensity = day ? 0 : 3000; l.visible = !day; });
   lampGlowMats.forEach(mm => mm.emissiveIntensity = day ? 0.05 : 2.5);
   glassGlowMats.forEach(mm => mm.emissiveIntensity = day ? 0 : 2.4);
   skylineMat.map = day ? skylinePair.day : skylinePair.night;
@@ -8425,7 +8620,13 @@ function dbgUpdate(now, dt, raw){
     (fps < 10 ? "       SLOW MOTION: the campus runs at " +
                 (fps / 10).toFixed(2) + "x real time below 10fps\n" : "") +
     "gpu    " + ((glInfo || "unknown").slice(0, 30)) + "\n" +
-    "post   " + (softGL ? "reduced (soft GL)" : "ssao+bloom+smaa") + "\n" +
+    "post   " + (softGL ? "reduced (soft GL)"
+                        : [ssao && "ssao", composer.passes.includes(bloom) && "bloom",
+                           !q.has("nosmaa") && "smaa"].filter(Boolean).join("+") || "none") +
+      "   dpr " + renderer.getPixelRatio() +
+      (renderer.shadowMap.enabled ? "  shadows " + sun.shadow.mapSize.x : "  no shadows") +
+      (rung ? "\n       quality rung " + rung + "/" + LADDER.length +
+              " — given up to hold " + FPS_WANT + "fps" : "") + "\n" +
     "draws  " + inf.render.calls + "   tris " + (inf.render.triangles / 1e6).toFixed(2) + "M\n" +
     "tex    " + inf.memory.textures + "   geo " + inf.memory.geometries + "\n" +
     "view   " + (interiorView ? "interior" : walker.on ? "walk" : "aerial") +
@@ -8469,6 +8670,10 @@ renderer.setAnimationLoop(() => {
      the 887 draws go. */
   if (convoView){ convoFrame(dt); dbgUpdate(now, dt, raw); return; }
   stepCrowd(now, dt, raw);
+  /* stepCrowd keeps the smoothed frame rate — one average, read by the
+     two things that react to a slow machine, rather than two averages
+     that can disagree about what the machine is doing. */
+  stepQuality(now, crowdFps);
   stepStudents(dt, now);
   if (walker.on) walkUpdate(dt);
   else { stepFlight(now); controls.update(); }
@@ -9383,6 +9588,19 @@ window.__castFiles = CAST_FILES;
 window.__onScreenCap = ON_SCREEN_MB;
 window.__castMB = CAST_MB;
 window.__bodyVram = BODY_VRAM_MB;
+/* test/debug hook: the breath itself. check-breath used to lift this
+   function out of the file with a regex and run it on a GLB loaded
+   straight from assets/ — which worked while bodies shipped with their
+   own clips and tested NOTHING the moment they stopped, because the
+   pose a student is held in is lent at load and lives only here. */
+window.__breathe = breathe;
+/* test/debug hook: what the campus concluded each body can do. Roles
+   are measured off the clips, and a wrong conclusion exists in no file
+   on disk — it exists only here, after the lending, which is why
+   nothing in this repository could see that every body in the cast was
+   holding a broken Idle until a photograph arrived from a phone.
+   See tools/check-roles.mjs. */
+window.__rolesOf = (k) => castLib[k] ? rolesOf(k, castLib[k]) : null;
 /* ...and who reads as a woman across a lawn. The harness kept its own
    copy of this list and the copy went stale — it still named four
    bodies that had been retired and none of the last four to land, so
@@ -9489,6 +9707,13 @@ window.__poseAt = (url, donorUrl, clipName, t, expect = "stand") =>
     mix.clipAction(r.clip).play();
     mix.setTime(t);
     __poseRig = { holder, mix };
+    /* test/debug hook: the figure itself, and the mixer holding it.
+       check-breath drives exactly this pair — mixer re-seeks one frame,
+       breathe() adds on top — because that is the state a held student
+       is in, and the state in which breathe() once accumulated its own
+       output into a slow full-circle head roll. A harness that cannot
+       reach the figure cannot watch its head. */
+    window.__posed = { fig: holder, mix, t };
     return { ok: true, tracks: r.tracks, why: r.why, dur: r.clip.duration };
   });
 /* test/debug hook: what the sit-down looks like on a given body, and

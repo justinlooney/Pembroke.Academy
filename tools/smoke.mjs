@@ -233,6 +233,35 @@ try {
   step("day/night cycle reaches night", night,
        await page.evaluate(() => window.__visual).catch(() => "?"));
 
+  /* ── the quality ladder, climbed all the way down ──────────────────
+     A machine that cannot hold the frame gives up SSAO, then pixel
+     ratio, then the sun's shadow map, then shadows, then bloom. None
+     of that ever runs here: stepQuality refuses to fire on a software
+     rasterizer, because this renderer's frame rate is a fact about a
+     CPU and would shed the whole ladder in fifteen seconds, leaving
+     every check below measuring a campus no visitor is shown.
+   *
+     So the rungs are the one part of the renderer that only executes
+     on hardware nobody testing it owns — removing a pass from a live
+     composer, disposing a shadow map mid-frame, invalidating every
+     material on the campus. Each either works or throws. Forced here,
+     one at a time, and the campus has to still be drawing at the end;
+     a throw inside one lands in `errors` and fails the step below too. */
+  const shed = await page.evaluate(async () => {
+    const out = [];
+    for (let i = 0; i < 12; i++){
+      const r = window.__shedRung();
+      out.push(r.rung);
+      await new Promise(ok => requestAnimationFrame(() => requestAnimationFrame(ok)));
+      if (r.done) break;
+    }
+    return { rungs: window.__rung(), draws: window.__app.renderer.info.render.calls,
+             steps: out };
+  }).catch(e => ({ err: String(e).split("\n")[0] }));
+  step("the campus still draws with every quality rung given up",
+       !shed.err && shed.rungs >= 5 && shed.draws > 50,
+       shed.err || `shed ${shed.rungs} rungs, still ${shed.draws} draws`);
+
   step("no console errors or failed assets", errors.length === 0,
        errors.slice(0, 5).join(" | "));
 

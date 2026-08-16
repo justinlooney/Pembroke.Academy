@@ -73,6 +73,17 @@ jobs:
       - name: Does a standing figure stay where it was put?
         run: node tools/check-breath.mjs
 
+      # Every clip a body wears is LENT — asked for by name, gated on
+      # shape, then handed over. rolesOf then measured the merged list
+      # back from scratch and decided for itself what each one was: two
+      # answers to one question. A role is a pose somebody stands in on
+      # the quad and it exists in no file on disk, only in memory after
+      # the lending — which is why a broken idle went out on all twelve
+      # bodies and came back from a phone as "they just swing around
+      # their torso", with nothing in this suite having an opinion.
+      - name: Is every lent clip doing the job it was lent for?
+        run: node tools/check-roles.mjs
+
       # assets/site.css is compiled from the classes the page used the
       # day it was built. A class added afterwards simply does nothing —
       # no error, no failed request, just an element quietly missing its
