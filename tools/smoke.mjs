@@ -204,6 +204,22 @@ try {
   /* walk mode: stand at the cathedral doors and expect the prompt */
   step("walk mode engages", await pressUntil("f", () => window.__walker.on === true));
 
+  /* The drop point, tested against every wall. v94 shipped with the
+     walk-in point at 500,802 INSIDE a building that had been moved
+     that morning — the player materialised trapped between buttress
+     piers, and every check here stayed green, because the student
+     graph routes around buildings and nothing ever asked where the
+     PLAYER begins. One containment test per collider is the whole
+     check. */
+  const trapped = await page.evaluate(() => {
+    const w = window.__walker;
+    return (window.__colliders || []).filter(c =>
+      w.x >= c.x && w.x <= c.x + c.w && w.y >= c.y && w.y <= c.y + c.d)
+      .map(c => `${c.w}x${c.d} at ${c.x},${c.y}`);
+  });
+  step("the walk-in point is not inside a wall", trapped.length === 0,
+       trapped.join(" | ") || "clear of every collider");
+
   /* the chapel lives on the North Quad now — same sector key, new door */
   await page.evaluate(() => { const w = window.__walker; w.x = 500; w.y = -292; w.h = 0; });
   const doored = await page
