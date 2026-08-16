@@ -3672,10 +3672,27 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
     .forEach((p, i) => EZ_SETS[i % 2 ? "m011" : "m010"].push(p));
   /* a conifer screen between the east drive and the neighboring district */
   for (let y = 140; y <= 940; y += 88) (y % 176 < 88 ? PINES1 : PINES2).push([1085 + (y * 7) % 26, y, 1 + (y * 13) % 30 / 55]);
-  const TREE2S = [[300,330,1.1],[360,268,0.9],[700,332,1],[268,640,1.05],[352,708,0.95],
-                  [652,712,1.1],[726,640,0.9],[262,360,0.95],[738,368,1.05],[640,268,0.9]];
-  const TSMALL = [[840,300,1],[840,420,0.9],[840,540,1.1],[130,420,1],[130,540,0.95],
-                  [430,772,0.9],[390,838,1],[586,806,0.95]];
+  /* ── halved, on the author's instruction ──────────────────────────
+     "remove half of these trees with no leaves from the quad." These
+     eighteen are the maples — the ones the comment below calls "the
+     eighteen trees closest to the quad, the ones you walk under" — and
+     they had been planted three and four to a corner, which from
+     inside the ring reads as a thicket of trunks rather than as a
+     framed lawn.
+
+     Cut to nine, by CORNER rather than by cutting the tail off the
+     list: one maple at each corner of the quad, one extra to break the
+     symmetry, and the small set thinned to the ends of each run so the
+     east column and the south walk still read as plantings rather than
+     as leftovers. Halving a list by index would have emptied the south
+     side and left the east wall of trees standing.
+
+     It buys something real, too: instancing saves draw calls, never
+     triangles, so nine fewer maples is nine trees' worth of geometry
+     off a frame that a phone is already shedding quality to hold. */
+  const TREE2S = [[300,330,1.1],[700,332,1],[268,640,1.05],
+                  [652,712,1.1],[738,368,1.05]];
+  const TSMALL = [[840,300,1],[840,540,1.1],[130,420,1],[586,806,0.95]];
   const BUSHA = [[218,318,1],[302,322,0.9],[698,300,1.05],[782,304,0.95],
                  [196,812,1],[300,820,0.9],[692,826,1.05],[794,830,0.95],
                  [100,246,0.9],[178,248,1],[222,300,0.9],[222,372,1],[100,416,0.95],[178,414,0.9]];
@@ -3711,7 +3728,8 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
   const FLORA = [
     ["assets/plantpack.glb", [["pine1", PINES1, 78, true], ["pine2", PINES2, 66, true],
                               ["bushbig", BUSHA, 10], ["bushmed", BUSHB, 8], ["bushflower", BUSHC, 7]]],
-    /* The eighteen trees closest to the quad — the ones you walk under.
+    /* The trees closest to the quad — the ones you walk under. Eighteen
+       of them until the author asked for half; nine now, see TREE2S.
        They were plantpack's stylised shapes, which are 211 triangles for
        the entire pack of eight meshes: pleasant at a distance, and the
        reason the campus still read as bubbles up close.
