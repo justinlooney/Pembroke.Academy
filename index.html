@@ -1919,7 +1919,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v96";
+const BUILD = "pembroke-v97";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -3542,8 +3542,11 @@ const EZ_SETS = { m011: [], m002: [], m010: [], l009: [] };
   const T = TREE_SETS;
   const E = EZ_SETS;
   /* the ring arc along the oval's north side — photoreal maples up close */
-  [[10,235],[80,235],[100,235],[170,235],[190,235],[260,235],[280,235],[350,235],
-   [35,258],[145,258],[215,258],[325,258]].forEach(([a, r], i) => {
+  /* Halved again, on the author's word: "remove half of the trees on
+     the quad it is too crowded." Twelve stood on this arc; six keep
+     the rhythm — every other position, both radii represented. */
+  [[10,235],[100,235],[190,235],[280,235],
+   [35,258],[215,258]].forEach(([a, r], i) => {
     const rad = a * Math.PI / 180;
     T[i % 3 === 2 ? "elm" : "maple"].push([500 + r * Math.cos(rad), 500 + r * Math.sin(rad), 0.95 + (a % 7) / 16]);
   });
@@ -3561,6 +3564,17 @@ const EZ_SETS = { m011: [], m002: [], m010: [], l009: [] };
   /* maple allées flanking the walk, north approach and south entry */
   [130, 195, 265, 345].forEach(y => { T.maple.push([462, y, 0.76 + (y % 20) / 160], [538, y, 0.8 + (y % 17) / 160]); });
   [655, 735, 815].forEach(y => { T.maple.push([462, y, 0.76 + (y % 19) / 160], [538, y, 0.8 + (y % 23) / 160]); });
+  /* Every planted tree gets a collider the size of its trunk. Only
+     the four specimen maples ever had one — the allées flank the
+     spine walk sixteen units off the paving with nothing stopping the
+     camera, and at walker r=10 with the near plane two ahead, a
+     shoulder brushed through a trunk is a black frame: "still get a
+     black screen sometimes" was the trees, after the piers were
+     fixed. Tagged tree:true so the road audit can ignore them — the
+     avenues line the drives on purpose. */
+  for (const sp of Object.keys(T))
+    for (const [px, py] of T[sp])
+      COLLIDERS.push({ x: px - 4, y: py - 4, w: 8, d: 8, tree: true });
   /* The eight "groves flanking each diagonal spoke" are gone. Their
      own comment said they stood "within a few feet of the walkways",
      and measured, that was optimistic: grove centres sat 8 units off a
@@ -3822,9 +3836,14 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
      clears every wall by 14, stays off the lawn, the ring and the
      axial walks, and keeps 60 from the next maple. Moved rather than
      deleted: the instruction was half of them, and half is nine. */
-  const TREE2S = [[300,330,1.1],[684,332,1],[268,640,1.05],
-                  [624,712,1.1],[738,418,1.05]];
-  const TSMALL = [[840,300,1],[840,540,1.1],[68,420,1],[586,806,0.95]];
+  /* Halved a second time — "remove half of the trees on the quad it
+     is too crowded." Nine maples became five in the first cut; the
+     quad groups now carry three and two, still spread so no side of
+     the lawn goes bare. The avenues and belts are untouched: the
+     author's reference lines its walks with trees, it is the OPEN
+     ground that wants air. */
+  const TREE2S = [[300,330,1.1],[624,712,1.1],[738,418,1.05]];
+  const TSMALL = [[840,540,1.1],[68,420,1]];
   const BUSHA = [[218,318,1],[302,322,0.9],[698,300,1.05],[782,304,0.95],
                  [196,812,1],[300,820,0.9],[692,826,1.05],[794,830,0.95],
                  [100,246,0.9],[178,248,1],[222,300,0.9],[222,372,1],[100,416,0.95],[178,414,0.9]];
@@ -3857,6 +3876,16 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
   const FEATURE = [[430, 962, 1], [570, 962, 0.94],
                    [412, 1150, 1.06], [588, 1150, 0.98],
                    [372, 1136, 0.9], [628, 1136, 0.92]];
+  /* trunk colliders for everything planted below with a real trunk —
+     same reasoning as the campus tree sets above: a tree the camera
+     can walk through is a black frame waiting for a shoulder. Bushes
+     and flowers stay walkable. */
+  for (const list of [TREE2S, TSMALL, AVEN_W, AVEN_E, FEATURE])
+    for (const [px, py] of list)
+      COLLIDERS.push({ x: px - 4, y: py - 4, w: 8, d: 8, tree: true });
+  for (const list of Object.values(EZ_SETS))
+    for (const [px, py] of list)
+      COLLIDERS.push({ x: px - 4, y: py - 4, w: 8, d: 8, tree: true });
   const FLORA = [
     ["assets/plantpack.glb", [["pine1", PINES1, 78, true], ["pine2", PINES2, 66, true],
                               ["bushbig", BUSHA, 10], ["bushmed", BUSHB, 8], ["bushflower", BUSHC, 7]]],
@@ -4867,16 +4896,15 @@ const CAST_PLAN = [
   { k: "loiter", at: [286, 838], face:  0.2, live: true, pose: 1 }, /* Jun — Alden front.
      He stood at 270,700 — inside the science hall, behind its south
      wall. Out on the front now, facing the quad. */
-  /* Sofia — ON A BENCH. Her plan parked her on open lawn playing the
-     seated loop, and a seated pose holds the hips at bench height —
-     lendClip writes the descent as a vertical drop to sitTo, about
-     nine units up. Under the old slouching Sitting Talking that read
-     as lounging on the grass; the authored Sitting Idle is an upright
-     chair-sit, and she became "a girl sitting on the air". The pose
-     was never wrong — the chair was missing. This is the ring bench
-     at 15 degrees; freeSeat knows to leave it hers. */
-  { k: "any", needs: "seat", at: [614, 530.5], face: 1.309,
-    kind: "laptop", clip: "seat" },
+  /* Sofia — a roamer now, like everyone else. She spent two designs
+     parked: first on open lawn playing the seated loop nine units up
+     ("a girl sitting on the air" — the chair was missing), then
+     bolted to a bench, where the author's next report was simply
+     "she never walks". The brief is a cycle — walk, sit five to ten
+     seconds, stand, walk — and a student pinned to one bench all
+     visit is the statue problem wearing a new pose. The roamer
+     machinery already sits her down properly when a bench is free. */
+  { k: "any", needs: "seat" },
   { k: "any" },                                             /* Theo   — roams        */
   /* Amara used to lap the ring at 182 — which, with the player standing
      in the middle of it, meant she was on screen permanently. She runs
@@ -7557,11 +7585,7 @@ function freeSeat(from){
   let best = null, bestD = SIT_RANGE;
   for (const seat of SEATS){
     if (seat.taken) continue;
-    /* Sofia is parked on this one for the whole visit, and she is
-       static — she never claims it through the roamer machinery, so
-       without this line a roamer sits down in her lap. */
-    if (students.some(o => o.static && o.kind === "laptop" &&
-        Math.hypot(seat.x - o.pos[0], seat.y - o.pos[1]) < 8)) continue;
+
     const d = Math.hypot(seat.x - from.pos[0], seat.y - from.pos[1]);
     if (d < bestD){ bestD = d; best = seat; }
   }
@@ -8701,7 +8725,14 @@ function collide(nx, ny){
      ballpark, the walker has to be allowed to follow
      them — a path to an invisible wall is worse than no path. Still
      bounded, and every landmark out there is solid. */
-  if (nx < -640 || nx > 1560 || ny < 20 || ny > 1520) return true;
+  /* The north bound was 20 — plane coordinates, where the ENTIRE
+     North Quad is negative: the chapel at -420, its ring at -180, the
+     door the campus tells you to walk to at -300. The fence was
+     widened south to the stadium when the ways grew that way and
+     never widened north when the quad did: "still cant walk on quad
+     where cathedral is" was a player sliding along an invisible wall
+     at the quad's threshold. Bounded just past the chapel tower. */
+  if (nx < -640 || nx > 1560 || ny < -470 || ny > 1520) return true;
   for (const c of COLLIDERS){
     if (nx > c.x - r && nx < c.x + c.w + r && ny > c.y - r && ny < c.y + c.d + r) return true;
   }
@@ -9832,6 +9863,16 @@ function convoClose(){
   g.rotation.y = convoHome.rot;
   g.visible = convoHome.vis;
   g.userData.animate = convoHome.animate;
+  /* Put the STANCE back, not just the body. The close-up plays the
+     Talking clip now, and stepStudents never steps a static figure —
+     so a parked student came back from a conversation still gesturing,
+     forever, alone on her plaza: "this one is stuck in a talking cycle
+     and won't stop." A roamer heals itself on its next step; the
+     parked cast has to be re-parked the same way it was built. */
+  const s = students.find(o => o.g === g);
+  if (s && s.static && g.userData.anim?.current === s.roles?.talk){
+    s.held = holdStance(g);
+  }
   convoHomeCull.forEach(([o, was]) => { o.frustumCulled = was; });
   convoHomeCull = [];
   /* Dropped with the view. Holding a bone reference from a figure that
