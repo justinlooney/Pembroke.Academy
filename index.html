@@ -2230,6 +2230,15 @@ function canvasTex(px, draw, repeat){
   t.colorSpace = THREE.SRGBColorSpace;
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   if (repeat) t.repeat.set(repeat, repeat);
+  /* Anisotropy, for the same reason sharpen() sets it on every body:
+     the default of 1 is the setting that ruins a surface seen at an
+     angle. On a shirt it blurs a fold; on the GROUND it is every
+     paving stone from here to the horizon, sampled along the axis the
+     mipmap chain cannot represent — which reads as the paving
+     crawling. The bodies got this fix and the world it stands on
+     never did. One property, no extra memory, capped at 8 where the
+     returns stop and some mobile drivers start charging. */
+  t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy() || 1);
   return t;
 }
 const speck = (x, px, n, tones, a) => {
@@ -2393,6 +2402,49 @@ const skyline = new THREE.Mesh(new THREE.PlaneGeometry(3000, 250), skylineMat);
 skyline.position.set(-260, 92, -1650);
 world.add(skyline);
 
+/* ── how far apart two things lying on the ground have to be ─────────
+   Reported from a phone, of the aerial view: "it looks like a bunch of
+   moving lines on the roadways". They are z-fighting, and the numbers
+   say so. Everything flat on this campus was stacked inside a band
+   0.16 to 0.42 units deep — walkway 0.26 against ring 0.30, lot 0.22
+   against its stall lines 0.30 — and those pairs OVERLAP, the spokes
+   running into the ring and the lines lying on the lot.
+
+   Depth precision is not a constant. With a near plane of 2 and a
+   24-bit buffer it is about z-squared over (near x 2^24): a hair over
+   a thousandth of a unit where you stand, but 0.04 at the aerial
+   camera's 1,140 and 0.09 at the 1,710 a portrait phone pulls back
+   to. Gaps of 0.04 and 0.08 are therefore BELOW the resolution of the
+   view they are seen in, so the two surfaces swap pixel by pixel and
+   the swap moves with the camera. Which is what was photographed.
+
+   So the layers are spaced by a number bigger than that, and written
+   down in one place instead of appearing four hundred lines apart:
+   nothing here is closer than 0.3 to the thing it overlaps, about
+   three times the worst-case precision. Under a figure 42 units tall,
+   0.6 of a unit is two and a half centimetres — invisible standing on
+   it, decisive from the air.
+
+   Belt as well as braces: every decal that lies ON another surface
+   also gets polygonOffset, which biases in depth-buffer units rather
+   than world units and so holds at any distance. The heights alone
+   would probably do it; the pair certainly does, and this has been
+   photographed once already. */
+const GROUND = {
+  verge:    0.05,  /* mown edge, under the walks */
+  shoulder: 0.10,  /* kerb-dark edge, under the carriageway */
+  lot:      0.15,  /* parking asphalt */
+  ring:     0.30,  /* the oval walks and the plaza */
+  road:     0.40,  /* the campus drive, which crosses lots and walks */
+  walk:     0.70,  /* ribbons, which cross the rings and the drive */
+  mark:     0.95,  /* stall lines, crossings, centre dashes — paint,
+                      and the zebra crossing lies on the WALK where it
+                      meets the drive, so this clears the walk too */
+};
+/* a decal is biased toward the camera in DEPTH units, so it wins the
+   comparison at any distance rather than only close up */
+const decal = (m) => Object.assign(m, { polygonOffset: true,
+  polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
 const pathMat = new THREE.MeshStandardMaterial({ map: pathTex, bumpMap: pathBump, bumpScale: 0.4,
   roughness: 0.55, metalness: 0.06, envMapIntensity: 0.6 });
 /* ── curved ways ─────────────────────────────────────────────────────
@@ -2432,12 +2484,12 @@ function ribbonGeom(pts, width, lift){
    also be tiled by the material */
 const walkTex = pathTex.clone(); walkTex.repeat.set(1, 1); walkTex.needsUpdate = true;
 const walkBump = pathBump.clone(); walkBump.repeat.set(1, 1); walkBump.needsUpdate = true;
-const walkMat = new THREE.MeshStandardMaterial({ map: walkTex, bumpMap: walkBump,
-  bumpScale: 0.4, roughness: 0.55, metalness: 0.06, envMapIntensity: 0.6 });
-function walkway(pts, width = 26, y = 0.26){
+const walkMat = decal(new THREE.MeshStandardMaterial({ map: walkTex, bumpMap: walkBump,
+  bumpScale: 0.4, roughness: 0.55, metalness: 0.06, envMapIntensity: 0.6 }));
+function walkway(pts, width = 26, y = GROUND.walk){
   /* a mown verge under every way, so it meets the grass instead of
      being pasted on top of it */
-  const v = new THREE.Mesh(ribbonGeom(pts, width + 14, 0.13), vergeMat);
+  const v = new THREE.Mesh(ribbonGeom(pts, width + 14, GROUND.verge), vergeMat);
   world.add(v);
   const m = new THREE.Mesh(ribbonGeom(pts, width, y), walkMat);
   m.receiveShadow = true;
@@ -2450,13 +2502,13 @@ let fountainWater = null;
 /* the great oval ring + spokes (same plan as before) */
 {
   const ring = new THREE.Mesh(new THREE.RingGeometry(168, 197, 96), pathMat);
-  ring.rotation.x = -Math.PI / 2; ring.position.set(0, 0.3, 0); ring.receiveShadow = true;
+  ring.rotation.x = -Math.PI / 2; ring.position.set(0, GROUND.ring, 0); ring.receiveShadow = true;
   world.add(ring);
   /* the North Quad's own ring, tighter than the great oval, its lawn
      left empty on purpose — the whole point of the second quad is
      ground you can cross without walking into anything */
   const nring = new THREE.Mesh(new THREE.RingGeometry(106, 134, 96), pathMat);
-  nring.rotation.x = -Math.PI / 2; nring.position.set(0, 0.3, -680); nring.receiveShadow = true;
+  nring.rotation.x = -Math.PI / 2; nring.position.set(0, GROUND.ring, -680); nring.receiveShadow = true;
   world.add(nring);
   /* The ways, described by what they join rather than by rectangles.
      The four hall doors sit at the corners — library NW, engineering NE,
@@ -2533,12 +2585,12 @@ let fountainWater = null;
      translucent stone veil, so the halls and lamps reflect in it */
   const mirror = new Reflector(new THREE.CircleGeometry(66, 48), {
     textureWidth: 1024, textureHeight: 1024, clipBias: 0.004, color: 0x8a9096 });
-  mirror.rotation.x = -Math.PI / 2; mirror.position.y = 0.3;
+  mirror.rotation.x = -Math.PI / 2; mirror.position.y = GROUND.ring;
   world.add(mirror);
   const plaza = new THREE.Mesh(new THREE.CircleGeometry(66, 48),
     new THREE.MeshStandardMaterial({ map: pathTex, roughness: 0.35, metalness: 0.05,
       transparent: true, opacity: 0.62 }));
-  plaza.rotation.x = -Math.PI / 2; plaza.position.y = 0.42; plaza.receiveShadow = true;
+  plaza.rotation.x = -Math.PI / 2; plaza.position.y = GROUND.ring + 0.12; plaza.receiveShadow = true;
   world.add(plaza);
   const basin = new THREE.Mesh(new THREE.CylinderGeometry(24, 26, 7, 24),
     new THREE.MeshStandardMaterial({ color: 0x8a8272, roughness: 1 }));
@@ -2573,13 +2625,13 @@ let fountainWater = null;
 const lotMat = new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: 1 });
 function lot(px, py, w, d, stalls){
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), lotMat);
-  m.rotation.x = -Math.PI / 2; m.position.set(W(px + w/2), 0.22, W(py + d/2)); m.receiveShadow = true;
+  m.rotation.x = -Math.PI / 2; m.position.set(W(px + w/2), GROUND.lot, W(py + d/2)); m.receiveShadow = true;
   world.add(m);
-  const lineMat = new THREE.MeshBasicMaterial({ color: 0xd8d4c8 });
+  const lineMat = decal(new THREE.MeshBasicMaterial({ color: 0xd8d4c8 }));
   for (let i = 0; i <= stalls; i++){
     const ln = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.42, 1.4), lineMat);
     ln.rotation.x = -Math.PI / 2;
-    ln.position.set(W(px + w * 0.26), 0.3, W(py + 8 + i * ((d - 16) / stalls)));
+    ln.position.set(W(px + w * 0.26), GROUND.mark, W(py + 8 + i * ((d - 16) / stalls)));
     world.add(ln);
   }
 }
@@ -2589,7 +2641,7 @@ lot(16, 430, 70, 240, 5);
    a shoulder, a dashed centre line, lot spurs, and a crossing where the
    south walk meets it */
 {
-  const dashMat = new THREE.MeshBasicMaterial({ color: 0xd8d4c8 });
+  const dashMat = decal(new THREE.MeshBasicMaterial({ color: 0xd8d4c8 }));
 
   /* The drive used to be three straight legs meeting at right angles —
      a square drawn around the campus. Real ones bend: they follow the
@@ -2603,20 +2655,26 @@ lot(16, 430, 70, 240, 5);
     const mat = new THREE.MeshStandardMaterial({ map: t, color: 0xb8bcc2, roughness: 1 });
     /* a kerb-dark shoulder just proud of the carriageway, since a curved
        drive cannot take the straight kerb boxes the old legs used */
-    const sh = new THREE.Mesh(ribbonGeom(pts, width + 7, 0.16),
+    const sh = new THREE.Mesh(ribbonGeom(pts, width + 7, GROUND.shoulder),
       new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 1 }));
     world.add(sh);
-    const m = new THREE.Mesh(ribbonGeom(pts, width, 0.22), mat);
+    /* The carriageway lies ON the shoulder along its whole length and
+       the centre line lies on the carriageway — three ribbons sharing
+       one footprint, and they were spaced 0.16 / 0.22 / 0.31. Six and
+       nine hundredths of a unit, against a depth resolution of four to
+       nine hundredths where the aerial camera sits. These are the
+       roadway's moving lines. */
+    const m = new THREE.Mesh(ribbonGeom(pts, width, GROUND.road), decal(mat));
     m.receiveShadow = true;
     world.add(m);
     /* centre line, dashed along the curve */
-    const g = ribbonGeom(pts, 2.4, 0.31);
-    const dash = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+    const g = ribbonGeom(pts, 2.4, GROUND.mark);
+    const dash = new THREE.Mesh(g, decal(new THREE.MeshBasicMaterial({
       map: (() => { const d = canvasTex(64, (x) => {
               x.fillStyle = "#000"; x.fillRect(0, 0, 64, 64);
               x.fillStyle = "#e8e2c8"; x.fillRect(0, 10, 64, 30); }, 1);
             d.wrapT = THREE.RepeatWrapping; return d; })(),
-      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })));
     world.add(dash);
   };
   drive([[-40, 1080], [40, 980], [70, 880], [64, 700], [50, 560],
@@ -2638,7 +2696,7 @@ lot(16, 430, 70, 240, 5);
   for (let k = 0; k < 6; k++){     /* zebra crossing where the south walk meets the drive */
     const stripe = new THREE.Mesh(new THREE.PlaneGeometry(34, 3.2), dashMat);
     stripe.rotation.x = -Math.PI / 2;
-    stripe.position.set(W(500), 0.34, W(996 + 4.8 * k));
+    stripe.position.set(W(500), GROUND.mark, W(996 + 4.8 * k));
     world.add(stripe);
   }
 }
