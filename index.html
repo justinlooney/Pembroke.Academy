@@ -3273,16 +3273,28 @@ BUILDINGS.forEach(spec => {
      footprint and the hall stands short rather than being clipped: at
      150 this one would have reached 70 units instead of 96 and read as
      a model that came out wrong. */
+  /* Sited south of where it first landed. Measured, the two footprints
+     INTERSECTED: at plane y 374 the hall spans y 266-482 and the
+     library range spans 150-310, so 44 units of residence hall stood
+     inside the library — the buildings "jammed into each other" in the
+     aerial. At 460 it clears the library by 42 and the science hall by
+     93, and its size and proportions are untouched: only the plot
+     moved. */
   OUTER.push(["assets/reshall.glb", {
-    plane: [149, 374], height: 96, rotY: Math.PI / 2, maxFoot: [130, 215],
+    plane: [149, 460], height: 96, rotY: Math.PI / 2, maxFoot: [130, 215],
     sink: 2.4, collider: "auto", vista: "Pembroke Residence Hall",
   }]);
   /* terracotta refectory */
   stoneBox(amb, { x: 700, y: 330, w: 110, d: 72, h: 46, windows: "lancet", seed: 18, accent: "#f0b47a", noRoof: true });
   gableRoof(amb, { x: 700, y: 330, w: 110, d: 72, z: 46, h: 30, terra: true });
   /* south hall + moderns */
-  stoneBox(amb, { x: 340, y: 795, w: 140, d: 100, h: 58, windows: "lancet", ivy: true, seed: 19, accent: "#d9c48a", noRoof: true });
-  gableRoof(amb, { x: 340, y: 795, w: 140, d: 100, z: 58, h: 34, copper: true });
+  /* Moved north-east off two neighbours at once. At 340,795 its west
+     face touched the science hall EXACTLY — a gap of zero, two walls
+     sharing a line — and its south-east corner ran fifteen units into
+     the gatehouse. 370,748 clears the science hall by 30, the
+     gatehouse by 30 and the modern block by 60. */
+  stoneBox(amb, { x: 370, y: 748, w: 140, d: 100, h: 58, windows: "lancet", ivy: true, seed: 19, accent: "#d9c48a", noRoof: true });
+  gableRoof(amb, { x: 370, y: 748, w: 140, d: 100, z: 58, h: 34, copper: true });
   stoneBox(amb, { x: 120, y: 852, w: 190, d: 86, h: 64, parapet: 5, windows: "modern", seed: 20, accent: "#bcd2de" });
   stoneBox(amb, { x: 740, y: 872, w: 160, d: 74, h: 52, parapet: 5, windows: "modern", seed: 21, accent: "#bcd2de" });
   /* chimney stacks along the range ridges, rooftop units on the moderns */
@@ -3296,7 +3308,7 @@ BUILDINGS.forEach(spec => {
       k.position.set(W(px), baseY + h3 + 1.2, W(py)); k.castShadow = true; amb.add(k);
     };
     [[888, 290], [888, 395], [888, 500]].forEach(([px, py]) => chimney(px, py, 88, 18));
-    [[372, 845], [448, 845]].forEach(([px, py]) => chimney(px, py, 78, 16));
+    [[402, 798], [478, 798]].forEach(([px, py]) => chimney(px, py, 78, 16));
     const acMat = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.7, metalness: 0.3 });
     [[168, 880], [242, 902], [788, 894], [852, 906]].forEach(([px, py], i) => {
       const u = new THREE.Mesh(new THREE.BoxGeometry(15, 7, 11), acMat);
@@ -3308,7 +3320,12 @@ BUILDINGS.forEach(spec => {
   stoneBox(amb, { x: 456, y: 880, w: 88, d: 46, h: 62, parapet: 7, arch: true, clock: true,
                   seed: 7, accent: "#d4af6a", noCollide: true });
   COLLIDERS.push({ x: 456, y: 880, w: 26, d: 46 }, { x: 518, y: 880, w: 26, d: 46 });
-  stoneBox(amb, { x: 257, y: 874, w: 27, d: 36, h: 96, parapet: 6, windows: "slits", seed: 8, accent: "#d4af6a" });
+  /* The pair flanks the gate arch, and only one of them was doing it.
+     This one stood at x 257 — 180 units west, entirely INSIDE the
+     modern block at 120,852, a ninety-six-foot turret growing out of
+     a flat parapet roof. Mirrored about the gate's centre line so it
+     answers its twin at 536. */
+  stoneBox(amb, { x: 437, y: 874, w: 27, d: 36, h: 96, parapet: 6, windows: "slits", seed: 8, accent: "#d4af6a" });
   stoneBox(amb, { x: 536, y: 874, w: 27, d: 36, h: 96, parapet: 6, windows: "slits", seed: 9, accent: "#d4af6a" });
   /* landscaping: shrub balls flanking the hall doors — all that
      remains of a scheme that once hedged and flower-bedded the lawn
@@ -3690,9 +3707,16 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
      It buys something real, too: instancing saves draw calls, never
      triangles, so nine fewer maples is nine trees' worth of geometry
      off a frame that a phone is already shedding quality to hold. */
-  const TREE2S = [[300,330,1.1],[700,332,1],[268,640,1.05],
-                  [652,712,1.1],[738,368,1.05]];
-  const TSMALL = [[840,300,1],[840,540,1.1],[130,420,1],[586,806,0.95]];
+  /* Three of the five survivors stood INSIDE a building — 700,332 and
+     738,368 in the refectory, 652,712 in the administration hall — and
+     the small one at 130,420 was inside the residence hall's plot both
+     before and after it moved. Nudged to the nearest ground that
+     clears every wall by 14, stays off the lawn, the ring and the
+     axial walks, and keeps 60 from the next maple. Moved rather than
+     deleted: the instruction was half of them, and half is nine. */
+  const TREE2S = [[300,330,1.1],[684,332,1],[268,640,1.05],
+                  [624,712,1.1],[738,418,1.05]];
+  const TSMALL = [[840,300,1],[840,540,1.1],[68,420,1],[586,806,0.95]];
   const BUSHA = [[218,318,1],[302,322,0.9],[698,300,1.05],[782,304,0.95],
                  [196,812,1],[300,820,0.9],[692,826,1.05],[794,830,0.95],
                  [100,246,0.9],[178,248,1],[222,300,0.9],[222,372,1],[100,416,0.95],[178,414,0.9]];
