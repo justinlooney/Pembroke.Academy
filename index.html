@@ -2045,7 +2045,29 @@ function applyFog(){
    main thread, and stripping the renderer because a GLB was being
    parsed would strip it on every machine, permanently, for a reason
    that has nothing to do with drawing. */
-const FPS_WANT = 40;             /* below this, sustained, give something up */
+/* ── the frame this is aiming at, and the frame it acts on ────────────
+   FPS_WANT is the target: 60, the number this campus has been held to
+   from the start.
+
+   FPS_SHED is what actually triggers a rung, and it is not the same
+   number, because 60 is a CEILING rather than a rate. A display holding
+   perfect vsync is being asked for a frame every 16.67ms and cannot be
+   asked for one sooner, so a smoothed average of it sits at or a shade
+   under 60 for ever — one long frame while a texture uploads, one
+   compositor hiccup, and the average never fully returns. Triggering on
+   "below 60" would therefore strip every machine ever, including the
+   ones drawing this perfectly, and since rungs never climb back it
+   would strip them permanently. Five frames of margin is the difference
+   between a machine that is holding the target and one that is not.
+
+   Raised here from 40. Forty was "playable"; sixty is the target, and
+   the cost of asking for it is that a mid-range card sitting at 50 will
+   now shed rungs it would have kept — which is the trade, stated: this
+   campus would rather run at 60 with no ambient occlusion than at 50
+   with it. ?noladder keeps everything and lets it run at whatever it
+   runs at. */
+const FPS_WANT = 60;
+const FPS_SHED = FPS_WANT - 5;   /* below this, sustained, give something up */
 const RUNG_MS = 3000;            /* how long a rung gets before the next one */
 let rung = 0, rungAt = 0;
 const LADDER = [
@@ -2069,7 +2091,7 @@ function stepQuality(now, fpsNow){
      already has its own reduced chain, decided at load. */
   if (softGL) return;
   if (!assetLog.length || assetLog.some(a => a.ms == null && !a.late)) return;
-  if (fpsNow >= FPS_WANT){ rungAt = 0; return; }
+  if (fpsNow >= FPS_SHED){ rungAt = 0; return; }
   if (!rungAt){ rungAt = now + RUNG_MS; return; }   /* sustained, not a stutter */
   if (now < rungAt) return;
   LADDER[rung++]();
