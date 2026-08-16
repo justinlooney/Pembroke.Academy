@@ -1637,12 +1637,12 @@ function wallURI(orient, natW, natH, o, mode){
   }
   const p = o.parapet || 0, acc = o.accent || "#d4af6a", seed = o.seed || 0;
   const P = day ? {
-    st1:"#c4b598", st2:"#a3947a", line:"rgba(74,60,40,.2)",
-    butt:"#a89877", buttEdge:"rgba(60,48,30,.35)", cap:"#cfc3a6",
+    st1:"#cbbb99", st2:"#9c8d72", line:"rgba(74,60,40,.24)",
+    butt:"#a89877", buttEdge:"rgba(60,48,30,.35)", cap:"#d4c8ab",
     plinth:"#6e6352", plinthLn:"#494136",
     frame:"#3a3227", hood:"#d9cdb0", winDark:"#1e262e",
     ivy:"#2f6b3a", ivyOp:".75",
-    speck:["#c9ba98","#877a62","#a3906f","#7b7060"],
+    speck:["#cfbf9b","#84765d","#a6926e","#8d8371","#b9a883"],
     wg:'<stop offset="0" stop-color="#a9c3d9" stop-opacity=".92"/><stop offset=".32" stop-color="#54667a"/><stop offset="1" stop-color="#222b35"/>',
     clockFace:"#f6efdc",
     roomBack:"#83725a", roomCeil:"#3d372d", roomLight:"#fff6d8", roomShelf:"#54402b",
@@ -1709,7 +1709,7 @@ function wallURI(orient, natW, natH, o, mode){
   for (let i = 0; i < flecks; i++){
     const fx = (i*53 + seed*29) % Math.max(1, natW - 18);
     const fy = p + ((i*97 + seed*13) % Math.max(1, natH - p - 26));
-    g += `<rect x="${fx}" y="${fy}" width="${9 + (i % 3)*5}" height="${6 + (i % 2)*4}" rx="1.5" fill="${P.speck[i % 4]}" opacity=".5"/>`;
+    g += `<rect x="${fx}" y="${fy}" width="${9 + (i % 3)*5}" height="${6 + (i % 2)*4}" rx="1.5" fill="${P.speck[i % P.speck.length]}" opacity=".55"/>`;
   }
   g += `<rect x="0" y="${p}" width="${natW}" height="${natH-p}" fill="url(#course)"/>`;
   g += `<rect x="0" y="${p}" width="${natW}" height="2.2" fill="${P.cap}" opacity=".9"/>`;
@@ -1904,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v94";
+const BUILD = "pembroke-v95";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -2275,34 +2275,33 @@ const grassBump = canvasTex(256, (x, px) => {
   speck(x, px, 5200, ["#6a6a6a", "#969696", "#585858", "#a8a8a8"], 0.9);
 }, 60);
 /* limestone pavers in running bond, joints read in the bump */
+/* Concrete, not pavers. The reference the author set the campus by —
+   a collegiate-gothic render at dusk — walks everybody down smooth
+   light-grey concrete with expansion joints and a mown edge, and the
+   tan brick-paver tile this used to draw is the single biggest thing
+   the aerial disagreed with it about. Broad panels with a faint
+   mottle, one joint per tile in each axis: on a ribbon the v-axis
+   tiles once per walk-width, so a 26-wide walk gets a transverse
+   joint every 26 units, which is a plausible panel rhythm. */
 const drawPavers = (x, px) => {
-  x.fillStyle = "#cfc5ac"; x.fillRect(0, 0, px, px);
-  const pw = 64, ph = 32;
-  const pTones = ["#cfc5ac", "#c7bca0", "#d7cdb5", "#c1b69a", "#d1c5a8"];
-  for (let ry = 0; ry < px / ph; ry++){
-    for (let cx2 = ((ry % 2) * pw / 2) - pw; cx2 < px; cx2 += pw){
-      x.fillStyle = pTones[Math.floor(h2(ry * 17 + cx2) * pTones.length)];
-      x.fillRect(cx2 + 1.5, ry * ph + 1.5, pw - 3, ph - 3);
-    }
-    x.fillStyle = "rgba(96,86,64,.55)"; x.fillRect(0, ry * ph, px, 1.6);
+  x.fillStyle = "#c8c6bd"; x.fillRect(0, 0, px, px);
+  for (let i = 0; i < 26; i++){
+    x.globalAlpha = 0.08;
+    x.fillStyle = ["#bdbbb2", "#d3d1c8", "#b3b1a8"][i % 3];
+    x.fillRect((i * 67) % px, (i * 41) % px, 60 + (i % 4) * 22, 44 + (i % 3) * 18);
   }
-  for (let ry = 0; ry < px / ph; ry++)
-    for (let cx2 = ((ry % 2) * pw / 2); cx2 < px + pw; cx2 += pw){
-      x.fillStyle = "rgba(96,86,64,.5)"; x.fillRect(cx2 - pw + 0.2, ry * ph, 1.4, ph);
-    }
-  speck(x, px, 700, ["#bcb096", "#ddd4bc", "#a89d84"], 0.5);
+  x.globalAlpha = 1;
+  x.fillStyle = "rgba(88,84,74,.5)";  x.fillRect(0, 0, px, 2);      /* transverse joint */
+  x.fillStyle = "rgba(88,84,74,.35)"; x.fillRect(0, 0, 2, px);      /* longitudinal */
+  x.fillStyle = "rgba(255,255,255,.18)"; x.fillRect(0, 2, px, 1.2); /* sun edge */
+  speck(x, px, 420, ["#bab8af", "#d8d6cd", "#a9a79e"], 0.35);
 };
 const pathTex = canvasTex(256, drawPavers, 3);
 const pathBump = canvasTex(256, (x, px) => {
   x.fillStyle = "#909090"; x.fillRect(0, 0, px, px);
-  const ph = 32, pw = 64;
-  for (let ry = 0; ry < px / ph; ry++){
-    x.fillStyle = "#3a3a3a"; x.fillRect(0, ry * ph, px, 2);
-    for (let cx2 = ((ry % 2) * pw / 2); cx2 < px + pw; cx2 += pw){
-      x.fillStyle = "#3a3a3a"; x.fillRect(cx2 - pw, ry * ph, 2, ph);
-    }
-  }
-  speck(x, px, 600, ["#7a7a7a", "#a2a2a2"], 0.8);
+  x.fillStyle = "#2e2e2e"; x.fillRect(0, 0, px, 2.4);   /* joint grooves */
+  x.fillStyle = "#3a3a3a"; x.fillRect(0, 0, 2, px);
+  speck(x, px, 420, ["#828282", "#9c9c9c"], 0.6);
 }, 3);
 /* a soft-edged dirt verge that hugs every walk — worn turf where
    feet cut the corner */
@@ -2323,9 +2322,14 @@ const vergeTex = (() => {
 })();
 const vergeMat = new THREE.MeshStandardMaterial({
   map: vergeTex, transparent: true, depthWrite: false, roughness: 1 });
+/* Darker than it was, because the drive then WASHED it lighter: the
+   carriageway material multiplied this map by 0xb8bcc2, and the sum
+   was a road the colour of the kerb. The reference reads the other
+   way round — dark asphalt, light concrete kerb — so the wash is
+   gone and the base is laid dark. */
 const asphaltTex = canvasTex(128, (x, px) => {
-  x.fillStyle = "#54565c"; x.fillRect(0, 0, px, px);
-  speck(x, px, 1000, ["#484a50", "#606268", "#3e4045"], 0.9);
+  x.fillStyle = "#45474d"; x.fillRect(0, 0, px, px);
+  speck(x, px, 1000, ["#3b3d43", "#53555b", "#33353a"], 0.9);
 }, 2);
 const shingleTex = canvasTex(128, (x, px) => {
   x.fillStyle = "#5d6470"; x.fillRect(0, 0, px, px);
@@ -2652,7 +2656,7 @@ lot(16, 430, 70, 240, 5);
   const drive = (pts, width = 34) => {
     const t = asphaltTex.clone();
     t.repeat.set(1, 1); t.needsUpdate = true;
-    const mat = new THREE.MeshStandardMaterial({ map: t, color: 0xb8bcc2, roughness: 1 });
+    const mat = new THREE.MeshStandardMaterial({ map: t, roughness: 1 });
     /* a kerb-dark shoulder just proud of the carriageway, since a curved
        drive cannot take the straight kerb boxes the old legs used */
     const sh = new THREE.Mesh(ribbonGeom(pts, width + 7, GROUND.shoulder),
