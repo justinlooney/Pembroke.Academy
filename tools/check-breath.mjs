@@ -123,7 +123,7 @@ for (const [name, url] of cast){
     r = await page.evaluate(async ([u, fps, secs]) => {
       /* the pose a student is actually held in: the seated loop is the
          longest one anybody holds, and it is lent from a donor */
-      const res = await window.__poseAt(u, "assets/clip_talk.glb", null, 0.4, "seated");
+      const res = await window.__poseAt(u, "assets/clip_sitidle.glb", null, 0.4, "seated");
       if (res.err) return { err: res.err };
       const { fig, mix, t } = window.__posed || {};
       if (!fig) return { err: "__poseAt parked nothing" };

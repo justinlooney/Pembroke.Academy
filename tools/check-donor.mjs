@@ -70,8 +70,15 @@ if (!donors.length){
    seated, which is the point) and Sitting Talking for "the hips never
    drop" (they are already down — it is a seated loop, not a sit). Four
    shapes, and every donor in the file is one of them. */
-const SHAPE = { clip_sit: "sit", clip_stand: "rise", clip_talk: "seated" };
-const expectOf = (p) => SHAPE[basename(p, ".glb")] || "stand";
+const SHAPE = { clip_sit: "sit", clip_stand: "rise", clip_talk: "seated",
+                clip_sitidle: "seated", clip_standup: "rise",
+                clip_talkstand: "stand" };
+/* inbox_ is where a delivery sits while it is being judged — same
+   file, same shape, not yet in history. Without this line the first
+   run of the authored Sitting Idle was FAILED for "hips fall to 0.42
+   for an idle", which is a seated loop doing exactly its job, judged
+   against the wrong expectation. */
+const expectOf = (p) => SHAPE[basename(p, ".glb").replace(/^inbox_/, "")] || "stand";
 
 const srv = createServer(async (req, res) => {
   const p = resolve(ROOT, decodeURIComponent(req.url.split("?")[0]).slice(1) || "index.html");

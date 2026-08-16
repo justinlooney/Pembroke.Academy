@@ -119,14 +119,25 @@ Realistic_Trees  https://drive.google.com/file/d/1KbKXm6qk3JgzJ0KLGjmKqCw6hx6-z-
 # Judged against all thirteen bodies by tools/check-donor.mjs before
 # anything was wired to them.
 
-# out: assets/clip_idle.glb
-Idle            https://drive.google.com/file/d/1aw-oEHfcGVtozFy2JLQXy8NecFK7zaXx/view
-
-# out: assets/clip_talk.glb
-Sitting_Talking https://drive.google.com/file/d/1LPSnmgWqpgAT1SCbs7wCBH1k2hSgQVtx/view
-
-# out: assets/clip_stand.glb
-Standing_Up     https://drive.google.com/file/d/101SKrfyvhBdwGS4ngvrEx-xKJ3qmipdA/view
+# RETIRED, all three, replaced by the author's own set — do not
+# rebuild them, the outputs are deleted on purpose:
+#   clip_idle.glb   withdrawn twice (a near-still clip cannot be
+#                   delta-retargeted between rigs whose rests differ);
+#                   the authored Talking clip covers standing life.
+#   clip_talk.glb   Sitting Talking, replaced as the seated loop by
+#                   the authored clip_sitidle.glb (Sitting Idle).
+#   clip_stand.glb  never wired; the authored clip_standup.glb
+#                   (Sit To Stand) took the role, gated per body by
+#                   seatCycle's handover check.
+# The authored donors arrive as full Mixamo characters through the
+# session uploads and are stripped in place, not through this inbox.
+#
+# retired: assets/clip_idle.glb
+#   Idle            https://drive.google.com/file/d/1aw-oEHfcGVtozFy2JLQXy8NecFK7zaXx/view
+# retired: assets/clip_talk.glb
+#   Sitting_Talking https://drive.google.com/file/d/1LPSnmgWqpgAT1SCbs7wCBH1k2hSgQVtx/view
+# retired: assets/clip_stand.glb
+#   Standing_Up     https://drive.google.com/file/d/101SKrfyvhBdwGS4ngvrEx-xKJ3qmipdA/view
 
 # out: assets/clip_jog.glb
 Jogging         https://drive.google.com/file/d/1rmy0p7tQJ6viFVL5QBkQ1KCkqYIrG8bF/view

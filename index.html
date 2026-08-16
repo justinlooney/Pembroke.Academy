@@ -1904,7 +1904,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v93";
+const BUILD = "pembroke-v94";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -2230,6 +2230,15 @@ function canvasTex(px, draw, repeat){
   t.colorSpace = THREE.SRGBColorSpace;
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   if (repeat) t.repeat.set(repeat, repeat);
+  /* Anisotropy, for the same reason sharpen() sets it on every body:
+     the default of 1 is the setting that ruins a surface seen at an
+     angle. On a shirt it blurs a fold; on the GROUND it is every
+     paving stone from here to the horizon, sampled along the axis the
+     mipmap chain cannot represent — which reads as the paving
+     crawling. The bodies got this fix and the world it stands on
+     never did. One property, no extra memory, capped at 8 where the
+     returns stop and some mobile drivers start charging. */
+  t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy() || 1);
   return t;
 }
 const speck = (x, px, n, tones, a) => {
@@ -2393,6 +2402,49 @@ const skyline = new THREE.Mesh(new THREE.PlaneGeometry(3000, 250), skylineMat);
 skyline.position.set(-260, 92, -1650);
 world.add(skyline);
 
+/* ── how far apart two things lying on the ground have to be ─────────
+   Reported from a phone, of the aerial view: "it looks like a bunch of
+   moving lines on the roadways". They are z-fighting, and the numbers
+   say so. Everything flat on this campus was stacked inside a band
+   0.16 to 0.42 units deep — walkway 0.26 against ring 0.30, lot 0.22
+   against its stall lines 0.30 — and those pairs OVERLAP, the spokes
+   running into the ring and the lines lying on the lot.
+
+   Depth precision is not a constant. With a near plane of 2 and a
+   24-bit buffer it is about z-squared over (near x 2^24): a hair over
+   a thousandth of a unit where you stand, but 0.04 at the aerial
+   camera's 1,140 and 0.09 at the 1,710 a portrait phone pulls back
+   to. Gaps of 0.04 and 0.08 are therefore BELOW the resolution of the
+   view they are seen in, so the two surfaces swap pixel by pixel and
+   the swap moves with the camera. Which is what was photographed.
+
+   So the layers are spaced by a number bigger than that, and written
+   down in one place instead of appearing four hundred lines apart:
+   nothing here is closer than 0.3 to the thing it overlaps, about
+   three times the worst-case precision. Under a figure 42 units tall,
+   0.6 of a unit is two and a half centimetres — invisible standing on
+   it, decisive from the air.
+
+   Belt as well as braces: every decal that lies ON another surface
+   also gets polygonOffset, which biases in depth-buffer units rather
+   than world units and so holds at any distance. The heights alone
+   would probably do it; the pair certainly does, and this has been
+   photographed once already. */
+const GROUND = {
+  verge:    0.05,  /* mown edge, under the walks */
+  shoulder: 0.10,  /* kerb-dark edge, under the carriageway */
+  lot:      0.15,  /* parking asphalt */
+  ring:     0.30,  /* the oval walks and the plaza */
+  road:     0.40,  /* the campus drive, which crosses lots and walks */
+  walk:     0.70,  /* ribbons, which cross the rings and the drive */
+  mark:     0.95,  /* stall lines, crossings, centre dashes — paint,
+                      and the zebra crossing lies on the WALK where it
+                      meets the drive, so this clears the walk too */
+};
+/* a decal is biased toward the camera in DEPTH units, so it wins the
+   comparison at any distance rather than only close up */
+const decal = (m) => Object.assign(m, { polygonOffset: true,
+  polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
 const pathMat = new THREE.MeshStandardMaterial({ map: pathTex, bumpMap: pathBump, bumpScale: 0.4,
   roughness: 0.55, metalness: 0.06, envMapIntensity: 0.6 });
 /* ── curved ways ─────────────────────────────────────────────────────
@@ -2432,12 +2484,12 @@ function ribbonGeom(pts, width, lift){
    also be tiled by the material */
 const walkTex = pathTex.clone(); walkTex.repeat.set(1, 1); walkTex.needsUpdate = true;
 const walkBump = pathBump.clone(); walkBump.repeat.set(1, 1); walkBump.needsUpdate = true;
-const walkMat = new THREE.MeshStandardMaterial({ map: walkTex, bumpMap: walkBump,
-  bumpScale: 0.4, roughness: 0.55, metalness: 0.06, envMapIntensity: 0.6 });
-function walkway(pts, width = 26, y = 0.26){
+const walkMat = decal(new THREE.MeshStandardMaterial({ map: walkTex, bumpMap: walkBump,
+  bumpScale: 0.4, roughness: 0.55, metalness: 0.06, envMapIntensity: 0.6 }));
+function walkway(pts, width = 26, y = GROUND.walk){
   /* a mown verge under every way, so it meets the grass instead of
      being pasted on top of it */
-  const v = new THREE.Mesh(ribbonGeom(pts, width + 14, 0.13), vergeMat);
+  const v = new THREE.Mesh(ribbonGeom(pts, width + 14, GROUND.verge), vergeMat);
   world.add(v);
   const m = new THREE.Mesh(ribbonGeom(pts, width, y), walkMat);
   m.receiveShadow = true;
@@ -2450,13 +2502,13 @@ let fountainWater = null;
 /* the great oval ring + spokes (same plan as before) */
 {
   const ring = new THREE.Mesh(new THREE.RingGeometry(168, 197, 96), pathMat);
-  ring.rotation.x = -Math.PI / 2; ring.position.set(0, 0.3, 0); ring.receiveShadow = true;
+  ring.rotation.x = -Math.PI / 2; ring.position.set(0, GROUND.ring, 0); ring.receiveShadow = true;
   world.add(ring);
   /* the North Quad's own ring, tighter than the great oval, its lawn
      left empty on purpose — the whole point of the second quad is
      ground you can cross without walking into anything */
   const nring = new THREE.Mesh(new THREE.RingGeometry(106, 134, 96), pathMat);
-  nring.rotation.x = -Math.PI / 2; nring.position.set(0, 0.3, -680); nring.receiveShadow = true;
+  nring.rotation.x = -Math.PI / 2; nring.position.set(0, GROUND.ring, -680); nring.receiveShadow = true;
   world.add(nring);
   /* The ways, described by what they join rather than by rectangles.
      The four hall doors sit at the corners — library NW, engineering NE,
@@ -2533,12 +2585,12 @@ let fountainWater = null;
      translucent stone veil, so the halls and lamps reflect in it */
   const mirror = new Reflector(new THREE.CircleGeometry(66, 48), {
     textureWidth: 1024, textureHeight: 1024, clipBias: 0.004, color: 0x8a9096 });
-  mirror.rotation.x = -Math.PI / 2; mirror.position.y = 0.3;
+  mirror.rotation.x = -Math.PI / 2; mirror.position.y = GROUND.ring;
   world.add(mirror);
   const plaza = new THREE.Mesh(new THREE.CircleGeometry(66, 48),
     new THREE.MeshStandardMaterial({ map: pathTex, roughness: 0.35, metalness: 0.05,
       transparent: true, opacity: 0.62 }));
-  plaza.rotation.x = -Math.PI / 2; plaza.position.y = 0.42; plaza.receiveShadow = true;
+  plaza.rotation.x = -Math.PI / 2; plaza.position.y = GROUND.ring + 0.12; plaza.receiveShadow = true;
   world.add(plaza);
   const basin = new THREE.Mesh(new THREE.CylinderGeometry(24, 26, 7, 24),
     new THREE.MeshStandardMaterial({ color: 0x8a8272, roughness: 1 }));
@@ -2573,13 +2625,13 @@ let fountainWater = null;
 const lotMat = new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: 1 });
 function lot(px, py, w, d, stalls){
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), lotMat);
-  m.rotation.x = -Math.PI / 2; m.position.set(W(px + w/2), 0.22, W(py + d/2)); m.receiveShadow = true;
+  m.rotation.x = -Math.PI / 2; m.position.set(W(px + w/2), GROUND.lot, W(py + d/2)); m.receiveShadow = true;
   world.add(m);
-  const lineMat = new THREE.MeshBasicMaterial({ color: 0xd8d4c8 });
+  const lineMat = decal(new THREE.MeshBasicMaterial({ color: 0xd8d4c8 }));
   for (let i = 0; i <= stalls; i++){
     const ln = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.42, 1.4), lineMat);
     ln.rotation.x = -Math.PI / 2;
-    ln.position.set(W(px + w * 0.26), 0.3, W(py + 8 + i * ((d - 16) / stalls)));
+    ln.position.set(W(px + w * 0.26), GROUND.mark, W(py + 8 + i * ((d - 16) / stalls)));
     world.add(ln);
   }
 }
@@ -2589,7 +2641,7 @@ lot(16, 430, 70, 240, 5);
    a shoulder, a dashed centre line, lot spurs, and a crossing where the
    south walk meets it */
 {
-  const dashMat = new THREE.MeshBasicMaterial({ color: 0xd8d4c8 });
+  const dashMat = decal(new THREE.MeshBasicMaterial({ color: 0xd8d4c8 }));
 
   /* The drive used to be three straight legs meeting at right angles —
      a square drawn around the campus. Real ones bend: they follow the
@@ -2603,20 +2655,26 @@ lot(16, 430, 70, 240, 5);
     const mat = new THREE.MeshStandardMaterial({ map: t, color: 0xb8bcc2, roughness: 1 });
     /* a kerb-dark shoulder just proud of the carriageway, since a curved
        drive cannot take the straight kerb boxes the old legs used */
-    const sh = new THREE.Mesh(ribbonGeom(pts, width + 7, 0.16),
+    const sh = new THREE.Mesh(ribbonGeom(pts, width + 7, GROUND.shoulder),
       new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 1 }));
     world.add(sh);
-    const m = new THREE.Mesh(ribbonGeom(pts, width, 0.22), mat);
+    /* The carriageway lies ON the shoulder along its whole length and
+       the centre line lies on the carriageway — three ribbons sharing
+       one footprint, and they were spaced 0.16 / 0.22 / 0.31. Six and
+       nine hundredths of a unit, against a depth resolution of four to
+       nine hundredths where the aerial camera sits. These are the
+       roadway's moving lines. */
+    const m = new THREE.Mesh(ribbonGeom(pts, width, GROUND.road), decal(mat));
     m.receiveShadow = true;
     world.add(m);
     /* centre line, dashed along the curve */
-    const g = ribbonGeom(pts, 2.4, 0.31);
-    const dash = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+    const g = ribbonGeom(pts, 2.4, GROUND.mark);
+    const dash = new THREE.Mesh(g, decal(new THREE.MeshBasicMaterial({
       map: (() => { const d = canvasTex(64, (x) => {
               x.fillStyle = "#000"; x.fillRect(0, 0, 64, 64);
               x.fillStyle = "#e8e2c8"; x.fillRect(0, 10, 64, 30); }, 1);
             d.wrapT = THREE.RepeatWrapping; return d; })(),
-      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })));
     world.add(dash);
   };
   drive([[-40, 1080], [40, 980], [70, 880], [64, 700], [50, 560],
@@ -2638,7 +2696,7 @@ lot(16, 430, 70, 240, 5);
   for (let k = 0; k < 6; k++){     /* zebra crossing where the south walk meets the drive */
     const stripe = new THREE.Mesh(new THREE.PlaneGeometry(34, 3.2), dashMat);
     stripe.rotation.x = -Math.PI / 2;
-    stripe.position.set(W(500), 0.34, W(996 + 4.8 * k));
+    stripe.position.set(W(500), GROUND.mark, W(996 + 4.8 * k));
     world.add(stripe);
   }
 }
@@ -3273,16 +3331,28 @@ BUILDINGS.forEach(spec => {
      footprint and the hall stands short rather than being clipped: at
      150 this one would have reached 70 units instead of 96 and read as
      a model that came out wrong. */
+  /* Sited south of where it first landed. Measured, the two footprints
+     INTERSECTED: at plane y 374 the hall spans y 266-482 and the
+     library range spans 150-310, so 44 units of residence hall stood
+     inside the library — the buildings "jammed into each other" in the
+     aerial. At 460 it clears the library by 42 and the science hall by
+     93, and its size and proportions are untouched: only the plot
+     moved. */
   OUTER.push(["assets/reshall.glb", {
-    plane: [149, 374], height: 96, rotY: Math.PI / 2, maxFoot: [130, 215],
+    plane: [149, 460], height: 96, rotY: Math.PI / 2, maxFoot: [130, 215],
     sink: 2.4, collider: "auto", vista: "Pembroke Residence Hall",
   }]);
   /* terracotta refectory */
   stoneBox(amb, { x: 700, y: 330, w: 110, d: 72, h: 46, windows: "lancet", seed: 18, accent: "#f0b47a", noRoof: true });
   gableRoof(amb, { x: 700, y: 330, w: 110, d: 72, z: 46, h: 30, terra: true });
   /* south hall + moderns */
-  stoneBox(amb, { x: 340, y: 795, w: 140, d: 100, h: 58, windows: "lancet", ivy: true, seed: 19, accent: "#d9c48a", noRoof: true });
-  gableRoof(amb, { x: 340, y: 795, w: 140, d: 100, z: 58, h: 34, copper: true });
+  /* Moved north-east off two neighbours at once. At 340,795 its west
+     face touched the science hall EXACTLY — a gap of zero, two walls
+     sharing a line — and its south-east corner ran fifteen units into
+     the gatehouse. 370,748 clears the science hall by 30, the
+     gatehouse by 30 and the modern block by 60. */
+  stoneBox(amb, { x: 370, y: 748, w: 140, d: 100, h: 58, windows: "lancet", ivy: true, seed: 19, accent: "#d9c48a", noRoof: true });
+  gableRoof(amb, { x: 370, y: 748, w: 140, d: 100, z: 58, h: 34, copper: true });
   stoneBox(amb, { x: 120, y: 852, w: 190, d: 86, h: 64, parapet: 5, windows: "modern", seed: 20, accent: "#bcd2de" });
   stoneBox(amb, { x: 740, y: 872, w: 160, d: 74, h: 52, parapet: 5, windows: "modern", seed: 21, accent: "#bcd2de" });
   /* chimney stacks along the range ridges, rooftop units on the moderns */
@@ -3296,7 +3366,7 @@ BUILDINGS.forEach(spec => {
       k.position.set(W(px), baseY + h3 + 1.2, W(py)); k.castShadow = true; amb.add(k);
     };
     [[888, 290], [888, 395], [888, 500]].forEach(([px, py]) => chimney(px, py, 88, 18));
-    [[372, 845], [448, 845]].forEach(([px, py]) => chimney(px, py, 78, 16));
+    [[402, 798], [478, 798]].forEach(([px, py]) => chimney(px, py, 78, 16));
     const acMat = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.7, metalness: 0.3 });
     [[168, 880], [242, 902], [788, 894], [852, 906]].forEach(([px, py], i) => {
       const u = new THREE.Mesh(new THREE.BoxGeometry(15, 7, 11), acMat);
@@ -3308,7 +3378,12 @@ BUILDINGS.forEach(spec => {
   stoneBox(amb, { x: 456, y: 880, w: 88, d: 46, h: 62, parapet: 7, arch: true, clock: true,
                   seed: 7, accent: "#d4af6a", noCollide: true });
   COLLIDERS.push({ x: 456, y: 880, w: 26, d: 46 }, { x: 518, y: 880, w: 26, d: 46 });
-  stoneBox(amb, { x: 257, y: 874, w: 27, d: 36, h: 96, parapet: 6, windows: "slits", seed: 8, accent: "#d4af6a" });
+  /* The pair flanks the gate arch, and only one of them was doing it.
+     This one stood at x 257 — 180 units west, entirely INSIDE the
+     modern block at 120,852, a ninety-six-foot turret growing out of
+     a flat parapet roof. Mirrored about the gate's centre line so it
+     answers its twin at 536. */
+  stoneBox(amb, { x: 437, y: 874, w: 27, d: 36, h: 96, parapet: 6, windows: "slits", seed: 8, accent: "#d4af6a" });
   stoneBox(amb, { x: 536, y: 874, w: 27, d: 36, h: 96, parapet: 6, windows: "slits", seed: 9, accent: "#d4af6a" });
   /* landscaping: shrub balls flanking the hall doors — all that
      remains of a scheme that once hedged and flower-bedded the lawn
@@ -3672,10 +3747,34 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
     .forEach((p, i) => EZ_SETS[i % 2 ? "m011" : "m010"].push(p));
   /* a conifer screen between the east drive and the neighboring district */
   for (let y = 140; y <= 940; y += 88) (y % 176 < 88 ? PINES1 : PINES2).push([1085 + (y * 7) % 26, y, 1 + (y * 13) % 30 / 55]);
-  const TREE2S = [[300,330,1.1],[360,268,0.9],[700,332,1],[268,640,1.05],[352,708,0.95],
-                  [652,712,1.1],[726,640,0.9],[262,360,0.95],[738,368,1.05],[640,268,0.9]];
-  const TSMALL = [[840,300,1],[840,420,0.9],[840,540,1.1],[130,420,1],[130,540,0.95],
-                  [430,772,0.9],[390,838,1],[586,806,0.95]];
+  /* ── halved, on the author's instruction ──────────────────────────
+     "remove half of these trees with no leaves from the quad." These
+     eighteen are the maples — the ones the comment below calls "the
+     eighteen trees closest to the quad, the ones you walk under" — and
+     they had been planted three and four to a corner, which from
+     inside the ring reads as a thicket of trunks rather than as a
+     framed lawn.
+
+     Cut to nine, by CORNER rather than by cutting the tail off the
+     list: one maple at each corner of the quad, one extra to break the
+     symmetry, and the small set thinned to the ends of each run so the
+     east column and the south walk still read as plantings rather than
+     as leftovers. Halving a list by index would have emptied the south
+     side and left the east wall of trees standing.
+
+     It buys something real, too: instancing saves draw calls, never
+     triangles, so nine fewer maples is nine trees' worth of geometry
+     off a frame that a phone is already shedding quality to hold. */
+  /* Three of the five survivors stood INSIDE a building — 700,332 and
+     738,368 in the refectory, 652,712 in the administration hall — and
+     the small one at 130,420 was inside the residence hall's plot both
+     before and after it moved. Nudged to the nearest ground that
+     clears every wall by 14, stays off the lawn, the ring and the
+     axial walks, and keeps 60 from the next maple. Moved rather than
+     deleted: the instruction was half of them, and half is nine. */
+  const TREE2S = [[300,330,1.1],[684,332,1],[268,640,1.05],
+                  [624,712,1.1],[738,418,1.05]];
+  const TSMALL = [[840,300,1],[840,540,1.1],[68,420,1],[586,806,0.95]];
   const BUSHA = [[218,318,1],[302,322,0.9],[698,300,1.05],[782,304,0.95],
                  [196,812,1],[300,820,0.9],[692,826,1.05],[794,830,0.95],
                  [100,246,0.9],[178,248,1],[222,300,0.9],[222,372,1],[100,416,0.95],[178,414,0.9]];
@@ -3711,7 +3810,8 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
   const FLORA = [
     ["assets/plantpack.glb", [["pine1", PINES1, 78, true], ["pine2", PINES2, 66, true],
                               ["bushbig", BUSHA, 10], ["bushmed", BUSHB, 8], ["bushflower", BUSHC, 7]]],
-    /* The eighteen trees closest to the quad — the ones you walk under.
+    /* The trees closest to the quad — the ones you walk under. Eighteen
+       of them until the author asked for half; nine now, see TREE2S.
        They were plantpack's stylised shapes, which are 211 triangles for
        the entire pack of eight meshes: pleasant at a distance, and the
        reason the campus still read as bubbles up close.
@@ -3946,9 +4046,17 @@ const SIT_RANGE = 420;            /* how far someone will go for a seat */
    holding that for four minutes is the statue this was supposed to get
    rid of, sitting down. Observed in a probe run: one student seated,
    unmoving, for 180 seconds and still going when the run ended. */
-const SEATED_MS = [45000, 240000];        /* with a loop; ceiling 20 min */
-const HELD_SEAT_MS = [14000, 34000];      /* a held pose wears out fast */
-const SIT_COOL = 180000;          /* before the same student sits again */
+/* Retimed to the author's brief, which replaced the long-dwell design
+   wholesale: "for the walking talking sitting they can do them for
+   5-10 seconds... for the sit they must follow with a sit idle for
+   5-10 seconds. for stand they must walk for 5-10 seconds then they
+   can either go in a door or stand idle or sit again." The old
+   ceilings — twenty minutes seated — were built for a campus with one
+   seated loop and nothing else to cut to; the campus now has a whole
+   cycle to run, and it runs it briskly. */
+const SEATED_MS = [5000, 10000];          /* sit idle, then stand */
+const HELD_SEAT_MS = [5000, 10000];       /* same brief, loop or no loop */
+const SIT_COOL = 20000;           /* a walk's worth before sitting again */
 const P_SIT = 0.35;
 
 /* "Campus Conversation" by restore50 stood here: a scanned group of
@@ -5508,9 +5616,10 @@ function seatRoles(src){
        the meets test below needs and what no declaration knows. Only
        the classification is taken on trust, from the code that chose
        the clip. */
-    if (r.role === "gait") continue;      /* lent to walk with; never a seat */
-    const lo0 = r.role ? r.role === "seat" : r.y0 <= line;
-    const lo1 = r.role ? true             : r.y1 <= line;
+    /* lent to walk with or to talk standing up; never seat material */
+    if (r.role === "gait" || r.role === "talk") continue;
+    const lo0 = r.role ? (r.role === "seat" || r.role === "rise") : r.y0 <= line;
+    const lo1 = r.role ? (r.role === "seat" || r.role === "sit")  : r.y1 <= line;
     if (lo0 && lo1){
       out.seated.add(r.name);
       /* the longest seated loop, so a student settles rather than
@@ -5553,8 +5662,18 @@ function seatRoles(src){
    without one, a stand-up reversed is still the best there is. */
 function seatCycle(R){
   if (!R) return null;
-  if (R.sit)  return { down: R.sit,  downRev: false, up: R.sit,  upRev: true,
-                       to: R.sitTo ?? 0.5 };
+  if (R.sit){
+    /* A real stand-up, when its start agrees with where the sit-down
+       left the hips — the exact handover the old clip_stand.glb was
+       kept out of the campus for. Now the agreement is CHECKED, per
+       body, off the measured heights: within 0.15 of standing hip
+       height and the rise plays; otherwise that body keeps rising by
+       the sit played backwards, which never pops. */
+    const rise = R.rise &&
+      Math.abs((R.riseFrom ?? 1) - (R.sitTo ?? 0.5)) <= 0.15 ? R.rise : null;
+    return { down: R.sit, downRev: false,
+             up: rise || R.sit, upRev: !rise, to: R.sitTo ?? 0.5 };
+  }
   if (R.rise) return { down: R.rise, downRev: true,  up: R.rise, upRev: false,
                        to: R.riseFrom ?? 1 };
   return null;
@@ -5605,7 +5724,11 @@ function rolesOf(k, src){
   /* No idle is not a fault, it is a fact about the download: a body
      with nothing to do when standing simply never stops walking. That
      reads far better than freezing someone mid-stride. */
-  const roles = { gaits, idle: still[0] || null, start: null,
+  /* Talk is declared, never derived: it exists only as a lent clip
+     with the job written on it, and deriving it would be the same
+     second-opinion mistake the seat roles just gave up. */
+  const talk = src.animations.find(c => c.userData?.role === "talk")?.name || null;
+  const roles = { gaits, idle: still[0] || null, start: null, talk,
                   seat: sit.seat, rise: sit.rise, riseFrom: sit.riseFrom,
                   sit: sit.sit, sitTo: sit.sitTo };
   ROLE_CACHE[k] = roles;
@@ -5715,12 +5838,11 @@ const STAND_CHAIN = ["hips", "spine", "leftupleg", "leftfoot",
    one lends to everybody. Judged before being wired to anything, by
    tools/check-donor.mjs, against all thirteen bodies.
 
-   assets/clip_stand.glb came down with them and is deliberately NOT
-   here. It is a real stand-up, where seatCycle currently rises by
-   playing the sit-down backwards — a genuine improvement, but the two
-   clips hand over at different moments (riseFrom against sitTo) and
-   getting that wrong pops a student out of a bench. It wants its own
-   render, not a ride on this one. */
+   A stand-up came down with them (clip_stand.glb) and waited here
+   unwired for exactly the handover worry seatCycle now measures per
+   body: riseFrom against sitTo, within 0.15 or the reversed sit rises
+   instead. The author's own Sit To Stand donor took the role, and the
+   old file left with the other two it arrived with. */
 const LOOSE_CLIPS = [
   /* ── the Idle is withdrawn, for the second time ────────────────────
      Reported from a phone: "they seem to be stuck in a weird idle where
@@ -5748,20 +5870,44 @@ const LOOSE_CLIPS = [
      production rig, or a retarget that solves for the rest difference
      instead of assuming it away.
 
-     assets/clip_idle.glb stays in the repository. It costs 81KB, it is
-     the input either of those routes would start from, and deleting it
-     would only mean fetching it again.
-
      What the campus does without one: a body with nothing to do
      standing still never stops walking, which holdStill and
      passingTime already paper over, and which reads far better than a
      student twisting on the spot. */
-  /* The forty-four second seated loop. Without it everybody else holds
-     the sit's last frame, capped at 34 seconds — a statue, sitting
-     down, which is the thing the seat machinery was built to remove. */
-  { url: "assets/clip_talk.glb", name: "Sitting Talking",
+  /* ── the author's set ──────────────────────────────────────────────
+     Three motions delivered as full Mixamo characters and stripped to
+     skinless donors — sixteen megabytes of skinned body each around a
+     few hundred kilobytes of skeleton and motion. Judged by
+     tools/check-donor.mjs through the campus's own lendClip before
+     being wired here, like everything else on this list.
+
+     They replace the long-dwell design: sit down, hold Sitting Idle
+     for five to ten seconds, stand up through a REAL stand-up rather
+     than the sit played backwards, walk. Meet somebody, Talk for five
+     to ten seconds, walk on. */
+  /* The seated loop. Successor to "Sitting Talking" (clip_talk.glb),
+     which held this role from the day benches became sittable — the
+     brief asks for a sit IDLE after the sit-down, and one seated loop
+     is all the machinery wants. */
+  { url: "assets/clip_sitidle.glb", name: "Sitting Idle",
     chain: SIT_CHAIN, expect: "seated", role: "seat",
     wanted: (R) => !R.seat },
+  /* The real stand-up. seatCycle rose by playing the sit-down
+     backwards since the first bench; the handover guard in seatCycle
+     still decides per body whether this one's start agrees with the
+     sit-down's end, so a rig where they disagree keeps the reversed
+     sit rather than popping off the bench. */
+  { url: "assets/clip_standup.glb", name: "Sit To Stand",
+    chain: SIT_CHAIN, expect: "rise", role: "rise",
+    wanted: (R) => !R.rise },
+  /* Standing and talking — the first STANDING life this campus has
+     had since the Idle was withdrawn, and it survives lending for the
+     reason the Idle could not: gesture is large enough to swamp the
+     rest residual. Role "talk": played only in conversations, never
+     dealt as an idle or a gait. */
+  { url: "assets/clip_talkstand.glb", name: "Talking",
+    chain: STAND_CHAIN, expect: "stand", hips: false, role: "talk",
+    wanted: (R) => !R.talk },
   /* Asked for BY NAME: Amara is the one student written to run the
      campus. It stays out of the gait pool on purpose — reachable by
      name, never dealt at random, or the quad fills with joggers. */
@@ -6332,8 +6478,8 @@ const GAITS = ["Standard Walk", "Strut Walking", "Walk Forward"];
    bug, however well dressed. */
 const MEET = 240;                 /* near enough to have noticed */
 const TALK_GAP = 30;              /* stand this far apart — outside SPACE */
-const TALK_MS = [8000, 20000];
-const LINGER_MS = [1800, 5200];
+const TALK_MS = [5000, 10000];    /* the brief: talk 5-10s, then walk on */
+const LINGER_MS = [5000, 10000];  /* standing about is a stint, not a beat */
 const SOCIAL_COOL = 22000;        /* before this pair, or either, tries again */
 const P_MEET = 0.55;              /* chance of going over, when there is someone */
 const P_LINGER = 0.3;
@@ -7671,7 +7817,12 @@ function stepStudents(dt, now){
           s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
           continue;
         }
-        if (s.roles?.idle && Math.random() < P_LINGER){
+        /* Used to require an idle clip, back when standing still meant
+           playing one. holdStill holds a walk frame with breathe() on
+           top for every body on the campus now, so "stand idle" — one
+           of the brief's three things to do after a walk — is a stint
+           anybody can take. */
+        if (Math.random() < P_LINGER){
           s.mode = "linger";
           s.pauseUntil = now + LINGER_MS[0] + Math.random() * (LINGER_MS[1] - LINGER_MS[0]);
         }
@@ -7736,6 +7887,17 @@ function stepMotion(s, moving, now, dt){
           matchSpeed(s, R.start, s.speed);
         }
         s.anim0 = "moving";
+      } else if (s.mode === "talk" && R.talk){
+        /* a conversation is the one standing state with a clip of its
+           own — gesture is big enough to survive lending, which is
+           exactly what a near-still idle was not. Each talker runs it
+           at their own idleRate so a pair never mirrors. */
+        if (s.held) release(s);
+        setClip(s, R.talk);
+        const act = s.g.userData.anim.actions[R.talk];
+        if (act) act.timeScale = s.idleRate || 1;
+        s.anim0 = R.talk;
+        s.startedAt = undefined;
       } else if (!R.idle && holdStill(s)){
         /* no idle clip on this body — its own walk, held at the frame
            where the feet pass, plus breathing from the render loop */
@@ -9511,8 +9673,13 @@ function convoOpen(s){
      posing afterwards turned him to suit a stance he was about to
      leave, and left him standing at an angle to the person he is
      talking to. */
-  if (s.roles && s.roles.idle){
-    setClipOn(g, s.roles.idle, 0.3);
+  /* Talking first — this IS a conversation, and it is the one clip the
+     campus owns that was authored for exactly this moment. An idle, if
+     a body ever ships its own again, is the fallback; the held walk
+     frame is the fallback's fallback. */
+  const convoClip = (s.roles && (s.roles.talk || s.roles.idle)) || null;
+  if (convoClip){
+    setClipOn(g, convoClip, 0.3);
     /* setClip returns early when the clip is already current, and a
        student standing on the lawn is already in hers. If anything ever
        paused it she would arrive frozen at one frame — which is the one
@@ -9521,7 +9688,7 @@ function convoOpen(s){
        conversation did not. */
     release(s);
   }
-  else holdStill(s);                  /* the eight with only a walk cycle */
+  else holdStill(s);                  /* nobody ships an idle of their own */
   /* Now settle the pose the clip actually asks for, then turn him to
      face the camera by it. */
   g.userData.anim?.mixer?.update(0);
