@@ -1919,7 +1919,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v98";
+const BUILD = "pembroke-v99";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -3249,33 +3249,65 @@ BUILDINGS.forEach(spec => {
         /* into the chapel group, so aerial click-to-enter keeps
            following it — same world transform, different parent */
         if (cathedralRoot) cathedralRoot.add(root);
-        /* THE GLASS PASS. Five materials arrive with KHR transmission,
-           and any visible transmissive material makes three.js render
-           the whole scene an extra time into a transmission buffer —
-           measured in review: 355k triangles drawing as a million.
-           Stained glass becomes emissive alpha glass instead: it costs
-           nothing, and it is the better material for the job anyway —
-           lancets that glow at dusk, which is what the reference
-           renders show. */
+        /* THE MATERIAL PASS — every material, not just the glass.
+           The model arrives as thirteen MeshPhysicalMaterials wearing
+           KHR clearcoat / ior / specular, and the clearcoat ones carry
+           clearcoatRoughness 0.03: a mirror-sharp specular lobe whose
+           GGX denominator goes NaN on mobile GPUs, and one NaN pixel
+           entering the bloom mip chain paints the ENTIRE canvas black
+           for that frame — reported from an Adreno phone as "black
+           screen flickers" the day the cathedral landed. Transmission
+           is as bad in a different way: any visible transmissive
+           material re-renders the whole scene into a transmission
+           buffer, measured in review at 355k triangles drawing as a
+           million. So every mesh gets a plain MeshStandardMaterial:
+           stained glass becomes emissive alpha glass (the better
+           material anyway — lancets that glow at dusk), and stone
+           keeps its palette and its self-lit emissive texture, which
+           is where the model's warm interior light lives. One rebuilt
+           material per source material, so thirteen programs collapse
+           toward a handful and the first-view compile stall shrinks
+           with them. */
+        const rebuilt = new Map();
         root.traverse(o => {
           const m = o.material;
-          if (!o.isMesh || !m || !(m.transmission > 0)) return;
-          const glass = new THREE.MeshStandardMaterial({
-            map: m.map || null, color: m.color.clone(),
-            emissiveMap: m.emissiveMap || m.map || null,
-            emissive: new THREE.Color(0xffffff),
-            emissiveIntensity: visual === "night" ? 2.4 : 0,
-            transparent: true, opacity: 0.92, roughness: 0.35,
-            side: m.side });
-          o.material = glass;
-          glassGlowMats.push(glass);
+          if (!o.isMesh || !m) return;
+          let std = rebuilt.get(m);
+          if (!std){
+            if (m.transmission > 0){
+              std = new THREE.MeshStandardMaterial({
+                map: m.map || null, color: m.color.clone(),
+                emissiveMap: m.emissiveMap || m.map || null,
+                emissive: new THREE.Color(0xffffff),
+                emissiveIntensity: visual === "night" ? 2.4 : 0,
+                transparent: true, opacity: 0.92, roughness: 0.35,
+                side: m.side });
+              glassGlowMats.push(std);
+            } else {
+              std = new THREE.MeshStandardMaterial({
+                map: m.map || null, color: m.color.clone(),
+                normalMap: m.normalMap || null,
+                emissiveMap: m.emissiveMap || null,
+                emissive: m.emissiveMap ? m.emissive.clone() : new THREE.Color(0x000000),
+                /* flat and safely matte: the palette texture carries
+                   the look; a roughness map that dips to zero is the
+                   same NaN trap as the clearcoat was */
+                roughness: 0.85, metalness: 0,
+                side: m.side });
+            }
+            rebuilt.set(m, std);
+          }
+          o.material = std;
         });
         /* the nave camera: just inside the south door, eye height,
-           looking down the length toward the apse */
+           looking down the length toward the apse — plus the box the
+           visitor may walk within, inset from the authored walls */
         const bb = new THREE.Box3().setFromObject(root);
         const cx = (bb.min.x + bb.max.x) / 2;
         cathNave = { pos: [cx, 14, bb.max.z - 34], sway: [5, 1.2],
-                     look: [cx, 30, bb.min.z + 40] };
+                     look: [cx, 30, bb.min.z + 40],
+                     bounds: { minX: bb.min.x + 18, maxX: bb.max.x - 18,
+                               minZ: bb.min.z + 22, maxZ: bb.max.z - 10 } };
         window.__cathedralIn = true;
       } }],
     /* The athletics district: south beyond the drive, Pembroke
@@ -8069,6 +8101,10 @@ function stepMotion(s, moving, now, dt){
    actual lesson, wood-slat wall, projector screen, seated cohort.
    ══════════════════════════════════════════════════════════════════ */
 let interiorView = null;
+/* first-person state inside the real nave — created on the first frame
+   inside, discarded on the way out so every visit starts at the door */
+let naveCam = null;
+window.__nave = () => naveCam;   /* test/debug hook */
 const interiorScenes = {};
 const intCamera = new THREE.PerspectiveCamera(52, 1, 1, 4000);
 
@@ -8364,6 +8400,7 @@ function engineOpenInterior(key){
 }
 function engineCloseInterior(){
   interiorView = null;
+  naveCam = null;
   wingEl.classList.remove("interior-open");
 }
 
@@ -8720,16 +8757,26 @@ renderer.domElement.addEventListener("wheel", (e) => {
    tap still talks to people: the tap handler ignores anything that
    moved more than six pixels, and a look is exactly a move. */
 let lookPtr = null, lookLast = null, lookDown = 0;
+/* the same finger steers two cameras: the walker outside, and the
+   first-person nave camera inside the real chapel */
+const naveLive = () => interiorView === "cathedral" && naveCam;
 renderer.domElement.addEventListener("pointerdown", (e) => {
   lookDown++;
-  if (!walker.on) return;
+  if (!walker.on && !naveLive()) return;
   if (lookDown === 1){ lookPtr = e.pointerId; lookLast = [e.clientX, e.clientY]; }
   else { lookPtr = null; lookLast = null; }
 });
 renderer.domElement.addEventListener("pointermove", (e) => {
-  if (!walker.on || e.pointerId !== lookPtr || !lookLast) return;
+  if (e.pointerId !== lookPtr || !lookLast) return;
   const dx = e.clientX - lookLast[0], dy = e.clientY - lookLast[1];
   lookLast = [e.clientX, e.clientY];
+  if (naveLive()){
+    /* radians, straight onto the interior camera; same feel as outside */
+    naveCam.h -= dx * 0.0045;
+    naveCam.pitch = Math.max(-0.55, Math.min(0.6, naveCam.pitch - dy * 0.0042));
+    return;
+  }
+  if (!walker.on) return;
   /* finer when zoomed, same as the turn keys */
   const k = 1 / Math.sqrt(walker.zoom);
   walker.h += dx * 0.26 * k;
@@ -8833,7 +8880,8 @@ function walkUpdate(dt){
 window.addEventListener("keydown", e => {
   if (e.target.matches("input,textarea")) return;
   if (e.key === "f" || e.key === "F"){ walker.on ? exitWalk() : enterWalk(); return; }
-  if (!walker.on) return;
+  /* arrows and WASD also drive the nave camera inside the real chapel */
+  if (!walker.on && !(interiorView === "cathedral" && cathNave)) return;
   walker.keys[e.code] = true;
   if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
   if (e.code === "KeyE") enterDoor();
@@ -9142,9 +9190,36 @@ renderer.setAnimationLoop(() => {
        harness, which enters long before the deferred queue runs). */
     const real = interiorView === "cathedral" && cathNave;
     const cam = real ? cathNave : interiorScenes[interiorView].userData.cam;
-    const sway = Math.sin(now / 5200);
-    intCamera.position.set(cam.pos[0] + sway * cam.sway[0], cam.pos[1] + sway * cam.sway[1], cam.pos[2]);
-    intCamera.lookAt(cam.look[0], cam.look[1], cam.look[2]);
+    if (real){
+      /* The real nave is a place, not a postcard: "couldn't look left
+         right or around in the chapel." The visitor steers here the
+         same way they steer outside — ◀ ▶ pads and arrow keys turn,
+         ▲/W walks, a dragged finger looks — clamped to the authored
+         walls. First frame inside faces the apse, exactly the view
+         the fixed camera used to hold. */
+      if (!naveCam){
+        const dx = cam.look[0] - cam.pos[0], dz = cam.look[2] - cam.pos[2];
+        naveCam = { x: cam.pos[0], z: cam.pos[2],
+                    h: Math.atan2(-dx, -dz),
+                    pitch: Math.atan2(cam.look[1] - cam.pos[1], Math.hypot(dx, dz)) };
+      }
+      const k = walker.keys, turn = 1.7 * dt;
+      if (k.ArrowLeft || k.tleft)   naveCam.h += turn;
+      if (k.ArrowRight || k.tright) naveCam.h -= turn;
+      const mv = ((k.ArrowUp || k.KeyW || k.tfwd) ? 1 : 0) - ((k.ArrowDown || k.KeyS) ? 1 : 0);
+      if (mv){
+        const sp = 62 * dt, B = cam.bounds;
+        naveCam.x = Math.min(B.maxX, Math.max(B.minX, naveCam.x - Math.sin(naveCam.h) * mv * sp));
+        naveCam.z = Math.min(B.maxZ, Math.max(B.minZ, naveCam.z - Math.cos(naveCam.h) * mv * sp));
+      }
+      intCamera.rotation.order = "YXZ";
+      intCamera.position.set(naveCam.x, cam.pos[1], naveCam.z);
+      intCamera.rotation.set(naveCam.pitch, naveCam.h, 0);
+    } else {
+      const sway = Math.sin(now / 5200);
+      intCamera.position.set(cam.pos[0] + sway * cam.sway[0], cam.pos[1] + sway * cam.sway[1], cam.pos[2]);
+      intCamera.lookAt(cam.look[0], cam.look[1], cam.look[2]);
+    }
     intCamera.aspect = camera.aspect;
     intCamera.updateProjectionMatrix();
     renderer.render(real ? world : interiorScenes[interiorView], intCamera);
@@ -10197,6 +10272,7 @@ window.__sim = (steps = 900, dt = 1 / 30) => {
 };
 window.__convo = { open: convoOpen, close: convoClose, on: () => !!convoView,
                    named: () => students.filter(s => s.data) };
+window.__interior = { open: (k) => openInterior(k), close: () => closeInterior() };   /* test/debug hook */
 
 function openInterior(key){
   const S = SECTORS[key];
