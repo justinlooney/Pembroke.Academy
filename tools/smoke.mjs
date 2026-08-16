@@ -240,6 +240,7 @@ try {
           const x = C(P[i-1][0], P[i][0], P[i+1][0], P[i+2][0]);
           const y = C(P[i-1][1], P[i][1], P[i+1][1], P[i+2][1]);
           for (const c of window.__colliders){
+            if (c.tree) continue;      /* avenues line the drives on purpose */
             const dx = Math.max(c.x - x, 0, x - (c.x + c.w));
             const dy = Math.max(c.y - y, 0, y - (c.y + c.d));
             const inside = x >= c.x && x <= c.x + c.w && y >= c.y && y <= c.y + c.d;
