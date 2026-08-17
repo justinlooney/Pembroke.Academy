@@ -53,3 +53,10 @@ published; anyone wanting the original should go to the source links here.
   vendored unmodified. `assets/vendor/spark/`
 - **three-mesh-bvh** (https://github.com/gkjohnson/three-mesh-bvh) — BVH-accelerated
   raycasting, **MIT**, vendored unmodified. `assets/vendor/three-mesh-bvh/`
+- **Drosdick Hall (exterior)** — supplied via the project owner, generated from their
+  own building pipeline: collegiate gothic hall with crowned tower and baked site
+  apron (plaza and trees), 300,000 triangles, one material, three JPEG textures.
+  Stands as the engineering hall at the campus's east quarter; its walk-in interior
+  is the Marble Grand Atrium above. `drosdick_hall.glb`
+  (It replaced the procedural engineering hall, tower and pinnacles; the terracotta
+  refectory and the east dormitory range, which stood inside its site, were removed.)
