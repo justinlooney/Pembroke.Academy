@@ -1928,7 +1928,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v103";
+const BUILD = "pembroke-v106";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -3733,8 +3733,12 @@ const EZ_SETS = { m011: [], m002: [], m010: [], l009: [] };
   /* Halved again, on the author's word: "remove half of the trees on
      the quad it is too crowded." Twelve stood on this arc; six keep
      the rhythm — every other position, both radii represented. */
-  [[10,235],[100,235],[190,235],[280,235],
-   [35,258],[215,258]].forEach(([a, r], i) => {
+  /* And a third time — "delete half the trees in the quad" — across
+     every group that stands on it: this arc 6 → 3, the corner
+     specimens 4 → 2 (opposite corners), the allées 14 → 7
+     (alternating sides), the open-lawn maples 3 → 2, the small one
+     east of the ring gone. Twenty-eight became fourteen. */
+  [[10,235],[190,235],[215,258]].forEach(([a, r], i) => {
     const rad = a * Math.PI / 180;
     T[i % 3 === 2 ? "elm" : "maple"].push([500 + r * Math.cos(rad), 500 + r * Math.sin(rad), 0.95 + (a % 7) / 16]);
   });
@@ -3745,13 +3749,15 @@ const EZ_SETS = { m011: [], m002: [], m010: [], l009: [] };
      so crossing it meant walking into a tree. At 150 they sit just
      inside the ring walk and frame the lawn instead of blocking it, and
      the whole middle of the quad is walkable. */
-  [[606,606],[394,606],[394,394],[606,394]].forEach(([px, py], i) => {
+  [[606,606],[394,394]].forEach(([px, py], i) => {
     T.maple.push([px, py, 1.1 + (i % 3) * 0.06]);
     COLLIDERS.push({ x: px - 5, y: py - 5, w: 10, d: 10 });
   });
-  /* maple allées flanking the walk, north approach and south entry */
-  [130, 195, 265, 345].forEach(y => { T.maple.push([462, y, 0.76 + (y % 20) / 160], [538, y, 0.8 + (y % 17) / 160]); });
-  [655, 735, 815].forEach(y => { T.maple.push([462, y, 0.76 + (y % 19) / 160], [538, y, 0.8 + (y % 23) / 160]); });
+  /* maple allées flanking the walk — alternating sides now, one tree
+     per station instead of a facing pair */
+  [[462, 130], [538, 195], [462, 265], [538, 345],
+   [462, 655], [538, 735], [462, 815]].forEach(([x, y]) =>
+    T.maple.push([x, y, 0.78 + (y % 20) / 160]));
   /* Every planted tree gets a collider the size of its trunk. Only
      the four specimen maples ever had one — the allées flank the
      spine walk sixteen units off the paving with nothing stopping the
@@ -4031,9 +4037,10 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
      author's reference lines its walks with trees, it is the OPEN
      ground that wants air. */
   /* the third maple stood at 738,418 — on Drosdick's new apron, a
-     tree growing through plaza paving — nudged south of the site */
-  const TREE2S = [[300,330,1.1],[624,712,1.1],[738,478,1.05]];
-  const TSMALL = [[840,540,1.1],[68,420,1]];
+     tree growing through plaza paving — nudged south of the site;
+     the mid-south one went in the third halving */
+  const TREE2S = [[300,330,1.1],[738,478,1.05]];
+  const TSMALL = [[68,420,1]];   /* the one east of the ring went in the third halving */
   /* the pair that flanked the old engineering door moved with it */
   const BUSHA = [[218,318,1],[302,322,0.9],[810,424,1.05],[922,424,0.95],
                  [196,812,1],[300,820,0.9],[692,826,1.05],[794,830,0.95],
@@ -6058,7 +6065,10 @@ function detailPass(){
     if (!g) continue;
     g.getWorldPosition(_fp);
     const d = _fp.distanceTo(cam);
-    g.userData.animate = d < ANIMATE_TO;
+    /* a held figure's mixer is paused — its only motion is breathe(),
+       which costs nothing and is the difference between a person
+       waiting and a statue, so distance never switches it off */
+    g.userData.animate = !!s.held || d < ANIMATE_TO;
     const want = d < SHADOW_TO;
     if (g.userData.shadow !== want){
       g.userData.shadow = want;
@@ -7561,17 +7571,67 @@ function release(s){
    figure (`if (s.static) continue`) and whatever pose the build leaves
    is the pose they keep. Not the jog: a figure pitched into a runner's
    lean is not somebody waiting by a door. */
+const _hsL = new THREE.Vector3(), _hsR = new THREE.Vector3();
 function holdStance(g){
   const a = g.userData?.anim;
   const R = a?.roles;
   if (!a || !R) return false;
+  /* The author's Talking clip is the standing stance now: hips
+     locked, no travel, a living gesture loop MADE for a person who
+     is somewhere rather than going somewhere. Every held frame of a
+     walk — however carefully chosen — was reported as "all the
+     characters are frozen", and on lent walks the measured minimum
+     stride never even closes (4.8 units between the feet at its
+     narrowest: the delta retarget keeps the receiver's stance
+     width). A slight timescale wobble and a random start keep the
+     parked cast from gesturing in unison. Returns "live", which is
+     held-truthy for the detail pass but not `=== true`, so breathe()
+     never fights a playing clip. */
+  if (R.talk && a.actions[R.talk]){
+    setClipOn(g, R.talk);
+    const talk = a.actions[R.talk];
+    talk.setEffectiveTimeScale(0.85 + Math.random() * 0.25);
+    talk.time = Math.random() * talk.getClip().duration;
+    return "live";
+  }
   const gait = (R.gaits || []).filter(n => n !== "Jogging")[0] || (R.gaits || [])[0];
   if (!gait || !a.actions[gait]) return false;
   setClipOn(g, gait);
-  const t = passingTime(g);
-  if (t === null) return false;
   const act = a.actions[gait];
   act.paused = true;
+  /* Full weight NOW, not after a fade: setClipOn eases clips in over
+     real frames, and update(0) never advances a fade — so a pose
+     sampled (or set) under a fading action reads a rig the action
+     has not reached yet. That is how the "held frame" was never the
+     frame anyone chose. */
+  act.stopFading();
+  act.setEffectiveWeight(1);
+  /* The frame is FOUND BY MEASURING THE RIG, not by trusting the
+     clip: passingTime's track arithmetic parked Priya with her feet
+     4.8 units apart on a lent walk — a statue caught mid-step,
+     reported as "all the characters are frozen". Step the paused
+     action across the cycle and keep the time where this body's own
+     feet stand closest together; that frame reads as a person, and
+     breathe() does the rest. */
+  let lf = null, rf = null;
+  g.traverse(o => {
+    if (!lf && /leftfoot|left_foot|foot_l\b/i.test(o.name)) lf = o;
+    if (!rf && /rightfoot|right_foot|foot_r\b/i.test(o.name)) rf = o;
+  });
+  let t = null;
+  if (lf && rf){
+    const dur = act.getClip().duration;
+    let bestD = Infinity;
+    for (let i = 0; i < 24; i++){
+      const ti = dur * (i + 0.5) / 24;
+      act.time = ti; a.mixer.update(0);
+      lf.getWorldPosition(_hsL); rf.getWorldPosition(_hsR);
+      const d = _hsL.distanceTo(_hsR);
+      if (d < bestD){ bestD = d; t = ti; }
+    }
+  }
+  if (t === null) t = passingTime(g);
+  if (t === null) return false;
   act.time = t;
   a.mixer.update(0);
   return true;
@@ -8292,20 +8352,30 @@ async function drosdickPreload(){
     const fetchSpz = async () => {
       const r = await fetch("assets/drosdick_atrium.spz");
       if (!r.ok) throw new Error("spz http " + r.status);
-      const total = +r.headers.get("content-length") || 0;
-      if (!r.body || !total) return r.arrayBuffer();
-      drosdick.bytesTotal = total;
+      if (!r.body) return r.arrayBuffer();
+      /* Chunks are ACCUMULATED, never preallocated: the first version
+         sized a buffer from content-length and returned it even when
+         the stream ended early, handing the decoder real bytes
+         followed by zeros — "Junk found after end of compressed
+         data", from the same phone whose connection cuts streams
+         short. content-length is only trusted as a progress display;
+         a stream that ends below it throws, and the retry machinery
+         does the rest. */
+      drosdick.bytesTotal = +r.headers.get("content-length") || 0;
       const reader = r.body.getReader();
-      const out = new Uint8Array(total);
+      const chunks = [];
       let got = 0;
       for (;;){
         const { done, value } = await reader.read();
         if (done) break;
-        /* a lying content-length must not overflow the buffer */
-        if (got + value.length > total) return (await fetch("assets/drosdick_atrium.spz")).arrayBuffer();
-        out.set(value, got); got += value.length;
+        chunks.push(value); got += value.length;
         drosdick.bytesGot = got;
       }
+      if (drosdick.bytesTotal && got < drosdick.bytesTotal)
+        throw new Error("spz short read " + got + "/" + drosdick.bytesTotal);
+      const out = new Uint8Array(got);
+      let off = 0;
+      for (const c of chunks){ out.set(c, off); off += c.length; }
       return out.buffer;
     };
     const [spark, bvh, glb, buf] = await Promise.all([
@@ -8650,6 +8720,25 @@ function roseWindowTex(){
   return t;
 }
 
+/* The space behind Drosdick's door while the atrium streams (or on a
+   machine that can never hold it): dark, warm, deliberately
+   unfurnished — a room being delivered, not a classroom pretending
+   otherwise. The amphitheater that used to stand in here was deleted
+   by instruction; the Marble capture is this hall's only interior. */
+function buildArrivalScene(){
+  const sc = new THREE.Scene();
+  sc.background = new THREE.Color(0x0b0a10);
+  sc.fog = new THREE.Fog(0x0b0a10, 60, 420);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(600, 600),
+    new THREE.MeshStandardMaterial({ color: 0x17161c, roughness: 0.95 }));
+  floor.rotation.x = -Math.PI / 2;
+  sc.add(floor);
+  const glow = new THREE.PointLight(0xf59e0b, 2600, 700, 1.9);
+  glow.position.set(0, 120, -60); sc.add(glow);
+  sc.add(new THREE.HemisphereLight(0x8a7a58, 0x0c0a08, 0.5));
+  sc.userData.cam = { pos: [0, 40, 150], look: [0, 30, -80], sway: [6, 2] };
+  return sc;
+}
 function buildCathedralInterior(){
   const sc = new THREE.Scene();
   sc.background = new THREE.Color(0x0c0a0e);
@@ -8712,7 +8801,15 @@ function engineOpenInterior(key){
   const cathReal = key === "cathedral" && !!cathNave && cathNave.root.visible;
   interiorCath = cathReal;
   if (!interiorScenes[key] && !cathReal && !marbleReady)
-    interiorScenes[key] = key === "cathedral" ? buildCathedralInterior() : buildInteriorScene(key);
+    /* The amphitheater that stood in for Drosdick is DELETED by
+       instruction — the only interior that hall has is the Marble
+       atrium. Until the capture lands (or on a machine that can never
+       hold it), the door opens into a dark arrival space and the
+       subtitle says what is happening; the moment the stream
+       finishes, the atrium opens around the visitor. */
+    interiorScenes[key] = key === "cathedral" ? buildCathedralInterior()
+                        : key === "eng" ? buildArrivalScene()
+                        : buildInteriorScene(key);
   interiorView = key;
   wingEl.classList.add("interior-open");
   /* the drag-through overlay only inside a real first-person interior
@@ -9525,7 +9622,7 @@ renderer.setAnimationLoop(() => {
   /* after the mixers, never before: a held pose is written afresh every
      update, so breathing added first would simply be overwritten */
   for (const s of students){
-    if (s.held && s.g.userData.animate !== false) breathe(s.g, now / 1000, s.phase || 0);
+    if (s.held === true && s.g.userData.animate !== false) breathe(s.g, now / 1000, s.phase || 0);
   }
   {  /* leaves drift down and sideways, respawning at the canopy */
     const lp = leaves.geometry.attributes.position;
@@ -10474,7 +10571,7 @@ function convoFrame(dt){
   convoT += dt;
   const m = castMixers.find(x => x.g === convoView.g);
   if (m) m.m.update(dt);
-  if (convoView.held) breathe(convoView.g, convoT, convoView.phase || 0);
+  if (convoView.held === true) breathe(convoView.g, convoT, convoView.phase || 0);
   lookAtViewer(convoView.g, convoLook);
   /* Sway about the framing, not towards it — and look where convoOpen
      decided, rather than at a fixed offset below the lens that happens
@@ -10691,8 +10788,10 @@ function openInterior(key){
         : "Every course sealed — the hall stands in your honor.") +
     /* the one state that reads as a bug when it goes unexplained:
        the amphitheater standing in while the Marble capture streams */
-    (key === "eng" && drosdick.state !== "ready" && !softGL
-      ? "  ·  The Grand Atrium is still streaming in — it will open around you the moment it finishes."
+    (key === "eng" && drosdick.state !== "ready"
+      ? (softGL
+          ? "  ·  The Grand Atrium needs a stronger GPU than this device offers."
+          : "  ·  The Grand Atrium is still streaming in — it will open around you the moment it finishes.")
       : "");
   engineOpenInterior(key);
   interiorEl.classList.add("open");

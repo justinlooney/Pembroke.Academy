@@ -276,11 +276,18 @@ try {
   step("interior closes",
        await pressUntil("Escape", () => !document.querySelector(".interior-open"), 60_000));
 
-  /* the clock cycles day → golden → night → auto; press until night lands */
+  /* The clock cycles day → golden → night → auto; press until night
+     lands. Polled on a TIMER, not the default requestAnimationFrame:
+     landmark arrivals stage textures across frames now, and under
+     swiftshader those frames stall for seconds — the mode walked
+     THROUGH night while no frame ticked inside the window, the wait
+     timed out, and the next press moved off night again. The campus's
+     night was fine; the poll was blind. */
   let night = false;
   for (let i = 0; i < 6 && !night; i++){
     await page.keyboard.press("n").catch(() => {});
-    night = await page.waitForFunction(() => window.__visual === "night", null, { timeout: 25_000 })
+    night = await page.waitForFunction(() => window.__visual === "night", null,
+        { timeout: 25_000, polling: 500 })
       .then(() => true, () => false);
   }
   step("day/night cycle reaches night", night,
