@@ -1928,7 +1928,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v100";
+const BUILD = "pembroke-v101";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -2563,7 +2563,7 @@ let fountainWater = null;
      150) and a walk drawn straight from door to lawn buries itself in
      masonry. These skirt the footprints the way the ground forces. */
   walkway([[268, 340], [300, 392], [330, 444], RING_W], 28);
-  walkway([[740, 306], [690, 340], [672, 412], [676, 456], RING_E], 28);
+  walkway([[865, 412], [800, 448], [740, 470], [700, 488], RING_E], 28);
   walkway([[240, 822], [302, 832], [360, 800], [380, 738], [370, 660],
            [348, 594], RING_W], 28);
   walkway([[735, 832], [668, 838], [620, 798], [604, 718], [610, 640],
@@ -2572,12 +2572,12 @@ let fountainWater = null;
   /* hall to hall, skirting the lawn rather than crossing it — the north
      range keeps south of the library and engineering, the south range
      keeps clear of the lodge */
-  walkway([[268, 340], [350, 330], [450, 320], [550, 318], [650, 320], [740, 306]], 20);
+  walkway([[268, 340], [350, 330], [450, 320], [550, 318], [650, 320], [700, 400], [760, 412], [865, 412]], 20);
   walkway([[240, 822], [296, 844], [356, 898], [440, 922], [560, 912], [660, 872], [735, 832]], 20);
   /* the west and east ranges, each passing on the open side of the hall
      that would otherwise block it */
   walkway([[268, 340], [300, 430], [304, 540], [318, 610], [370, 660]], 20);
-  walkway([[740, 306], [828, 336], [842, 440], [816, 528], [740, 588], [676, 626]], 20);
+  walkway([[865, 412], [880, 470], [842, 528], [760, 588], [676, 626]], 20);
 
   /* The residence hall, properly served: a walk the length of its east
      front, joined south to the library and north to the drive, so people
@@ -2585,7 +2585,7 @@ let fountainWater = null;
   walkway([[212, 362], [240, 352], [268, 340]], 18);
   walkway([[214, 226], [210, 300], [212, 362], [210, 420], [214, 466]], 18);
   walkway([[214, 466], [244, 500], [286, 512], RING_W], 18);
-  walkway([[746, 326], [744, 316], [740, 306]], 18);
+  walkway([[865, 432], [865, 422], [865, 412]], 18);
   /* the south lodge, and the walk down to the west car park */
   walkway([[240, 822], [292, 830], [334, 834]], 18);
   walkway([[304, 540], [200, 556], [110, 568]], 18);
@@ -2719,10 +2719,18 @@ lot(16, 430, 70, 240, 5);
      the ribbon's own Catmull-Rom sampling (the curve bows outside its
      control polygon, so eyeballing the points is how the old ones
      happened): every edge now clears every wall, kerb included. */
+  /* The north-east quarter re-routed a second time: Drosdick Hall's
+     site (675-1055 x 60-440) swallowed the old sweep at 700,114 →
+     960,400, so the drive now runs the campus's north edge at y≈45
+     and turns south past the hall's east apron at x≈1075. Same rule
+     as the last re-route: Catmull-Rom bows OUTSIDE its control
+     polygon, so these points were checked by sampling against the
+     colliders, not by eye. */
   drive([[-40, 1080], [40, 980], [70, 880], [64, 700], [40, 560],
-         [38, 460], [46, 368], [72, 262], [97, 185], [179, 103],
-         [350, 104], [500, 102], [700, 114], [803, 115], [885, 160],
-         [952, 257], [960, 400], [980, 600], [966, 800], [930, 950],
+         [38, 460], [46, 368], [72, 262], [90, 180], [165, 88],
+         [350, 84], [520, 58], [700, 44], [900, 46], [1046, 72],
+         [1090, 205], [1092, 340], [1076, 470], [1032, 562],
+         [980, 600], [966, 800], [930, 950],
          [880, 1060]]);
   /* the boulevard south from the gatehouse to the stadium forecourt */
   drive([[500, 985], [500, 1050], [498, 1105], [500, 1160]], 46);
@@ -3137,9 +3145,17 @@ const BUILDINGS = [
   { sector:"lib", label:{x:260, y:230, z:390},
     hall:{x:150, y:150, w:220, d:160, h:133, roof:66, seed:1},
     tower:{x:238, y:182, w:92, d:92, h:240, spire:110} },
-  { sector:"eng", label:{x:740, y:220, z:270},
-    hall:{x:645, y:150, w:190, d:140, h:119, roof:54, seed:2},
-    tower:{x:668, y:168, w:66, d:66, h:192, pinnacles:true} },
+  /* Drosdick Hall is the author's own building now (see the OUTER
+     queue): collegiate gothic at full presence on a 380-unit site,
+     which the old 190x140 plot could never hold. The procedural hall,
+     tower and pinnacles retired with honour like the chapel's did;
+     the label survives, moved over the new roof. The site runs
+     x 675-1055, y 60-440 — the refectory that stood inside it is
+     gone, the drive bows around it, and the door now opens on the
+     south apron. */
+  { sector:"eng", label:{x:865, y:250, z:210}, glb: true,
+    hall:{x:720, y:105, w:290, d:290, h:0, roof:0, seed:2},
+    tower:null },
   { sector:"sci", label:{x:240, y:735, z:340},
     hall:{x:140, y:660, w:200, d:150, h:115, roof:54, seed:3},
     tower:{x:212, y:680, w:72, d:72, h:208, spire:100} },
@@ -3156,20 +3172,29 @@ BUILDINGS.forEach(spec => {
   hallGroups[spec.sector] = grp;
   buildingEls[spec.sector] = [grp];
 
-  stoneBox(grp, { ...spec.hall, windows: "lancet", ivy: true, noRoof: true,
-                  accent: S.color, sector: spec.sector });
-  gableRoof(grp, { x: spec.hall.x, y: spec.hall.y, w: spec.hall.w, d: spec.hall.d,
-                   z: spec.hall.h, h: spec.hall.roof, sector: spec.sector });
-  [0.2, 0.74].forEach(fx => boxMesh(grp, brickMat,
-    spec.hall.x + spec.hall.w * fx, spec.hall.y + spec.hall.d / 2 - 7, 13, 13,
-    spec.hall.h + spec.hall.roof + 12));
-  const t = spec.tower;
-  stoneBox(grp, { x: t.x, y: t.y, w: t.w, d: t.d, h: t.h, parapet: 7, windows: "grand",
-                  clock: t.clock, seed: spec.hall.seed + 3, accent: S.color, sector: spec.sector });
-  if (t.spire) spire(grp, t.x + t.w / 2, t.h, t.y + t.d / 2, t.w, t.spire);
-  if (t.pinnacles)
-    [[t.x + 2, t.y + 2], [t.x + t.w - 10, t.y + 2], [t.x + 2, t.y + t.d - 10], [t.x + t.w - 10, t.y + t.d - 10]]
-      .forEach(([px, py]) => boxMesh(grp, stoneTrimMat, px, py, 8, 8, t.h + 18));
+  if (spec.glb){
+    /* the model arrives with the outer world; only its collider — the
+       building core, not the walkable apron baked into its base — is
+       registered now, so students, walkers and the road check treat
+       the hall as solid long before the mesh lands */
+    COLLIDERS.push({ x: spec.hall.x, y: spec.hall.y, w: spec.hall.w, d: spec.hall.d,
+                     sector: spec.sector });
+  } else {
+    stoneBox(grp, { ...spec.hall, windows: "lancet", ivy: true, noRoof: true,
+                    accent: S.color, sector: spec.sector });
+    gableRoof(grp, { x: spec.hall.x, y: spec.hall.y, w: spec.hall.w, d: spec.hall.d,
+                     z: spec.hall.h, h: spec.hall.roof, sector: spec.sector });
+    [0.2, 0.74].forEach(fx => boxMesh(grp, brickMat,
+      spec.hall.x + spec.hall.w * fx, spec.hall.y + spec.hall.d / 2 - 7, 13, 13,
+      spec.hall.h + spec.hall.roof + 12));
+    const t = spec.tower;
+    stoneBox(grp, { x: t.x, y: t.y, w: t.w, d: t.d, h: t.h, parapet: 7, windows: "grand",
+                    clock: t.clock, seed: spec.hall.seed + 3, accent: S.color, sector: spec.sector });
+    if (t.spire) spire(grp, t.x + t.w / 2, t.h, t.y + t.d / 2, t.w, t.spire);
+    if (t.pinnacles)
+      [[t.x + 2, t.y + 2], [t.x + t.w - 10, t.y + 2], [t.x + 2, t.y + t.d - 10], [t.x + t.w - 10, t.y + t.d - 10]]
+        .forEach(([px, py]) => boxMesh(grp, stoneTrimMat, px, py, 8, 8, t.h + 18));
+  }
 
   /* CSS2D nameplate */
   const el = document.createElement("div");
@@ -3319,6 +3344,21 @@ BUILDINGS.forEach(spec => {
                                minZ: bb.min.z + 22, maxZ: bb.max.z - 10 } };
         window.__cathedralIn = true;
       } }],
+    /* Drosdick Hall itself — the author's collegiate gothic hall with
+       its baked site apron (trees, plaza) standing where the
+       procedural engineering hall did, at the presence the reference
+       photographs ask for. Second in the queue behind the chapel: it
+       is the other building the campus tells you to walk to. Its
+       walk-in interior is the Marble atrium, which streams separately
+       on intent (see drosdickPreload); this is only the shell. The
+       collider was registered at build time — the building is solid
+       before it is visible. */
+    ["assets/drosdick_hall.glb", {
+      plane: [865, 250], height: 169, maxFoot: [380, 380], sink: 1.5,
+      onLoaded: (root) => {
+        if (hallGroups.eng) hallGroups.eng.add(root);
+        window.__drosdickHallIn = true;
+      } }],
     /* The athletics district: south beyond the drive, Pembroke
        Stadium dead ahead down the boulevard, Pembroke Field to the
        southwest, the Pembroke Tennis Club southeast. A visitor can walk
@@ -3439,9 +3479,10 @@ BUILDINGS.forEach(spec => {
   stadiumSign(500, 1150, "PEMBROKE STADIUM", 150);
   stadiumSign(-360, 1062, "PEMBROKE FIELD", 112);
   stadiumSign(1255, 1072, "PEMBROKE TENNIS CLUB", 136);
-  /* dormitory ranges */
-  stoneBox(amb, { x: 856, y: 240, w: 64, d: 310, h: 118, windows: "lancet", seed: 16, accent: "#d9c48a", noRoof: true });
-  gableRoof(amb, { x: 856, y: 240, w: 64, d: 310, z: 70, h: 28, axis: "y" });
+  /* The east dormitory range stood at 856,240-550 — two thirds of it
+     inside Drosdick Hall's site. Bulldozed with the refectory, by the
+     same instruction: ambient scenery yields to the hall, and the
+     hall's own mass now holds the east skyline the range used to. */
   /* the west residence hall: akhazaee's scanned Colgate dorm (CC-BY-4.0),
      clean facade toward the quad, replacing the procedural west range */
   /* Queued with the rest of the outer world rather than fetched on
@@ -3480,9 +3521,11 @@ BUILDINGS.forEach(spec => {
     plane: [149, 460], height: 96, rotY: Math.PI / 2, maxFoot: [130, 215],
     sink: 2.4, collider: "auto", vista: "Pembroke Residence Hall",
   }]);
-  /* terracotta refectory */
-  stoneBox(amb, { x: 700, y: 330, w: 110, d: 72, h: 80, windows: "lancet", seed: 18, accent: "#f0b47a", noRoof: true });
-  gableRoof(amb, { x: 700, y: 330, w: 110, d: 72, z: 80, h: 44, terra: true });
+  /* The terracotta refectory stood at 700,330 — inside Drosdick
+     Hall's new site. Bulldozed by instruction ("if another building
+     has to go ... that is fine"): it was scenery with no door, and
+     the hall that displaced it is one of the four the campus is
+     actually about. */
   /* south hall + moderns */
   /* The south hall is GONE, and the arithmetic that removed it is
      worth keeping. At 340,795 it touched the science hall exactly and
@@ -3509,7 +3552,7 @@ BUILDINGS.forEach(spec => {
       const k = new THREE.Mesh(new THREE.BoxGeometry(11, 2.4, 11), capMat);
       k.position.set(W(px), baseY + h3 + 1.2, W(py)); k.castShadow = true; amb.add(k);
     };
-    [[888, 290], [888, 395], [888, 500]].forEach(([px, py]) => chimney(px, py, 136, 24));
+    /* the east range's three ridge chimneys went with the range */
     const acMat = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.7, metalness: 0.3 });
     [[168, 880], [242, 902], [788, 894], [852, 906]].forEach(([px, py], i) => {
       const u = new THREE.Mesh(new THREE.BoxGeometry(15, 7, 11), acMat);
@@ -3935,9 +3978,12 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
      the lawn goes bare. The avenues and belts are untouched: the
      author's reference lines its walks with trees, it is the OPEN
      ground that wants air. */
-  const TREE2S = [[300,330,1.1],[624,712,1.1],[738,418,1.05]];
+  /* the third maple stood at 738,418 — on Drosdick's new apron, a
+     tree growing through plaza paving — nudged south of the site */
+  const TREE2S = [[300,330,1.1],[624,712,1.1],[738,478,1.05]];
   const TSMALL = [[840,540,1.1],[68,420,1]];
-  const BUSHA = [[218,318,1],[302,322,0.9],[698,300,1.05],[782,304,0.95],
+  /* the pair that flanked the old engineering door moved with it */
+  const BUSHA = [[218,318,1],[302,322,0.9],[810,424,1.05],[922,424,0.95],
                  [196,812,1],[300,820,0.9],[692,826,1.05],[794,830,0.95],
                  [100,246,0.9],[178,248,1],[222,300,0.9],[222,372,1],[100,416,0.95],[178,414,0.9]];
   const BUSHB = [[440,398,1],[560,398,0.9],[440,602,0.95],[560,602,1.05],[420,905,1],[580,905,1]];
@@ -4384,16 +4430,18 @@ const EDGES = {};
   walk([[500, 150], [497, 236], [500, 300], N]);                 /* the processional  */
   walk([S, [500, 760], [503, 840], [500, 918], [500, 985]]);      /* south to the gates */
   walk([[268, 340], [300, 392], [330, 444], W]);                  /* library door       */
-  walk([[740, 306], [690, 340], [672, 412], [676, 456], E]);      /* engineering door   */
+  walk([[865, 412], [800, 448], [740, 470], [700, 488], E]);      /* Drosdick door, on the apron */
   walk([[240, 822], [302, 832], [360, 800], [380, 738], [370, 660], [348, 594], W]);
   /* kept south of the administration hall until it is west of it: the
      drawn walk cuts that corner, and a student following it walks
      through the corner rather than round it */
   walk([[735, 832], [668, 838], [620, 836], [604, 718], [610, 640], [642, 570], E]);
-  walk([[268, 340], [350, 330], [450, 320], [550, 318], [650, 320], [740, 306]]);
+  /* the north cross-walk now meets Drosdick's apron south of the
+     building core rather than ending at a door that stood inside it */
+  walk([[268, 340], [350, 330], [450, 320], [550, 318], [650, 320], [700, 400], [760, 412], [865, 412]]);
   walk([[240, 822], [296, 844], [356, 898], [440, 922], [560, 912], [660, 872], [735, 832]]);
   walk([[268, 340], [300, 430], [304, 540], [318, 610], [370, 660]]);
-  walk([[740, 306], [828, 336], [842, 440], [816, 528], [740, 588], [676, 626]]);
+  walk([[865, 412], [880, 470], [842, 528], [760, 588], [676, 626]]);
   /* The residence front, starting south of the library. The drawn walk
      runs the full height of the hall, but its northern end is inside the
      library's footprint — the two buildings overlap on paper even though
@@ -4496,13 +4544,13 @@ const STUDENT_ROSTER = [
          ["Where do you run to?",
           "Out past the athletics field, down the boulevard, back up through the gate. Do it at dusk when the chapel bells go and tell me it isn't worth the walk."]] },
   { name:"Kenji",  c:0xa3e635, at:"adm", major:"AI Robotics & Flight",
-    says:["Parked by the east lot, sprinting to lab!","My A* found a shorter path to lecture.","The refectory's roof matches my notebook."],
+    says:["Parked by the east lot, sprinting to lab!","My A* found a shorter path to lecture.","Drosdick's tower catches the sunset just right."],
     ask:[["What are you working on?",
           "Path planning — and then applying it to my own commute, which is how I found out the diagonal past the science hall saves me ninety seconds. I have been late to precisely one lecture since."],
          ["Does the theory actually help?",
           "It made me notice things. Once you've written a planner that weights every edge, you start seeing the campus as a graph: the paving is edges, the doors are nodes, and the lawn is a shortcut everyone takes and nobody admits to."],
-         ["The refectory roof?",
-          "Same green as my notebook. I noticed it in first week and now I can't stop seeing it. That's the whole story, I'm afraid — I did warn you it was a small thing."]] },
+         ["Drosdick's tower?",
+          "Stand on the quad ring at golden hour and look east — the stone goes honey-colored for about four minutes. I noticed it in first week and now I schedule my commute around it. That's the whole story, I'm afraid — I did warn you it was a small thing."]] },
 ];
 const students = [];
 const skinMat = new THREE.MeshStandardMaterial({ color: 0xe2cfae, roughness: 0.8 });
@@ -4983,7 +5031,7 @@ const loadedLoitering = () => LOITERING.filter(k => castLib[k]);
  * `needs` is the same question asked before the body is chosen. */
 const CAST_PLAN = [
   { k: "any" },                                             /* Elowen — roams        */
-  { k: "loiter", at: [700, 340], face: -0.9, live: true, pose: 0 }, /* Marcus — Drosdick door */
+  { k: "loiter", at: [790, 428], face: -0.9, live: true, pose: 0 }, /* Marcus — Drosdick door apron */
   { k: "any", needs: "idle", at: [449, 449], face: 0.8,     /* Priya  — plaza        */
     kind: "chat", clip: "idle" },
   { k: "loiter", at: [286, 838], face:  0.2, live: true, pose: 1 }, /* Jun — Alden front.
@@ -8842,7 +8890,7 @@ addEventListener("keydown", (e) => {
    ══════════════════════════════════════════════════════════════════ */
 const wing = wingEl;
 const DOORS = [
-  { sector:"lib", x:260, y:326 }, { sector:"eng", x:740, y:306 },
+  { sector:"lib", x:260, y:326 }, { sector:"eng", x:865, y:412 },
   { sector:"sci", x:240, y:822 }, { sector:"adm", x:735, y:832 },
   { sector:"cathedral", x:500, y:-300 },   /* the chapel, on the North Quad */
 ];
@@ -9052,7 +9100,7 @@ function walkUpdate(dt){
      lands in less. Never on a software renderer — a machine that can't
      hold the campus has no business decoding two million splats. */
   if (!softGL && drosdick.state === "unloaded" &&
-      Math.hypot(740 - walker.x, 306 - walker.y) < 150) drosdickPreload();
+      Math.hypot(865 - walker.x, 412 - walker.y) < 150) drosdickPreload();
   const dp = document.getElementById("doorprompt");
   dp.classList.toggle("show", !!walker.door);
   if (walker.door) document.getElementById("doorprompt-name").textContent = "Enter " + SECTORS[walker.door].hall;
