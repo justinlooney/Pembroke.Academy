@@ -3214,7 +3214,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v115";
+const BUILD = "pembroke-v116";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -11526,6 +11526,47 @@ function jStudy(courseId){
 }
 /* extended per-lesson records (labs, your-turn, homework) live beside
    the section levels under a key no section number can collide with */
+/* every graded interaction leaves one compact event — section, kind,
+   verdict, when. Capped FIFO; the tutor reads SIGNALS from this,
+   never raw answers. */
+function studyLog(courseId, n, kind, okAns){
+  study[courseId] = study[courseId] || {};
+  const log = study[courseId].log = study[courseId].log || [];
+  log.push({ n, k: kind, ok: okAns ? 1 : 0, at: Date.now() });
+  if (log.length > 60) log.splice(0, log.length - 60);
+  saveStudy();
+}
+/* the taxonomy, section-level: recent stumbles + per-unit trend */
+function studySignals(courseId){
+  const log = (study[courseId] || {}).log || [];
+  const secs = studySections(courseId);
+  const nameOf = n => { const x = secs.find(s2 => s2.n === n); return x ? `§${x.n} ${x.t}` : n; };
+  const kindName = { kc: "knowledge check", hw: "homework", turn: "practice" };
+  /* stumbles: most recent misses, grouped by section+kind */
+  const missed = {};
+  for (const e of log.slice(-30)) if (!e.ok){
+    const key = e.n + "|" + e.k;
+    missed[key] = (missed[key] || 0) + 1;
+  }
+  const stumbles = Object.entries(missed)
+    .sort((a, b) => b[1] - a[1]).slice(0, 3)
+    .map(([key, c]) => { const [n, k] = key.split("|");
+      return `${nameOf(n)} — ${kindName[k] || k}, ${c === 1 ? "one miss" : c + " misses"}`; });
+  /* trend per unit: recent success rate vs earlier, when enough data */
+  const trends = [];
+  for (const u of (STUDY[courseId]?.units || [])){
+    const ns = new Set(u.sections.map(x => x.n));
+    const ev = log.filter(e => ns.has(e.n));
+    if (ev.length < 5) continue;
+    const cut = Math.floor(ev.length / 2);
+    const rate = a => a.reduce((t, e) => t + e.ok, 0) / a.length;
+    const early = rate(ev.slice(0, cut)), late = rate(ev.slice(cut));
+    trends.push(`${u.title.replace(/^Unit /, "").split(" · ")[0]}: ${
+      late - early > 0.15 ? "improving" : early - late > 0.15 ? "struggling" : late < 0.5 ? "struggling" : "steady"}`);
+  }
+  return { stumbles, trends };
+}
+window.__signals = studySignals;   /* test/debug hook */
 function studyExt(courseId, n){
   study[courseId] = study[courseId] || {};
   const x = study[courseId].x = study[courseId].x || {};
@@ -11881,6 +11922,7 @@ function jLessonFull(courseId, n){
       }
       host.classList.toggle("right", !!good); host.classList.toggle("wrong", !good);
       why.hidden = false;
+      studyLog(courseId, n, "turn", !!good);
       if (good){ why.textContent = "✓ " + q.work; ext["t" + qi] = 1; saveStudy(); }
       else { miss++; why.textContent = (miss === 1 ? "Hint: " + q.hint : "✗ " + q.work); }
     });
@@ -11902,6 +11944,7 @@ function stGradeKC(courseId, n, sec, S){
     const why = fs.querySelector(".st-why");
     const good = pick && +pick.value === q.a;
     if (good) right++;
+    studyLog(courseId, n, "kc", good);
     fs.classList.toggle("right", good);
     fs.classList.toggle("wrong", !good);
     why.hidden = false;
@@ -11946,6 +11989,7 @@ function jHomework(courseId, n){
       const v = parseFloat(host.querySelector(".st-num").value.replace(",", "."));
       const good = Number.isFinite(v) && Math.abs(v - q.ans) <= (q.tol || 0) + 1e-9;
       if (good) score++;
+      studyLog(courseId, n, "hw", good);
       host.classList.toggle("right", good); host.classList.toggle("wrong", !good);
       const why = host.querySelector(".st-why");
       why.hidden = false; why.textContent = good ? "✓" : `✗ — the answer was ${+q.ans.toFixed ? +q.ans.toFixed(2) : q.ans}`;
@@ -12166,6 +12210,35 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "Escape") closeInterior();
 });
 
+/* ── AI health: one honest diagnosis of the local setup ────────────
+   ready / model-missing / origin-blocked / unreachable / timeout.
+   Origin-blocked is the sneaky one: the server is up but refuses this
+   page's origin — a CORS fetch fails while a no-cors probe succeeds. */
+async function aiHealth(url, social, academic){
+  const base = url.replace(/\/$/, "");
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 10000);
+  try {
+    const r = await fetch(base + "/api/tags", { signal: ctrl.signal });
+    const j = await r.json();
+    const names = (j.models || []).map(m => m.name);
+    const has = m => names.some(nm => nm === m || nm.startsWith(m + ":"));
+    const missing = [social, academic].filter(m => !has(m));
+    return missing.length
+      ? { state: "model-missing", detail: `connected · pull ${missing.join(" and ")} (ollama pull …)`, names }
+      : { state: "ready", detail: `ready · ${names.length} models · ${social} ✓ ${academic} ✓`, names };
+  } catch(err){
+    if (err.name === "AbortError") return { state: "timeout", detail: "✗ timed out — Ollama may be busy loading a model" };
+    try {
+      await fetch(base + "/", { mode: "no-cors", signal: AbortSignal.timeout(4000) });
+      return { state: "origin-blocked", detail: `✗ Ollama is RUNNING but refuses this page — restart it with OLLAMA_ORIGINS=${location.origin}` };
+    } catch(_){
+      return { state: "unreachable", detail: "✗ unreachable — is Ollama running?" };
+    }
+  } finally { clearTimeout(t); }
+}
+window.__aiHealth = aiHealth;   /* test/debug hook */
+
 /* ── the Local AI settings card ──────────────────────────────────── */
 function jAISettings(){
   const c = AI.cfg;
@@ -12206,21 +12279,15 @@ function jAISettings(){
       AI.cfg.on ? "Walk up to anyone with a name tag and say something." : "Characters return to their usual lines.", "#d4af6a", 5000);
     jClose();
   };
-  jbody.querySelector("#ai-test").onclick = async () => {
+  const runHealth = async () => {
     const out = jbody.querySelector("#ai-test-out");
     out.textContent = "testing…";
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 10000);
-    try {
-      const r = await fetch(val("ai-url").replace(/\/$/, "") + "/api/tags", { signal: ctrl.signal });
-      const j = await r.json();
-      const names = (j.models || []).map(m => m.name);
-      const have = m => names.some(n => n === m || n.startsWith(m + ":")) ? "✓" : "✗ not pulled";
-      out.textContent = `connected · ${names.length} models · ${val("ai-social")} ${have(val("ai-social"))} · ${val("ai-academic")} ${have(val("ai-academic"))}`;
-    } catch(_){
-      out.textContent = "✗ unreachable — is Ollama running with OLLAMA_ORIGINS set?";
-    } finally { clearTimeout(t); }
+    const h = await aiHealth(val("ai-url"), val("ai-social"), val("ai-academic"));
+    out.textContent = h.detail;
+    out.dataset.state = h.state;
   };
+  jbody.querySelector("#ai-test").onclick = runHealth;
+  if (AI.cfg.on) runHealth();          /* enabled setups get diagnosed on open */
 }
 document.getElementById("ai-settings").addEventListener("click", jAISettings);
 
@@ -12980,11 +13047,14 @@ function aiSystemPrompt(s, userText){
     }).join(" · ");
     const frontier = secs.find(x => st2[x.n] !== 2);
     const weak = secs.filter(x => st2[x.n] === 1).map(x => `§${x.n} ${x.t}`).slice(0, 3);
+    const sig = studySignals("MATH201");
     return [
       `This visitor is ${enrolled ? "ENROLLED in your MATH 201" : "not (yet) enrolled in MATH 201 — anyone may browse the course of study"}.`,
       `Mastery by unit: ${units}.`,
       frontier ? `Their frontier — the first unmastered lecture — is §${frontier.n} ${frontier.t}. Its key idea: ${frontier.key}` : "They have mastered all twenty-eight lectures.",
       weak.length ? `Opened but not yet mastered (their weak spots — affirm what's solid, target these): ${weak.join(", ")}.` : "",
+      sig.stumbles.length ? `Recent stumbles from their actual attempt history — react to the PATTERN, never recite the misses: ${sig.stumbles.join("; ")}.` : "",
+      sig.trends.length ? `Trend by unit: ${sig.trends.join(" · ")}.` : "",
       `Teach to the frontier: acknowledge what their record shows is solid, then aim at the weakest prerequisite of what they asked — image first, symbols second. You may offer to open a lecture, its interactive, or its homework.`,
     ].filter(Boolean).join(" ");
   })() : "";
