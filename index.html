@@ -723,6 +723,7 @@ body.diagnosing #campus-wing-intro{opacity:0;pointer-events:none;}
    Keep the minimap, the pad, and the door prompt; compact the rest. */
 @media (hover:none){
   .walkmode #walkhud{ display:none; }        /* WASD means nothing here */
+  #doorprompt .dp-key{ display:none; }       /* neither does E — "tap to enter" carries it */
   /* nor does a keyboard legend — and on a narrow screen it ran straight
      through the quad legend on the opposite corner */
   #hint-keys{ display:none; }
@@ -993,6 +994,12 @@ body.day .int-lamp::after{opacity:.45;}
 .orient .o-step.done{color:#64748b;text-decoration:line-through;text-decoration-color:rgba(212,175,106,.5);}
 .orient .o-step.now{color:var(--parchment);}
 .orient .o-step .o-tick{flex:none;color:var(--brass);font-size:11px;width:1rem;}
+/* Walking on a phone, the full checklist sat squarely on the ◀ ▲ ▶ pads.
+   Collapse it to the one step that matters and lift it clear of them. */
+@media (hover:none){
+  body.walkmode .orient{bottom:11.6rem;}
+  body.walkmode .orient .o-step:not(.now){display:none;}
+}
 @media print{
   body.j-print > *:not(#jmodal){display:none !important;}
   body.j-print #jmodal,.j-print .jmodal-card{position:static !important;transform:none !important;
@@ -1003,9 +1010,59 @@ body.day .int-lamp::after{opacity:.45;}
 @media (prefers-reduced-motion: reduce){
   .jcta{transition:none;}
 }
+
+/* ═══════════════ ⑥ THE ARRIVAL ═══════════════ */
+#arrival{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(120% 90% at 50% 20%, #131b2e 0%, #0a0f1c 55%, #060911 100%);
+  transition:opacity .8s ease;}
+#arrival.gone{opacity:0;pointer-events:none;}
+.arr-inner{text-align:center;padding:0 2rem;}
+.arr-crest{display:block;margin:0 auto 1.1rem;filter:drop-shadow(0 0 18px rgba(212,175,106,.35));
+  animation:arrUp 1.1s ease both;}
+.arr-name{font-family:Georgia,'Times New Roman',serif;font-size:clamp(1.7rem,6vw,2.6rem);
+  color:#efe6d0;letter-spacing:.04em;animation:arrUp 1.1s .15s ease both;}
+.arr-name span{color:#d4af6a;}
+.arr-motto{font-size:11px;text-transform:uppercase;letter-spacing:.32em;color:#5f6c84;
+  margin-top:.5rem;animation:arrUp 1.1s .3s ease both;}
+.arr-bar{width:min(300px,60vw);height:2px;background:rgba(148,163,184,.18);border-radius:2px;
+  margin:1.7rem auto 0;overflow:hidden;animation:arrUp 1.1s .45s ease both;}
+.arr-bar i{display:block;height:100%;width:0%;background:linear-gradient(90deg,#a8843f,#e6c887);
+  border-radius:2px;transition:width .45s ease;}
+.arr-note{font-size:10.5px;text-transform:uppercase;letter-spacing:.22em;color:#7d8aa3;
+  margin-top:.8rem;min-height:1em;animation:arrUp 1.1s .55s ease both;}
+@keyframes arrUp{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:none;}}
+#arr-cta{position:absolute;left:50%;bottom:6.8rem;transform:translateX(-50%);z-index:45;
+  animation:arrUp .9s .2s ease both;}
+#arr-skip{position:absolute;right:1rem;bottom:1rem;z-index:210;background:none;border:0;
+  color:#5f6c84;font-size:10.5px;text-transform:uppercase;letter-spacing:.2em;cursor:pointer;padding:.5rem;}
+#arr-skip:hover{color:#d4af6a;}
+@media (prefers-reduced-motion: reduce){
+  .arr-crest,.arr-name,.arr-motto,.arr-bar,.arr-note,#arr-cta{animation:none;}
+}
 </style>
 </head>
 <body class="antialiased">
+<!-- ═══════════════ ⑥ THE ARRIVAL ═══════════════
+     The first sentence of the site. Never a blank canvas: the crest
+     and the motto stand while the campus loads, the gold line is the
+     REAL asset queue, and first-time visitors are then flown down
+     onto the quad in one authored sweep that ends where the Student
+     Journey begins. Static markup so it paints before any script. -->
+<div id="arrival" role="status" aria-label="Pembroke Academy is loading">
+  <div class="arr-inner">
+    <svg class="arr-crest" width="76" height="76" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 2 L21 6 V11 C21 16.5 17.2 20.6 12 22 C6.8 20.6 3 16.5 3 11 V6 Z"
+            stroke="#d4af6a" stroke-width="1.2" fill="rgba(212,175,106,.06)"/>
+      <text x="12" y="15.2" text-anchor="middle" font-family="Georgia,serif" font-size="9"
+            fill="#d4af6a">P</text>
+    </svg>
+    <div class="arr-name">Pembroke <span>Academy</span></div>
+    <div class="arr-motto">Lux · Mathesis · Machina — Est. MMXXVI</div>
+    <div class="arr-bar"><i id="arr-fill"></i></div>
+    <div class="arr-note" id="arr-note">Opening the gates</div>
+  </div>
+</div>
+
 
 <div class="sky"></div>
 <div class="stars" id="stars"></div>
@@ -1084,7 +1141,7 @@ body.day .int-lamp::after{opacity:.45;}
     <div id="walkhud">W A S D move &nbsp;·&nbsp; drag to look &nbsp;·&nbsp; Shift hurry &nbsp;·&nbsp; ◀ ▶ turn &nbsp;·&nbsp; scroll zoom &nbsp;·&nbsp; E enter hall &nbsp;·&nbsp; F leave walk</div>
     <div id="zoomlvl" aria-hidden="true"></div>
     <button id="vista-back" type="button">← back to the quad</button>
-    <div id="doorprompt"><b>E</b> — <span id="doorprompt-name"></span> <span style="opacity:.65">· tap to enter</span></div>
+    <div id="doorprompt"><span class="dp-key"><b>E</b> — </span><span id="doorprompt-name"></span> <span style="opacity:.65">· tap to enter</span></div>
     <div id="touchpad">
       <button data-t="left">◀</button><button data-t="fwd">▲</button><button data-t="right">▶</button>
     </div>
@@ -2044,7 +2101,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v108";
+const BUILD = "pembroke-v109";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -2671,7 +2728,7 @@ let fountainWater = null;
   /* ...and on north, between the quads: one unbroken 44-wide spine from
      ring to ring, plus the stub up to the chapel doors */
   walkway([[500, 64], [500, 0], [500, -62]], 44);
-  walkway([[500, -296], [500, -322]], 26);
+  walkway([[500, -296], [500, -322]], 36);
   /* the south walk out to the gatehouse and the stadium boulevard */
   walkway([RING_S, [500, 760], [503, 840], [500, 918], [500, 985]], 30);
 
@@ -2679,12 +2736,15 @@ let fountainWater = null;
      through it — the halls are wide (the science hall alone runs 200 by
      150) and a walk drawn straight from door to lawn buries itself in
      masonry. These skirt the footprints the way the ground forces. */
-  walkway([[268, 340], [300, 392], [330, 444], RING_W], 28);
-  walkway([[865, 412], [800, 448], [740, 470], [700, 488], RING_E], 28);
+  /* 36 wide, ring to threshold: an entrance should be announced by the
+     ground as well as the beacon over it. The library's walk used to
+     stop 16 units short of its own door — it arrives now. */
+  walkway([[260, 326], [268, 340], [300, 392], [330, 444], RING_W], 36);
+  walkway([[865, 412], [800, 448], [740, 470], [700, 488], RING_E], 36);
   walkway([[240, 822], [302, 832], [360, 800], [380, 738], [370, 660],
-           [348, 594], RING_W], 28);
+           [348, 594], RING_W], 36);
   walkway([[735, 832], [668, 838], [620, 798], [604, 718], [610, 640],
-           [642, 570], RING_E], 28);
+           [642, 570], RING_E], 36);
 
   /* hall to hall, skirting the lawn rather than crossing it — the north
      range keeps south of the library and engineering, the south range
@@ -3309,6 +3369,8 @@ const BUILDINGS = [
     tower:{x:700, y:702, w:78, d:78, h:275, pinnacles:true, clock:true} },
 ];
 const hallGroups = {};
+const hallTags = [];   /* every building nameplate; walk mode re-anchors them */
+window.__hallTags = hallTags;   /* test/debug hook */
 BUILDINGS.forEach(spec => {
   const S = SECTORS[spec.sector];
   const grp = new THREE.Group();
@@ -3350,6 +3412,13 @@ BUILDINGS.forEach(spec => {
     <div class="t3"><span data-labprog="${spec.sector}">0/0</span> courses sealed</div>`;
   const tag = new CSS2DObject(el);
   tag.position.set(W(spec.label.x), spec.label.z, W(spec.label.y));
+  /* two hover heights: the aerial anchor clears the spire so the name
+     never sits on the architecture from above; on foot that same point
+     is deep in the sky, so walk mode drops the name to just over the
+     main roofline — near enough to read as a caption on the building */
+  tag.userData.hover = { aerial: spec.label.z,
+                         walk: spec.glb ? 192 : spec.hall.h + spec.hall.roof + 24 };
+  hallTags.push(tag);
   world.add(tag);
   labelEls[spec.sector] = el.querySelector(`[data-labprog="${spec.sector}"]`);
 });
@@ -3406,6 +3475,10 @@ BUILDINGS.forEach(spec => {
       <div class="t2">${S.track}</div>`;
     const tag = new CSS2DObject(el);
     tag.position.set(W(500), 300, W(-360));
+    tag.userData.hover = { aerial: 300, walk: 258 };   /* nave roof, not sky */
+    hallTags.push(tag);
+    /* honour a walk already begun (walker itself is declared later) */
+    if (document.body.classList.contains("walkmode")) tag.position.y = tag.userData.hover.walk;
     world.add(tag);
   }
   /* ── the outer world loads lazily: the core campus paints first,
@@ -3867,7 +3940,10 @@ const EZ_SETS = { m011: [], m002: [], m010: [], l009: [] };
      so crossing it meant walking into a tree. At 150 they sit just
      inside the ring walk and frame the lawn instead of blocking it, and
      the whole middle of the quad is walkable. */
-  [[606,606],[394,394]].forEach(([px, py], i) => {
+  /* pulled in from 150 to 130 when the administration approach widened
+     to 36 and the south-east specimen measured 2.5 inside its ribbon —
+     both moved the same amount, so the diagonal still mirrors */
+  [[592,592],[408,408]].forEach(([px, py], i) => {
     T.maple.push([px, py, 1.1 + (i % 3) * 0.06]);
     COLLIDERS.push({ x: px - 5, y: py - 5, w: 10, d: 10 });
   });
@@ -4183,7 +4259,9 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
      and science walks, one medium in the south-gate walk, the ring's
      west pair and one east) are gone — "remove trees and bushes in
      the roads and sidewalks" */
-  const BUSHA = [[302,322,0.9],[810,424,1.05],[922,424,0.95],
+  /* the bush at 810,424 stood in the widened Drosdick approach — gone,
+     same rule as ever: nothing grows in the ways */
+  const BUSHA = [[302,322,0.9],[922,424,0.95],
                  [196,812,1],[794,830,0.95],
                  [100,246,0.9],[178,248,1],[222,300,0.9],[222,372,1],[100,416,0.95],[178,414,0.9]];
   const BUSHB = [[440,398,1],[560,398,0.9],[440,602,0.95],[560,602,1.05],[420,905,1]];
@@ -4639,7 +4717,8 @@ const EDGES = {};
 
   walk([[500, 150], [497, 236], [500, 300], N]);                 /* the processional  */
   walk([S, [500, 760], [503, 840], [500, 918], [500, 985]]);      /* south to the gates */
-  walk([[268, 340], [300, 392], [330, 444], W]);                  /* library door       */
+  walk([[260, 326], [268, 340], [300, 392], [330, 444], W]);      /* library door — the
+     threshold itself is on the graph now, like every other door */
   walk([[865, 412], [800, 448], [740, 470], [700, 488], E]);      /* Drosdick door, on the apron */
   walk([[240, 822], [302, 832], [360, 800], [380, 738], [370, 660], [348, 594], W]);
   /* kept south of the administration hall until it is west of it: the
@@ -7901,7 +7980,7 @@ const SPACE = 27;
    moment they part. */
 function freeToTalk(s, now){
   return !s.static && !s.orbit && s.pos && !s.seat && !s.inside &&
-         (s.mode === "walk" || s.mode === undefined) &&
+         (s.mode === "walk" || s.mode === undefined) && !s.route &&
          now - (s.socialAt || -1e9) > SOCIAL_COOL;
 }
 /* Somebody nearby, unoccupied, and not just spoken to. Nearest wins:
@@ -7958,20 +8037,69 @@ function indoorsNow(){
     /* on their way counts as gone. Counting only those already through
        the door let several set off together and all arrive: a probe
        measured five indoors against a cap of four. */
-    if (o.inside || o.mode === "todoor") n++;
+    if (o.inside || o.mode === "todoor" || o.route) n++;
   }
   return { n, cap: Math.max(1, Math.floor(roamers * INSIDE_SHARE)) };
+}
+/* The halls the visitor's own timetable points at: the sectors of every
+   course they have registered in, plus the chapel — always in season.
+   The crowd drifts where the user needs to go, which makes the students
+   themselves a wayfinding hint: follow anyone through a glowing door. */
+function hintSectors(){
+  const out = new Set(["cathedral"]);
+  const ids = window.__journey?.get?.().registration?.registeredCourseIds || [];
+  for (const id of ids){
+    const c = COURSES.find(c => c.id === id);
+    if (c) out.add(c.sector);
+  }
+  return out;
 }
 function nearestDoor(s){
   const { n, cap } = indoorsNow();
   if (n >= cap) return null;             /* enough of the campus is away */
-  let best = null, bestD = DOOR_RANGE;
+  const pref = hintSectors();
+  let best = null, bestD = DOOR_RANGE, bestP = null, bestPD = DOOR_RANGE;
   for (const d of DOORS){
     const dist = Math.hypot(d.x - s.pos[0], d.y - s.pos[1]);
     if (dist < bestD){ bestD = dist; best = d; }
+    if (pref.has(d.sector) && dist < bestPD){ bestPD = dist; bestP = d; }
   }
-  return best;
+  /* mostly the timetable's hall, sometimes the nearest — a campus where
+     every soul files into one building reads as a fire drill */
+  return bestP && Math.random() < 0.7 ? bestP : best;
 }
+/* Door trips travel the walk graph, not the crow's line — "they should
+   primarily stay on sidewalks". BFS over EDGES; the graph is ~60 nodes,
+   and a trip is chosen at most once a cooldown, so cost is nothing. */
+function routeTo(fromKey, toKey){
+  if (!fromKey || !toKey || fromKey === toKey) return [];
+  const prev = { [fromKey]: null }, q = [fromKey];
+  while (q.length){
+    const k = q.shift();
+    for (const nb of EDGES[k]){
+      if (nb in prev) continue;
+      prev[nb] = k;
+      if (nb === toKey){
+        const path = []; let c = toKey;
+        while (c !== fromKey){ path.unshift(c); c = prev[c]; }
+        return path;
+      }
+      q.push(nb);
+    }
+  }
+  return null;                            /* unreachable — beeline fallback */
+}
+/* each door's own node on the graph, resolved lazily because DOORS is
+   declared further down the file */
+let DOOR_NODE = null;
+function doorNode(sector){
+  if (!DOOR_NODE){
+    DOOR_NODE = {};
+    for (const d of DOORS) DOOR_NODE[d.sector] = nearestWaypoint([d.x, d.y]);
+  }
+  return DOOR_NODE[sector];
+}
+window.__doorTrip = { hintSectors, routeTo, doorNode };   /* test/debug hook */
 /* Where does the waypoint graph pick up again? A student who comes out
    of a door is standing at a doorway, not at a junction, and walking
    on from whichever node they last remembered would send them back
@@ -8224,8 +8352,12 @@ function stepStudents(dt, now){
       if (s.mode === "linger") s.mode = "walk";
       if (s.seat && s.mode === "walk") leaveSeat(s);
       if (!s.target){
-        const opts = EDGES[s.node];
-        s.target = opts[Math.floor(Math.random() * opts.length)];
+        /* a routed student resumes their trip; anyone else drifts */
+        if (s.route && s.route.length) s.target = s.route.shift();
+        else {
+          const opts = EDGES[s.node];
+          s.target = opts[Math.floor(Math.random() * opts.length)];
+        }
       }
       /* Aim for this student's own lane through the waypoint rather than
          its exact centre — see makeRoamer — but only out on the ring.
@@ -8240,6 +8372,18 @@ function stepStudents(dt, now){
       const dist = Math.hypot(dx, dy);
       if (dist < 2){
         s.node = s.target; s.target = null;
+        /* mid-trip to a door: the next leg is already decided, and a
+           student on their way to a lecture does not stop to gossip */
+        if (s.route){
+          if (s.route.length){
+            s.target = s.route.shift();
+            s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+            continue;
+          }
+          s.route = null; s.mode = "todoor";
+          s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+          continue;
+        }
         /* Standing about is most of what people do on a campus, and a
            student who stops is a student not adding to the queue behind
            them.
@@ -8273,7 +8417,12 @@ function stepStudents(dt, now){
         const door = (now - (s.doorAt || -1e9) > DOOR_COOL && Math.random() < P_DOOR)
           ? nearestDoor(s) : null;
         if (door){
-          s.door = door; s.mode = "todoor"; s.target = null;
+          /* by the ways, not across the lawn: the trip runs the walk
+             graph to the door's own node, and only then steps through */
+          s.door = door; s.target = null;
+          s.route = routeTo(s.node, doorNode(door.sector));
+          if (s.route && s.route.length){ s.mode = "walk"; }
+          else { s.route = null; s.mode = "todoor"; }
           s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
           continue;
         }
@@ -9205,10 +9354,10 @@ renderer.domElement.addEventListener("pointerup", e => {
    way back. The quad stays the centre of gravity; the scenery becomes
    somewhere you can actually look. */
 let focused = null, flight = null;
-function flyTo(target, position, done){
+function flyTo(target, position, done, ms = 1100){
   flight = { from: { t: controls.target.clone(), p: camera.position.clone() },
              to:   { t: target.clone(), p: position.clone() },
-             t0: performance.now(), ms: 1100, done };
+             t0: performance.now(), ms, done };
 }
 /* where to stand to see something of the given size, keeping the
    current heading — and some height, because dropping to eye level
@@ -9260,6 +9409,43 @@ const DOORS = [
   { sector:"cathedral", x:500, y:-300 },   /* the chapel, on the North Quad */
 ];
 const walker = { on:false, x:500, y:802, h:0, eye:34, bobT:0, door:null, keys:{}, zoom:1 };
+
+/* Every enterable door announces itself: a beacon in the hall's own
+   legend colour breathes over the threshold, so from the lawn you can
+   read where the buildings open the same way you read the minimap.
+   Additive sprites — five quads, no light, no shadow, no draw cost
+   worth measuring. The one you are standing at burns brightest. */
+const doorGlows = [];
+{
+  const cv = document.createElement("canvas"); cv.width = cv.height = 128;
+  const g = cv.getContext("2d");
+  const grad = g.createRadialGradient(64, 64, 4, 64, 64, 62);
+  grad.addColorStop(0,    "rgba(255,244,214,1)");
+  grad.addColorStop(0.35, "rgba(255,255,255,.5)");
+  grad.addColorStop(1,    "rgba(255,255,255,0)");
+  g.fillStyle = grad; g.fillRect(0, 0, 128, 128);
+  const tex = new THREE.CanvasTexture(cv);
+  DOORS.forEach((d, i) => {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: tex, color: SECTORS[d.sector].color, transparent: true,
+      blending: THREE.AdditiveBlending, depthWrite: false }));
+    s.position.set(W(d.x), 44, W(d.y));      /* just over the door arch */
+    s.userData = { door: d.sector, phase: i * 1.7 };
+    world.add(s);
+    doorGlows.push(s);
+  });
+}
+window.__doorGlows = doorGlows;   /* test/debug hook */
+function stepDoorGlows(now){
+  const t = now / 1000;
+  for (const s of doorGlows){
+    const here = walker.on && walker.door === s.userData.door;
+    const k = 1 + 0.16 * Math.sin(t * 2.1 + s.userData.phase) + (here ? 0.35 : 0);
+    s.scale.set(30 * k, 30 * k, 1);
+    /* softer from the air, present on foot, unmissable at the threshold */
+    s.material.opacity = here ? 1 : walker.on ? 0.75 : 0.5;
+  }
+}
 const WALK_FOV = 62;                  /* wide enough to see your feet and the path */
 const WALK_ZOOM_MIN = 1, WALK_ZOOM_MAX = 4.5;
 window.__walker = walker;
@@ -9285,8 +9471,14 @@ function enterWalk(){
   applyWalkZoom();
   applyFog();                           /* ground-level horizon, not the aerial one */
   wing.classList.add("walkmode");
+  document.body.classList.add("walkmode");  /* overlays outside the wing (orientation card) style off this */
+  /* from the ground the aerial anchors are deep in the sky — drop every
+     nameplate to just over its roofline so the name captions the building */
+  hallTags.forEach(t => t.position.y = t.userData.hover.walk);
   document.getElementById("walkbtn").textContent = "🚁";
-  toast("Boots on the quad", "WASD to walk · ◀ ▶ to look · scroll or pinch to zoom · E to enter the hall in front of you · F to fly back up.", "#38bdf8", 6500);
+  toast("Boots on the quad", matchMedia("(pointer: coarse)").matches
+    ? "▲ to walk · ◀ ▶ to turn · drag to look · pinch to zoom · tap a door's prompt to enter · 🚁 to fly back up."
+    : "WASD to walk · ◀ ▶ to look · scroll or pinch to zoom · E to enter the hall in front of you · F to fly back up.", "#38bdf8", 6500);
 }
 function exitWalk(){
   if (!walker.on) return;
@@ -9300,6 +9492,8 @@ function exitWalk(){
   camera.updateProjectionMatrix();
   applyFog();
   wing.classList.remove("walkmode");
+  document.body.classList.remove("walkmode");
+  hallTags.forEach(t => t.position.y = t.userData.hover.aerial);
   document.getElementById("walkbtn").textContent = "🎮";
   document.getElementById("doorprompt").classList.remove("show");
 }
@@ -9782,6 +9976,7 @@ renderer.setAnimationLoop(() => {
     setTimeOfDay(clockT());
   }
   stepLampSpots();
+  stepDoorGlows(now);
   if (fireflies.visible){
     fireflies.rotation.y += dt * 0.02;
     fireflies.position.y = Math.sin(now / 1700) * 4;
@@ -11090,7 +11285,9 @@ const TERMS = ["Michaelmas Term MMXXVI", "Lent Term MMXXVII", "Trinity Term MMXX
    fire. Nothing is staged; the campus is the tutorial. */
 const ORIENT_STEPS = [
   ["look",  "Look around — drag the campus"],
-  ["walk",  "Press F or 🚶 and take a stroll"],
+  ["walk",  matchMedia("(pointer: coarse)").matches
+              ? "Tap 🎮 and take a stroll"
+              : "Press F or 🎮 and take a stroll"],
   ["talk",  "Tap a student and say hello"],
   ["adm",   "Walk to Aldergate Administration Hall"],
   ["ledger","Open a hall's course ledger"],
@@ -11527,6 +11724,95 @@ renderJourney();
 /* a visit already mid-orientation resumes its checklist on arrival */
 if (Journey.get().onboarding.campusVisit.status === "active"){ orientOn = true; orientEl.hidden = false; renderOrient(); }
 
+
+/* ══════════════════════════════════════════════════════════════════
+   ⑥ THE ARRIVAL — the load is a moment, the entrance is authored.
+
+   The overlay stood from the first paint (static markup); this drives
+   it with the truth: the gold line is the core asset ledger, and the
+   captions follow what is actually loading. When the campus is in,
+   first-time visitors get one eased descent from high above the
+   North Quad down onto the standard aerial framing — five seconds
+   that say "this is a place" — ending on the Campus Visit call.
+   Returning visitors get their campus back in a breath; the harness
+   (webdriver) and prefers-reduced-motion get no theatrics at all;
+   a tap skips everything, always.
+   ══════════════════════════════════════════════════════════════════ */
+{
+  const el = document.getElementById("arrival");
+  const fill = document.getElementById("arr-fill");
+  const note = document.getElementById("arr-note");
+  const t0 = performance.now();
+  const plain = navigator.webdriver ||
+    matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const firstVisitEver = !localStorage.getItem(LS_JOURNEY) && !localStorage.getItem(LS_DONE);
+  let arrived = false;
+  const NOTES = [
+    [0,    "Opening the gates"],
+    [0.25, "Raising the halls"],
+    [0.55, "Mowing the quad"],
+    [0.8,  "The cohort is arriving"],
+    [0.98, "Welcome to Pembroke"],
+  ];
+  const tick = () => {
+    if (arrived) return;
+    const core = assetLog.filter(a => !a.late);
+    const got = core.filter(a => a.ms != null).length;
+    /* the first breath has no ledger yet — show honest motion anyway */
+    const frac = core.length ? got / core.length
+               : Math.min(0.12, (performance.now() - t0) / 8000);
+    fill.style.width = (frac * 100).toFixed(1) + "%";
+    note.textContent = (NOTES.filter(([k]) => frac >= k).pop() || NOTES[0])[1];
+    const ready = core.length > 4 && got === core.length;
+    const overdue = performance.now() - t0 > 14_000;   /* never hold the door */
+    const shownLongEnough = performance.now() - t0 > 1600;
+    if ((ready || overdue) && shownLongEnough) arrive();
+    else setTimeout(tick, 200);
+  };
+  const finishSweep = () => {
+    controls.enabled = true;
+    const skip = document.getElementById("arr-skip");
+    if (skip) skip.remove();
+    /* the entrance ends where the journey begins */
+    const cv = Journey.get().onboarding.campusVisit;
+    if (Journey.status() === "visitor" && cv.status === "new"){
+      const b = document.createElement("button");
+      b.id = "arr-cta"; b.className = "jcta";
+      b.textContent = "Begin — your Campus Visit";
+      b.onclick = () => { b.remove(); startOrientation(); };
+      stageEl.appendChild(b);
+      /* the world is the pitch; if they start exploring instead, the
+         button has made its point — let it bow out */
+      setTimeout(() => { if (b.isConnected) b.remove(); }, 30_000);
+    }
+  };
+  const arrive = () => {
+    arrived = true;
+    fill.style.width = "100%";
+    el.classList.add("gone");
+    setTimeout(() => el.remove(), 900);
+    if (plain || !firstVisitEver || walker.on){ finishSweep(); return; }
+    /* the descent: high above the North Quad, the cathedral below,
+       sweeping down and around to the standard aerial framing */
+    controls.enabled = false;
+    camera.position.set(120, 1500, -2300);
+    controls.target.set(0, 60, -420);
+    flyTo(new THREE.Vector3(0, 30, 0), aerialPos(), finishSweep, 5200);
+    const skip = document.createElement("button");
+    skip.id = "arr-skip"; skip.textContent = "skip";
+    skip.onclick = () => {
+      controls.target.set(0, 30, 0);
+      aerialHome();
+      window.__flightAbort && window.__flightAbort();
+      finishSweep();
+    };
+    document.body.appendChild(skip);
+  };
+  window.__flightAbort = () => { if (typeof flight !== "undefined") flight = null; };
+  window.__arrival = { arrive, tick };   /* test/debug hook */
+  tick();
+}
+
 /* ── ignition ────────────────────────────────────────────────────── */
 /* renderer too: renderer.info is the only count of what the LAST
    FRAME actually cost that is not a guess reconstructed by walking
@@ -11539,7 +11825,9 @@ renderChips();
 renderBanner();
 renderCourses();
 refreshProgress();
-setTimeout(() => toast("Welcome to Pembroke Academy", "Drag to orbit the campus, click any hall to step inside — or press F (🎮) to drop onto the quad and walk to class. Progress saves automatically.", "#d4af6a", 7000), 900);
+setTimeout(() => toast("Welcome to Pembroke Academy", matchMedia("(pointer: coarse)").matches
+  ? "Drag to orbit the campus, tap any hall to step inside — or tap 🎮 to drop onto the quad and walk to class. Progress saves automatically."
+  : "Drag to orbit the campus, click any hall to step inside — or press F (🎮) to drop onto the quad and walk to class. Progress saves automatically.", "#d4af6a", 7000), 900);
 </script>
 </body>
 </html>
