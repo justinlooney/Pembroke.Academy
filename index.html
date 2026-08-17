@@ -969,6 +969,15 @@ body.day .int-lamp::after{opacity:.45;}
 .jcourse button{flex:none;margin-left:auto;}
 .jtag{display:inline-block;font-size:9.5px;text-transform:uppercase;letter-spacing:.13em;
   padding:.14rem .5rem;border-radius:999px;border:1px solid rgba(212,175,106,.4);color:var(--brass);margin-left:.45rem;}
+/* the timetable on the journey panel: what you take, where it meets */
+.jtt-h{font-size:10px;text-transform:uppercase;letter-spacing:.22em;color:var(--brass-dim);margin:.8rem 0 .35rem;}
+.jtt{display:flex;gap:.6rem;align-items:baseline;padding:.3rem 0;}
+.jtt-code{flex:none;font-family:ui-monospace,monospace;font-size:10.5px;font-weight:600;
+  padding:.12rem .45rem;border-radius:.4rem;border:1px solid;}
+.jtt-body{min-width:0;}
+.jtt-t{display:block;font-size:13px;color:#e2e8f0;line-height:1.4;}
+.jtt-where{display:block;font-size:11.5px;color:#94a3b8;margin-top:.1rem;}
+
 /* the course of study: syllabus rows and practice checks */
 .st-prog{position:relative;height:26px;border-radius:999px;margin:.4rem 0 1rem;
   background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.25);overflow:hidden;}
@@ -13301,7 +13310,10 @@ function jRegister(){
         });
         jClose();
         refreshQuest();
-        toast("🎓 Enrolled", "Welcome to Pembroke Academy, officially. Your quest log now walks you to your first registered class.", "#d4af6a", 8000);
+        /* say WHERE, immediately: the halls the new timetable meets in */
+        const halls = [...new Set(list.map(id => byId[id]?.sector).filter(Boolean))]
+          .map(k => SECTORS[k].hall).join(" and ");
+        toast("🎓 Enrolled", `Welcome to Pembroke Academy, officially. Your classes meet in ${halls || "the halls"} — your timetable on the Student Journey panel shows the way, and the quest log walks you to your first class.`, "#d4af6a", 9000);
         renderJourney();
       };
     };
@@ -13357,6 +13369,16 @@ function renderJourney(){
         <span class="jdot">${kind === "done" ? "✓" : kind === "locked" ? "·" : "→"}</span>
         <span class="jname">${name}</span><span class="jmeta">${kind === "locked" && meta === "—" ? "locked" : meta}</span>
       </div>`).join("")}
+    ${st.registration.registeredCourseIds.length ? `
+      <div class="jtt-h">Your timetable — where to go</div>
+      ${st.registration.registeredCourseIds.map(id => {
+        const c = byId[id]; if (!c) return "";
+        const S = SECTORS[c.sector];
+        return `<div class="jtt">
+          <span class="jtt-code" style="color:${S.color};border-color:${S.soft}.4)">${c.code}</span>
+          <span class="jtt-body"><span class="jtt-t">${c.title}</span>
+          <span class="jtt-where">meets in <button class="jlink" data-hall="${c.sector}">${S.hall} →</button>${STUDY[id] ? ` · <button class="jlink" data-sty="${id}">course of study</button>` : ""}</span></span>
+        </div>`; }).join("")}` : ""}
     ${firstNow && ctas[firstNow[0]] ? `<button class="jcta" id="jgo">${ctas[firstNow[0]][0]}</button>` : ""}
     <div class="mt-2 flex flex-wrap gap-x-4">
       ${st.admissions.acceptedAt ? `<button class="jlink" id="jletter-open">View acceptance letter</button>` : ""}
@@ -13372,6 +13394,13 @@ function renderJourney(){
   if (hc) hc.onclick = () => Journey.patch(x => { x.onboarding.campusVisit.hidden = true; });
   const rc = document.getElementById("jredo-cv"); if (rc) rc.onclick = startOrientation;
   const cm = document.getElementById("jchange-major"); if (cm) cm.onclick = jDeclare;
+  /* the timetable's wayfinding: the hall link flies the campus to the
+     building (its door beacon burning in the hall's own colour); the
+     study link opens the course itself */
+  el.querySelectorAll("[data-hall]").forEach(b =>
+    b.addEventListener("click", () => selectSector(b.dataset.hall, true)));
+  el.querySelectorAll("[data-sty]").forEach(b =>
+    b.addEventListener("click", () => jStudy(b.dataset.sty)));
 }
 Journey.subscribe(renderJourney);
 renderJourney();
