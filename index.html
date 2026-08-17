@@ -13009,7 +13009,16 @@ const AI = (() => {
     { cfg.mode = "ollama"; cfg.ollamaSaved = true; }
   const save = () => { try{ localStorage.setItem(AI_LS, JSON.stringify(cfg)); }catch(_){} };
   return { get cfg(){ return cfg; },
-    set(patch){ Object.assign(cfg, patch); save(); },
+    set(patch){
+      /* v113-116 callers spoke {on, url} with no notion of modes:
+         honour them — switching "on" with an Ollama URL means ollama
+         mode, switching off means off. Explicit mode always wins. */
+      if (!("mode" in patch)){
+        if (patch.on === true) { patch.mode = "ollama"; patch.ollamaSaved = true; }
+        else if (patch.on === false) patch.mode = "off";
+      }
+      Object.assign(cfg, patch); save();
+    },
     diag: { status: "off", model: "", ms: 0, ptok: 0, ctok: 0, mems: 0 } };
 })();
 const NPCStore = (() => {
