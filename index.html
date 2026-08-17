@@ -573,22 +573,6 @@ body.day .tree .sprite{filter:brightness(1.02) saturate(1.02);}
 .chev{transition:transform .4s cubic-bezier(.22,1,.36,1);}
 .open-toggle .chev{transform:rotate(180deg);}
 
-/* Deployment panel */
-.deploy{
-  background:
-    radial-gradient(500px 200px at 110% -30%, rgba(212,175,106,.12), transparent 60%),
-    linear-gradient(160deg, rgba(26,34,54,.95), rgba(13,20,34,.97));
-  border:1px solid rgba(212,175,106,.35);
-  box-shadow:0 24px 60px -24px rgba(0,0,0,.9), inset 0 1px 0 rgba(212,175,106,.18);
-}
-.deploy .step-n{
-  width:26px;height:26px;flex:none;border-radius:50%;
-  display:flex;align-items:center;justify-content:center;
-  background:linear-gradient(135deg,#d4af6a,#8a744a);color:#0b1220;
-  font-weight:700;font-size:.78rem;
-  box-shadow:0 0 14px -3px rgba(212,175,106,.7);
-}
-
 /* sector banner crossfade */
 #sector-banner{transition:opacity .35s ease, transform .35s ease;}
 #sector-banner.fading{opacity:0;transform:translateY(10px);}
@@ -1212,60 +1196,6 @@ body.day .int-lamp::after{opacity:.45;}
 
       <!-- course cards -->
       <div id="courses" class="space-y-6"></div>
-
-      <!-- ═══════════════ ④ DEPLOYMENT DOCUMENTATION PANEL ═══════════════ -->
-      <div class="deploy rounded-2xl mt-12 p-6 sm:p-8">
-        <div class="flex items-start gap-4">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" class="flex-none mt-1 drop-shadow-[0_0_8px_rgba(212,175,106,.4)]">
-            <path d="M12 2 L21 6 V11 C21 16.5 17.2 20.6 12 22 C6.8 20.6 3 16.5 3 11 V6 Z" stroke="#d4af6a" stroke-width="1.5" fill="rgba(212,175,106,.07)"/>
-            <path d="M8.5 12 L11 14.5 L15.5 9.5" stroke="#d4af6a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <div>
-            <div class="text-[10px] uppercase tracking-[.3em] text-[color:var(--brass-dim)]">The Registrar's Office · Publishing Charter</div>
-            <h3 class="font-serif-d text-2xl font-semibold text-[color:var(--parchment)] mt-1">Deploy Your Campus to the World</h3>
-            <p class="text-[13px] text-slate-400 mt-1.5 leading-relaxed">This entire university is one <code class="font-mono-d text-[12px] text-[color:var(--brass)]">index.html</code> plus a small <code class="font-mono-d text-[12px] text-[color:var(--brass)]">assets/</code> folder of glTF 2.0 models — still zero build tools. Four steps place it live on GitHub Pages under your own domain.</p>
-          </div>
-        </div>
-
-        <div class="mt-6 space-y-5">
-          <div class="flex gap-4">
-            <div class="step-n">1</div>
-            <div class="text-[13px] text-slate-300 leading-relaxed pt-0.5">
-              <span class="font-semibold text-slate-100">Create a public repository</span> on GitHub — name it anything (e.g. <code class="font-mono-d text-[12px] text-sky-300">pembroke.academy</code>), or <code class="font-mono-d text-[12px] text-sky-300">your-username.github.io</code> to publish at your root address.
-            </div>
-          </div>
-          <div class="flex gap-4">
-            <div class="step-n">2</div>
-            <div class="text-[13px] text-slate-300 leading-relaxed pt-0.5 min-w-0">
-              <span class="font-semibold text-slate-100">Commit <code class="font-mono-d text-[12px] text-sky-300">index.html</code> and the <code class="font-mono-d text-[12px] text-sky-300">assets/</code> models</span> at the repository root, on the <code class="font-mono-d text-[12px] text-sky-300">main</code> branch:
-              <div class="codebox rounded-xl mt-3 overflow-hidden" style="--c:#d4af6a">
-                <div class="flex items-center justify-between px-4 py-2 border-b border-slate-700/50">
-                  <span class="font-mono-d text-[10px] uppercase tracking-[.2em] text-slate-500">terminal</span>
-                  <button class="copy-btn font-mono-d text-[10px] uppercase tracking-[.15em] text-[color:var(--brass)] hover:text-[color:var(--parchment)] transition" data-copy="git init&#10;git add index.html assets tools&#10;git commit -m &quot;Open the Pembroke Academy campus&quot;&#10;git branch -M main&#10;git remote add origin https://github.com/YOUR-USERNAME/pembroke.academy.git&#10;git push -u origin main">copy ⧉</button>
-                </div>
-                <pre class="p-4 overflow-x-auto text-slate-300">git init
-git add index.html assets tools
-git commit -m "Open the Pembroke Academy campus"
-git branch -M main
-git remote add origin https://github.com/YOUR-USERNAME/pembroke.academy.git
-git push -u origin main</pre>
-              </div>
-            </div>
-          </div>
-          <div class="flex gap-4">
-            <div class="step-n">3</div>
-            <div class="text-[13px] text-slate-300 leading-relaxed pt-0.5">
-              <span class="font-semibold text-slate-100">Enable Pages:</span> in the repository open <span class="text-[color:var(--parchment)]">Settings → Pages</span>, set <span class="text-[color:var(--parchment)]">Source: Deploy from a branch</span>, choose branch <code class="font-mono-d text-[12px] text-sky-300">main</code> and folder <code class="font-mono-d text-[12px] text-sky-300">/ (root)</code>, then press <span class="text-[color:var(--parchment)]">Save</span>.
-            </div>
-          </div>
-          <div class="flex gap-4">
-            <div class="step-n">4</div>
-            <div class="text-[13px] text-slate-300 leading-relaxed pt-0.5">
-              <span class="font-semibold text-slate-100">Walk through the gates.</span> Within about a minute the campus is live at <code class="font-mono-d text-[12px] text-sky-300">https://YOUR-USERNAME.github.io/pembroke.academy/</code>. For a custom domain, add <span class="text-[color:var(--parchment)]">pembroke.academy</span> in the Pages "Custom domain" field, point a DNS <code class="font-mono-d text-[12px] text-sky-300">CNAME</code> record at <code class="font-mono-d text-[12px] text-sky-300">YOUR-USERNAME.github.io</code>, and tick <span class="text-[color:var(--parchment)]">Enforce HTTPS</span>.
-            </div>
-          </div>
-        </div>
-      </div>
 
       <!-- footer / ledger controls -->
       <footer class="mt-10 mb-4 flex flex-wrap items-center justify-between gap-4 text-[11px] text-slate-500">
@@ -2101,7 +2031,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v109";
+const BUILD = "pembroke-v110";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -10341,14 +10271,6 @@ function wireCards(){
       });
     }));
 }
-document.querySelectorAll(".copy-btn[data-copy]").forEach(b =>
-  b.addEventListener("click", () => {
-    navigator.clipboard.writeText(b.dataset.copy).then(() => {
-      b.textContent = "copied ✓";
-      setTimeout(() => { b.innerHTML = "copy ⧉"; }, 1600);
-    });
-  }));
-
 /* ── ③ progress ledger math ──────────────────────────────────────── */
 function standingFor(pct){
   if (pct >= 100) return "Summa Cum Laude";
