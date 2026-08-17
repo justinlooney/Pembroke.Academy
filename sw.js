@@ -32,7 +32,7 @@
  * BUMP VERSION whenever anything under assets/ changes, or returning
  * visitors keep the old models forever.
  */
-const VERSION = "pembroke-v111";
+const VERSION = "pembroke-v112";
 const SHELL = VERSION + "-shell";
 const DEPOT = VERSION + "-assets";
 
