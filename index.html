@@ -1928,7 +1928,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v105";
+const BUILD = "pembroke-v106";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -3733,8 +3733,12 @@ const EZ_SETS = { m011: [], m002: [], m010: [], l009: [] };
   /* Halved again, on the author's word: "remove half of the trees on
      the quad it is too crowded." Twelve stood on this arc; six keep
      the rhythm — every other position, both radii represented. */
-  [[10,235],[100,235],[190,235],[280,235],
-   [35,258],[215,258]].forEach(([a, r], i) => {
+  /* And a third time — "delete half the trees in the quad" — across
+     every group that stands on it: this arc 6 → 3, the corner
+     specimens 4 → 2 (opposite corners), the allées 14 → 7
+     (alternating sides), the open-lawn maples 3 → 2, the small one
+     east of the ring gone. Twenty-eight became fourteen. */
+  [[10,235],[190,235],[215,258]].forEach(([a, r], i) => {
     const rad = a * Math.PI / 180;
     T[i % 3 === 2 ? "elm" : "maple"].push([500 + r * Math.cos(rad), 500 + r * Math.sin(rad), 0.95 + (a % 7) / 16]);
   });
@@ -3745,13 +3749,15 @@ const EZ_SETS = { m011: [], m002: [], m010: [], l009: [] };
      so crossing it meant walking into a tree. At 150 they sit just
      inside the ring walk and frame the lawn instead of blocking it, and
      the whole middle of the quad is walkable. */
-  [[606,606],[394,606],[394,394],[606,394]].forEach(([px, py], i) => {
+  [[606,606],[394,394]].forEach(([px, py], i) => {
     T.maple.push([px, py, 1.1 + (i % 3) * 0.06]);
     COLLIDERS.push({ x: px - 5, y: py - 5, w: 10, d: 10 });
   });
-  /* maple allées flanking the walk, north approach and south entry */
-  [130, 195, 265, 345].forEach(y => { T.maple.push([462, y, 0.76 + (y % 20) / 160], [538, y, 0.8 + (y % 17) / 160]); });
-  [655, 735, 815].forEach(y => { T.maple.push([462, y, 0.76 + (y % 19) / 160], [538, y, 0.8 + (y % 23) / 160]); });
+  /* maple allées flanking the walk — alternating sides now, one tree
+     per station instead of a facing pair */
+  [[462, 130], [538, 195], [462, 265], [538, 345],
+   [462, 655], [538, 735], [462, 815]].forEach(([x, y]) =>
+    T.maple.push([x, y, 0.78 + (y % 20) / 160]));
   /* Every planted tree gets a collider the size of its trunk. Only
      the four specimen maples ever had one — the allées flank the
      spine walk sixteen units off the paving with nothing stopping the
@@ -4031,9 +4037,10 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
      author's reference lines its walks with trees, it is the OPEN
      ground that wants air. */
   /* the third maple stood at 738,418 — on Drosdick's new apron, a
-     tree growing through plaza paving — nudged south of the site */
-  const TREE2S = [[300,330,1.1],[624,712,1.1],[738,478,1.05]];
-  const TSMALL = [[840,540,1.1],[68,420,1]];
+     tree growing through plaza paving — nudged south of the site;
+     the mid-south one went in the third halving */
+  const TREE2S = [[300,330,1.1],[738,478,1.05]];
+  const TSMALL = [[68,420,1]];   /* the one east of the ring went in the third halving */
   /* the pair that flanked the old engineering door moved with it */
   const BUSHA = [[218,318,1],[302,322,0.9],[810,424,1.05],[922,424,0.95],
                  [196,812,1],[300,820,0.9],[692,826,1.05],[794,830,0.95],
