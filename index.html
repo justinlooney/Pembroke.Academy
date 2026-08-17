@@ -1928,7 +1928,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v106";
+const BUILD = "pembroke-v107";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -2515,6 +2515,7 @@ const walkBump = pathBump.clone(); walkBump.repeat.set(1, 1); walkBump.needsUpda
 const walkMat = decal(new THREE.MeshStandardMaterial({ map: walkTex, bumpMap: walkBump,
   bumpScale: 0.4, roughness: 0.55, metalness: 0.06, envMapIntensity: 0.6 }));
 function walkway(pts, width = 26, y = GROUND.walk){
+  (window.__walks = window.__walks || []).push({ pts, width });   /* audit hook, same as __drives */
   /* a mown verge under every way, so it meets the grass instead of
      being pasted on top of it */
   const v = new THREE.Mesh(ribbonGeom(pts, width + 14, GROUND.verge), vergeMat);
@@ -3738,7 +3739,8 @@ const EZ_SETS = { m011: [], m002: [], m010: [], l009: [] };
      specimens 4 → 2 (opposite corners), the allées 14 → 7
      (alternating sides), the open-lawn maples 3 → 2, the small one
      east of the ring gone. Twenty-eight became fourteen. */
-  [[10,235],[190,235],[215,258]].forEach(([a, r], i) => {
+  /* the 215° tree measured inside the library-door walk and is gone */
+  [[10,235],[190,235]].forEach(([a, r], i) => {
     const rad = a * Math.PI / 180;
     T[i % 3 === 2 ? "elm" : "maple"].push([500 + r * Math.cos(rad), 500 + r * Math.sin(rad), 0.95 + (a % 7) / 16]);
   });
@@ -3781,7 +3783,14 @@ const EZ_SETS = { m011: [], m002: [], m010: [], l009: [] };
      the south belt lines the walk out to the athletics district, which
      is the longest stretch of "beyond the quad" anyone walks. */
   for (let x = 110; x <= 290; x += 45) E[x % 90 < 45 ? "m010" : "m011"].push([x, 26 + (x * 13) % 30, 0.95 + (x * 7) % 25 / 60]);
-  for (let x = 710; x <= 890; x += 45) E[x % 90 < 45 ? "m011" : "m010"].push([x, 26 + (x * 11) % 30, 0.95 + (x * 3) % 25 / 60]);
+  /* The second north belt (x 710-890) is GONE: the drive re-routed
+     along the campus's north edge for Drosdick and ran straight
+     through it — all five trunks measured inside the carriageway,
+     photographed from the roadway and reported as "remove trees and
+     bushes in the roads". The road audit skips tree colliders on
+     purpose (avenues line the drives), so only the flora audit
+     (tools/flora.probe.mjs against __planted/__walks/__drives) sees
+     this class of drift. */
   for (let x = 80; x <= 920; x += 55){
     if (Math.abs(x - 500) < 75) continue;               /* gatehouse */
     /* Every fourth one a full canopy, so the belt has a skyline rather
@@ -3793,7 +3802,10 @@ const EZ_SETS = { m011: [], m002: [], m010: [], l009: [] };
   }
   for (let y = 120; y <= 880; y += 60){
     if (y < 640 && y > 400){} else E.m011.push([20 + (y * 7) % 18, y, 0.9 + (y * 11) % 25 / 55]);
-    if (y < 600 && y > 280){} else E.m002.push([950 + (y * 13) % 18, y, 0.95 + (y * 17) % 25 / 55]);
+    /* the east column's gap widened south: the drive's east leg hugs
+       x 950-980 from the lots up past Drosdick, and the y 660-840
+       stretch measured inside the carriageway */
+    if (y < 880 && y > 280){} else E.m002.push([950 + (y * 13) % 18, y, 0.95 + (y * 17) % 25 / 55]);
   }
   /* the forest to the horizon — pine-heavy, parting for the landmarks */
   for (let i = 0; i < 90; i++){
@@ -4001,10 +4013,17 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
   /* Four conifers used to stand here, on the north edge where the drive
      comes in. They are eight triangles each and it shows at that
      distance, so they join the belts they sit in. */
-  [[150, 60, 1], [252, 44, 0.85], [744, 52, 0.9], [862, 60, 1.05]]
+  /* two of the four rejoined conifers stood where the re-routed drive
+     now runs (744,52 and 862,60) — gone with the belt they sat in */
+  [[150, 60, 1], [252, 44, 0.85]]
     .forEach((p, i) => EZ_SETS[i % 2 ? "m011" : "m010"].push(p));
-  /* a conifer screen between the east drive and the neighboring district */
-  for (let y = 140; y <= 940; y += 88) (y % 176 < 88 ? PINES1 : PINES2).push([1085 + (y * 7) % 26, y, 1 + (y * 13) % 30 / 55]);
+  /* a conifer screen between the east drive and the neighboring
+     district — parting for the drive's new east leg (x ~1076-1092,
+     y 200-470), which three of its trunks measured inside */
+  for (let y = 140; y <= 940; y += 88){
+    if (y > 180 && y < 470) continue;
+    (y % 176 < 88 ? PINES1 : PINES2).push([1085 + (y * 7) % 26, y, 1 + (y * 13) % 30 / 55]);
+  }
   /* ── halved, on the author's instruction ──────────────────────────
      "remove half of these trees with no leaves from the quad." These
      eighteen are the maples — the ones the comment below calls "the
@@ -4036,18 +4055,24 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
      the lawn goes bare. The avenues and belts are untouched: the
      author's reference lines its walks with trees, it is the OPEN
      ground that wants air. */
-  /* the third maple stood at 738,418 — on Drosdick's new apron, a
-     tree growing through plaza paving — nudged south of the site;
-     the mid-south one went in the third halving */
-  const TREE2S = [[300,330,1.1],[738,478,1.05]];
+  /* Empty, and honestly so: the last two open maples both measured
+     standing IN walkways (300,330 in the north cross-walk by 4 units,
+     738,478 in Drosdick's door walk by 7) — "remove trees and bushes
+     in the roads and sidewalks". The quad's trees are the arc, the
+     corner specimens and the allées now. */
+  const TREE2S = [];
   const TSMALL = [[68,420,1]];   /* the one east of the ring went in the third halving */
-  /* the pair that flanked the old engineering door moved with it */
-  const BUSHA = [[218,318,1],[302,322,0.9],[810,424,1.05],[922,424,0.95],
-                 [196,812,1],[300,820,0.9],[692,826,1.05],[794,830,0.95],
+  /* the pair that flanked the old engineering door moved with it;
+     the eight measured standing IN paving (three big by the library
+     and science walks, one medium in the south-gate walk, the ring's
+     west pair and one east) are gone — "remove trees and bushes in
+     the roads and sidewalks" */
+  const BUSHA = [[302,322,0.9],[810,424,1.05],[922,424,0.95],
+                 [196,812,1],[794,830,0.95],
                  [100,246,0.9],[178,248,1],[222,300,0.9],[222,372,1],[100,416,0.95],[178,414,0.9]];
-  const BUSHB = [[440,398,1],[560,398,0.9],[440,602,0.95],[560,602,1.05],[420,905,1],[580,905,1]];
+  const BUSHB = [[440,398,1],[560,398,0.9],[440,602,0.95],[560,602,1.05],[420,905,1]];
   const BUSHC = [[457,330,1],[541,330,0.9],[457,668,1],[541,668,0.9],
-                 [330,457,0.95],[330,541,1.05],[668,457,0.95],[668,541,1.05]];
+                 [668,457,0.95]];
   /* Daffodils and lavender used to be scattered ACROSS the lawn
      crossings — sixteen clumps between the ring and the fountain, on
      the diagonals people actually walk. The lawn plantings are gone;
@@ -4056,24 +4081,29 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
   const LAV = [[471,80,1.2],[529,80,1.2]];
   const CYP = [[238,314,1],[282,316,0.85],[718,296,1],[762,296,0.85],
                [218,808,1],[262,814,0.85],[712,822,1],[758,826,0.85],[434,886,1.1],[566,886,1.1]];
-  const FERNS = [[350,80,1.2],[650,84,1.2]];
+  /* the west fern stood 13 units inside the re-routed north drive */
+  const FERNS = [[650,84,1.2]];
   /* The boulevard is 24 wide and runs 500,985 to 500,1156, so the
      avenue stands 46 off the centre line — clear of the paving, close
      enough to walk under. West and east are different species on
      purpose: an avenue of one clone reads as wallpaper. */
-  const AVEN_W = [[454, 1000, 1], [454, 1058, 0.92], [454, 1116, 1.05],
+  /* Four avenue trees stood in the athletics-fork walks (both sides
+     at y 1116 where the diagonals leave the boulevard, both at y 916
+     where they cross toward the gate) — measured and removed. */
+  const AVEN_W = [[454, 1000, 1], [454, 1058, 0.92],
                   /* wider apart either side of the gatehouse: the piers
                      stand at 456 and 518, and a trunk two feet off one
                      is a tree growing out of the gate */
-                  [428, 916, 0.95], [428, 858, 1.02]];
-  const AVEN_E = [[546, 1000, 0.96], [546, 1058, 1.06], [546, 1116, 0.94],
-                  [572, 916, 1.04], [572, 858, 0.98]];
+                  [428, 858, 1.02]];
+  const AVEN_E = [[546, 1000, 0.96], [546, 1058, 1.06],
+                  [572, 858, 0.98]];
   /* Where a tree is the thing you are looking at rather than scenery:
      either side of the gatehouse, the corners of the forecourt, and two
      flanking the drive as it turns for the ballpark. */
+  /* the ballpark-turn flankers (372,1136 and 628,1136) measured
+     inside the diagonal walks and are gone */
   const FEATURE = [[430, 962, 1], [570, 962, 0.94],
-                   [412, 1150, 1.06], [588, 1150, 0.98],
-                   [372, 1136, 0.9], [628, 1136, 0.92]];
+                   [412, 1150, 1.06], [588, 1150, 0.98]];
   /* trunk colliders for everything planted below with a real trunk —
      same reasoning as the campus tree sets above: a tree the camera
      can walk through is a black frame waiting for a shoulder. Bushes
@@ -4084,6 +4114,11 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
   for (const list of Object.values(EZ_SETS))
     for (const [px, py] of list)
       COLLIDERS.push({ x: px - 4, y: py - 4, w: 8, d: 8, tree: true });
+  /* audit hook: every planted thing by group, so a probe can measure
+     the whole flora against the ways instead of anyone eyeballing it —
+     the drive re-route proved the two files drift apart silently */
+  window.__planted = { TREE2S, TSMALL, AVEN_W, AVEN_E, FEATURE, PINES1, PINES2,
+                       BUSHA, BUSHB, BUSHC, FERNS, EZ: EZ_SETS, T: TREE_SETS };
   const FLORA = [
     ["assets/plantpack.glb", [["pine1", PINES1, 78, true], ["pine2", PINES2, 66, true],
                               ["bushbig", BUSHA, 10], ["bushmed", BUSHB, 8], ["bushflower", BUSHC, 7]]],
@@ -8371,7 +8406,14 @@ async function drosdickPreload(){
         chunks.push(value); got += value.length;
         drosdick.bytesGot = got;
       }
-      if (drosdick.bytesTotal && got < drosdick.bytesTotal)
+      /* content-length is WIRE bytes; the reader yields DECODED bytes.
+         GitHub Pages gzips even this already-gzipped file (~0.03%
+         larger on the wire), so a perfect download read 28,287,036 of
+         a claimed 28,295,6xx and threw "short read" on success — from
+         the same phone, once the real network entered the picture. The
+         guard only speaks when no content-encoding is in play. */
+      if (!r.headers.get("content-encoding") &&
+          drosdick.bytesTotal && got < drosdick.bytesTotal)
         throw new Error("spz short read " + got + "/" + drosdick.bytesTotal);
       const out = new Uint8Array(got);
       let off = 0;
