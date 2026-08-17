@@ -994,6 +994,12 @@ body.day .int-lamp::after{opacity:.45;}
 .orient .o-step.done{color:#64748b;text-decoration:line-through;text-decoration-color:rgba(212,175,106,.5);}
 .orient .o-step.now{color:var(--parchment);}
 .orient .o-step .o-tick{flex:none;color:var(--brass);font-size:11px;width:1rem;}
+/* Walking on a phone, the full checklist sat squarely on the ◀ ▲ ▶ pads.
+   Collapse it to the one step that matters and lift it clear of them. */
+@media (hover:none){
+  body.walkmode .orient{bottom:11.6rem;}
+  body.walkmode .orient .o-step:not(.now){display:none;}
+}
 @media print{
   body.j-print > *:not(#jmodal){display:none !important;}
   body.j-print #jmodal,.j-print .jmodal-card{position:static !important;transform:none !important;
@@ -9336,6 +9342,7 @@ function enterWalk(){
   applyWalkZoom();
   applyFog();                           /* ground-level horizon, not the aerial one */
   wing.classList.add("walkmode");
+  document.body.classList.add("walkmode");  /* overlays outside the wing (orientation card) style off this */
   document.getElementById("walkbtn").textContent = "🚁";
   toast("Boots on the quad", matchMedia("(pointer: coarse)").matches
     ? "▲ to walk · ◀ ▶ to turn · drag to look · pinch to zoom · tap a door's prompt to enter · 🚁 to fly back up."
@@ -9353,6 +9360,7 @@ function exitWalk(){
   camera.updateProjectionMatrix();
   applyFog();
   wing.classList.remove("walkmode");
+  document.body.classList.remove("walkmode");
   document.getElementById("walkbtn").textContent = "🎮";
   document.getElementById("doorprompt").classList.remove("show");
 }
