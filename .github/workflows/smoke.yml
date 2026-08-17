@@ -38,7 +38,13 @@ jobs:
     # having pushed over it. Raised with room rather than to the line,
     # so the next body added does not cost an evening working out why a
     # green suite went red without a failing check in it.
-    timeout-minutes: 35
+    #
+    # And again: the author's cathedral (355k tris) and Drosdick Hall
+    # (300k more, 24MB of textures) joined the campus and the drive
+    # crept from 24 minutes through 32 to a kill at 35 — the exact
+    # failure the paragraph above describes, suffered a second time by
+    # the timeout it set. Same rule, room rather than the line.
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
 
