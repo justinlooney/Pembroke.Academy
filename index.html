@@ -6277,7 +6277,10 @@ const CAST_FEM = new Set(["char2", "char4", "char8", "char9",
    and go from buildings — buildCast is resumable, so a student with no
    body at the first pass is built the moment theirs lands rather than
    missing the visit. */
-const ON_SCREEN_MB = 48;
+/* ?vrammb= is diagnostic, like ?crowd: a harness that needs the whole
+   cast on a software renderer raises the ceiling explicitly instead of
+   pretending the budget doesn't exist. */
+const ON_SCREEN_MB = +(new URLSearchParams(location.search).get("vrammb")) || 48;
 /* What each body costs the GPU once decoded, in megabytes. Every
    authored character ships three 1024-square maps — base colour,
    metallic/roughness and normal — which is 1024*1024*4 bytes each plus
