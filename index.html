@@ -1928,7 +1928,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v104";
+const BUILD = "pembroke-v105";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -8345,20 +8345,30 @@ async function drosdickPreload(){
     const fetchSpz = async () => {
       const r = await fetch("assets/drosdick_atrium.spz");
       if (!r.ok) throw new Error("spz http " + r.status);
-      const total = +r.headers.get("content-length") || 0;
-      if (!r.body || !total) return r.arrayBuffer();
-      drosdick.bytesTotal = total;
+      if (!r.body) return r.arrayBuffer();
+      /* Chunks are ACCUMULATED, never preallocated: the first version
+         sized a buffer from content-length and returned it even when
+         the stream ended early, handing the decoder real bytes
+         followed by zeros — "Junk found after end of compressed
+         data", from the same phone whose connection cuts streams
+         short. content-length is only trusted as a progress display;
+         a stream that ends below it throws, and the retry machinery
+         does the rest. */
+      drosdick.bytesTotal = +r.headers.get("content-length") || 0;
       const reader = r.body.getReader();
-      const out = new Uint8Array(total);
+      const chunks = [];
       let got = 0;
       for (;;){
         const { done, value } = await reader.read();
         if (done) break;
-        /* a lying content-length must not overflow the buffer */
-        if (got + value.length > total) return (await fetch("assets/drosdick_atrium.spz")).arrayBuffer();
-        out.set(value, got); got += value.length;
+        chunks.push(value); got += value.length;
         drosdick.bytesGot = got;
       }
+      if (drosdick.bytesTotal && got < drosdick.bytesTotal)
+        throw new Error("spz short read " + got + "/" + drosdick.bytesTotal);
+      const out = new Uint8Array(got);
+      let off = 0;
+      for (const c of chunks){ out.set(c, off); off += c.length; }
       return out.buffer;
     };
     const [spark, bvh, glb, buf] = await Promise.all([
@@ -8703,6 +8713,25 @@ function roseWindowTex(){
   return t;
 }
 
+/* The space behind Drosdick's door while the atrium streams (or on a
+   machine that can never hold it): dark, warm, deliberately
+   unfurnished — a room being delivered, not a classroom pretending
+   otherwise. The amphitheater that used to stand in here was deleted
+   by instruction; the Marble capture is this hall's only interior. */
+function buildArrivalScene(){
+  const sc = new THREE.Scene();
+  sc.background = new THREE.Color(0x0b0a10);
+  sc.fog = new THREE.Fog(0x0b0a10, 60, 420);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(600, 600),
+    new THREE.MeshStandardMaterial({ color: 0x17161c, roughness: 0.95 }));
+  floor.rotation.x = -Math.PI / 2;
+  sc.add(floor);
+  const glow = new THREE.PointLight(0xf59e0b, 2600, 700, 1.9);
+  glow.position.set(0, 120, -60); sc.add(glow);
+  sc.add(new THREE.HemisphereLight(0x8a7a58, 0x0c0a08, 0.5));
+  sc.userData.cam = { pos: [0, 40, 150], look: [0, 30, -80], sway: [6, 2] };
+  return sc;
+}
 function buildCathedralInterior(){
   const sc = new THREE.Scene();
   sc.background = new THREE.Color(0x0c0a0e);
@@ -8765,7 +8794,15 @@ function engineOpenInterior(key){
   const cathReal = key === "cathedral" && !!cathNave && cathNave.root.visible;
   interiorCath = cathReal;
   if (!interiorScenes[key] && !cathReal && !marbleReady)
-    interiorScenes[key] = key === "cathedral" ? buildCathedralInterior() : buildInteriorScene(key);
+    /* The amphitheater that stood in for Drosdick is DELETED by
+       instruction — the only interior that hall has is the Marble
+       atrium. Until the capture lands (or on a machine that can never
+       hold it), the door opens into a dark arrival space and the
+       subtitle says what is happening; the moment the stream
+       finishes, the atrium opens around the visitor. */
+    interiorScenes[key] = key === "cathedral" ? buildCathedralInterior()
+                        : key === "eng" ? buildArrivalScene()
+                        : buildInteriorScene(key);
   interiorView = key;
   wingEl.classList.add("interior-open");
   /* the drag-through overlay only inside a real first-person interior
@@ -10744,8 +10781,10 @@ function openInterior(key){
         : "Every course sealed — the hall stands in your honor.") +
     /* the one state that reads as a bug when it goes unexplained:
        the amphitheater standing in while the Marble capture streams */
-    (key === "eng" && drosdick.state !== "ready" && !softGL
-      ? "  ·  The Grand Atrium is still streaming in — it will open around you the moment it finishes."
+    (key === "eng" && drosdick.state !== "ready"
+      ? (softGL
+          ? "  ·  The Grand Atrium needs a stronger GPU than this device offers."
+          : "  ·  The Grand Atrium is still streaming in — it will open around you the moment it finishes.")
       : "");
   engineOpenInterior(key);
   interiorEl.classList.add("open");
