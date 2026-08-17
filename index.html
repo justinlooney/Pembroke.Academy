@@ -1000,6 +1000,34 @@ body.day .int-lamp::after{opacity:.45;}
 .st-why{margin-top:.5rem;font-size:12px;color:#94a3b8;font-style:italic;}
 .st-q.right .st-why{color:#6ee7b7;}
 .st-q.wrong .st-why{color:#fca5a5;}
+/* the lesson player's blocks */
+.st-prof{margin:.4rem 0 .8rem;padding:.75rem .95rem;border-left:3px solid var(--brass);
+  border-radius:.4rem;background:rgba(212,175,106,.07);font-size:13px;color:#cbd5e1;
+  font-style:italic;line-height:1.65;}
+.st-obj{margin:.2rem 0 .4rem;padding-left:1.1rem;font-size:12.5px;color:#cbd5e1;line-height:1.7;
+  list-style:"✦  ";}
+.st-h{font-family:'Cormorant Garamond',serif;font-size:16.5px;font-weight:600;
+  color:var(--parchment);margin:.7rem 0 .15rem;}
+.st-p{font-size:13px;color:#94a3b8;line-height:1.65;margin:.15rem 0;}
+.st-lab{border:1px solid rgba(148,163,184,.25);border-radius:.9rem;padding:.8rem;margin:.4rem 0;}
+.st-cv{width:100%;height:auto;border-radius:.5rem;background:rgba(8,12,22,.6);display:block;touch-action:manipulation;}
+.st-slide{width:100%;margin:.6rem 0 .2rem;accent-color:var(--brass);}
+.st-read{font-family:ui-monospace,monospace;font-size:11.5px;color:#e2e8f0;min-height:1.2em;}
+.st-step{border:1px dashed rgba(148,163,184,.3);border-radius:.7rem;padding:.6rem .85rem;margin:.5rem 0;}
+.st-ask{font-size:13px;color:#e2e8f0;margin-bottom:.3rem;}
+.st-reveal{font-size:12.5px;color:#94a3b8;margin:.3rem 0;line-height:1.6;}
+.st-num{display:block;width:12rem;max-width:100%;margin:.35rem 0;padding:.45rem .7rem;
+  border-radius:.55rem;border:1px solid rgba(148,163,184,.4);background:rgba(8,12,22,.7);
+  color:#f1f5f9;font-family:ui-monospace,monospace;font-size:13px;}
+.st-num:focus{outline:none;border-color:var(--brass);}
+/* the gradebook rows */
+.st-grow{display:grid;grid-template-columns:1fr auto auto;gap:.15rem .8rem;align-items:baseline;
+  padding:.5rem .3rem;border-bottom:1px solid rgba(148,163,184,.15);}
+.st-gl{font-size:13px;color:#e2e8f0;}
+.st-gw{font-family:ui-monospace,monospace;font-size:11px;color:#64748b;}
+.st-gs{font-family:ui-monospace,monospace;font-size:13px;color:var(--brass);}
+.st-gn{grid-column:1 / -1;font-size:11px;color:#64748b;font-style:italic;}
+.st-grow.off{opacity:.45;}
 
 /* orientation checklist card */
 .orient{position:absolute;left:.9rem;bottom:5.4rem;z-index:40;width:min(280px,72vw);
@@ -1203,6 +1231,7 @@ body.day .int-lamp::after{opacity:.45;}
           <div class="text-[11.5px] text-slate-400 mt-0.5" id="int-teaching"></div>
         </div>
         <div class="flex gap-2.5 flex-wrap">
+          <button class="int-btn" id="int-study" hidden>📖 Continue the course</button>
           <button class="int-btn" id="int-courses">Open course ledger</button>
           <button class="int-btn" id="int-leave">← Return to the quad</button>
         </div>
@@ -1393,9 +1422,9 @@ const COURSES = [
     ].join("\n")
   },
   {
-    id:"MATH201", code:"MATH 201", title:"Calculus I — Limits & Derivatives", sector:"lib",
+    id:"MATH201", code:"MATH 201", title:"Calculus I — Applied Calculus", sector:"lib",
     credits:4, level:"Core · Semester 3", prereqs:["MATH120"],
-    desc:"The mathematics of instantaneous change. Limits give the derivative rigor; the derivative gives you optimization, related rates, and the first half of the Fundamental Theorem.",
+    desc:"The mathematics of instantaneous change, taught the applied way: limits give the derivative rigor, the derivative gives you marginal analysis, optimization and related rates, and the integral closes the loop at the Fundamental Theorem.",
     outcomes:[
       "Compute limits analytically, graphically, and with epsilon-delta reasoning, and classify every kind of discontinuity.",
       "Differentiate using the product, quotient, and chain rules, plus implicit and logarithmic differentiation.",
@@ -1768,11 +1797,46 @@ const COURSES = [
    shape extends to any course by adding an entry here. */
 const STUDY = {
   MATH201: { lectures: "Twenty-eight lectures in five units — functions to the Fundamental Theorem.",
+  /* grading policy, configurable per course — the gradebook reads this */
+  grading: [ ["Homework", "homework", 20], ["Knowledge checks", "quizzes", 10],
+             ["Interactive labs", "labs", 10], ["Projects", "projects", 10],
+             ["Exam I", "exam1", 20], ["Final examination", "final", 30] ],
   units: [
   { title:"Unit I · Functions & Models", sections:[
     { n:"1.1", t:"Functions and their Representations",
       brief:"A function is a rule that assigns each input exactly one output. The same function can live four ways — a formula, a table, a graph, a sentence — and fluency means moving between them without losing the rule.",
       key:"A curve is a function's graph exactly when every vertical line crosses it at most once.",
+      full:{
+        professor:"Welcome to Calculus I. Before we touch a limit or a derivative, we spend two weeks making sure the objects we'll be differentiating are second nature. Today's idea sounds almost too simple to need a lecture: a function is a rule with no ambiguity. Hold that thought all semester — every theorem we prove is a promise about rules like this.",
+        objectives:[
+          "State whether a rule, table, graph or sentence defines a function, and say why.",
+          "Evaluate a function from any of its four representations.",
+          "Read a function's domain from its formula or its graph." ],
+        lecture:[
+          ["One input, one output","A vending machine that sometimes gives you crisps and sometimes gives you soup for the same button is broken. A function is the machine that never surprises you: press 4, get f(4), the same f(4) every time. Everything else — notation, graphs, domains — is bookkeeping for that promise."],
+          ["Four costumes, one rule","The squaring rule can be worn four ways: the formula f(x) = x², a table of pairs, the parabola you can draw, and the sentence 'multiply a number by itself'. Real fluency is changing costume without changing the rule — given any one, you can produce the other three."],
+          ["The graph is the rule, drawn","Plot every (input, output) pair and you get the graph. That's why the vertical line test works: a vertical line is a single input, and if it meets the curve twice, that input has two outputs — the machine is broken."],
+          ["Domain: where the rule makes sense","√x refuses negative numbers; 1/x refuses zero. The domain is simply the set of inputs the formula tolerates — and on a graph, it's the shadow the curve casts on the x-axis."] ],
+        viz:{ kind:"vline", note:"Drag the vertical line across two curves — a parabola that always passes the test, and a sideways one that fails it where the line meets it twice." },
+        worked:{ prompt:"g(x) = √(x − 2). Evaluate g(6), then find the domain.",
+          steps:[
+            ["What does g do to an input?","Subtract 2, then take the square root — read the formula inside-out."],
+            ["Feed it 6.","g(6) = √(6 − 2) = √4 = 2."],
+            ["Which inputs does the rule tolerate?","The square root needs x − 2 ≥ 0, so x ≥ 2. The domain is every number from 2 upward."] ] },
+        turn:[
+          { q:"With h(x) = x² − 5x, evaluate h(3).", type:"num", ans:-6, tol:0,
+            hint:"Square first, then subtract: 9 minus 15.",
+            work:"h(3) = 9 − 15 = −6. Negative outputs are outputs too." },
+          { q:"The domain of f(x) = 1/(x − 4) is every real number except…", type:"num", ans:4, tol:0,
+            hint:"A fraction only breaks when its denominator is zero.",
+            work:"x − 4 = 0 at x = 4; everywhere else the rule is happy." } ],
+        homework:{ title:"Homework 1.1 — three attempts, parameters reshuffle each try", gen:[
+          () => { const a = 2 + Math.floor(Math.random()*4), b = 1 + Math.floor(Math.random()*5);
+            return { q:`f(x) = ${a}x + ${b}. Evaluate f(3).`, ans: a*3 + b, tol: 0 }; },
+          () => { const c = 1 + Math.floor(Math.random()*6);
+            return { q:`g(x) = x² − ${c}. For which positive x is g(x) = 0? (round to 2 decimals)`, ans: Math.sqrt(c), tol: 0.02 }; },
+          () => { const d = 2 + Math.floor(Math.random()*7);
+            return { q:`The domain of y = √(x − ${d}) starts at x = …`, ans: d, tol: 0 }; } ] } },
       qs:[
         { q:"If f(x) = x² − 3x, then f(4) equals…", opts:["2","4","8","28"], a:1, why:"16 − 12 = 4." },
         { q:"A curve in the plane is the graph of a function exactly when…", opts:["every vertical line meets it at most once","every horizontal line meets it at most once","it passes through the origin","it has no breaks"], a:0, why:"One input, one output — the vertical line test." } ] },
@@ -1800,7 +1864,7 @@ const STUDY = {
       qs:[
         { q:"A culture follows P(t) = 100 · 2^(t/3). At t = 9 it holds…", opts:["300","600","800","900"], a:2, why:"Three doublings: 100 → 200 → 400 → 800." },
         { q:"P(t) = P₀ · bᵗ models decay exactly when…", opts:["b is negative","b is between 0 and 1","b equals 1","b is above 1"], a:1, why:"A fraction of itself each step shrinks it." } ] },
-    { n:"1.6", t:"Logarithmic Functions",
+    { n:"1.6", t:"Logarithmic Models",
       brief:"The logarithm answers the exponential's question in reverse: to what power must the base be raised to reach this number? It turns multiplication into addition, which is why it tames growth.",
       key:"ln(eˣ) = x, and log(ab) = log a + log b.",
       qs:[
@@ -1822,6 +1886,37 @@ const STUDY = {
     { n:"2.3", t:"Rates of Change and Derivatives",
       brief:"Shrink the secant's interval to nothing and its slope converges to the tangent's: that limit is the derivative, the instantaneous rate of change.",
       key:"f′(a) = lim (h → 0) of (f(a+h) − f(a)) / h.",
+      full:{
+        professor:"This is the lecture the course is named after. Everything before it built the stage; everything after it is consequences. Watch one number — the slope of a line through two points — turn into calculus as the two points become one.",
+        objectives:[
+          "Compute the slope of a secant line through P and a nearby point Q.",
+          "Describe the tangent slope as the limit of secant slopes as Q slides into P.",
+          "Interpret f′(a) as an instantaneous rate with real units." ],
+        lecture:[
+          ["Two points make a slope","Fix P on the curve and pick a neighbour Q. The line through them — the secant — has an honest, computable slope: rise over run. No calculus yet, just algebra with a good view."],
+          ["Now slide Q home","Drag Q toward P and the secant swings, settling toward one particular line: the tangent. Its slope is the number the secant slopes were sneaking up on — a limit, and our first derivative."],
+          ["Name it and use it","That limiting slope at x = a is written f′(a). On a position graph it is velocity right now; on a cost curve it is the cost of the very next unit. One geometric picture, every applied meaning in this course."] ],
+        viz:{ kind:"secant", note:"Slide Q toward P on f(x) = x² at P = (1, 1) and watch the secant slope approach the tangent's slope, 2." },
+        worked:{ prompt:"For f(x) = x², estimate the tangent slope at x = 1 using secants.",
+          steps:[
+            ["Slope of the secant from x = 1 to x = 1.5?","(2.25 − 1)/(0.5) = 2.5."],
+            ["From x = 1 to x = 1.1?","(1.21 − 1)/(0.1) = 2.1."],
+            ["From x = 1 to x = 1.01?","(1.0201 − 1)/(0.01) = 2.01 — the slopes are converging on 2. That limit is f′(1)."] ] },
+        turn:[
+          { q:"For f(x) = x², the secant slope from x = 2 to x = 3 is…", type:"num", ans:5, tol:0,
+            hint:"(f(3) − f(2)) divided by (3 − 2).",
+            work:"(9 − 4)/1 = 5 — and the tangent slope at 2 is 4, which the secants approach." },
+          { q:"f′(a) is best described as the slope of the…", type:"mc",
+            opts:["secant through any two points","tangent line at a","the y-axis","average of all slopes"], a:1,
+            hint:"The limiting line, not the approximating one.",
+            work:"Secants approximate; the tangent is their limit, and f′(a) is its slope." } ],
+        homework:{ title:"Homework 2.3 — parameters reshuffle each attempt", gen:[
+          () => { const a = 1 + Math.floor(Math.random()*4);
+            return { q:`f(x) = x². The secant slope from x = ${a} to x = ${a+1} is…`, ans: 2*a + 1, tol: 0 }; },
+          () => { const a = 1 + Math.floor(Math.random()*5);
+            return { q:`f(x) = x². The tangent slope at x = ${a} (the limit the secants chase) is…`, ans: 2*a, tol: 0 }; },
+          () => { const v = 10 + Math.floor(Math.random()*40);
+            return { q:`A car's position graph has tangent slope ${v} km/h at t = 2. Its instantaneous speed then is … km/h.`, ans: v, tol: 0 }; } ] } },
       qs:[
         { q:"For f(x) = x², the derivative f′(3) is…", opts:["3","6","9","12"], a:1, why:"f′(x) = 2x, so f′(3) = 6." },
         { q:"If f measures litres and x measures minutes, f′ is measured in…", opts:["litres","minutes","litres per minute","minutes per litre"], a:2, why:"A derivative always carries output units per input unit." } ] },
@@ -1936,7 +2031,7 @@ const STUDY = {
       qs:[
         { q:"∫ 2x(x² + 1)³ dx equals…", opts:["(x² + 1)⁴/4 + C","(x² + 1)³/3 + C","2(x² + 1)⁴ + C","x²(x² + 1)³ + C"], a:0, why:"u = x² + 1, du = 2x dx." },
         { q:"For ∫ x·e^(x²) dx the right substitution is u =…", opts:["x","eˣ","x²","e^(x²)"], a:2, why:"du = 2x dx matches the loose x dx." } ] },
-    { n:"5.5", t:"Integration by Parts",
+    { n:"5.5", t:"Integration by Parts", bridge:"MATH 202",
       brief:"The product rule, integrated and rearranged: trade one integral for a hopefully easier one. Choosing which factor to differentiate is the whole art.",
       key:"∫ u dv = u·v − ∫ v du.",
       qs:[
@@ -10513,6 +10608,7 @@ function jStudy(courseId){
       <div class="st-prog-fill" style="width:${total ? (mastered / total) * 100 : 0}%"></div>
       <span>${mastered} of ${total} lectures mastered</span>
     </div>
+    <button type="button" class="jlink" data-grades>Gradebook — how the grade is computed</button>
     ${plan.units.map(u => `
       <div class="st-unit">${u.title}</div>
       ${u.sections.map(s => `
@@ -10520,21 +10616,291 @@ function jStudy(courseId){
           <span class="st-dot ${st[s.n] === 2 ? "done" : st[s.n] ? "part" : ""}"
                 style="--c:${S.color}">${st[s.n] === 2 ? "✓" : ""}</span>
           <span class="st-n">${s.n}</span>
-          <span class="st-t">${s.t}</span>
+          <span class="st-t">${s.t}${s.full ? " · <em>full lecture</em>" : ""}${s.bridge ? ` · <em>bridge to ${s.bridge}</em>` : ""}</span>
         </button>`).join("")}`).join("")}
     ${mastered === total ? `<p class="text-[12.5px] mt-4" style="color:${S.color}">Every lecture mastered — seal the course from its card whenever you're ready.</p>` : ""}
   `);
   jbody.querySelectorAll("[data-lecture]").forEach(b =>
     b.addEventListener("click", () => jStudySection(courseId, b.dataset.lecture)));
+  jbody.querySelector("[data-grades]").addEventListener("click", () => jGrades(courseId));
 }
+/* extended per-lesson records (labs, your-turn, homework) live beside
+   the section levels under a key no section number can collide with */
+function studyExt(courseId, n){
+  study[courseId] = study[courseId] || {};
+  const x = study[courseId].x = study[courseId].x || {};
+  return x[n] = x[n] || {};
+}
+
+/* ── canvas mathematics: dependency-free plotted interactives ────── */
+function stAxes(g, W, H, X0, X1, Y0, Y1){
+  const mx = x => (x - X0) / (X1 - X0) * W, my = y => H - (y - Y0) / (Y1 - Y0) * H;
+  g.clearRect(0, 0, W, H);
+  g.strokeStyle = "rgba(148,163,184,.35)"; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(mx(X0), my(0)); g.lineTo(mx(X1), my(0));
+  g.moveTo(mx(0), my(Y0)); g.lineTo(mx(0), my(Y1)); g.stroke();
+  return { mx, my };
+}
+function stCurve(g, m, fn, x0, x1, color){
+  g.strokeStyle = color; g.lineWidth = 2; g.beginPath();
+  for (let i = 0; i <= 120; i++){
+    const x = x0 + (x1 - x0) * i / 120;
+    i ? g.lineTo(m.mx(x), m.my(fn(x))) : g.moveTo(m.mx(x), m.my(fn(x)));
+  }
+  g.stroke();
+}
+/* each viz kind: (canvas, slider01, readoutEl, color) → redraw(t) */
+const ST_VIZ = {
+  /* the vertical line test, live: a parabola that always passes and a
+     sideways parabola that fails wherever the line crosses it twice */
+  vline(cv, t, out, color){
+    const g = cv.getContext("2d"), W = cv.width, H = cv.height;
+    const m = stAxes(g, W, H, -4, 4, -3, 3);
+    stCurve(g, m, x => x * x - 2, -2.2, 2.2, color);
+    g.strokeStyle = "#38bdf8"; g.lineWidth = 2; g.beginPath();
+    for (let i = 0; i <= 120; i++){
+      const y = -2.4 + 4.8 * i / 120;
+      i ? g.lineTo(m.mx(y * y - 2), m.my(y)) : g.moveTo(m.mx(y * y - 2), m.my(y));
+    }
+    g.stroke();
+    const x = -3.6 + 7.2 * t;
+    g.strokeStyle = "#f8fafc"; g.setLineDash([5, 4]); g.beginPath();
+    g.moveTo(m.mx(x), 0); g.lineTo(m.mx(x), H); g.stroke(); g.setLineDash([]);
+    const hitsA = (x >= -2 - 2.2 && x <= 2.2 * 2.2 - 2) ? 1 : 1;   /* y = x²−2: always one */
+    const hitsB = x + 2 > 0 ? 2 : (x + 2 === 0 ? 1 : 0);           /* x = y²−2 */
+    out.textContent = `at x = ${x.toFixed(1)}: gold curve ${hitsA} crossing — a function · blue curve ${hitsB} — ${hitsB > 1 ? "NOT a function" : hitsB === 1 ? "so far so good" : "no crossings"}`;
+  },
+  /* the course's flagship: Q slides into P and the secant becomes the tangent */
+  secant(cv, t, out, color){
+    const g = cv.getContext("2d"), W = cv.width, H = cv.height;
+    const m = stAxes(g, W, H, -0.5, 3, -0.5, 6);
+    const f = x => x * x;
+    stCurve(g, m, f, -0.4, 2.45, color);
+    const h = 1.5 - 1.49 * t;                     /* 1.5 → 0.01 */
+    const P = [1, 1], Q = [1 + h, f(1 + h)];
+    const sSlope = (f(1 + h) - 1) / h;
+    g.strokeStyle = "rgba(248,250,252,.5)"; g.setLineDash([5, 4]); g.beginPath();
+    g.moveTo(m.mx(-0.3), m.my(1 + 2 * (-0.3 - 1))); g.lineTo(m.mx(2.6), m.my(1 + 2 * (2.6 - 1)));
+    g.stroke(); g.setLineDash([]);
+    g.strokeStyle = "#38bdf8"; g.lineWidth = 2; g.beginPath();
+    g.moveTo(m.mx(-0.2), m.my(1 + sSlope * (-0.2 - 1))); g.lineTo(m.mx(2.6), m.my(1 + sSlope * (2.6 - 1)));
+    g.stroke();
+    for (const [pt, cc] of [[P, "#f8fafc"], [Q, "#38bdf8"]]){
+      g.fillStyle = cc; g.beginPath(); g.arc(m.mx(pt[0]), m.my(pt[1]), 5, 0, 7); g.fill();
+    }
+    out.textContent = `h = ${h.toFixed(2)} · secant slope = ${sSlope.toFixed(3)} → tangent slope 2`;
+  },
+};
+
+/* ── the lesson player: ordered blocks from the course manifest ──── */
+function jLessonFull(courseId, n){
+  const c = byId[courseId], sec = studySections(courseId).find(s => s.n === n);
+  const F = sec.full, S = sectorOf(c);
+  const ext = studyExt(courseId, n);
+  const kcDone = study[courseId][n] === 2;
+  jOpen(`
+    <div class="jp-kicker" style="color:${S.color}">${c.code} · Lecture ${sec.n}${sec.bridge ? ` · bridge to ${sec.bridge}` : ""}</div>
+    <h3 class="font-serif-d text-2xl text-[color:var(--parchment)] mt-1 mb-1">${sec.t}</h3>
+    <div class="st-prof">${F.professor}</div>
+    <div class="st-unit">What you'll be able to do</div>
+    <ul class="st-obj">${F.objectives.map(o => `<li>${o}</li>`).join("")}</ul>
+    <div class="st-unit">Lecture</div>
+    ${F.lecture.map(([h, p]) => `<h4 class="st-h">${h}</h4><p class="st-p">${p}</p>`).join("")}
+    <div class="st-unit">Try it — interactive</div>
+    <div class="st-lab" data-labwrap>
+      <canvas class="st-cv" width="640" height="360" role="img" aria-label="${F.viz.note}"></canvas>
+      <input type="range" min="0" max="1000" value="0" class="st-slide" aria-label="interactive control">
+      <div class="st-read" aria-live="polite"></div>
+      <p class="st-p" style="font-style:italic">${F.viz.note}</p>
+    </div>
+    <div class="st-unit">Worked example</div>
+    <div class="st-key" style="--c:${S.color}">${F.worked.prompt}</div>
+    <div data-worked>
+      ${F.worked.steps.map(([ask, reveal], i) => `
+        <div class="st-step" data-step="${i}" ${i ? "hidden" : ""}>
+          <div class="st-ask">${ask}</div>
+          <div class="st-reveal" hidden>${reveal}</div>
+          <button type="button" class="jlink" data-reveal="${i}">reveal this step</button>
+        </div>`).join("")}
+    </div>
+    <div class="st-unit">Your turn</div>
+    ${F.turn.map((q, qi) => `
+      <div class="st-q" data-turn="${qi}">
+        <div class="st-ask">${qi + 1}. ${q.q}</div>
+        ${q.type === "mc"
+          ? q.opts.map((o, oi) => `<label class="st-opt"><input type="radio" name="t${qi}" value="${oi}"><span>${o}</span></label>`).join("")
+          : `<input class="st-num" type="text" inputmode="decimal" aria-label="your answer" placeholder="your answer">`}
+        <button type="button" class="jlink" data-check="${qi}">check</button>
+        <div class="st-why" hidden></div>
+      </div>`).join("")}
+    <div class="st-unit">Knowledge check ${kcDone ? "— passed ✓" : ""}</div>
+    <form id="st-quiz">
+      ${sec.qs.map((q, qi) => `
+        <fieldset class="st-q" data-q="${qi}">
+          <legend>${qi + 1}. ${q.q}</legend>
+          ${q.opts.map((o, oi) => `<label class="st-opt"><input type="radio" name="q${qi}" value="${oi}"><span>${o}</span></label>`).join("")}
+          <div class="st-why" hidden></div>
+        </fieldset>`).join("")}
+      <div class="flex items-center gap-3 mt-2">
+        <button type="submit" class="jcta" style="--c:${S.color}">Check my work</button>
+        <button type="button" class="jlink" data-hw>Homework ${ext.hw ? `· best ${ext.hw[0]}/${ext.hw[1]}` : ""}</button>
+        <button type="button" class="jlink" data-back>← all lectures</button>
+      </div>
+    </form>
+  `);
+  /* the lab: first touch counts as the interactive completed */
+  const cvEl = jbody.querySelector(".st-cv"), slide = jbody.querySelector(".st-slide"),
+        read = jbody.querySelector(".st-read");
+  const draw = () => ST_VIZ[F.viz.kind](cvEl, +slide.value / 1000, read, S.color);
+  slide.addEventListener("input", () => { draw(); if (!ext.lab){ ext.lab = 1; saveStudy(); } });
+  draw();
+  /* worked example: steps reveal one at a time */
+  jbody.querySelectorAll("[data-reveal]").forEach(b => b.addEventListener("click", () => {
+    const i = +b.dataset.reveal, host = jbody.querySelector(`[data-step="${i}"]`);
+    host.querySelector(".st-reveal").hidden = false; b.remove();
+    const next = jbody.querySelector(`[data-step="${i + 1}"]`);
+    if (next) next.hidden = false;
+  }));
+  /* your turn: hint on the first miss, the worked line on the second */
+  F.turn.forEach((q, qi) => {
+    const host = jbody.querySelector(`[data-turn="${qi}"]`);
+    const why = host.querySelector(".st-why");
+    let miss = 0;
+    host.querySelector(`[data-check="${qi}"]`).addEventListener("click", () => {
+      let good;
+      if (q.type === "mc"){
+        const pick = host.querySelector(`input[name="t${qi}"]:checked`);
+        good = pick && +pick.value === q.a;
+      } else {
+        const v = parseFloat(host.querySelector(".st-num").value.replace(",", "."));
+        good = Number.isFinite(v) && Math.abs(v - q.ans) <= (q.tol || 0) + 1e-9;
+      }
+      host.classList.toggle("right", !!good); host.classList.toggle("wrong", !good);
+      why.hidden = false;
+      if (good){ why.textContent = "✓ " + q.work; ext["t" + qi] = 1; saveStudy(); }
+      else { miss++; why.textContent = (miss === 1 ? "Hint: " + q.hint : "✗ " + q.work); }
+    });
+  });
+  jbody.querySelector("[data-hw]").addEventListener("click", () => jHomework(courseId, n));
+  jbody.querySelector("[data-back]").addEventListener("click", () => jStudy(courseId));
+  jbody.querySelector("#st-quiz").addEventListener("submit", e => {
+    e.preventDefault();
+    stGradeKC(courseId, n, sec, S);
+  });
+}
+
+/* the knowledge-check marker, shared by both lesson views */
+function stGradeKC(courseId, n, sec, S){
+  let right = 0;
+  sec.qs.forEach((q, qi) => {
+    const pick = jbody.querySelector(`input[name="q${qi}"]:checked`);
+    const fs = jbody.querySelector(`[data-q="${qi}"]`);
+    const why = fs.querySelector(".st-why");
+    const good = pick && +pick.value === q.a;
+    if (good) right++;
+    fs.classList.toggle("right", good);
+    fs.classList.toggle("wrong", !good);
+    why.hidden = false;
+    why.textContent = (good ? "✓ " : "✗ ") + q.why;
+  });
+  if (right === sec.qs.length){
+    study[courseId][n] = 2;
+    saveStudy();
+    renderCourses();
+    toast("📖 Lecture mastered", `${sec.n} · ${sec.t} — sealed into your study record.`, S.color, 4200);
+    setTimeout(() => jStudy(courseId), 900);
+  }
+}
+
+/* ── homework: fresh parameters every attempt, best score kept ───── */
+function jHomework(courseId, n){
+  const c = byId[courseId], sec = studySections(courseId).find(s => s.n === n);
+  const F = sec.full, S = sectorOf(c);
+  const qs = F.homework.gen.map(g => g());
+  jOpen(`
+    <div class="jp-kicker" style="color:${S.color}">${c.code} · Lecture ${sec.n}</div>
+    <h3 class="font-serif-d text-2xl text-[color:var(--parchment)] mt-1 mb-1">${F.homework.title}</h3>
+    <form id="st-hw">
+      ${qs.map((q, qi) => `
+        <div class="st-q" data-hwq="${qi}">
+          <div class="st-ask">${qi + 1}. ${q.q}</div>
+          <input class="st-num" type="text" inputmode="decimal" aria-label="answer ${qi + 1}">
+          <div class="st-why" hidden></div>
+        </div>`).join("")}
+      <div class="flex items-center gap-3 mt-2">
+        <button type="submit" class="jcta" style="--c:${S.color}">Submit homework</button>
+        <button type="button" class="jlink" data-back>← back to the lecture</button>
+      </div>
+    </form>
+  `);
+  jbody.querySelector("[data-back]").addEventListener("click", () => jStudySection(courseId, n));
+  jbody.querySelector("#st-hw").addEventListener("submit", e => {
+    e.preventDefault();
+    let score = 0;
+    qs.forEach((q, qi) => {
+      const host = jbody.querySelector(`[data-hwq="${qi}"]`);
+      const v = parseFloat(host.querySelector(".st-num").value.replace(",", "."));
+      const good = Number.isFinite(v) && Math.abs(v - q.ans) <= (q.tol || 0) + 1e-9;
+      if (good) score++;
+      host.classList.toggle("right", good); host.classList.toggle("wrong", !good);
+      const why = host.querySelector(".st-why");
+      why.hidden = false; why.textContent = good ? "✓" : `✗ — the answer was ${+q.ans.toFixed ? +q.ans.toFixed(2) : q.ans}`;
+    });
+    const ext = studyExt(courseId, n);
+    if (!ext.hw || score > ext.hw[0]) ext.hw = [score, qs.length];
+    saveStudy();
+    toast("Homework recorded", `${score}/${qs.length} — best attempt kept. Fresh numbers on every retry.`, S.color, 4200);
+  });
+}
+
+/* ── the gradebook: the policy, the evidence, the arithmetic ─────── */
+function jGrades(courseId){
+  const c = byId[courseId], plan = STUDY[courseId], S = sectorOf(c);
+  const secs = studySections(courseId), st = study[courseId] || {}, x = st.x || {};
+  const withFull = secs.filter(s => s.full);
+  const comp = {
+    quizzes: { have: secs.length > 0, pct: 100 * secs.filter(s => st[s.n] === 2).length / secs.length,
+               note: `${secs.filter(s => st[s.n] === 2).length} of ${secs.length} knowledge checks passed` },
+    labs:    { have: withFull.length > 0, pct: withFull.length ? 100 * withFull.filter(s => x[s.n]?.lab).length / withFull.length : 0,
+               note: `${withFull.filter(s => x[s.n]?.lab).length} of ${withFull.length} interactive labs touched` },
+    homework:{ have: withFull.some(s => x[s.n]?.hw), pct: (() => {
+                 const hws = withFull.map(s => x[s.n]?.hw).filter(Boolean);
+                 return hws.length ? 100 * hws.reduce((a, h) => a + h[0] / h[1], 0) / hws.length : 0; })(),
+               note: `${withFull.filter(s => x[s.n]?.hw).length} assignment${withFull.filter(s => x[s.n]?.hw).length === 1 ? "" : "s"} submitted` },
+    projects:{ have: false, note: "not yet assigned" },
+    exam1:   { have: false, note: "not yet scheduled" },
+    final:   { have: false, note: "not yet scheduled" },
+  };
+  const active = plan.grading.filter(([, k]) => comp[k]?.have);
+  const wsum = active.reduce((a, [, , w]) => a + w, 0) || 1;
+  const grade = active.reduce((a, [, k, w]) => a + comp[k].pct * w / wsum, 0);
+  jOpen(`
+    <div class="jp-kicker" style="color:${S.color}">${c.code} · Gradebook</div>
+    <h3 class="font-serif-d text-2xl text-[color:var(--parchment)] mt-1 mb-1">Current standing: ${grade.toFixed(1)}%</h3>
+    <p class="text-[12.5px] text-slate-400 mb-4">Weighted over the components offered so far; unoffered components are excluded and the weights renormalised, so nothing you haven't been given can hurt you.</p>
+    ${plan.grading.map(([label, k, w]) => `
+      <div class="st-grow ${comp[k].have ? "" : "off"}">
+        <span class="st-gl">${label}</span>
+        <span class="st-gw">${w}%</span>
+        <span class="st-gs">${comp[k].have ? comp[k].pct.toFixed(0) + "%" : "—"}</span>
+        <span class="st-gn">${comp[k].note}</span>
+      </div>`).join("")}
+    <div class="flex items-center gap-3 mt-4">
+      <button type="button" class="jlink" data-back>← course of study</button>
+    </div>
+  `);
+  jbody.querySelector("[data-back]").addEventListener("click", () => jStudy(courseId));
+}
+
 function jStudySection(courseId, n){
   const plan = STUDY[courseId], c = byId[courseId];
   const sec = studySections(courseId).find(s => s.n === n);
   if (!sec || !c) return;
-  const S = sectorOf(c);
   study[courseId] = study[courseId] || {};
   if (!study[courseId][n]) study[courseId][n] = 1;      /* opened = read */
   saveStudy();
+  if (sec.full) return jLessonFull(courseId, n);
+  const S = sectorOf(c);
   jOpen(`
     <div class="jp-kicker" style="color:${S.color}">${c.code} · Lecture ${sec.n}</div>
     <h3 class="font-serif-d text-2xl text-[color:var(--parchment)] mt-1 mb-1">${sec.t}</h3>
@@ -11405,6 +11771,12 @@ function openInterior(key){
   document.getElementById("int-track").textContent = S.track;
   document.getElementById("int-hall").textContent = S.room;
   const next = COURSES.find(c => c.sector === key && !done.includes(c.id));
+  /* the classroom is an access path into the course of study — the
+     efficient path stays on the course card, this one is for immersion */
+  const studyHere = COURSES.find(c => c.sector === key && STUDY[c.id]);
+  const sb = document.getElementById("int-study");
+  sb.hidden = !studyHere;
+  if (studyHere) sb.onclick = () => { closeInterior(); jStudy(studyHere.id); };
   document.getElementById("int-teaching").textContent =
     (key === "cathedral"
       ? "No lecture here — only candlelight, stained glass, and the long thoughts of scholars."
