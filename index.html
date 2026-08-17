@@ -8245,6 +8245,10 @@ const drosdick = {
   state: "unloaded",       /* unloaded → preloading → ready | error */
   scene: null, splat: null, colliderMesh: null,
   bytes: 0, loadMs: 0, splats: 0, tier: "full", err: null,
+  bytesGot: 0, bytesTotal: 0,   /* streaming progress, for the panel —
+                                   "marble preloading" alone, read off a
+                                   phone on a slow connection, looks
+                                   stuck; a number moving does not */
   spawn: null,             /* measured off the collider when it lands */
 };
 window.__drosdick = { get: () => ({ ...drosdick, scene: undefined, splat: undefined,
@@ -8269,14 +8273,33 @@ async function drosdickPreload(){
   const rec = { name: "drosdick_atrium.spz", t0, ms: null, late: true };
   assetLog.push(rec);
   try {
+    /* the capture streams through a reader so the panel can show bytes
+       moving — on the connection that reported this, the whole
+       preload spanned minutes and looked frozen without a number */
+    const fetchSpz = async () => {
+      const r = await fetch("assets/drosdick_atrium.spz");
+      if (!r.ok) throw new Error("spz http " + r.status);
+      const total = +r.headers.get("content-length") || 0;
+      if (!r.body || !total) return r.arrayBuffer();
+      drosdick.bytesTotal = total;
+      const reader = r.body.getReader();
+      const out = new Uint8Array(total);
+      let got = 0;
+      for (;;){
+        const { done, value } = await reader.read();
+        if (done) break;
+        /* a lying content-length must not overflow the buffer */
+        if (got + value.length > total) return (await fetch("assets/drosdick_atrium.spz")).arrayBuffer();
+        out.set(value, got); got += value.length;
+        drosdick.bytesGot = got;
+      }
+      return out.buffer;
+    };
     const [spark, bvh, glb, buf] = await Promise.all([
       import("@sparkjsdev/spark"),
       import("three-mesh-bvh"),
       new Promise((res, rej) => gltf.load("assets/drosdick_collider.glb", res, undefined, rej)),
-      fetch("assets/drosdick_atrium.spz").then(r => {
-        if (!r.ok) throw new Error("spz http " + r.status);
-        return r.arrayBuffer();
-      }),
+      fetchSpz(),
     ]);
     drosdick.bytes = buf.byteLength;
 
@@ -8320,6 +8343,13 @@ async function drosdickPreload(){
     drosdick.loadMs = performance.now() - t0;
     rec.ms = drosdick.loadMs;
     drosdick.state = "ready";
+    /* the visit latch means whoever is inside the amphitheater right
+       now stays there — tell them the real room just opened, or the
+       fallback reads as "drosdick hall has old interior" (it did) */
+    if (interiorView === "eng" && !interiorMarble)
+      toast("🏛️ The Grand Atrium has arrived",
+            "The Marble capture finished streaming. Step back through the door and the Learning Commons is open.",
+            SECTORS.eng.color, 8000);
   } catch (e) {
     rec.ms = performance.now() - rec.t0; rec.err = true;
     rec.why = String((e && e.message) || e).slice(0, 28);
@@ -9157,8 +9187,13 @@ function walkUpdate(dt){
   /* a stroll toward Drosdick is the atrium's cue to start streaming:
      150 units out is ~8 seconds of walking, and the whole 30MB usually
      lands in less. Never on a software renderer — a machine that can't
-     hold the campus has no business decoding two million splats. */
-  if (!softGL && drosdick.state === "unloaded" &&
+     hold the campus has no business decoding two million splats. And
+     never while the campus itself is still arriving: on a slow
+     connection the capture was stealing bandwidth from the cast, the
+     panel reading "13/13 all in 676.8s" with students still missing.
+     Walking through the door still preloads unconditionally — that is
+     intent, not passing by. */
+  if (!softGL && drosdick.state === "unloaded" && window.__crowd?.().ready &&
       Math.hypot(865 - walker.x, 412 - walker.y) < 150) drosdickPreload();
   const dp = document.getElementById("doorprompt");
   dp.classList.toggle("show", !!walker.door);
@@ -9399,6 +9434,9 @@ function dbgUpdate(now, dt, raw){
     (drosdick.state !== "unloaded"
       ? "marble " + drosdick.state +
         (drosdick.state === "error" ? "  " + (drosdick.err || "").slice(0, 34)
+         : drosdick.state === "preloading" && drosdick.bytesTotal
+           ? "  " + (drosdick.bytesGot / 1048576).toFixed(1) + "/" +
+             (drosdick.bytesTotal / 1048576).toFixed(1) + "MB"
          : drosdick.splats
            ? "  " + (drosdick.splats / 1e6).toFixed(2) + "M splats (" + drosdick.tier + ")" +
              "  " + (drosdick.bytes / 1048576).toFixed(1) + "MB in " +
@@ -10625,11 +10663,16 @@ function openInterior(key){
   document.getElementById("int-hall").textContent = S.room;
   const next = COURSES.find(c => c.sector === key && !done.includes(c.id));
   document.getElementById("int-teaching").textContent =
-    key === "cathedral"
+    (key === "cathedral"
       ? "No lecture here — only candlelight, stained glass, and the long thoughts of scholars."
       : next
         ? `Now in session: ${next.code} — ${next.title}`
-        : "Every course sealed — the hall stands in your honor.";
+        : "Every course sealed — the hall stands in your honor.") +
+    /* the one state that reads as a bug when it goes unexplained:
+       the amphitheater standing in while the Marble capture streams */
+    (key === "eng" && drosdick.state !== "ready" && !softGL
+      ? "  ·  The Grand Atrium is still streaming in — it opens the next time you step through the door."
+      : "");
   engineOpenInterior(key);
   interiorEl.classList.add("open");
   interiorEl.setAttribute("aria-hidden", "false");
