@@ -1928,7 +1928,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v101";
+const BUILD = "pembroke-v102";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -3356,6 +3356,29 @@ BUILDINGS.forEach(spec => {
     ["assets/drosdick_hall.glb", {
       plane: [865, 250], height: 169, maxFoot: [380, 380], sink: 1.5,
       onLoaded: (root) => {
+        /* The chapel's lesson, applied on arrival this time: the
+           export leaves metallicFactor at its glTF default of 1.0 and
+           carries a metallic-roughness texture that dips toward zero
+           — a mirror-metal lobe whose GGX math goes NaN, and one NaN
+           pixel through the bloom mip chain blacks out the whole
+           canvas (measured here on the day the hall landed, as an
+           all-black aerial). Stone is not metal: one plain material,
+           palette texture carrying the look, matte and NaN-proof. */
+        const rebuilt = new Map();
+        root.traverse(o => {
+          const m = o.material;
+          if (!o.isMesh || !m) return;
+          let std = rebuilt.get(m);
+          if (!std){
+            std = new THREE.MeshStandardMaterial({
+              map: m.map || null, color: m.color.clone(),
+              normalMap: m.normalMap || null,
+              roughness: 0.88, metalness: 0,
+              side: m.side });
+            rebuilt.set(m, std);
+          }
+          o.material = std;
+        });
         if (hallGroups.eng) hallGroups.eng.add(root);
         window.__drosdickHallIn = true;
       } }],
