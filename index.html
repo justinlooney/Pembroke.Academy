@@ -1114,7 +1114,7 @@ git push -u origin main</pre>
         <div>
           <span class="font-serif-d italic text-[13px] text-slate-400">"Lux, Mathesis, Machina"</span> — Light, Learning, and the Machine.
           <div class="mt-1">Progress is inscribed to your browser's <code class="font-mono-d text-[10.5px]">localStorage</code> ledger — it survives every visit.</div>
-          <div class="mt-1 text-slate-600">3D, adapted, <a class="underline hover:text-slate-400" href="http://creativecommons.org/licenses/by/4.0/">CC-BY-4.0</a> unless noted: "<a class="underline hover:text-slate-400" href="https://sketchfab.com/tabitown">Cathedral</a>" by tabitown · "New Colgate University Dorm" · "Baseball stadium 3d drone survey" by KCraw · university campus aerial scan, sugar maple, residence hall and cathedral supplied by the project owner · flora by Miguel-Angel, PropShop™, EFX, Joanne Viertel &amp; Batuhan13. Full list in assets/CREDITS.md.</div>
+          <div class="mt-1 text-slate-600">3D, adapted, <a class="underline hover:text-slate-400" href="http://creativecommons.org/licenses/by/4.0/">CC-BY-4.0</a> unless noted: "<a class="underline hover:text-slate-400" href="https://sketchfab.com/tabitown">Cathedral</a>" by tabitown · "New Colgate University Dorm" · "Baseball stadium 3d drone survey" by KCraw · university campus aerial scan, sugar maple, residence hall, cathedral and the Drosdick Hall atrium capture (World&nbsp;Labs Marble) supplied by the project owner · flora by Miguel-Angel, PropShop™, EFX, Joanne Viertel &amp; Batuhan13. Full list in assets/CREDITS.md.</div>
         </div>
         <button id="reset-ledger" class="chip rounded-full px-4 py-1.5 text-[11px] uppercase tracking-[.15em] text-slate-400 hover:text-red-300 hover:border-red-400/50">Reset ledger</button>
       </footer>
@@ -1128,7 +1128,10 @@ git push -u origin main</pre>
 {
   "imports": {
     "three": "./assets/vendor/three/build/three.module.js",
-    "three/addons/": "./assets/vendor/three/examples/jsm/"
+    "three/addons/": "./assets/vendor/three/examples/jsm/",
+
+    "@sparkjsdev/spark": "./assets/vendor/spark/spark.module.min.js",
+    "three-mesh-bvh": "./assets/vendor/three-mesh-bvh/index.module.js"
   }
 }
 </script>
@@ -1151,15 +1154,15 @@ const SECTORS = {
                 "· the campus you walked through? rotation matrices.",
                 "· hw — Stewart §16.4, odd problems 1–17"],
          blurb:"Vaulted reading rooms and chalk-dusted lecture halls. The five-course mathematics spine — from College Algebra to the vector fields of Calculus III — is taught beneath the great emerald dome." },
-  eng: { key:"eng", hall:"Whitmore Engineering Quad", track:"Software Foundations Track",
+  eng: { key:"eng", hall:"Drosdick Hall", track:"Software Foundations Track",
          color:"#f59e0b", soft:"rgba(245,158,11,", icon:"⌬",
          motto:"First make it work. Then make it beautiful.",
-         room:"The Amber Atelier — Code Studio",
+         room:"The Grand Atrium — Learning Commons",
          board:["def study(hours):",
                 "    return mastery(hours ** 2)",
                 "· big-O is a promise about the future",
                 "· quiz friday: recursion vs iteration"],
-         blurb:"Amber-lit ateliers where code is a craft. Three studio courses carry a complete beginner from a first Python print statement to disciplined systems engineering in C." },
+         blurb:"A glass-roofed grand atrium where code is a craft. Three studio courses carry a complete beginner from a first Python print statement to disciplined systems engineering in C, at long study tables under the skylight." },
   sci: { key:"sci", hall:"Alden Science Laboratory", track:"Electrical Hardware & Microprocessors Track",
          color:"#38bdf8", soft:"rgba(56,189,248,", icon:"⚡",
          room:"The Induction Chamber — Bench Lab 3",
@@ -1350,7 +1353,7 @@ const COURSES = [
     ].join("\n")
   },
 
-  /* ═════════ WHITMORE ENGINEERING QUAD — SOFTWARE FOUNDATIONS ═════════ */
+  /* ═════════ DROSDICK HALL — SOFTWARE FOUNDATIONS ═════════ */
   {
     id:"CS101", code:"CS 101", title:"Foundations of Computing with Python", sector:"eng",
     credits:3, level:"Foundation · Semester 1", prereqs:[],
@@ -1925,7 +1928,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v99";
+const BUILD = "pembroke-v100";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -4445,7 +4448,7 @@ const STUDENT_ROSTER = [
          ["Why the Library?",
           "The dome. Go up at dusk, when the lamps come on under the emerald glass and the whole reading room turns the colour of a pond. Nobody talks. It's the only place on this campus where I get anything done."]] },
   { name:"Marcus", looks:"m", c:0xfbbf24, at:"eng", major:"Software Foundations",
-    says:["My first Python script ran — no errors!","Binary search in 17 steps. SEVENTEEN.","Whitmore Quad study group, 8pm."],
+    says:["My first Python script ran — no errors!","Binary search in 17 steps. SEVENTEEN.","Drosdick Atrium study group, 8pm."],
     ask:[["What are you working on?",
           "Python, and I'm not going to pretend to be cool about it. My first script ran with no errors this morning. Eleven lines. I've read them back about six times."],
          ["Binary search — what's the fuss?",
@@ -4980,7 +4983,7 @@ const loadedLoitering = () => LOITERING.filter(k => castLib[k]);
  * `needs` is the same question asked before the body is chosen. */
 const CAST_PLAN = [
   { k: "any" },                                             /* Elowen — roams        */
-  { k: "loiter", at: [700, 340], face: -0.9, live: true, pose: 0 }, /* Marcus — Whitmore door */
+  { k: "loiter", at: [700, 340], face: -0.9, live: true, pose: 0 }, /* Marcus — Drosdick door */
   { k: "any", needs: "idle", at: [449, 449], face: 0.8,     /* Priya  — plaza        */
     kind: "chat", clip: "idle" },
   { k: "loiter", at: [286, 838], face:  0.2, live: true, pose: 1 }, /* Jun — Alden front.
@@ -8114,6 +8117,147 @@ window.__nave = () => naveCam;   /* test/debug hook */
 const interiorScenes = {};
 const intCamera = new THREE.PerspectiveCamera(52, 1, 1, 4000);
 
+/* ══════════════════════════════════════════════════════════════════
+   DROSDICK HALL — the Marble Grand Atrium.
+
+   The interior of the engineering hall is a World Labs Marble capture:
+   a 1.92M-splat Gaussian reconstruction of the Grand Atrium Learning
+   Commons (assets/drosdick_atrium.spz, 28MB) rendered through Spark,
+   with an invisible 85k-triangle mesh (assets/drosdick_collider.glb)
+   supplying floors, stairs and walls for the first-person camera. The
+   two came out of the same Marble world: the collider carries its
+   aligning transform baked into its root node, so loading both and
+   applying NO further transform lines them up — verified by rendering
+   the splat with the collider as a wireframe overlay before any of
+   this was wired in. Everything stays in the capture's native meters;
+   the atrium never mixes coordinates with the campus, because it is
+   its own scene that only the interior branch ever renders.
+
+   None of it — not the 523KB Spark module, not the BVH library, not
+   the assets — is touched at first paint. The whole stack loads on
+   intent: walking near the Drosdick door, opening the hall from the
+   aerial view, or entering. Until it is ready (or if any part of it
+   fails), the amphitheater fallback serves, same as the chapel served
+   before its authored model landed. Software renderers never load it
+   at all: a machine that cannot hold the campus at 25fps has no
+   business decoding two million splats. */
+const drosdick = {
+  state: "unloaded",       /* unloaded → preloading → ready | error */
+  scene: null, splat: null, colliderMesh: null,
+  bytes: 0, loadMs: 0, splats: 0, tier: "full", err: null,
+  spawn: null,             /* measured off the collider when it lands */
+};
+window.__drosdick = { get: () => ({ ...drosdick, scene: undefined, splat: undefined,
+                                    colliderMesh: undefined }),
+                      fp: () => fpDros,
+                      preload: () => drosdickPreload() };   /* test/debug hook */
+let fpDros = null;         /* first-person state, fresh at every door */
+let interiorMarble = false;   /* latched per visit by engineOpenInterior */
+const DROS_EYE = 1.62;     /* the capture is meter-scaled: real eye height */
+const DROS_STEP = 0.5;     /* tallest rise one stride may take — stairs pass, walls do not */
+
+async function drosdickPreload(){
+  if (drosdick.state !== "unloaded") return;
+  drosdick.state = "preloading";
+  const t0 = performance.now();
+  /* the ledger keeps the quality ladder honest: decode stalls while
+     the atrium streams in must read as loading, not as a slow GPU */
+  const rec = { name: "drosdick_atrium.spz", t0, ms: null, late: true };
+  assetLog.push(rec);
+  try {
+    const [spark, bvh, glb, buf] = await Promise.all([
+      import("@sparkjsdev/spark"),
+      import("three-mesh-bvh"),
+      new Promise((res, rej) => gltf.load("assets/drosdick_collider.glb", res, undefined, rej)),
+      fetch("assets/drosdick_atrium.spz").then(r => {
+        if (!r.ok) throw new Error("spz http " + r.status);
+        return r.arrayBuffer();
+      }),
+    ]);
+    drosdick.bytes = buf.byteLength;
+
+    /* the collider: never in any scene, never rendered — it exists only
+       as a BVH-accelerated raycast target. Its root node carries the
+       transform that aligns it with the splat, so the world matrix is
+       resolved once here and the mesh queried in world space forever. */
+    let colMesh = null;
+    glb.scene.traverse(o => { if (o.isMesh && !colMesh) colMesh = o; });
+    if (!colMesh) throw new Error("collider has no mesh");
+    colMesh.geometry.boundsTree = new bvh.MeshBVH(colMesh.geometry);
+    colMesh.raycast = bvh.acceleratedRaycast;
+    glb.scene.updateMatrixWorld(true);
+    drosdick.colliderMesh = colMesh;
+
+    /* the splat: full density on machines with a real GPU and a mouse,
+       half density on phones — 1.92M splats is a desktop budget */
+    let splat = new spark.SplatMesh({ fileBytes: new Uint8Array(buf),
+                                      fileName: "drosdick_atrium.spz" });
+    await splat.initialized;
+    if (matchMedia("(pointer: coarse)").matches){
+      const src = splat.packedSplats;
+      const half = new spark.PackedSplats({ maxSplats: (src.numSplats >> 1) + 1 });
+      src.forEachSplat((i, center, scales, quat, opacity, color) => {
+        if (!(i & 1)) half.pushSplat(center, scales, quat, opacity, color);
+      });
+      splat = new spark.SplatMesh({ packedSplats: half });
+      await splat.initialized;
+      drosdick.tier = "half";
+    }
+    drosdick.splats = splat.packedSplats.numSplats;
+
+    const sc = new THREE.Scene();
+    sc.background = new THREE.Color(0x0a0a0c);
+    /* no lights: the capture is its own lighting, baked into the
+       splats, and Spark does not read the scene's lamps anyway */
+    sc.add(splat);
+    drosdick.scene = sc; drosdick.splat = splat;
+
+    drosdick.spawn = drosdickSpawn();
+    drosdick.loadMs = performance.now() - t0;
+    rec.ms = drosdick.loadMs;
+    drosdick.state = "ready";
+  } catch (e) {
+    rec.ms = performance.now() - rec.t0; rec.err = true;
+    rec.why = String((e && e.message) || e).slice(0, 28);
+    drosdick.err = String((e && e.message) || e);
+    drosdick.state = "error";      /* the amphitheater serves instead */
+  }
+}
+
+/* one shared raycaster against the collider, zero per-frame allocation */
+const _dRay = new THREE.Raycaster();
+const _dHits = [];
+_dRay.firstHitOnly = true;             /* honored by the BVH: nearest hit only */
+function drosdickCast(ox, oy, oz, dx, dy, dz, far){
+  _dRay.ray.origin.set(ox, oy, oz);
+  _dRay.ray.direction.set(dx, dy, dz).normalize();
+  _dRay.near = 0; _dRay.far = far;
+  _dHits.length = 0;
+  drosdick.colliderMesh.raycast(_dRay, _dHits);
+  if (!_dHits.length) return null;
+  let best = _dHits[0];
+  for (const h of _dHits) if (h.distance < best.distance) best = h;
+  return best;
+}
+
+/* The spawn: south end of the long axis, facing north into the atrium
+   — the view every promotional angle of the space uses. Measured, not
+   assumed: candidate spots are probed straight down and the first one
+   standing on the room's true floor (not a table, not a bench) wins.
+   The reconstruction's floor is its lowest broad plane, so "true
+   floor" means: within a shoe's height of the lowest hit found. */
+function drosdickSpawn(){
+  const spots = [];
+  for (const z of [24, 22, 26, 20, 18])
+    for (const x of [0, 1.5, -1.5, 3, -3])
+      { const hit = drosdickCast(x, 6, z, 0, -1, 0, 12);
+        if (hit) spots.push({ x, z, floor: hit.point.y }); }
+  if (!spots.length) return { x: 0, z: 22, floor: -2.4, h: 0, pitch: 0.02 };
+  const lowest = Math.min(...spots.map(s => s.floor));
+  const s = spots.find(s => s.floor < lowest + 0.25) || spots[0];
+  return { x: s.x, z: s.z, floor: s.floor, h: 0, pitch: 0.02 };
+}
+
 const woodFloorTex = canvasTex(256, (x, px) => {
   x.fillStyle = "#c8a878"; x.fillRect(0, 0, px, px);
   for (let r = 0; r < 16; r++){
@@ -8399,16 +8543,32 @@ function buildCathedralInterior(){
 }
 
 function engineOpenInterior(key){
-  if (!interiorScenes[key] && !(key === "cathedral" && cathNave))
+  /* entering the engineering hall is the strongest possible signal of
+     intent — if the atrium never started loading (front door reached
+     without tripping the proximity preload, or an aerial entry), start
+     now; this visit gets the amphitheater, the next one the atrium */
+  if (key === "eng" && !softGL) drosdickPreload();
+  /* Latched at the door, not evaluated per frame: a visitor who
+     entered while the atrium was still streaming keeps the
+     amphitheater for THIS visit — being teleported into a different
+     room mid-lecture because a download finished is not "seamless".
+     The next entry gets the atrium. */
+  const marbleReady = key === "eng" && drosdick.state === "ready";
+  interiorMarble = marbleReady;
+  if (!interiorScenes[key] && !(key === "cathedral" && cathNave) && !marbleReady)
     interiorScenes[key] = key === "cathedral" ? buildCathedralInterior() : buildInteriorScene(key);
   interiorView = key;
   wingEl.classList.add("interior-open");
-  /* the drag-through overlay only inside the real nave — see the CSS */
-  document.getElementById("interior").classList.toggle("nave", key === "cathedral" && !!cathNave);
+  /* the drag-through overlay only inside a real first-person interior
+     — the authored nave or the Marble atrium — see the CSS */
+  document.getElementById("interior").classList.toggle("nave",
+    (key === "cathedral" && !!cathNave) || marbleReady);
 }
 function engineCloseInterior(){
   interiorView = null;
+  interiorMarble = false;
   naveCam = null;
+  fpDros = null;
   wingEl.classList.remove("interior-open");
 }
 
@@ -8768,9 +8928,11 @@ renderer.domElement.addEventListener("wheel", (e) => {
    tap still talks to people: the tap handler ignores anything that
    moved more than six pixels, and a look is exactly a move. */
 let lookPtr = null, lookLast = null, lookDown = 0;
-/* the same finger steers two cameras: the walker outside, and the
-   first-person nave camera inside the real chapel */
-const naveLive = () => interiorView === "cathedral" && naveCam;
+/* the same finger steers three cameras: the walker outside, the nave
+   camera inside the real chapel, and the atrium camera in Drosdick —
+   whichever first-person state is live gets the drag */
+const naveLive = () => (interiorView === "cathedral" && naveCam) ||
+                       (interiorView === "eng" && fpDros) || null;
 renderer.domElement.addEventListener("pointerdown", (e) => {
   lookDown++;
   if (!walker.on && !naveLive()) return;
@@ -8781,10 +8943,11 @@ renderer.domElement.addEventListener("pointermove", (e) => {
   if (e.pointerId !== lookPtr || !lookLast) return;
   const dx = e.clientX - lookLast[0], dy = e.clientY - lookLast[1];
   lookLast = [e.clientX, e.clientY];
-  if (naveLive()){
+  const fp = naveLive();
+  if (fp){
     /* radians, straight onto the interior camera; same feel as outside */
-    naveCam.h -= dx * 0.0045;
-    naveCam.pitch = Math.max(-0.55, Math.min(0.6, naveCam.pitch - dy * 0.0042));
+    fp.h -= dx * 0.0045;
+    fp.pitch = Math.max(-0.55, Math.min(0.6, fp.pitch - dy * 0.0042));
     return;
   }
   if (!walker.on) return;
@@ -8884,6 +9047,12 @@ function walkUpdate(dt){
   for (const d of DOORS){
     if (Math.hypot(d.x - walker.x, d.y - walker.y) < 54){ walker.door = d.sector; break; }
   }
+  /* a stroll toward Drosdick is the atrium's cue to start streaming:
+     150 units out is ~8 seconds of walking, and the whole 30MB usually
+     lands in less. Never on a software renderer — a machine that can't
+     hold the campus has no business decoding two million splats. */
+  if (!softGL && drosdick.state === "unloaded" &&
+      Math.hypot(740 - walker.x, 306 - walker.y) < 150) drosdickPreload();
   const dp = document.getElementById("doorprompt");
   dp.classList.toggle("show", !!walker.door);
   if (walker.door) document.getElementById("doorprompt-name").textContent = "Enter " + SECTORS[walker.door].hall;
@@ -8891,8 +9060,10 @@ function walkUpdate(dt){
 window.addEventListener("keydown", e => {
   if (e.target.matches("input,textarea")) return;
   if (e.key === "f" || e.key === "F"){ walker.on ? exitWalk() : enterWalk(); return; }
-  /* arrows and WASD also drive the nave camera inside the real chapel */
-  if (!walker.on && !(interiorView === "cathedral" && cathNave)) return;
+  /* arrows and WASD also drive the nave camera inside the real chapel
+     and the atrium camera inside Drosdick */
+  if (!walker.on && !(interiorView === "cathedral" && cathNave)
+                 && !(interiorView === "eng" && interiorMarble)) return;
   walker.keys[e.code] = true;
   if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
   if (e.code === "KeyE") enterDoor();
@@ -9117,6 +9288,18 @@ function dbgUpdate(now, dt, raw){
       (pending ? "  (" + pending + " loading)" : "  all in " + (last / 1000).toFixed(1) + "s") + "\n" +
     (lateAll ? "cast   " + lateIn + "/" + lateAll + " later bodies" +
                (lateIn < lateAll ? "  (arriving)" : "") + "\n" : "") +
+    /* the Marble interior, once anything has asked for it */
+    (drosdick.state !== "unloaded"
+      ? "marble " + drosdick.state +
+        (drosdick.state === "error" ? "  " + (drosdick.err || "").slice(0, 34)
+         : drosdick.splats
+           ? "  " + (drosdick.splats / 1e6).toFixed(2) + "M splats (" + drosdick.tier + ")" +
+             "  " + (drosdick.bytes / 1048576).toFixed(1) + "MB in " +
+             (drosdick.loadMs / 1000).toFixed(1) + "s"
+           : "") +
+        (fpDros ? "\n       at " + fpDros.x.toFixed(1) + "," + fpDros.z.toFixed(1) +
+                  " floor " + fpDros.floor.toFixed(2) : "") + "\n"
+      : "") +
     (slow ? "slowest\n" + slow : "");
 }
 
@@ -9199,9 +9382,46 @@ renderer.setAnimationLoop(() => {
        the south door, and the procedural nave scene is only the
        fallback for the minute before the model arrives (and for the
        harness, which enters long before the deferred queue runs). */
+    const marble = interiorView === "eng" && interiorMarble;
     const real = interiorView === "cathedral" && cathNave;
-    const cam = real ? cathNave : interiorScenes[interiorView].userData.cam;
-    if (real){
+    const cam = marble ? null : real ? cathNave : interiorScenes[interiorView].userData.cam;
+    if (marble){
+      /* The Marble atrium — same steering as the nave, but the floor
+         and walls come from the collider mesh, not a clamp box. The
+         camera stands on whatever the down-ray finds, which is what
+         makes the stairs stairs; a stride is refused when a chest-high
+         ray hits a wall or the floor ahead jumps more than a step. */
+      if (!fpDros){
+        const s = drosdick.spawn;
+        fpDros = { x: s.x, z: s.z, floor: s.floor, eyeY: s.floor + DROS_EYE,
+                   h: s.h, pitch: s.pitch };
+      }
+      const k = walker.keys, turn = 1.7 * dt;
+      if (k.ArrowLeft || k.tleft)   fpDros.h += turn;
+      if (k.ArrowRight || k.tright) fpDros.h -= turn;
+      const mv = ((k.ArrowUp || k.KeyW || k.tfwd) ? 1 : 0) - ((k.ArrowDown || k.KeyS) ? 1 : 0);
+      if (mv){
+        const hurry = k.ShiftLeft || k.ShiftRight;
+        const sp = (hurry ? 3.2 : 1.7) * dt * mv;   /* meters per second, a stroll */
+        const ux = -Math.sin(fpDros.h), uz = -Math.cos(fpDros.h);
+        const wall = drosdickCast(fpDros.x, fpDros.floor + 1.15, fpDros.z,
+                                  ux * Math.sign(sp), 0, uz * Math.sign(sp),
+                                  Math.abs(sp) + 0.4);
+        if (!wall){
+          const nx = fpDros.x + ux * sp, nz = fpDros.z + uz * sp;
+          const fl = drosdickCast(nx, fpDros.floor + 1.3, nz, 0, -1, 0, 4);
+          if (fl && Math.abs(fl.point.y - fpDros.floor) <= DROS_STEP){
+            fpDros.x = nx; fpDros.z = nz; fpDros.floor = fl.point.y;
+          }
+        }
+      }
+      /* the eye eases onto each new tread instead of snapping */
+      fpDros.eyeY += (fpDros.floor + DROS_EYE - fpDros.eyeY) * Math.min(1, 12 * dt);
+      intCamera.fov = 62; intCamera.near = 0.08; intCamera.far = 250;
+      intCamera.rotation.order = "YXZ";
+      intCamera.position.set(fpDros.x, fpDros.eyeY, fpDros.z);
+      intCamera.rotation.set(fpDros.pitch, fpDros.h, 0);
+    } else if (real){
       /* The real nave is a place, not a postcard: "couldn't look left
          right or around in the chapel." The visitor steers here the
          same way they steer outside — ◀ ▶ pads and arrow keys turn,
@@ -9214,6 +9434,8 @@ renderer.setAnimationLoop(() => {
                     h: Math.atan2(-dx, -dz),
                     pitch: Math.atan2(cam.look[1] - cam.pos[1], Math.hypot(dx, dz)) };
       }
+      /* campus units again — undo whatever the atrium set */
+      intCamera.fov = 52; intCamera.near = 1; intCamera.far = 4000;
       const k = walker.keys, turn = 1.7 * dt;
       if (k.ArrowLeft || k.tleft)   naveCam.h += turn;
       if (k.ArrowRight || k.tright) naveCam.h -= turn;
@@ -9227,13 +9449,14 @@ renderer.setAnimationLoop(() => {
       intCamera.position.set(naveCam.x, cam.pos[1], naveCam.z);
       intCamera.rotation.set(naveCam.pitch, naveCam.h, 0);
     } else {
+      intCamera.fov = 52; intCamera.near = 1; intCamera.far = 4000;
       const sway = Math.sin(now / 5200);
       intCamera.position.set(cam.pos[0] + sway * cam.sway[0], cam.pos[1] + sway * cam.sway[1], cam.pos[2]);
       intCamera.lookAt(cam.look[0], cam.look[1], cam.look[2]);
     }
     intCamera.aspect = camera.aspect;
     intCamera.updateProjectionMatrix();
-    renderer.render(real ? world : interiorScenes[interiorView], intCamera);
+    renderer.render(marble ? drosdick.scene : real ? world : interiorScenes[interiorView], intCamera);
   } else {
     labelRenderer.render(world, camera);
     composer.render();
@@ -9554,6 +9777,9 @@ function toggleDone(id){
 /* ── ① ⇄ ② the transport: building click → workspace morph ───────── */
 function selectSector(key, fromCampus){
   closeInterior();
+  /* opening Drosdick's coursework from the aerial view is intent
+     enough — start streaming the atrium before the walk over */
+  if (key === "eng" && !softGL) drosdickPreload();
   currentSector = key;
   localStorage.setItem(LS_SECTOR, key);
 
