@@ -1928,7 +1928,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v103";
+const BUILD = "pembroke-v104";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -6058,7 +6058,10 @@ function detailPass(){
     if (!g) continue;
     g.getWorldPosition(_fp);
     const d = _fp.distanceTo(cam);
-    g.userData.animate = d < ANIMATE_TO;
+    /* a held figure's mixer is paused — its only motion is breathe(),
+       which costs nothing and is the difference between a person
+       waiting and a statue, so distance never switches it off */
+    g.userData.animate = !!s.held || d < ANIMATE_TO;
     const want = d < SHADOW_TO;
     if (g.userData.shadow !== want){
       g.userData.shadow = want;
@@ -7561,17 +7564,67 @@ function release(s){
    figure (`if (s.static) continue`) and whatever pose the build leaves
    is the pose they keep. Not the jog: a figure pitched into a runner's
    lean is not somebody waiting by a door. */
+const _hsL = new THREE.Vector3(), _hsR = new THREE.Vector3();
 function holdStance(g){
   const a = g.userData?.anim;
   const R = a?.roles;
   if (!a || !R) return false;
+  /* The author's Talking clip is the standing stance now: hips
+     locked, no travel, a living gesture loop MADE for a person who
+     is somewhere rather than going somewhere. Every held frame of a
+     walk — however carefully chosen — was reported as "all the
+     characters are frozen", and on lent walks the measured minimum
+     stride never even closes (4.8 units between the feet at its
+     narrowest: the delta retarget keeps the receiver's stance
+     width). A slight timescale wobble and a random start keep the
+     parked cast from gesturing in unison. Returns "live", which is
+     held-truthy for the detail pass but not `=== true`, so breathe()
+     never fights a playing clip. */
+  if (R.talk && a.actions[R.talk]){
+    setClipOn(g, R.talk);
+    const talk = a.actions[R.talk];
+    talk.setEffectiveTimeScale(0.85 + Math.random() * 0.25);
+    talk.time = Math.random() * talk.getClip().duration;
+    return "live";
+  }
   const gait = (R.gaits || []).filter(n => n !== "Jogging")[0] || (R.gaits || [])[0];
   if (!gait || !a.actions[gait]) return false;
   setClipOn(g, gait);
-  const t = passingTime(g);
-  if (t === null) return false;
   const act = a.actions[gait];
   act.paused = true;
+  /* Full weight NOW, not after a fade: setClipOn eases clips in over
+     real frames, and update(0) never advances a fade — so a pose
+     sampled (or set) under a fading action reads a rig the action
+     has not reached yet. That is how the "held frame" was never the
+     frame anyone chose. */
+  act.stopFading();
+  act.setEffectiveWeight(1);
+  /* The frame is FOUND BY MEASURING THE RIG, not by trusting the
+     clip: passingTime's track arithmetic parked Priya with her feet
+     4.8 units apart on a lent walk — a statue caught mid-step,
+     reported as "all the characters are frozen". Step the paused
+     action across the cycle and keep the time where this body's own
+     feet stand closest together; that frame reads as a person, and
+     breathe() does the rest. */
+  let lf = null, rf = null;
+  g.traverse(o => {
+    if (!lf && /leftfoot|left_foot|foot_l\b/i.test(o.name)) lf = o;
+    if (!rf && /rightfoot|right_foot|foot_r\b/i.test(o.name)) rf = o;
+  });
+  let t = null;
+  if (lf && rf){
+    const dur = act.getClip().duration;
+    let bestD = Infinity;
+    for (let i = 0; i < 24; i++){
+      const ti = dur * (i + 0.5) / 24;
+      act.time = ti; a.mixer.update(0);
+      lf.getWorldPosition(_hsL); rf.getWorldPosition(_hsR);
+      const d = _hsL.distanceTo(_hsR);
+      if (d < bestD){ bestD = d; t = ti; }
+    }
+  }
+  if (t === null) t = passingTime(g);
+  if (t === null) return false;
   act.time = t;
   a.mixer.update(0);
   return true;
@@ -9525,7 +9578,7 @@ renderer.setAnimationLoop(() => {
   /* after the mixers, never before: a held pose is written afresh every
      update, so breathing added first would simply be overwritten */
   for (const s of students){
-    if (s.held && s.g.userData.animate !== false) breathe(s.g, now / 1000, s.phase || 0);
+    if (s.held === true && s.g.userData.animate !== false) breathe(s.g, now / 1000, s.phase || 0);
   }
   {  /* leaves drift down and sideways, respawning at the canopy */
     const lp = leaves.geometry.attributes.position;
@@ -10474,7 +10527,7 @@ function convoFrame(dt){
   convoT += dt;
   const m = castMixers.find(x => x.g === convoView.g);
   if (m) m.m.update(dt);
-  if (convoView.held) breathe(convoView.g, convoT, convoView.phase || 0);
+  if (convoView.held === true) breathe(convoView.g, convoT, convoView.phase || 0);
   lookAtViewer(convoView.g, convoLook);
   /* Sway about the framing, not towards it — and look where convoOpen
      decided, rather than at a fixed offset below the lens that happens
