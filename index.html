@@ -3214,7 +3214,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v116";
+const BUILD = "pembroke-v117";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -11083,7 +11083,9 @@ function dbgUpdate(now, dt, raw){
     /* the character AI, once anything has used or configured it */
     (AI.cfg.on || AI.diag.status !== "off"
       ? "ai     " + AI.diag.status +
+        (AI.diag.provider ? "  " + AI.diag.provider : "") +
         (AI.diag.model ? "  " + AI.diag.model : "") +
+        (AI.diag.fallback ? "  [" + AI.diag.fallback + "]" : "") +
         (AI.diag.ms ? "  " + (AI.diag.ttft ? (AI.diag.ttft / 1000).toFixed(1) + "s→" : "") + (AI.diag.ms / 1000).toFixed(1) + "s" : "") +
         (AI.diag.ptok ? "  " + AI.diag.ptok + "→" + AI.diag.ctok + " tok" : "") +
         (AI.diag.mems ? "  " + AI.diag.mems + " mem" : "") + "\n"
@@ -12214,6 +12216,27 @@ window.addEventListener("keydown", (e) => {
    ready / model-missing / origin-blocked / unreachable / timeout.
    Origin-blocked is the sneaky one: the server is up but refuses this
    page's origin — a CORS fetch fails while a no-cors probe succeeds. */
+/* hosted health: READY / RATE_LIMITED / PROVIDER_UNAVAILABLE /
+   GATEWAY_UNREACHABLE / TIMEOUT / CONFIG_ERROR */
+async function aiHostedHealth(gateway){
+  const gw = (gateway || "").replace(/\/$/, "");
+  if (!gw) return { state: "config-error", detail: "no gateway configured — hosted AI is not deployed yet" };
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const r = await fetch(gw + "/health", { signal: ctrl.signal });
+    if (r.status === 429) return { state: "rate-limited", detail: "rate limited — busy right now, try again shortly" };
+    if (!r.ok) return { state: "provider-unavailable", detail: "gateway answered " + r.status };
+    const j = await r.json();
+    return j.ok
+      ? { state: "ready", detail: `ready · Pembroke AI · ${j.characters} characters` }
+      : { state: "provider-unavailable", detail: "hosted AI is switched off at the gateway" };
+  } catch(err){
+    return err.name === "AbortError"
+      ? { state: "timeout", detail: "✗ gateway timed out" }
+      : { state: "gateway-unreachable", detail: "✗ gateway unreachable" };
+  } finally { clearTimeout(t); }
+}
 async function aiHealth(url, social, academic){
   const base = url.replace(/\/$/, "");
   const ctrl = new AbortController();
@@ -12243,27 +12266,37 @@ window.__aiHealth = aiHealth;   /* test/debug hook */
 function jAISettings(){
   const c = AI.cfg;
   jOpen(`
-    <div class="jp-kicker">Living characters · optional</div>
-    <h3 class="font-serif-d text-2xl text-[color:var(--parchment)] mt-1 mb-1">Local AI</h3>
-    <p class="text-[12.5px] text-slate-400 mb-4">Conversations are generated on <em>your</em> machine through
-      <a class="underline" href="https://ollama.com" target="_blank" rel="noopener">Ollama</a> — nothing leaves your computer.
-      Start it with <code class="font-mono-d text-[11px]">OLLAMA_ORIGINS=${location.origin} ollama serve</code>,
-      pull the two models, and switch on. Off, every character keeps their usual dialogue.
-      Works on desktop; phones can't reach a local Ollama from an https page.</p>
-    <label class="jfield"><span>Enabled</span>
-      <select name="ai-on"><option value="off" ${c.on ? "" : "selected"}>Off — canned dialogue</option>
-        <option value="on" ${c.on ? "selected" : ""}>On — local AI conversations</option></select></label>
-    <label class="jfield"><span>Ollama URL</span>
-      <input name="ai-url" type="text" value="${c.url.replace(/"/g, "&quot;")}" autocomplete="off"></label>
-    <div class="jgrid2">
-      <label class="jfield"><span>Social model</span>
-        <input name="ai-social" type="text" value="${c.social.replace(/"/g, "&quot;")}" autocomplete="off"></label>
-      <label class="jfield"><span>Academic model</span>
-        <input name="ai-academic" type="text" value="${c.academic.replace(/"/g, "&quot;")}" autocomplete="off"></label>
+    <div class="jp-kicker">Living characters</div>
+    <h3 class="font-serif-d text-2xl text-[color:var(--parchment)] mt-1 mb-1">Character AI</h3>
+    <div class="text-[12.5px] text-slate-300 mb-1">Status: <span id="ai-status" aria-live="polite">checking…</span></div>
+    <p class="text-[11.5px] text-slate-500 mb-4">Pembroke AI sends your message and a little campus context
+      (where you are, your journey stage, what the character remembers) to Pembroke's hosted service to
+      generate the reply — never your whole record, never practice answer keys. Local Ollama generates
+      entirely on your own machine. Off, characters keep their written dialogue.</p>
+    <label class="jfield"><span>AI mode</span>
+      <select name="ai-mode">
+        <option value="hosted" ${c.mode === "hosted" ? "selected" : ""}>Pembroke AI (recommended)</option>
+        <option value="ollama" ${c.mode === "ollama" ? "selected" : ""}>Local Ollama — private, advanced</option>
+        <option value="off" ${c.mode === "off" ? "selected" : ""}>Off — canned dialogue</option>
+      </select></label>
+    <div id="ai-adv" ${c.mode === "ollama" ? "" : "hidden"}>
+      <p class="text-[11.5px] text-slate-500 mb-2">Run <code class="font-mono-d text-[11px]">OLLAMA_ORIGINS=${location.origin} ollama serve</code> and pull the two models. Desktop only.</p>
+      <label class="jfield"><span>Ollama URL</span>
+        <input name="ai-url" type="text" value="${c.url.replace(/"/g, "&quot;")}" autocomplete="off"></label>
+      <div class="jgrid2">
+        <label class="jfield"><span>Social model</span>
+          <input name="ai-social" type="text" value="${c.social.replace(/"/g, "&quot;")}" autocomplete="off"></label>
+        <label class="jfield"><span>Academic model</span>
+          <input name="ai-academic" type="text" value="${c.academic.replace(/"/g, "&quot;")}" autocomplete="off"></label>
+      </div>
     </div>
-    <label class="jfield"><span>Spoken replies (browser voices)</span>
-      <select name="ai-voice"><option value="off" ${c.voice ? "" : "selected"}>Off</option>
-        <option value="on" ${c.voice ? "selected" : ""}>On</option></select></label>
+    <details class="mb-2"><summary class="text-[11px] text-slate-500 cursor-pointer">Advanced</summary>
+      <label class="jfield mt-2"><span>Gateway URL (hosted)</span>
+        <input name="ai-gateway" type="text" value="${(c.gateway || "").replace(/"/g, "&quot;")}" placeholder="deployed Worker URL" autocomplete="off"></label>
+      <label class="jfield"><span>Spoken replies (browser voices)</span>
+        <select name="ai-voice"><option value="off" ${c.voice ? "" : "selected"}>Off</option>
+          <option value="on" ${c.voice ? "selected" : ""}>On</option></select></label>
+    </details>
     <div class="flex items-center gap-3 mt-3 flex-wrap">
       <button type="button" class="jcta" id="ai-save">Save</button>
       <button type="button" class="jlink" id="ai-test">Test connection</button>
@@ -12271,23 +12304,36 @@ function jAISettings(){
     </div>
   `);
   const val = n => jbody.querySelector(`[name="${n}"]`).value.trim();
-  jbody.querySelector("#ai-save").onclick = () => {
-    AI.set({ on: val("ai-on") === "on", url: val("ai-url") || "http://127.0.0.1:11434",
-             social: val("ai-social") || "gemma3:4b", academic: val("ai-academic") || "phi4-mini",
-             voice: val("ai-voice") === "on" });
-    toast("Local AI " + (AI.cfg.on ? "enabled" : "disabled"),
-      AI.cfg.on ? "Walk up to anyone with a name tag and say something." : "Characters return to their usual lines.", "#d4af6a", 5000);
-    jClose();
-  };
+  jbody.querySelector('[name="ai-mode"]').addEventListener("change", e =>
+    jbody.querySelector("#ai-adv").hidden = e.target.value !== "ollama");
   const runHealth = async () => {
-    const out = jbody.querySelector("#ai-test-out");
-    out.textContent = "testing…";
-    const h = await aiHealth(val("ai-url"), val("ai-social"), val("ai-academic"));
+    const mode = val("ai-mode");
+    const out = jbody.querySelector("#ai-test-out"), st = jbody.querySelector("#ai-status");
+    if (mode === "off"){ st.textContent = "off — canned dialogue"; out.textContent = ""; return; }
+    st.textContent = "checking…"; out.textContent = "testing…";
+    const h = mode === "hosted"
+      ? await aiHostedHealth(val("ai-gateway"))          /* test what's typed, exactly */
+      : await aiHealth(val("ai-url"), val("ai-social"), val("ai-academic"));
+    st.textContent = h.state === "ready" ? "available" : h.state.replace(/-/g, " ");
     out.textContent = h.detail;
     out.dataset.state = h.state;
   };
   jbody.querySelector("#ai-test").onclick = runHealth;
-  if (AI.cfg.on) runHealth();          /* enabled setups get diagnosed on open */
+  jbody.querySelector("#ai-save").onclick = () => {
+    const mode = val("ai-mode");
+    AI.set({ mode,
+      gateway: val("ai-gateway") || AI.cfg.gateway,
+      url: val("ai-url") || AI.cfg.url,
+      social: val("ai-social") || AI.cfg.social,
+      academic: val("ai-academic") || AI.cfg.academic,
+      voice: val("ai-voice") === "on",
+      on: mode !== "off",
+      ollamaSaved: AI.cfg.ollamaSaved || mode === "ollama" });
+    toast("Character AI: " + (mode === "off" ? "off" : mode === "ollama" ? "Local Ollama" : "Pembroke AI"),
+      mode === "off" ? "Characters return to their written lines." : "Walk up to anyone with a name tag and say something.", "#d4af6a", 5000);
+    jClose();
+  };
+  runHealth();
 }
 document.getElementById("ai-settings").addEventListener("click", jAISettings);
 
@@ -12829,8 +12875,12 @@ function aiWireConvo(s){
   const input = document.getElementById("convo-input");
   const send = document.getElementById("convo-send");
   const think = document.getElementById("convo-thinking");
-  row.hidden = !AI.cfg.on;
-  if (!AI.cfg.on) return;
+  /* the row lives when SOME provider can answer: hosted with a
+     gateway, ollama when chosen, or hosted falling back to a saved
+     ollama. Off, or hosted-with-nothing-configured, keeps canned. */
+  const live = aiChain().length > 0 && (AI.cfg.mode !== "hosted" || AI.cfg.gateway || AI.cfg.ollamaSaved);
+  row.hidden = !live;
+  if (!live) return;
   s.aiHist = s.aiHist || [];                    /* working memory, session-lived */
   const submit = async () => {
     const text = input.value.trim();
@@ -12851,7 +12901,9 @@ function aiWireConvo(s){
       AI.diag.status = err.name === "AbortError" ? "cancelled" : "offline";
       /* the campus never breaks: the dossier line is the fallback */
       out = { dialogue: s.data.name + " seems distracted for a moment." +
-        (err.name === "AbortError" ? "" : " (local AI unreachable — canned dialogue still works below)"),
+        (err.name === "AbortError" ? "" :
+         err.aiState === "rate-limited" ? " (a lot of visitors right now — try again in a minute)" :
+         " (the AI service is unreachable — canned dialogue still works below)"),
         emotion: "distracted", intent: { type: "none" }, fallback: true };
     }
     think.hidden = true; row.hidden = false;
@@ -12941,13 +12993,20 @@ window.__bodyVram = BODY_VRAM_MB;
    inference ever runs for a walking NPC. ─────────────────────────── */
 const AI_LS  = "pembroke.ai";        /* config: url, models, on   */
 const NPC_LS = "pembroke.npc";       /* relationships + memories  */
+/* THE one configuration location for the hosted gateway. Empty until
+   the Worker is deployed; committing the deployed URL here is what
+   turns hosted AI on for every visitor at once. The settings card can
+   override it per-browser for testing. */
+const AI_GATEWAY_DEFAULT = "";
 const AI = (() => {
   let cfg;
-  try { cfg = Object.assign({ url: "http://127.0.0.1:11434",
-    social: "gemma3:4b", academic: "phi4-mini", on: false, voice: false },
-    JSON.parse(localStorage.getItem(AI_LS) || "{}")); }
-  catch(_){ cfg = { url: "http://127.0.0.1:11434", social: "gemma3:4b",
-    academic: "phi4-mini", on: false, voice: false }; }
+  const base = { url: "http://127.0.0.1:11434", social: "gemma3:4b", academic: "phi4-mini",
+    mode: "hosted", gateway: AI_GATEWAY_DEFAULT, ollamaSaved: false, on: false, voice: false };
+  try { cfg = Object.assign({}, base, JSON.parse(localStorage.getItem(AI_LS) || "{}")); }
+  catch(_){ cfg = { ...base }; }
+  /* v113-116 configs spoke only Ollama: carry them into ollama mode */
+  if (cfg.on && !("mode" in JSON.parse(localStorage.getItem(AI_LS) || "{}")))
+    { cfg.mode = "ollama"; cfg.ollamaSaved = true; }
   const save = () => { try{ localStorage.setItem(AI_LS, JSON.stringify(cfg)); }catch(_){} };
   return { get cfg(){ return cfg; },
     set(patch){ Object.assign(cfg, patch); save(); },
@@ -12976,6 +13035,10 @@ const NPCStore = (() => {
   };
 })();
 
+/* the gateway's id for a roster persona: "Prof. Merion" → "prof-merion" */
+function aiCharId(name){
+  return name.toLowerCase().replace(/[^a-z]+/g, "-").replace(/^-+|-+$/g, "");
+}
 /* where on campus a position is, in words a person would use */
 function aiPlaceOf(pos){
   if (!pos) return "the great lawn";
@@ -13104,6 +13167,53 @@ function aiSystemPrompt(s, userText){
   ].filter(Boolean).join("\n\n");
 }
 
+/* the hosted request's context: compact authorized CLAIMS — never the
+   system prompt, never answer keys, never raw localStorage */
+function aiHostedContext(s, userText){
+  const d = s.data, ai = d.ai || { cls: "social" };
+  const rel = NPCStore.rel(d.name);
+  const jst = window.__journey?.get?.() || {};
+  const major = jst.academics?.declaredMajorId ? (MAJORS.find(m => m.id === jst.academics.declaredMajorId)?.title || null) : null;
+  const courses = (jst.registration?.registeredCourseIds || []).map(id => byId[id]?.code).filter(Boolean);
+  const status = window.__journey?.status?.() || "visitor";
+  const name = jst.admissions?.application?.first || null;
+  const ctx = {
+    location: aiPlaceOf(s.pos),
+    clock: aiClock(),
+    activity: s.inside ? "just out of a lecture" : s.mode === "todoor" || s.route ? "walking to a class" : "out on the paths",
+    player: `${name ? name + ", " : ""}${status}${major ? ", " + major : ""}${courses.length ? ", taking " + courses.join(" and ") : ""}`.slice(0, 300),
+    relationship: rel.met > 2 ? `familiar (met ${rel.met} times)` : rel.met > 0 ? "recognised, met before" : "first meeting",
+    memories: NPCStore.mems(d.name).slice(0, 4).map(m => m.f.slice(0, 150)),
+  };
+  if (ai.cls === "advisor"){
+    const a = jst.admissions || {}, r = jst.registration || {};
+    ctx.record = [
+      `application: ${a.acceptedAt ? "accepted" : a.applicationSubmittedAt ? "under review" : "not submitted"}${a.term ? ", " + a.term : ""}`,
+      `declared major: ${major || "none"}`,
+      `registration: ${r.completedAt ? courses.join(", ") || "complete" : jst.academics?.declaredMajorId ? "eligible, not registered" : "locked until a major is declared"}`,
+      `advising: ${jst.advising?.completedAt ? "completed" : a.acceptedAt ? "due now" : "not reached"}`,
+      `majors catalog: ${MAJORS.map(m => m.title).join(", ")}`,
+    ].join(" · ").slice(0, 1100);
+  }
+  if (ai.cls === "professor"){
+    const st2 = study.MATH201 || {};
+    const secs = studySections("MATH201");
+    const frontier = secs.find(x => st2[x.n] !== 2);
+    const units = STUDY.MATH201.units.map(u =>
+      `${u.title.replace(/^Unit /, "").split(" · ")[0]} ${u.sections.filter(x => st2[x.n] === 2).length}/${u.sections.length}`).join(", ");
+    const facts = aiCourseFacts(userText);
+    ctx.teaching = [
+      (jst.registration?.registeredCourseIds || []).includes("MATH201") ? "enrolled in MATH 201" : "not enrolled, browsing",
+      `mastery: ${units}`,
+      frontier ? `frontier: §${frontier.n} ${frontier.t} — ${frontier.key}` : "all 28 mastered",
+      facts.length ? "facts: " + facts.join(" | ") : "",
+    ].filter(Boolean).join(" · ").slice(0, 1100);
+    const sig = studySignals("MATH201");
+    ctx.signals = [...sig.stumbles, ...sig.trends].slice(0, 8);
+  }
+  return ctx;
+}
+
 /* the single-flight queue: one generation at a time, cancellable */
 const AIQueue = { busy: false, ctrl: null };
 /* peek the dialogue string out of a PARTIAL JSON response, so words
@@ -13113,31 +13223,9 @@ function aiPeekDialogue(raw){
   if (!m) return "";
   try { return JSON.parse('"' + m[1].replace(/\\$/, "") + '"'); } catch(_){ return ""; }
 }
-async function aiGenerate(s, userText, history, onToken){
-  if (AIQueue.busy) throw new Error("busy");
-  AIQueue.busy = true;
-  AIQueue.ctrl = new AbortController();
-  const ai = s.data.ai || { cls: "social" };
-  const model = ai.cls === "social" ? AI.cfg.social : AI.cfg.academic;
-  const t0 = performance.now();
-  AI.diag.ttft = 0;
-  const timeout = setTimeout(() => AIQueue.ctrl.abort(), ai.cls === "social" ? 20000 : 35000);
-  try {
-    const r = await fetch(AI.cfg.url.replace(/\/$/, "") + "/api/chat", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      signal: AIQueue.ctrl.signal,
-      body: JSON.stringify({
-        model, stream: true, format: "json",
-        options: { temperature: 0.85, num_predict: ai.cls === "social" ? 120 : 260 },
-        messages: [
-          { role: "system", content: aiSystemPrompt(s, userText) },
-          ...history.slice(-8),
-          { role: "user", content: userText },
-        ],
-      }),
-    });
-    if (!r.ok) throw new Error("ollama " + r.status);
+/* both providers speak the same wire dialect — one JSON object per
+   line, tokens in message.content — so one reader serves them all */
+async function aiReadStream(r, onToken, t0){
     /* STREAMING: Ollama sends one JSON object per line. Each line's
        message.content is a token; the dialogue field is shown the
        moment its first words exist. A non-streaming body — a mock, an
@@ -13169,9 +13257,85 @@ async function aiGenerate(s, userText, history, onToken){
         if (j.prompt_eval_count) AI.diag.ptok = j.prompt_eval_count;
         if (j.eval_count) AI.diag.ctok = j.eval_count; } catch(_){}
     }
-    AI.diag.status = "ready"; AI.diag.model = model;
-    AI.diag.ms = Math.round(performance.now() - t0);
-    return aiParse(raw);
+  AI.diag.ms = Math.round(performance.now() - t0);
+  return aiParse(raw);
+}
+
+/* ── the providers: hosted (default), ollama (private), canned last ── */
+const AIProviders = {
+  async hosted(s, userText, history, onToken, t0){
+    const gw = (AI.cfg.gateway || "").replace(/\/$/, "");
+    if (!gw) { const e = new Error("no gateway"); e.aiState = "config-error"; throw e; }
+    const ai = s.data.ai || { cls: "social" };
+    const r = await fetch(gw + "/chat", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      signal: AIQueue.ctrl.signal,
+      body: JSON.stringify({
+        characterId: aiCharId(s.data.name),
+        message: userText.slice(0, 400),
+        history: history.slice(-8).map(t => ({ role: t.role, content: t.content.slice(0, 500) })),
+        context: aiHostedContext(s, userText),
+      }),
+    });
+    if (r.status === 429){ const e = new Error("rate limited"); e.aiState = "rate-limited"; throw e; }
+    if (r.status === 502 || r.status === 503){ const e = new Error("provider down"); e.aiState = "provider-unavailable"; throw e; }
+    if (!r.ok){ const e = new Error("gateway " + r.status); e.aiState = "gateway-error"; throw e; }
+    AI.diag.provider = "hosted"; AI.diag.model = ai.cls;
+    return aiReadStream(r, onToken, t0);
+  },
+  async ollama(s, userText, history, onToken, t0){
+    const ai = s.data.ai || { cls: "social" };
+    const model = ai.cls === "social" ? AI.cfg.social : AI.cfg.academic;
+    const r = await fetch(AI.cfg.url.replace(/\/$/, "") + "/api/chat", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      signal: AIQueue.ctrl.signal,
+      body: JSON.stringify({
+        model, stream: true, format: "json",
+        options: { temperature: 0.85, num_predict: ai.cls === "social" ? 120 : 260 },
+        messages: [
+          { role: "system", content: aiSystemPrompt(s, userText) },
+          ...history.slice(-8),
+          { role: "user", content: userText },
+        ],
+      }),
+    });
+    if (!r.ok) throw new Error("ollama " + r.status);
+    AI.diag.provider = "ollama"; AI.diag.model = model;
+    return aiReadStream(r, onToken, t0);
+  },
+};
+/* which providers to try, in order, for the current mode: hosted falls
+   back to an EXPLICITLY configured Ollama; ollama mode never phones out */
+function aiChain(){
+  if (AI.cfg.mode === "off") return [];
+  if (AI.cfg.mode === "ollama") return ["ollama"];
+  return AI.cfg.ollamaSaved ? ["hosted", "ollama"] : ["hosted"];
+}
+async function aiGenerate(s, userText, history, onToken){
+  if (AIQueue.busy) throw new Error("busy");
+  AIQueue.busy = true;
+  AIQueue.ctrl = new AbortController();
+  const ai = s.data.ai || { cls: "social" };
+  const t0 = performance.now();
+  AI.diag.ttft = 0; AI.diag.fallback = "";
+  const timeout = setTimeout(() => AIQueue.ctrl.abort(), ai.cls === "social" ? 20000 : 35000);
+  try {
+    let lastErr = null;
+    for (const name of aiChain()){
+      try {
+        const out = await AIProviders[name](s, userText, history, onToken, t0);
+        AI.diag.status = "ready";
+        return out;
+      } catch(err){
+        if (err.name === "AbortError") throw err;      /* cancel means cancel */
+        lastErr = err;
+        AI.diag.fallback = (AI.diag.fallback ? AI.diag.fallback + "→" : "") + name + " failed";
+        AI.diag.status = err.aiState || "offline";
+      }
+    }
+    throw lastErr || Object.assign(new Error("ai off"), { aiState: "off" });
   } finally {
     clearTimeout(timeout);
     AIQueue.busy = false; AIQueue.ctrl = null;
