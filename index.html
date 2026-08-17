@@ -723,6 +723,7 @@ body.diagnosing #campus-wing-intro{opacity:0;pointer-events:none;}
    Keep the minimap, the pad, and the door prompt; compact the rest. */
 @media (hover:none){
   .walkmode #walkhud{ display:none; }        /* WASD means nothing here */
+  #doorprompt .dp-key{ display:none; }       /* neither does E — "tap to enter" carries it */
   /* nor does a keyboard legend — and on a narrow screen it ran straight
      through the quad legend on the opposite corner */
   #hint-keys{ display:none; }
@@ -1134,7 +1135,7 @@ body.day .int-lamp::after{opacity:.45;}
     <div id="walkhud">W A S D move &nbsp;·&nbsp; drag to look &nbsp;·&nbsp; Shift hurry &nbsp;·&nbsp; ◀ ▶ turn &nbsp;·&nbsp; scroll zoom &nbsp;·&nbsp; E enter hall &nbsp;·&nbsp; F leave walk</div>
     <div id="zoomlvl" aria-hidden="true"></div>
     <button id="vista-back" type="button">← back to the quad</button>
-    <div id="doorprompt"><b>E</b> — <span id="doorprompt-name"></span> <span style="opacity:.65">· tap to enter</span></div>
+    <div id="doorprompt"><span class="dp-key"><b>E</b> — </span><span id="doorprompt-name"></span> <span style="opacity:.65">· tap to enter</span></div>
     <div id="touchpad">
       <button data-t="left">◀</button><button data-t="fwd">▲</button><button data-t="right">▶</button>
     </div>
@@ -9336,7 +9337,9 @@ function enterWalk(){
   applyFog();                           /* ground-level horizon, not the aerial one */
   wing.classList.add("walkmode");
   document.getElementById("walkbtn").textContent = "🚁";
-  toast("Boots on the quad", "WASD to walk · ◀ ▶ to look · scroll or pinch to zoom · E to enter the hall in front of you · F to fly back up.", "#38bdf8", 6500);
+  toast("Boots on the quad", matchMedia("(pointer: coarse)").matches
+    ? "▲ to walk · ◀ ▶ to turn · drag to look · pinch to zoom · tap a door's prompt to enter · 🚁 to fly back up."
+    : "WASD to walk · ◀ ▶ to look · scroll or pinch to zoom · E to enter the hall in front of you · F to fly back up.", "#38bdf8", 6500);
 }
 function exitWalk(){
   if (!walker.on) return;
@@ -11140,7 +11143,9 @@ const TERMS = ["Michaelmas Term MMXXVI", "Lent Term MMXXVII", "Trinity Term MMXX
    fire. Nothing is staged; the campus is the tutorial. */
 const ORIENT_STEPS = [
   ["look",  "Look around — drag the campus"],
-  ["walk",  "Press F or 🚶 and take a stroll"],
+  ["walk",  matchMedia("(pointer: coarse)").matches
+              ? "Tap 🎮 and take a stroll"
+              : "Press F or 🎮 and take a stroll"],
   ["talk",  "Tap a student and say hello"],
   ["adm",   "Walk to Aldergate Administration Hall"],
   ["ledger","Open a hall's course ledger"],
@@ -11678,7 +11683,9 @@ renderChips();
 renderBanner();
 renderCourses();
 refreshProgress();
-setTimeout(() => toast("Welcome to Pembroke Academy", "Drag to orbit the campus, click any hall to step inside — or press F (🎮) to drop onto the quad and walk to class. Progress saves automatically.", "#d4af6a", 7000), 900);
+setTimeout(() => toast("Welcome to Pembroke Academy", matchMedia("(pointer: coarse)").matches
+  ? "Drag to orbit the campus, tap any hall to step inside — or tap 🎮 to drop onto the quad and walk to class. Progress saves automatically."
+  : "Drag to orbit the campus, click any hall to step inside — or press F (🎮) to drop onto the quad and walk to class. Progress saves automatically.", "#d4af6a", 7000), 900);
 </script>
 </body>
 </html>
