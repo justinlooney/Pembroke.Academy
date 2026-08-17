@@ -4717,7 +4717,8 @@ const EDGES = {};
 
   walk([[500, 150], [497, 236], [500, 300], N]);                 /* the processional  */
   walk([S, [500, 760], [503, 840], [500, 918], [500, 985]]);      /* south to the gates */
-  walk([[268, 340], [300, 392], [330, 444], W]);                  /* library door       */
+  walk([[260, 326], [268, 340], [300, 392], [330, 444], W]);      /* library door — the
+     threshold itself is on the graph now, like every other door */
   walk([[865, 412], [800, 448], [740, 470], [700, 488], E]);      /* Drosdick door, on the apron */
   walk([[240, 822], [302, 832], [360, 800], [380, 738], [370, 660], [348, 594], W]);
   /* kept south of the administration hall until it is west of it: the
@@ -7979,7 +7980,7 @@ const SPACE = 27;
    moment they part. */
 function freeToTalk(s, now){
   return !s.static && !s.orbit && s.pos && !s.seat && !s.inside &&
-         (s.mode === "walk" || s.mode === undefined) &&
+         (s.mode === "walk" || s.mode === undefined) && !s.route &&
          now - (s.socialAt || -1e9) > SOCIAL_COOL;
 }
 /* Somebody nearby, unoccupied, and not just spoken to. Nearest wins:
@@ -8036,20 +8037,69 @@ function indoorsNow(){
     /* on their way counts as gone. Counting only those already through
        the door let several set off together and all arrive: a probe
        measured five indoors against a cap of four. */
-    if (o.inside || o.mode === "todoor") n++;
+    if (o.inside || o.mode === "todoor" || o.route) n++;
   }
   return { n, cap: Math.max(1, Math.floor(roamers * INSIDE_SHARE)) };
+}
+/* The halls the visitor's own timetable points at: the sectors of every
+   course they have registered in, plus the chapel — always in season.
+   The crowd drifts where the user needs to go, which makes the students
+   themselves a wayfinding hint: follow anyone through a glowing door. */
+function hintSectors(){
+  const out = new Set(["cathedral"]);
+  const ids = window.__journey?.get?.().registration?.registeredCourseIds || [];
+  for (const id of ids){
+    const c = COURSES.find(c => c.id === id);
+    if (c) out.add(c.sector);
+  }
+  return out;
 }
 function nearestDoor(s){
   const { n, cap } = indoorsNow();
   if (n >= cap) return null;             /* enough of the campus is away */
-  let best = null, bestD = DOOR_RANGE;
+  const pref = hintSectors();
+  let best = null, bestD = DOOR_RANGE, bestP = null, bestPD = DOOR_RANGE;
   for (const d of DOORS){
     const dist = Math.hypot(d.x - s.pos[0], d.y - s.pos[1]);
     if (dist < bestD){ bestD = dist; best = d; }
+    if (pref.has(d.sector) && dist < bestPD){ bestPD = dist; bestP = d; }
   }
-  return best;
+  /* mostly the timetable's hall, sometimes the nearest — a campus where
+     every soul files into one building reads as a fire drill */
+  return bestP && Math.random() < 0.7 ? bestP : best;
 }
+/* Door trips travel the walk graph, not the crow's line — "they should
+   primarily stay on sidewalks". BFS over EDGES; the graph is ~60 nodes,
+   and a trip is chosen at most once a cooldown, so cost is nothing. */
+function routeTo(fromKey, toKey){
+  if (!fromKey || !toKey || fromKey === toKey) return [];
+  const prev = { [fromKey]: null }, q = [fromKey];
+  while (q.length){
+    const k = q.shift();
+    for (const nb of EDGES[k]){
+      if (nb in prev) continue;
+      prev[nb] = k;
+      if (nb === toKey){
+        const path = []; let c = toKey;
+        while (c !== fromKey){ path.unshift(c); c = prev[c]; }
+        return path;
+      }
+      q.push(nb);
+    }
+  }
+  return null;                            /* unreachable — beeline fallback */
+}
+/* each door's own node on the graph, resolved lazily because DOORS is
+   declared further down the file */
+let DOOR_NODE = null;
+function doorNode(sector){
+  if (!DOOR_NODE){
+    DOOR_NODE = {};
+    for (const d of DOORS) DOOR_NODE[d.sector] = nearestWaypoint([d.x, d.y]);
+  }
+  return DOOR_NODE[sector];
+}
+window.__doorTrip = { hintSectors, routeTo, doorNode };   /* test/debug hook */
 /* Where does the waypoint graph pick up again? A student who comes out
    of a door is standing at a doorway, not at a junction, and walking
    on from whichever node they last remembered would send them back
@@ -8302,8 +8352,12 @@ function stepStudents(dt, now){
       if (s.mode === "linger") s.mode = "walk";
       if (s.seat && s.mode === "walk") leaveSeat(s);
       if (!s.target){
-        const opts = EDGES[s.node];
-        s.target = opts[Math.floor(Math.random() * opts.length)];
+        /* a routed student resumes their trip; anyone else drifts */
+        if (s.route && s.route.length) s.target = s.route.shift();
+        else {
+          const opts = EDGES[s.node];
+          s.target = opts[Math.floor(Math.random() * opts.length)];
+        }
       }
       /* Aim for this student's own lane through the waypoint rather than
          its exact centre — see makeRoamer — but only out on the ring.
@@ -8318,6 +8372,18 @@ function stepStudents(dt, now){
       const dist = Math.hypot(dx, dy);
       if (dist < 2){
         s.node = s.target; s.target = null;
+        /* mid-trip to a door: the next leg is already decided, and a
+           student on their way to a lecture does not stop to gossip */
+        if (s.route){
+          if (s.route.length){
+            s.target = s.route.shift();
+            s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+            continue;
+          }
+          s.route = null; s.mode = "todoor";
+          s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+          continue;
+        }
         /* Standing about is most of what people do on a campus, and a
            student who stops is a student not adding to the queue behind
            them.
@@ -8351,7 +8417,12 @@ function stepStudents(dt, now){
         const door = (now - (s.doorAt || -1e9) > DOOR_COOL && Math.random() < P_DOOR)
           ? nearestDoor(s) : null;
         if (door){
-          s.door = door; s.mode = "todoor"; s.target = null;
+          /* by the ways, not across the lawn: the trip runs the walk
+             graph to the door's own node, and only then steps through */
+          s.door = door; s.target = null;
+          s.route = routeTo(s.node, doorNode(door.sector));
+          if (s.route && s.route.length){ s.mode = "walk"; }
+          else { s.route = null; s.mode = "todoor"; }
           s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
           continue;
         }
