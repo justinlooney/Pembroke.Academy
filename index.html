@@ -908,6 +908,101 @@ body.day .int-lamp::after{opacity:.45;}
   #scene{--zoom:.32;}
   #stage{padding-top:8.5rem;}
 }
+
+/* ═══════════════ ⑤ THE STUDENT JOURNEY ═══════════════ */
+.jpanel{border:1px solid rgba(212,175,106,.28);border-radius:1rem;
+  background:linear-gradient(165deg,rgba(24,30,46,.92),rgba(13,17,28,.94));
+  padding:1.4rem 1.5rem;margin-bottom:1.75rem;}
+.jpanel .jp-kicker{font-size:10px;text-transform:uppercase;letter-spacing:.3em;color:var(--brass-dim);}
+.jpanel h3{font-family:var(--font-serif,Georgia,serif);font-size:1.45rem;font-weight:600;color:var(--parchment);margin-top:.15rem;}
+.jstage{display:flex;align-items:center;gap:.8rem;padding:.55rem .25rem;border-bottom:1px solid rgba(148,163,184,.09);}
+.jstage:last-of-type{border-bottom:0;}
+.jstage .jdot{flex:none;width:1.55rem;height:1.55rem;border-radius:999px;display:flex;align-items:center;justify-content:center;
+  font-size:.8rem;border:1px solid rgba(148,163,184,.35);color:#64748b;background:rgba(15,23,42,.6);}
+.jstage.done .jdot{border-color:rgba(212,175,106,.65);color:#d4af6a;background:rgba(212,175,106,.12);}
+.jstage.now .jdot{border-color:rgba(212,175,106,.9);color:#0f172a;background:#d4af6a;font-weight:700;}
+.jstage .jname{font-size:13.5px;color:#cbd5e1;}
+.jstage.done .jname{color:#94a3b8;}
+.jstage.now .jname{color:var(--parchment);font-weight:600;}
+.jstage .jmeta{margin-left:auto;font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:#64748b;white-space:nowrap;}
+.jstage.done .jmeta{color:rgba(212,175,106,.75);}
+.jcta{display:inline-flex;align-items:center;gap:.5rem;margin-top:1rem;padding:.62rem 1.25rem;border-radius:999px;
+  background:#d4af6a;color:#131a29;font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;
+  border:0;cursor:pointer;transition:transform .15s,box-shadow .15s;}
+.jcta:hover{transform:translateY(-1px);box-shadow:0 6px 22px rgba(212,175,106,.35);}
+.jcta:focus-visible{outline:2px solid #fff;outline-offset:2px;}
+.jlink{background:none;border:0;color:#7d8aa3;font-size:11px;text-decoration:underline;cursor:pointer;padding:.25rem;}
+.jlink:hover{color:var(--brass);}
+/* modal */
+.jmodal{position:fixed;inset:0;z-index:120;display:none;}
+.jmodal.open{display:block;}
+.jmodal-scrim{position:absolute;inset:0;background:rgba(5,8,15,.78);backdrop-filter:blur(4px);}
+.jmodal-card{position:absolute;inset:auto 0 0 0;max-height:92dvh;overflow-y:auto;
+  background:linear-gradient(170deg,#161d2e,#0d1220);border:1px solid rgba(212,175,106,.3);
+  border-radius:1.25rem 1.25rem 0 0;padding:1.6rem 1.35rem 2.2rem;}
+@media (min-width:640px){.jmodal-card{inset:50% auto auto 50%;transform:translate(-50%,-50%);
+  width:min(680px,92vw);max-height:88vh;border-radius:1.25rem;padding:2.1rem 2.3rem;}}
+.jmodal-x{position:absolute;top:.8rem;right:.9rem;background:none;border:0;color:#64748b;font-size:1rem;cursor:pointer;padding:.4rem;}
+.jmodal-x:hover{color:var(--parchment);}
+.jfield{display:block;margin-bottom:1rem;}
+.jfield span{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.18em;color:#8fa0b8;margin-bottom:.35rem;}
+.jfield input,.jfield select,.jfield textarea{width:100%;background:rgba(15,23,42,.75);border:1px solid rgba(148,163,184,.25);
+  border-radius:.55rem;color:var(--parchment);font-size:14px;padding:.6rem .75rem;}
+.jfield input:focus,.jfield select:focus,.jfield textarea:focus{outline:2px solid rgba(212,175,106,.6);outline-offset:1px;border-color:transparent;}
+.jfield .jerr{display:none;font-size:11px;color:#f87171;margin-top:.3rem;letter-spacing:.02em;text-transform:none;}
+.jfield.bad input,.jfield.bad select{border-color:rgba(248,113,113,.6);}
+.jfield.bad .jerr{display:block;}
+.jgrid2{display:grid;grid-template-columns:1fr;gap:0 1rem;}
+@media (min-width:520px){.jgrid2{grid-template-columns:1fr 1fr;}}
+/* the acceptance letter */
+.jletter{background:linear-gradient(178deg,#f6efdd,#efe5cc);color:#2a2418;border-radius:.4rem;
+  padding:2.1rem 1.7rem;font-family:Georgia,'Times New Roman',serif;box-shadow:0 12px 40px rgba(0,0,0,.5);}
+@media (min-width:640px){.jletter{padding:2.8rem 2.6rem;}}
+.jletter .jl-crest{text-align:center;font-size:1.9rem;color:#8a6d2f;}
+.jletter .jl-uni{text-align:center;font-size:1.25rem;letter-spacing:.24em;text-transform:uppercase;color:#5c4a1e;margin-top:.3rem;}
+.jletter .jl-rule{border:0;border-top:1.5px solid #b39a5e;margin:1.1rem auto;width:38%;}
+.jletter p{font-size:14.5px;line-height:1.75;margin-bottom:1rem;}
+.jletter .jl-sig{margin-top:1.8rem;font-style:italic;}
+.jletter .jl-sig b{display:block;font-style:normal;font-size:15px;}
+/* major cards */
+.jmajor{border:1px solid rgba(148,163,184,.22);border-radius:.9rem;padding:1.05rem 1.15rem;margin-bottom:.9rem;
+  background:rgba(15,23,42,.55);cursor:pointer;transition:border-color .15s,background .15s;}
+.jmajor:hover{border-color:rgba(212,175,106,.5);}
+.jmajor.sel{border-color:#d4af6a;background:rgba(212,175,106,.08);}
+.jmajor h4{font-family:Georgia,serif;font-size:1.05rem;color:var(--parchment);}
+.jmajor .jm-dept{font-size:10.5px;text-transform:uppercase;letter-spacing:.16em;color:var(--brass-dim);}
+.jmajor p{font-size:12.5px;color:#94a3b8;line-height:1.55;margin-top:.35rem;}
+.jmajor .jm-meta{font-size:11px;color:#7d8aa3;margin-top:.45rem;}
+/* registration rows */
+.jcourse{display:flex;align-items:flex-start;gap:.8rem;border:1px solid rgba(148,163,184,.18);border-radius:.8rem;
+  padding:.85rem .95rem;margin-bottom:.7rem;background:rgba(15,23,42,.5);}
+.jcourse.on{border-color:rgba(212,175,106,.55);background:rgba(212,175,106,.07);}
+.jcourse.lock{opacity:.55;}
+.jcourse .jc-code{font-family:var(--font-mono,monospace);font-size:11.5px;color:var(--brass);}
+.jcourse .jc-title{font-size:13.5px;color:var(--parchment);}
+.jcourse .jc-sub{font-size:11px;color:#7d8aa3;margin-top:.2rem;}
+.jcourse button{flex:none;margin-left:auto;}
+.jtag{display:inline-block;font-size:9.5px;text-transform:uppercase;letter-spacing:.13em;
+  padding:.14rem .5rem;border-radius:999px;border:1px solid rgba(212,175,106,.4);color:var(--brass);margin-left:.45rem;}
+/* orientation checklist card */
+.orient{position:absolute;left:.9rem;bottom:5.4rem;z-index:40;width:min(280px,72vw);
+  border:1px solid rgba(212,175,106,.35);border-radius:.9rem;background:rgba(10,14,24,.88);
+  backdrop-filter:blur(6px);padding: .9rem 1rem;}
+.orient .o-title{font-size:10px;text-transform:uppercase;letter-spacing:.24em;color:var(--brass-dim);margin-bottom:.5rem;}
+.orient .o-step{display:flex;gap:.55rem;align-items:baseline;font-size:12.5px;color:#94a3b8;padding:.18rem 0;}
+.orient .o-step.done{color:#64748b;text-decoration:line-through;text-decoration-color:rgba(212,175,106,.5);}
+.orient .o-step.now{color:var(--parchment);}
+.orient .o-step .o-tick{flex:none;color:var(--brass);font-size:11px;width:1rem;}
+@media print{
+  body.j-print > *:not(#jmodal){display:none !important;}
+  body.j-print #jmodal,.j-print .jmodal-card{position:static !important;transform:none !important;
+    max-height:none !important;overflow:visible !important;background:#fff !important;border:0 !important;}
+  body.j-print .jmodal-scrim,.j-print .jmodal-x,.j-print .jletter-actions{display:none !important;}
+  body.j-print .jletter{box-shadow:none !important;}
+}
+@media (prefers-reduced-motion: reduce){
+  .jcta{transition:none;}
+}
 </style>
 </head>
 <body class="antialiased">
@@ -1046,6 +1141,12 @@ body.day .int-lamp::after{opacity:.45;}
   <section id="workspace" class="relative lg:flex-1 lg:overflow-y-auto border-t lg:border-t-0 lg:border-l border-slate-700/40 bg-[rgba(9,14,26,.72)] backdrop-blur-sm">
     <div class="px-5 sm:px-9 py-7 sm:py-9 max-w-3xl mx-auto">
 
+      <!-- ═══════════════ ⑤ THE STUDENT JOURNEY ═══════════════
+           From first visit to enrolled student: one panel, one
+           authoritative progression (see the Journey service below).
+           Rendered entirely by JS so the stages read from real state. -->
+      <div id="journey" aria-live="polite"></div>
+
       <!-- sector filter chips -->
       <nav id="chips" class="flex flex-wrap gap-2 mb-7" aria-label="Campus sectors"></nav>
 
@@ -1123,6 +1224,21 @@ git push -u origin main</pre>
 </main>
 
 <div id="toasts" class="fixed bottom-5 left-5 z-[90] space-y-3 max-w-sm"></div>
+
+<!-- The Student Journey's modal surface: application, acceptance
+     letter, advising, major declaration, registration all render here
+     — forms belong on a page, not pinned to a wall in the 3D world.
+     One container, one view at a time, focus managed by the service. -->
+<div id="jmodal" class="jmodal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="jmodal-scrim" data-jclose></div>
+  <div class="jmodal-card" role="document">
+    <button class="jmodal-x" data-jclose aria-label="Close">✕</button>
+    <div id="jmodal-body"></div>
+  </div>
+</div>
+<!-- Campus Visit: the orientation checklist, floating over the stage
+     like the quest panel does — compact, dismissible, real steps. -->
+<div id="orient" class="orient" aria-live="polite" hidden></div>
 
 <script type="importmap">
 {
@@ -1928,7 +2044,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v107";
+const BUILD = "pembroke-v108";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -8993,6 +9109,7 @@ function engineSetMode(m){
 
 /* ── aerial orbit controls + hall picking ────────────────────────── */
 const controls = new OrbitControls(camera, renderer.domElement);
+controls.addEventListener("change", () => jOrient("look"));   /* orientation: any look counts */
 controls.target.set(0, 30, 0);
 controls.enableDamping = true;
 controls.dampingFactor = 0.06;
@@ -9247,6 +9364,7 @@ renderer.domElement.addEventListener("pointermove", (e) => {
     return;
   }
   if (!walker.on) return;
+  jOrient("look");
   /* finer when zoomed, same as the turn keys */
   const k = 1 / Math.sqrt(walker.zoom);
   walker.h += dx * 0.26 * k;
@@ -9333,6 +9451,8 @@ function walkUpdate(dt){
   if (!collide(nx, walker.y)) walker.x = nx;
   if (!collide(walker.x, ny)) walker.y = ny;
   walker.bobT = (mv || str) ? walker.bobT + dt * 9 : 0;
+  /* orientation: forty units of actual strolling is "walked the quad" */
+  if (mv || str){ walker.odo = (walker.odo || 0) + sp; if (walker.odo > 40) jOrient("walk"); }
   const bob = (mv || str) ? Math.sin(walker.bobT) * 1.4 : 0;
   camera.position.set(W(walker.x), walker.eye + bob, W(walker.y));
   camera.rotation.order = "YXZ";
@@ -9354,6 +9474,7 @@ function walkUpdate(dt){
      intent, not passing by. */
   if (!softGL && drosdick.state === "unloaded" && window.__crowd?.().ready &&
       Math.hypot(865 - walker.x, 412 - walker.y) < 150) drosdickPreload();
+  if (walker.door === "adm") jOrient("adm");   /* orientation: found Administration Hall */
   const dp = document.getElementById("doorprompt");
   dp.classList.toggle("show", !!walker.door);
   if (walker.door) document.getElementById("doorprompt-name").textContent = "Enter " + SECTORS[walker.door].hall;
@@ -9397,7 +9518,16 @@ document.querySelectorAll("#touchpad button").forEach(b => {
 
 /* ── quest log + minimap ─────────────────────────────────────────── */
 function questInfo(){
-  const next = COURSES.find(c => !done.includes(c.id));
+  /* An enrolled student's quest walks their REGISTERED schedule first
+     — that is what enrollment means on this campus — and falls back
+     to the full catalog once the schedule is sealed. Read through
+     window.__journey, which exists once the Journey service (defined
+     later in this file) has evaluated; before that, the old behavior
+     stands. */
+  const J = window.__journey && window.__journey.get();
+  const regd = J && J.registration.completedAt ? J.registration.registeredCourseIds : null;
+  const next = (regd && COURSES.find(c => regd.includes(c.id) && !done.includes(c.id)))
+            || COURSES.find(c => !done.includes(c.id));
   if (!next) return { text:"Degree complete — Summa Cum Laude. The campus is yours, laureate. 🎓" };
   const S = SECTORS[next.sector];
   return { sector: next.sector, text:`Attend ${next.code} · ${next.title} — walk to ${S.hall}` };
@@ -10081,6 +10211,7 @@ function toggleDone(id){
 
 /* ── ① ⇄ ② the transport: building click → workspace morph ───────── */
 function selectSector(key, fromCampus){
+  if (key !== "all") jOrient("ledger");   /* orientation: opened a hall's course ledger */
   closeInterior();
   /* opening Drosdick's coursework from the aerial view is intent
      enough — start streaming the atrium before the walk over */
@@ -10123,6 +10254,9 @@ document.getElementById("reset-ledger").addEventListener("click", () => {
   if (!done.length){ toast("Ledger already clear", "No seals to remove.", "#94a3b8"); return; }
   if (confirm("Strike all " + done.length + " seals from your registrar ledger?")){
     done = []; saveDone(done);
+    /* the whole student, not just the seals: enrollment, letter,
+       orientation — reset means reset */
+    Journey.reset();
     renderChips(); renderBanner(); renderCourses(); refreshProgress();
     toast("Ledger cleared", "A blank transcript — the whole climb awaits again.", "#94a3b8");
   }
@@ -10394,6 +10528,7 @@ function facingOf(g){
   return Math.atan2(sx, sz);
 }
 function convoOpen(s){
+  jOrient("talk");   /* orientation: met a student */
   if (!s || !s.data || convoView || interiorView) return;
   convoSetup();
 
@@ -10880,6 +11015,517 @@ document.getElementById("daynight").addEventListener("click", () => {
   }[mode];
   toast(blurb[0], blurb[1], "#d4af6a");
 });
+
+
+/* ══════════════════════════════════════════════════════════════════
+   ⑤ THE STUDENT JOURNEY — from first visit to enrolled student.
+
+   One authoritative progression, one storage key, one renderer. The
+   campus already had a ledger for COURSES; this is the layer before
+   it: who this person is to the university. Six stages — Campus
+   Visit, Application, Acceptance, Advising, Major, Registration —
+   each unlocking the next, everything persisted, nothing scattered
+   into ad-hoc booleans. Forms and letters live in a modal surface
+   (the right modality for paperwork); the orientation lives in the
+   world, because the world is what it teaches.
+   ══════════════════════════════════════════════════════════════════ */
+const LS_JOURNEY = "pembroke.registrar.journey";
+const Journey = (() => {
+  const blank = () => ({
+    onboarding: { campusVisit: { status: "new", steps: {}, completedAt: null, hidden: false } },
+    admissions: { draft: null, applicationStatus: "none", applicationSubmittedAt: null,
+                  application: null, acceptedAt: null, term: null },
+    advising:   { status: "new", completedAt: null },
+    academics:  { declaredMajorId: null, declaredAt: null },
+    registration: { term: null, registeredCourseIds: [], completedAt: null },
+  });
+  let state;
+  try {
+    const raw = JSON.parse(localStorage.getItem(LS_JOURNEY) || "null");
+    state = raw && typeof raw === "object" ? Object.assign(blank(), raw) : blank();
+  } catch (_) { state = blank(); }
+  const subs = [];
+  const save = () => { try { localStorage.setItem(LS_JOURNEY, JSON.stringify(state)); } catch (_) {} };
+  const emit = () => subs.forEach(f => { try { f(state); } catch (_) {} });
+  return {
+    get: () => state,
+    patch(fn){ fn(state); save(); emit(); },
+    subscribe(fn){ subs.push(fn); },
+    /* the six words the whole journey reduces to */
+    status(){
+      if (state.registration.completedAt) return "enrolled";
+      if (state.academics.declaredMajorId) return "declared";
+      if (state.advising.completedAt) return "advised";
+      if (state.admissions.acceptedAt) return "accepted";
+      if (state.admissions.applicationSubmittedAt) return "applicant";
+      return "visitor";
+    },
+    reset(){ state = blank(); save(); emit(); },
+  };
+})();
+window.__journey = Journey;   /* test/debug hook */
+
+/* ── the academic catalog, derived — never a second copy ──────────
+   The majors ARE the four tracks the campus teaches, read straight
+   out of SECTORS and COURSES: title from the track, department from
+   the hall, description from the blurb, credits summed from the real
+   courses, first-semester recommendations = the courses that assume
+   nothing (no prerequisites). */
+const MAJORS = SECTOR_ORDER.map(k => {
+  const S = SECTORS[k];
+  const list = COURSES.filter(c => c.sector === k);
+  return {
+    id: k, title: S.track, department: S.hall, icon: S.icon, color: S.color,
+    description: S.blurb, degree: "Bachelor of the Academy",
+    credits: list.reduce((a, c) => a + c.credits, 0),
+    required: list.map(c => c.id),
+    firstSemester: list.filter(c => !c.prereqs.length).map(c => c.id),
+  };
+});
+const TERMS = ["Michaelmas Term MMXXVI", "Lent Term MMXXVII", "Trinity Term MMXXVII"];
+
+/* ── campus visit: orientation on the real campus ─────────────────
+   Five steps, every one an existing system doing its normal job —
+   instrumented with one-line calls from the handlers that already
+   fire. Nothing is staged; the campus is the tutorial. */
+const ORIENT_STEPS = [
+  ["look",  "Look around — drag the campus"],
+  ["walk",  "Press F or 🚶 and take a stroll"],
+  ["talk",  "Tap a student and say hello"],
+  ["adm",   "Walk to Aldergate Administration Hall"],
+  ["ledger","Open a hall's course ledger"],
+];
+const orientEl = document.getElementById("orient");
+let orientOn = false;
+function jOrient(step){
+  const cv = Journey.get().onboarding.campusVisit;
+  if (cv.status !== "active" || cv.steps[step]) return;
+  Journey.patch(st => {
+    const c = st.onboarding.campusVisit;
+    c.steps[step] = Date.now();
+    if (ORIENT_STEPS.every(([k]) => c.steps[k])){
+      c.status = "done"; c.completedAt = Date.now();
+    }
+  });
+  const cv2 = Journey.get().onboarding.campusVisit;
+  if (cv2.status === "done"){
+    orientOn = false; orientEl.hidden = true;
+    toast("🎓 Orientation complete", "You know the campus now. Your application to Pembroke Academy awaits in the Student Journey panel.", "#d4af6a", 7000);
+  } else renderOrient();
+}
+function startOrientation(){
+  Journey.patch(st => {
+    const c = st.onboarding.campusVisit;
+    if (c.status !== "done"){ c.status = "active"; }
+    else { c.status = "active"; c.steps = {}; c.completedAt = null; }   /* an explicit review restarts it */
+  });
+  orientOn = true; orientEl.hidden = false; renderOrient();
+  toast("🧭 Campus Visit", "Five small things, all real. The list follows you at the lower left.", "#d4af6a", 6000);
+}
+function skipOrientation(){
+  Journey.patch(st => {
+    const c = st.onboarding.campusVisit;
+    c.status = "done"; c.completedAt = Date.now();
+  });
+  orientOn = false; orientEl.hidden = true;
+}
+function renderOrient(){
+  const cv = Journey.get().onboarding.campusVisit;
+  const firstOpen = ORIENT_STEPS.find(([k]) => !cv.steps[k]);
+  orientEl.innerHTML = `<div class="o-title">Campus Visit</div>` +
+    ORIENT_STEPS.map(([k, label]) =>
+      `<div class="o-step ${cv.steps[k] ? "done" : (firstOpen && firstOpen[0] === k ? "now" : "")}">
+         <span class="o-tick">${cv.steps[k] ? "✓" : "·"}</span><span>${label}</span></div>`).join("") +
+    `<button class="jlink" onclick="window.__jskip()">skip orientation</button>`;
+}
+window.__jskip = skipOrientation;
+
+/* ── the modal surface ────────────────────────────────────────────── */
+const jmodal = document.getElementById("jmodal");
+const jbody = document.getElementById("jmodal-body");
+let jReturnFocus = null;
+function jOpen(html){
+  jReturnFocus = document.activeElement;
+  jbody.innerHTML = html;
+  jmodal.classList.add("open");
+  jmodal.setAttribute("aria-hidden", "false");
+  const f = jbody.querySelector("input,select,textarea,button");
+  if (f) f.focus();
+}
+function jClose(){
+  jmodal.classList.remove("open");
+  jmodal.setAttribute("aria-hidden", "true");
+  jbody.innerHTML = "";
+  if (jReturnFocus && jReturnFocus.focus) jReturnFocus.focus();
+}
+jmodal.addEventListener("click", e => { if (e.target.hasAttribute("data-jclose")) jClose(); });
+window.addEventListener("keydown", e => {
+  if (e.key === "Escape" && jmodal.classList.contains("open")) jClose();
+});
+
+/* ── the application ──────────────────────────────────────────────
+   Concise and credible: identity, background, intent, a short
+   statement. Drafts autosave on every input; validation is the small
+   honest set (a name, a way to reach you, an interest, a term); a
+   review step stands between the form and the submit. */
+const APP_FIELDS = [
+  ["first",  "First name",      "text",  true],
+  ["last",   "Last name",       "text",  true],
+  ["pref",   "Preferred name",  "text",  false],
+  ["email",  "Email",           "email", true],
+  ["home",   "Hometown",        "text",  false],
+  ["school", "Previous school", "text",  false],
+];
+function jApplication(){
+  const st = Journey.get();
+  if (st.admissions.applicationSubmittedAt){ jLetter(); return; }   /* resubmission-proof */
+  const d = st.admissions.draft || {};
+  const opts = (list, sel) => list.map(v => `<option ${v === sel ? "selected" : ""}>${v}</option>`).join("");
+  jOpen(`
+    <div class="jp-kicker">Office of Admissions</div>
+    <h3 class="font-serif-d text-2xl text-[color:var(--parchment)] mt-1 mb-1">Application for Admission</h3>
+    <p class="text-[12.5px] text-slate-400 mb-5">Five minutes, honestly. Drafts save themselves.</p>
+    <form id="japp" novalidate>
+      <div class="jgrid2">
+        ${APP_FIELDS.map(([k, label, type, req]) => `
+          <label class="jfield" data-k="${k}">
+            <span>${label}${req ? "" : " · optional"}</span>
+            <input name="${k}" type="${type}" value="${(d[k] || "").replace(/"/g, "&quot;")}" ${req ? "required" : ""} autocomplete="off">
+            <em class="jerr">${type === "email" ? "A real address, so the letter can find you." : "The registrar needs this one."}</em>
+          </label>`).join("")}
+      </div>
+      <label class="jfield"><span>Intended area of interest</span>
+        <select name="interest">${opts(["Undecided", ...MAJORS.map(m => m.title)], d.interest || "Undecided")}</select></label>
+      <label class="jfield"><span>Desired term</span>
+        <select name="term">${opts(TERMS, d.term || TERMS[0])}</select></label>
+      <label class="jfield"><span>Personal statement · optional</span>
+        <textarea name="statement" rows="3" maxlength="600"
+          placeholder="A few lines on why Pembroke.">${d.statement || ""}</textarea></label>
+      <div class="flex items-center gap-3 mt-2">
+        <button type="submit" class="jcta">Review application</button>
+        <button type="button" class="jlink" data-jclose>Finish later — draft saved</button>
+      </div>
+    </form>`);
+  const form = document.getElementById("japp");
+  form.addEventListener("input", () => {
+    const data = Object.fromEntries(new FormData(form));
+    Journey.patch(x => { x.admissions.draft = data; x.admissions.applicationStatus = "draft"; });
+  });
+  form.addEventListener("submit", e => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(form));
+    let ok = true;
+    for (const [k, , type, req] of APP_FIELDS){
+      const bad = req && (!data[k] || !data[k].trim() ||
+        (type === "email" && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(data[k].trim())));
+      form.querySelector(`[data-k="${k}"]`).classList.toggle("bad", !!bad);
+      if (bad) ok = false;
+    }
+    if (!ok){ form.querySelector(".bad input")?.focus(); return; }
+    jReview(data);
+  });
+}
+function jReview(data){
+  const line = (label, v) => v && v.trim() ? `<div class="jstage"><span class="jname" style="min-width:9.5rem;color:#8fa0b8;font-size:11px;text-transform:uppercase;letter-spacing:.14em">${label}</span><span class="jname">${v}</span></div>` : "";
+  jOpen(`
+    <div class="jp-kicker">Office of Admissions</div>
+    <h3 class="font-serif-d text-2xl text-[color:var(--parchment)] mt-1 mb-4">Review before submission</h3>
+    ${line("Name", [data.first, data.last].filter(Boolean).join(" ") + (data.pref ? ` — goes by ${data.pref}` : ""))}
+    ${line("Email", data.email)}${line("Hometown", data.home)}${line("Previous school", data.school)}
+    ${line("Interest", data.interest)}${line("Term", data.term)}
+    ${line("Statement", data.statement)}
+    <div class="flex items-center gap-3 mt-5">
+      <button class="jcta" id="jsubmit">Submit application</button>
+      <button class="jlink" id="jback">Go back and edit</button>
+    </div>`);
+  document.getElementById("jback").onclick = () => jApplication();
+  document.getElementById("jsubmit").onclick = () => {
+    Journey.patch(st => {
+      st.admissions.application = data;
+      st.admissions.draft = null;
+      st.admissions.applicationStatus = "accepted";
+      st.admissions.applicationSubmittedAt = Date.now();
+      /* the Academy reads quickly: acceptance is immediate — nothing
+         in this product models a waitlist, and cruelty teaches
+         no one anything */
+      st.admissions.acceptedAt = Date.now();
+      st.admissions.term = data.term;
+    });
+    jLetter(true);
+  };
+}
+
+/* ── the acceptance letter ────────────────────────────────────────── */
+function jLetter(fresh){
+  const st = Journey.get();
+  const a = st.admissions.application;
+  if (!a || !st.admissions.acceptedAt){ jApplication(); return; }
+  const name = (a.pref && a.pref.trim()) || [a.first, a.last].filter(Boolean).join(" ");
+  const full = [a.first, a.last].filter(Boolean).join(" ");
+  const when = new Date(st.admissions.acceptedAt).toLocaleDateString(undefined,
+    { year: "numeric", month: "long", day: "numeric" });
+  jOpen(`
+    <div class="jletter">
+      <div class="jl-crest">🛡️</div>
+      <div class="jl-uni">Pembroke Academy</div>
+      <div style="text-align:center;font-size:11px;letter-spacing:.2em;color:#8a6d2f;margin-top:.2rem">LUX · MATHESIS · MACHINA</div>
+      <hr class="jl-rule">
+      <p style="text-align:right;font-size:13px">${when}</p>
+      <p>Dear ${name},</p>
+      <p>On behalf of the Faculty and the Office of the Registrar, it is my great pleasure to offer
+         <b>${full}</b> admission to Pembroke Academy for <b>${st.admissions.term}</b>.</p>
+      <p>Your application spoke of ${a.interest && a.interest !== "Undecided" ? `an interest in <b>${a.interest}</b>` : "a curiosity still choosing its shape"} — precisely the kind of beginning this campus was built for. The quads, the halls, and the twelve courses of the degree are yours to walk from this day.</p>
+      <p><b>Your next step:</b> meet with your academic advisor. The appointment awaits in your Student Journey.</p>
+      <div class="jl-sig">Warmly,<br><br><b>Margaret Whitmore</b>Dean of Admissions · Pembroke Academy</div>
+    </div>
+    <div class="jletter-actions flex items-center gap-3 mt-4">
+      ${fresh ? `<button class="jcta" id="jadvise-next">Continue — Meet your advisor</button>` : ""}
+      <button class="jlink" id="jprint">Print this letter</button>
+      <button class="jlink" data-jclose>Close</button>
+    </div>`);
+  const nx = document.getElementById("jadvise-next");
+  if (nx) nx.onclick = () => jAdvising();
+  document.getElementById("jprint").onclick = () => {
+    document.body.classList.add("j-print");
+    const off = () => { document.body.classList.remove("j-print"); window.removeEventListener("afterprint", off); };
+    window.addEventListener("afterprint", off);
+    window.print();
+  };
+  renderJourney();
+}
+
+/* ── advising: a guided appointment, not a chatbot ────────────────── */
+function jAdvising(stepIx = 0, chosen = null){
+  const st = Journey.get();
+  if (!st.admissions.acceptedAt){ jApplication(); return; }
+  const a = st.admissions.application || {};
+  const name = (a.pref && a.pref.trim()) || a.first || "there";
+  const interest = a.interest && a.interest !== "Undecided" ? a.interest : null;
+  const steps = [
+    () => `
+      <p class="text-[13.5px] text-slate-300 leading-relaxed">Welcome, ${name} — and congratulations again. I'm <b>Dean&nbsp;E.&nbsp;Aldergate</b>, your academic advisor. Two things today: I'll show you how a Pembroke degree is put together, and we'll find the program that fits the interest you arrived with${interest ? ` — you wrote <b>${interest}</b>, which is a fine place to start` : ""}.</p>
+      <p class="text-[13.5px] text-slate-300 leading-relaxed mt-3">The degree is <b>twelve courses across four programs</b>. You'll declare one program as your major; its courses become your required path, and everything else stands open as elective ground. Courses unlock in order — foundations first, and each course names what it assumes.</p>`,
+    () => `
+      <p class="text-[13.5px] text-slate-300 leading-relaxed mb-3">Here are the four programs. I'll flag the one nearest your stated interest; the choice, of course, is yours on the next screen.</p>
+      ${MAJORS.map(m => `
+        <div class="jmajor" style="cursor:default">
+          <div class="jm-dept">${m.icon} ${m.department}${interest === m.title ? `<span class="jtag">your stated interest</span>` : ""}</div>
+          <h4>${m.title}</h4>
+          <p>${m.description}</p>
+          <div class="jm-meta">${m.required.length} courses · ${m.credits} credits · begins with ${m.firstSemester.map(id => COURSES.find(c => c.id === id).code).join(" and ")}</div>
+        </div>`).join("")}`,
+  ];
+  const last = stepIx >= steps.length - 1;
+  jOpen(`
+    <div class="jp-kicker">Academic Advising · Aldergate Administration Hall</div>
+    <h3 class="font-serif-d text-2xl text-[color:var(--parchment)] mt-1 mb-4">Advising appointment</h3>
+    ${steps[stepIx]()}
+    <div class="flex items-center gap-3 mt-5">
+      <button class="jcta" id="jadv-next">${last ? "I'm ready to declare a major" : "Go on"}</button>
+      <button class="jlink" data-jclose>Step out — the appointment keeps</button>
+    </div>`);
+  document.getElementById("jadv-next").onclick = () => {
+    if (!last){ jAdvising(stepIx + 1); return; }
+    Journey.patch(x => { x.advising.status = "done"; x.advising.completedAt = Date.now(); });
+    jDeclare();
+  };
+}
+
+/* ── declaring a major ────────────────────────────────────────────── */
+function jDeclare(){
+  const st = Journey.get();
+  if (!st.advising.completedAt){ jAdvising(); return; }
+  const current = st.academics.declaredMajorId;
+  let sel = current || null;
+  jOpen(`
+    <div class="jp-kicker">Office of the Registrar</div>
+    <h3 class="font-serif-d text-2xl text-[color:var(--parchment)] mt-1 mb-1">${current ? "Change of major" : "Declare your major"}</h3>
+    <p class="text-[12.5px] text-slate-400 mb-4">${current ? "An intentional act: your registration will be cleared and rebuilt around the new program." : "Compare the four programs; declare the one that fits."}</p>
+    <div id="jmajors">${MAJORS.map(m => `
+      <div class="jmajor ${sel === m.id ? "sel" : ""}" data-m="${m.id}" role="button" tabindex="0" aria-pressed="${sel === m.id}">
+        <div class="jm-dept">${m.icon} ${m.department}</div>
+        <h4>${m.title}</h4>
+        <p>${m.description}</p>
+        <div class="jm-meta">${m.required.length} required courses · ${m.credits} credits · first semester: ${m.firstSemester.map(id => COURSES.find(c => c.id === id).code).join(", ")}</div>
+      </div>`).join("")}</div>
+    <div class="flex items-center gap-3 mt-4">
+      <button class="jcta" id="jdeclare" disabled style="opacity:.5">Declare this major</button>
+      <button class="jlink" data-jclose>Not yet</button>
+    </div>`);
+  const btn = document.getElementById("jdeclare");
+  const wrap = document.getElementById("jmajors");
+  const pick = el => {
+    wrap.querySelectorAll(".jmajor").forEach(x => { x.classList.remove("sel"); x.setAttribute("aria-pressed", "false"); });
+    el.classList.add("sel"); el.setAttribute("aria-pressed", "true");
+    sel = el.dataset.m;
+    btn.disabled = false; btn.style.opacity = 1;
+    btn.textContent = "Declare " + MAJORS.find(m => m.id === sel).title;
+  };
+  wrap.querySelectorAll(".jmajor").forEach(el => {
+    el.addEventListener("click", () => pick(el));
+    el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); pick(el); } });
+  });
+  if (sel) pick(wrap.querySelector(`[data-m="${sel}"]`));
+  btn.onclick = () => {
+    if (!sel) return;
+    Journey.patch(x => {
+      if (x.academics.declaredMajorId && x.academics.declaredMajorId !== sel){
+        x.registration = { term: null, registeredCourseIds: [], completedAt: null };   /* rebuilt around the new program */
+      }
+      x.academics.declaredMajorId = sel;
+      x.academics.declaredAt = Date.now();
+    });
+    toast("📜 Major declared", MAJORS.find(m => m.id === sel).title + " — the registrar has noted it. Registration is open.", SECTORS[sel].color, 6000);
+    jRegister();
+  };
+}
+
+/* ── registration ─────────────────────────────────────────────────
+   Real rules from real data: a course is addable when every
+   prerequisite is sealed in the ledger — which for a brand-new
+   student means the foundations, exactly the courses the major
+   recommends. No time-slots exist in this catalog yet, so there are
+   no clocks to collide; the moment the catalog learns meeting times,
+   conflicts belong here. */
+function jRegister(){
+  const st = Journey.get();
+  const majorId = st.academics.declaredMajorId;
+  if (!majorId){ jDeclare(); return; }
+  const major = MAJORS.find(m => m.id === majorId);
+  let picked = new Set(st.registration.registeredCourseIds.length
+    ? st.registration.registeredCourseIds : major.firstSemester);   /* recommended, pre-tick */
+  const addable = c => c.prereqs.every(pid => done.includes(pid));
+  const render = () => {
+    const rows = (list, kind) => list.map(c => {
+      const on = picked.has(c.id), lock = !addable(c);
+      return `<div class="jcourse ${on ? "on" : ""} ${lock ? "lock" : ""}">
+        <div>
+          <div class="jc-code">${c.code} · ${c.credits} cr${major.required.includes(c.id)
+            ? `<span class="jtag">${major.firstSemester.includes(c.id) ? "recommended" : "required for major"}</span>`
+            : `<span class="jtag" style="border-color:rgba(148,163,184,.4);color:#94a3b8">elective</span>`}</div>
+          <div class="jc-title">${c.title}</div>
+          <div class="jc-sub">${lock ? "Requires " + c.prereqs.map(p => COURSES.find(x => x.id === p).code).join(", ") + " sealed first" : c.level}</div>
+        </div>
+        ${lock ? "" : `<button class="jlink" data-c="${c.id}" aria-pressed="${on}">${on ? "remove" : "add"}</button>`}
+      </div>`;
+    }).join("");
+    const credits = [...picked].reduce((a, id) => a + COURSES.find(c => c.id === id).credits, 0);
+    jbody.innerHTML = `
+      <div class="jp-kicker">Office of the Registrar · ${st.admissions.term || TERMS[0]}</div>
+      <h3 class="font-serif-d text-2xl text-[color:var(--parchment)] mt-1 mb-1">Register for classes</h3>
+      <p class="text-[12.5px] text-slate-400 mb-4">Your program is <b style="color:${major.color}">${major.title}</b>. The recommended first-semester courses are ticked; locked courses name their prerequisites.</p>
+      ${rows(COURSES.filter(c => c.sector === majorId), "major")}
+      <div class="jp-kicker mt-5 mb-2">Electives · the other halls</div>
+      ${rows(COURSES.filter(c => c.sector !== majorId), "elective")}
+      <div class="jstage mt-3"><span class="jname"><b>Total: ${credits} credits · ${picked.size} course${picked.size === 1 ? "" : "s"}</b></span></div>
+      <div class="flex items-center gap-3 mt-4">
+        <button class="jcta" id="jreg" ${picked.size ? "" : "disabled style='opacity:.5'"}>Review &amp; confirm registration</button>
+        <button class="jlink" data-jclose>Later</button>
+      </div>`;
+    jbody.querySelectorAll("[data-c]").forEach(b => b.onclick = () => {
+      const id = b.dataset.c;
+      picked.has(id) ? picked.delete(id) : picked.add(id);
+      render();
+    });
+    const reg = document.getElementById("jreg");
+    if (reg) reg.onclick = () => {
+      const list = [...picked];
+      jbody.innerHTML = `
+        <div class="jp-kicker">Office of the Registrar</div>
+        <h3 class="font-serif-d text-2xl text-[color:var(--parchment)] mt-1 mb-4">Confirm your schedule</h3>
+        ${list.map(id => { const c = COURSES.find(x => x.id === id); return `
+          <div class="jstage"><span class="jdot" style="border-color:${SECTORS[c.sector].color};color:${SECTORS[c.sector].color}">${SECTORS[c.sector].icon}</span>
+          <span class="jname">${c.code} — ${c.title}</span><span class="jmeta">${c.credits} cr · ${SECTORS[c.sector].hall}</span></div>`; }).join("")}
+        <div class="jstage"><span class="jname"><b>${list.reduce((a, id) => a + COURSES.find(c => c.id === id).credits, 0)} credits</b></span></div>
+        <div class="flex items-center gap-3 mt-4">
+          <button class="jcta" id="jconfirm">Confirm — enroll me</button>
+          <button class="jlink" id="jregback">Back</button>
+        </div>`;
+      document.getElementById("jregback").onclick = render;
+      document.getElementById("jconfirm").onclick = () => {
+        Journey.patch(x => {
+          x.registration.term = st.admissions.term || TERMS[0];
+          x.registration.registeredCourseIds = list;
+          x.registration.completedAt = Date.now();
+        });
+        jClose();
+        refreshQuest();
+        toast("🎓 Enrolled", "Welcome to Pembroke Academy, officially. Your quest log now walks you to your first registered class.", "#d4af6a", 8000);
+        renderJourney();
+      };
+    };
+  };
+  jOpen("");
+  render();
+}
+
+/* ── the Student Journey panel ────────────────────────────────────── */
+function renderJourney(){
+  const el = document.getElementById("journey");
+  if (!el) return;
+  const st = Journey.get();
+  const cv = st.onboarding.campusVisit;
+  const status = Journey.status();
+  const stamp = t => t ? new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
+  const stages = [];
+  if (!(cv.status === "done" && cv.hidden))
+    stages.push(["Campus Visit", cv.status === "done" ? "done" : "now",
+      cv.status === "done" ? stamp(cv.completedAt) : (cv.status === "active" ? "in progress" : "start here")]);
+  const submitted = !!st.admissions.applicationSubmittedAt;
+  stages.push(["Application", submitted ? "done" : (cv.status === "done" ? "now" : "locked"),
+    submitted ? stamp(st.admissions.applicationSubmittedAt) : (st.admissions.draft ? "draft saved" : "after your visit")]);
+  stages.push(["Accepted", st.admissions.acceptedAt ? "done" : "locked", stamp(st.admissions.acceptedAt) || "—"]);
+  stages.push(["Meet With Advisor", st.advising.completedAt ? "done" : (st.admissions.acceptedAt ? "now" : "locked"),
+    st.advising.completedAt ? stamp(st.advising.completedAt) : "with Dean Aldergate"]);
+  stages.push(["Declare Major", st.academics.declaredMajorId ? "done" : (st.advising.completedAt ? "now" : "locked"),
+    st.academics.declaredMajorId ? MAJORS.find(m => m.id === st.academics.declaredMajorId).title : "—"]);
+  stages.push(["Register For Classes", st.registration.completedAt ? "done" : (st.academics.declaredMajorId ? "now" : "locked"),
+    st.registration.completedAt ? st.registration.registeredCourseIds.length + " courses" : "—"]);
+  const firstNow = stages.find(([, k]) => k === "now");
+  const ctas = {
+    "Campus Visit":        [cv.status === "active" ? "Resume Campus Visit" : "Start Campus Visit", () => { startOrientation(); }],
+    "Application":         ["Apply to Pembroke", jApplication],
+    "Meet With Advisor":   ["Meet your advisor", () => jAdvising()],
+    "Declare Major":       ["Declare a major", jDeclare],
+    "Register For Classes":["Register for classes", jRegister],
+  };
+  el.innerHTML = `<div class="jpanel">
+    <div class="jp-kicker">Pembroke Academy</div>
+    <h3>Student Journey</h3>
+    <p class="text-[12px] text-slate-500 mb-2">${{
+      visitor: "Every degree begins with a walk around the quad.",
+      applicant: "Application received — the Academy reads quickly.",
+      accepted: "Admitted. Your advisor is expecting you.",
+      advised: "Advised and ready — declare the program that fits.",
+      declared: "One step remains: choose your first classes.",
+      enrolled: "Enrolled student · " + (MAJORS.find(m => m.id === st.academics.declaredMajorId)?.title || "") +
+                " · " + (st.registration.term || ""),
+    }[status]}</p>
+    ${stages.map(([name, kind, meta]) => `
+      <div class="jstage ${kind}">
+        <span class="jdot">${kind === "done" ? "✓" : kind === "locked" ? "·" : "→"}</span>
+        <span class="jname">${name}</span><span class="jmeta">${kind === "locked" && meta === "—" ? "locked" : meta}</span>
+      </div>`).join("")}
+    ${firstNow && ctas[firstNow[0]] ? `<button class="jcta" id="jgo">${ctas[firstNow[0]][0]}</button>` : ""}
+    <div class="mt-2 flex flex-wrap gap-x-4">
+      ${st.admissions.acceptedAt ? `<button class="jlink" id="jletter-open">View acceptance letter</button>` : ""}
+      ${cv.status === "done" && !cv.hidden ? `<button class="jlink" id="jhide-cv">Hide completed Campus Visit</button>` : ""}
+      ${cv.status === "done" ? `<button class="jlink" id="jredo-cv">Review orientation</button>` : ""}
+      ${status === "enrolled" ? `<button class="jlink" id="jchange-major">Change major</button>` : ""}
+    </div>
+  </div>`;
+  const go = document.getElementById("jgo");
+  if (go && firstNow) go.onclick = ctas[firstNow[0]][1];
+  const lo = document.getElementById("jletter-open"); if (lo) lo.onclick = () => jLetter();
+  const hc = document.getElementById("jhide-cv");
+  if (hc) hc.onclick = () => Journey.patch(x => { x.onboarding.campusVisit.hidden = true; });
+  const rc = document.getElementById("jredo-cv"); if (rc) rc.onclick = startOrientation;
+  const cm = document.getElementById("jchange-major"); if (cm) cm.onclick = jDeclare;
+}
+Journey.subscribe(renderJourney);
+renderJourney();
+/* a visit already mid-orientation resumes its checklist on arrival */
+if (Journey.get().onboarding.campusVisit.status === "active"){ orientOn = true; orientEl.hidden = false; renderOrient(); }
 
 /* ── ignition ────────────────────────────────────────────────────── */
 /* renderer too: renderer.info is the only count of what the LAST
