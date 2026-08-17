@@ -8343,13 +8343,18 @@ async function drosdickPreload(){
     drosdick.loadMs = performance.now() - t0;
     rec.ms = drosdick.loadMs;
     drosdick.state = "ready";
-    /* the visit latch means whoever is inside the amphitheater right
-       now stays there — tell them the real room just opened, or the
-       fallback reads as "drosdick hall has old interior" (it did) */
-    if (interiorView === "eng" && !interiorMarble)
+    /* Whoever is standing in the amphitheater when the capture lands
+       gets carried into the real room right now — reported twice as
+       "drosdick hall has wrong interior", which settles the question
+       of whether a mid-visit upgrade is jarring or wanted. Re-opening
+       the interior re-latches it onto the atrium and spawns at the
+       door of the capture. */
+    if (interiorView === "eng" && !interiorMarble){
+      openInterior("eng");
       toast("🏛️ The Grand Atrium has arrived",
-            "The Marble capture finished streaming. Step back through the door and the Learning Commons is open.",
+            "The Marble capture finished streaming — welcome to the Learning Commons. Drag to look, ▲ to walk.",
             SECTORS.eng.color, 8000);
+    }
   } catch (e) {
     rec.ms = performance.now() - rec.t0; rec.err = true;
     rec.why = String((e && e.message) || e).slice(0, 28);
@@ -10671,7 +10676,7 @@ function openInterior(key){
     /* the one state that reads as a bug when it goes unexplained:
        the amphitheater standing in while the Marble capture streams */
     (key === "eng" && drosdick.state !== "ready" && !softGL
-      ? "  ·  The Grand Atrium is still streaming in — it opens the next time you step through the door."
+      ? "  ·  The Grand Atrium is still streaming in — it will open around you the moment it finishes."
       : "");
   engineOpenInterior(key);
   interiorEl.classList.add("open");
