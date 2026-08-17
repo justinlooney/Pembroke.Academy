@@ -2728,7 +2728,7 @@ let fountainWater = null;
   /* ...and on north, between the quads: one unbroken 44-wide spine from
      ring to ring, plus the stub up to the chapel doors */
   walkway([[500, 64], [500, 0], [500, -62]], 44);
-  walkway([[500, -296], [500, -322]], 26);
+  walkway([[500, -296], [500, -322]], 36);
   /* the south walk out to the gatehouse and the stadium boulevard */
   walkway([RING_S, [500, 760], [503, 840], [500, 918], [500, 985]], 30);
 
@@ -2736,12 +2736,15 @@ let fountainWater = null;
      through it — the halls are wide (the science hall alone runs 200 by
      150) and a walk drawn straight from door to lawn buries itself in
      masonry. These skirt the footprints the way the ground forces. */
-  walkway([[268, 340], [300, 392], [330, 444], RING_W], 28);
-  walkway([[865, 412], [800, 448], [740, 470], [700, 488], RING_E], 28);
+  /* 36 wide, ring to threshold: an entrance should be announced by the
+     ground as well as the beacon over it. The library's walk used to
+     stop 16 units short of its own door — it arrives now. */
+  walkway([[260, 326], [268, 340], [300, 392], [330, 444], RING_W], 36);
+  walkway([[865, 412], [800, 448], [740, 470], [700, 488], RING_E], 36);
   walkway([[240, 822], [302, 832], [360, 800], [380, 738], [370, 660],
-           [348, 594], RING_W], 28);
+           [348, 594], RING_W], 36);
   walkway([[735, 832], [668, 838], [620, 798], [604, 718], [610, 640],
-           [642, 570], RING_E], 28);
+           [642, 570], RING_E], 36);
 
   /* hall to hall, skirting the lawn rather than crossing it — the north
      range keeps south of the library and engineering, the south range
@@ -3937,7 +3940,10 @@ const EZ_SETS = { m011: [], m002: [], m010: [], l009: [] };
      so crossing it meant walking into a tree. At 150 they sit just
      inside the ring walk and frame the lawn instead of blocking it, and
      the whole middle of the quad is walkable. */
-  [[606,606],[394,394]].forEach(([px, py], i) => {
+  /* pulled in from 150 to 130 when the administration approach widened
+     to 36 and the south-east specimen measured 2.5 inside its ribbon —
+     both moved the same amount, so the diagonal still mirrors */
+  [[592,592],[408,408]].forEach(([px, py], i) => {
     T.maple.push([px, py, 1.1 + (i % 3) * 0.06]);
     COLLIDERS.push({ x: px - 5, y: py - 5, w: 10, d: 10 });
   });
@@ -4253,7 +4259,9 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
      and science walks, one medium in the south-gate walk, the ring's
      west pair and one east) are gone — "remove trees and bushes in
      the roads and sidewalks" */
-  const BUSHA = [[302,322,0.9],[810,424,1.05],[922,424,0.95],
+  /* the bush at 810,424 stood in the widened Drosdick approach — gone,
+     same rule as ever: nothing grows in the ways */
+  const BUSHA = [[302,322,0.9],[922,424,0.95],
                  [196,812,1],[794,830,0.95],
                  [100,246,0.9],[178,248,1],[222,300,0.9],[222,372,1],[100,416,0.95],[178,414,0.9]];
   const BUSHB = [[440,398,1],[560,398,0.9],[440,602,0.95],[560,602,1.05],[420,905,1]];
