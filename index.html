@@ -1928,7 +1928,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v102";
+const BUILD = "pembroke-v103";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -2904,6 +2904,17 @@ function loadLandmark(url, opts){
         }
       }
     });
+    /* The arrival is paid INVISIBLY. A landmark used to join the scene
+       and settle its bills on its first visible frame — every texture
+       uploaded, every program compiled, hundreds of milliseconds in
+       one gulp — and a phone's compositor shows a gulp like that as a
+       black blink. Landmarks streaming in serially made a blink each:
+       "it flickers at night ... maybe it flickers while things are
+       loading", with a screen recording to match. So the model joins
+       the scene hidden, its textures are staged to the GPU one per
+       frame, its shaders compile off the visible path, and only then
+       does it appear. */
+    root.visible = false;
     world.add(root);
     if (opts.collider === "auto"){
       box = new THREE.Box3().setFromObject(root);
@@ -2917,8 +2928,25 @@ function loadLandmark(url, opts){
       VISTAS.push({ root, label: opts.vista,
                     center: c, radius: Math.max(s.x, s.y, s.z) * 0.5 });
     }
+    /* onLoaded runs while hidden — material rebuilds (the chapel, the
+       hall) happen in there, so what is staged below is what renders */
     if (opts.onLoaded) opts.onLoaded(root);
-    settle(root);
+    const texs = new Set();
+    root.traverse(o => {
+      if (!o.isMesh || !o.material) return;
+      for (const m of [].concat(o.material))
+        for (const k of ["map", "normalMap", "roughnessMap", "metalnessMap", "aoMap", "emissiveMap"])
+          if (m[k] && m[k].isTexture) texs.add(m[k]);
+    });
+    (async () => {
+      for (const t of texs){
+        try { renderer.initTexture(t); } catch (_) {}
+        await new Promise(r => requestAnimationFrame(r));
+      }
+      try { await renderer.compileAsync(root, camera, world); } catch (_) {}
+      root.visible = true;
+      settle(root);
+    })();
   }, undefined, () => settle(null));   /* a missing landmark must not stall the queue */
   gltf.__late = wasLate;
   });
@@ -3341,7 +3369,8 @@ BUILDINGS.forEach(spec => {
         cathNave = { pos: [cx, 14, bb.max.z - 34], sway: [5, 1.2],
                      look: [cx, 30, bb.min.z + 40],
                      bounds: { minX: bb.min.x + 18, maxX: bb.max.x - 18,
-                               minZ: bb.min.z + 22, maxZ: bb.max.z - 10 } };
+                               minZ: bb.min.z + 22, maxZ: bb.max.z - 10 },
+                     root };   /* the nave is only served once this is visible */
         window.__cathedralIn = true;
       } }],
     /* Drosdick Hall itself — the author's collegiate gothic hall with
@@ -8224,6 +8253,10 @@ window.__drosdick = { get: () => ({ ...drosdick, scene: undefined, splat: undefi
                       preload: () => drosdickPreload() };   /* test/debug hook */
 let fpDros = null;         /* first-person state, fresh at every door */
 let interiorMarble = false;   /* latched per visit by engineOpenInterior */
+let interiorCath = false;     /* same latch for the real nave: a visit that
+                                 began in the fallback stays there, and a
+                                 model still hidden for its arrival compile
+                                 (see loadLandmark) is not yet a nave */
 const DROS_EYE = 1.62;     /* the capture is meter-scaled: real eye height */
 const DROS_STEP = 0.5;     /* tallest rise one stride may take — stairs pass, walls do not */
 
@@ -8626,18 +8659,21 @@ function engineOpenInterior(key){
      The next entry gets the atrium. */
   const marbleReady = key === "eng" && drosdick.state === "ready";
   interiorMarble = marbleReady;
-  if (!interiorScenes[key] && !(key === "cathedral" && cathNave) && !marbleReady)
+  const cathReal = key === "cathedral" && !!cathNave && cathNave.root.visible;
+  interiorCath = cathReal;
+  if (!interiorScenes[key] && !cathReal && !marbleReady)
     interiorScenes[key] = key === "cathedral" ? buildCathedralInterior() : buildInteriorScene(key);
   interiorView = key;
   wingEl.classList.add("interior-open");
   /* the drag-through overlay only inside a real first-person interior
      — the authored nave or the Marble atrium — see the CSS */
   document.getElementById("interior").classList.toggle("nave",
-    (key === "cathedral" && !!cathNave) || marbleReady);
+    cathReal || marbleReady);
 }
 function engineCloseInterior(){
   interiorView = null;
   interiorMarble = false;
+  interiorCath = false;
   naveCam = null;
   fpDros = null;
   wingEl.classList.remove("interior-open");
@@ -9133,7 +9169,7 @@ window.addEventListener("keydown", e => {
   if (e.key === "f" || e.key === "F"){ walker.on ? exitWalk() : enterWalk(); return; }
   /* arrows and WASD also drive the nave camera inside the real chapel
      and the atrium camera inside Drosdick */
-  if (!walker.on && !(interiorView === "cathedral" && cathNave)
+  if (!walker.on && !(interiorView === "cathedral" && interiorCath)
                  && !(interiorView === "eng" && interiorMarble)) return;
   walker.keys[e.code] = true;
   if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
@@ -9454,7 +9490,7 @@ renderer.setAnimationLoop(() => {
        fallback for the minute before the model arrives (and for the
        harness, which enters long before the deferred queue runs). */
     const marble = interiorView === "eng" && interiorMarble;
-    const real = interiorView === "cathedral" && cathNave;
+    const real = interiorView === "cathedral" && interiorCath;
     const cam = marble ? null : real ? cathNave : interiorScenes[interiorView].userData.cam;
     if (marble){
       /* The Marble atrium — same steering as the nave, but the floor
