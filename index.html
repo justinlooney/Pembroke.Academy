@@ -3366,6 +3366,8 @@ const BUILDINGS = [
     tower:{x:700, y:702, w:78, d:78, h:275, pinnacles:true, clock:true} },
 ];
 const hallGroups = {};
+const hallTags = [];   /* every building nameplate; walk mode re-anchors them */
+window.__hallTags = hallTags;   /* test/debug hook */
 BUILDINGS.forEach(spec => {
   const S = SECTORS[spec.sector];
   const grp = new THREE.Group();
@@ -3407,6 +3409,13 @@ BUILDINGS.forEach(spec => {
     <div class="t3"><span data-labprog="${spec.sector}">0/0</span> courses sealed</div>`;
   const tag = new CSS2DObject(el);
   tag.position.set(W(spec.label.x), spec.label.z, W(spec.label.y));
+  /* two hover heights: the aerial anchor clears the spire so the name
+     never sits on the architecture from above; on foot that same point
+     is deep in the sky, so walk mode drops the name to just over the
+     main roofline — near enough to read as a caption on the building */
+  tag.userData.hover = { aerial: spec.label.z,
+                         walk: spec.glb ? 192 : spec.hall.h + spec.hall.roof + 24 };
+  hallTags.push(tag);
   world.add(tag);
   labelEls[spec.sector] = el.querySelector(`[data-labprog="${spec.sector}"]`);
 });
@@ -3463,6 +3472,10 @@ BUILDINGS.forEach(spec => {
       <div class="t2">${S.track}</div>`;
     const tag = new CSS2DObject(el);
     tag.position.set(W(500), 300, W(-360));
+    tag.userData.hover = { aerial: 300, walk: 258 };   /* nave roof, not sky */
+    hallTags.push(tag);
+    /* honour a walk already begun (walker itself is declared later) */
+    if (document.body.classList.contains("walkmode")) tag.position.y = tag.userData.hover.walk;
     world.add(tag);
   }
   /* ── the outer world loads lazily: the core campus paints first,
@@ -9343,6 +9356,9 @@ function enterWalk(){
   applyFog();                           /* ground-level horizon, not the aerial one */
   wing.classList.add("walkmode");
   document.body.classList.add("walkmode");  /* overlays outside the wing (orientation card) style off this */
+  /* from the ground the aerial anchors are deep in the sky — drop every
+     nameplate to just over its roofline so the name captions the building */
+  hallTags.forEach(t => t.position.y = t.userData.hover.walk);
   document.getElementById("walkbtn").textContent = "🚁";
   toast("Boots on the quad", matchMedia("(pointer: coarse)").matches
     ? "▲ to walk · ◀ ▶ to turn · drag to look · pinch to zoom · tap a door's prompt to enter · 🚁 to fly back up."
@@ -9361,6 +9377,7 @@ function exitWalk(){
   applyFog();
   wing.classList.remove("walkmode");
   document.body.classList.remove("walkmode");
+  hallTags.forEach(t => t.position.y = t.userData.hover.aerial);
   document.getElementById("walkbtn").textContent = "🎮";
   document.getElementById("doorprompt").classList.remove("show");
 }
