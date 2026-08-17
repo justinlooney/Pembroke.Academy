@@ -8264,9 +8264,22 @@ let interiorCath = false;     /* same latch for the real nave: a visit that
 const DROS_EYE = 1.62;     /* the capture is meter-scaled: real eye height */
 const DROS_STEP = 0.5;     /* tallest rise one stride may take — stairs pass, walls do not */
 
+/* A 28MB fetch on one bar of signal will sometimes die — reported as
+   "marble error Failed to fetch", after which the amphitheater was
+   PERMANENT for the session because nothing ever tried again. Failure
+   now schedules its own retry, backing off 15s → 2min, four attempts;
+   walking through the door resets the count and tries immediately,
+   because that is a person asking. */
+let drosRetryT = null, drosAttempts = 0;
+function drosdickRetryLater(){
+  if (softGL || drosAttempts >= 4 || drosRetryT) return;
+  const wait = Math.min(120_000, 15_000 * 2 ** drosAttempts);
+  drosRetryT = setTimeout(() => { drosRetryT = null; drosdickPreload(); }, wait);
+}
 async function drosdickPreload(){
-  if (drosdick.state !== "unloaded") return;
+  if (drosdick.state !== "unloaded" && drosdick.state !== "error") return;
   drosdick.state = "preloading";
+  drosdick.err = null; drosdick.bytesGot = 0; drosdick.bytesTotal = 0;
   const t0 = performance.now();
   /* the ledger keeps the quality ladder honest: decode stalls while
      the atrium streams in must read as loading, not as a slow GPU */
@@ -8359,7 +8372,9 @@ async function drosdickPreload(){
     rec.ms = performance.now() - rec.t0; rec.err = true;
     rec.why = String((e && e.message) || e).slice(0, 28);
     drosdick.err = String((e && e.message) || e);
-    drosdick.state = "error";      /* the amphitheater serves instead */
+    drosdick.state = "error";      /* the amphitheater serves meanwhile */
+    drosAttempts++;
+    drosdickRetryLater();
   }
 }
 
@@ -8686,7 +8701,7 @@ function engineOpenInterior(key){
      intent — if the atrium never started loading (front door reached
      without tripping the proximity preload, or an aerial entry), start
      now; this visit gets the amphitheater, the next one the atrium */
-  if (key === "eng" && !softGL) drosdickPreload();
+  if (key === "eng" && !softGL){ drosAttempts = 0; drosdickPreload(); }
   /* Latched at the door, not evaluated per frame: a visitor who
      entered while the atrium was still streaming keeps the
      amphitheater for THIS visit — being teleported into a different
@@ -9438,7 +9453,8 @@ function dbgUpdate(now, dt, raw){
     /* the Marble interior, once anything has asked for it */
     (drosdick.state !== "unloaded"
       ? "marble " + drosdick.state +
-        (drosdick.state === "error" ? "  " + (drosdick.err || "").slice(0, 34)
+        (drosdick.state === "error"
+           ? "  " + (drosdick.err || "").slice(0, 30) + (drosRetryT ? "  (retrying)" : "")
          : drosdick.state === "preloading" && drosdick.bytesTotal
            ? "  " + (drosdick.bytesGot / 1048576).toFixed(1) + "/" +
              (drosdick.bytesTotal / 1048576).toFixed(1) + "MB"
@@ -9929,7 +9945,7 @@ function selectSector(key, fromCampus){
   closeInterior();
   /* opening Drosdick's coursework from the aerial view is intent
      enough — start streaming the atrium before the walk over */
-  if (key === "eng" && !softGL) drosdickPreload();
+  if (key === "eng" && !softGL){ drosAttempts = 0; drosdickPreload(); }
   currentSector = key;
   localStorage.setItem(LS_SECTOR, key);
 
