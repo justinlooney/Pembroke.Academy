@@ -9330,6 +9330,43 @@ const DOORS = [
   { sector:"cathedral", x:500, y:-300 },   /* the chapel, on the North Quad */
 ];
 const walker = { on:false, x:500, y:802, h:0, eye:34, bobT:0, door:null, keys:{}, zoom:1 };
+
+/* Every enterable door announces itself: a beacon in the hall's own
+   legend colour breathes over the threshold, so from the lawn you can
+   read where the buildings open the same way you read the minimap.
+   Additive sprites — five quads, no light, no shadow, no draw cost
+   worth measuring. The one you are standing at burns brightest. */
+const doorGlows = [];
+{
+  const cv = document.createElement("canvas"); cv.width = cv.height = 128;
+  const g = cv.getContext("2d");
+  const grad = g.createRadialGradient(64, 64, 4, 64, 64, 62);
+  grad.addColorStop(0,    "rgba(255,244,214,1)");
+  grad.addColorStop(0.35, "rgba(255,255,255,.5)");
+  grad.addColorStop(1,    "rgba(255,255,255,0)");
+  g.fillStyle = grad; g.fillRect(0, 0, 128, 128);
+  const tex = new THREE.CanvasTexture(cv);
+  DOORS.forEach((d, i) => {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: tex, color: SECTORS[d.sector].color, transparent: true,
+      blending: THREE.AdditiveBlending, depthWrite: false }));
+    s.position.set(W(d.x), 44, W(d.y));      /* just over the door arch */
+    s.userData = { door: d.sector, phase: i * 1.7 };
+    world.add(s);
+    doorGlows.push(s);
+  });
+}
+window.__doorGlows = doorGlows;   /* test/debug hook */
+function stepDoorGlows(now){
+  const t = now / 1000;
+  for (const s of doorGlows){
+    const here = walker.on && walker.door === s.userData.door;
+    const k = 1 + 0.16 * Math.sin(t * 2.1 + s.userData.phase) + (here ? 0.35 : 0);
+    s.scale.set(30 * k, 30 * k, 1);
+    /* softer from the air, present on foot, unmissable at the threshold */
+    s.material.opacity = here ? 1 : walker.on ? 0.75 : 0.5;
+  }
+}
 const WALK_FOV = 62;                  /* wide enough to see your feet and the path */
 const WALK_ZOOM_MIN = 1, WALK_ZOOM_MAX = 4.5;
 window.__walker = walker;
@@ -9860,6 +9897,7 @@ renderer.setAnimationLoop(() => {
     setTimeOfDay(clockT());
   }
   stepLampSpots();
+  stepDoorGlows(now);
   if (fireflies.visible){
     fireflies.rotation.y += dt * 0.02;
     fireflies.position.y = Math.sin(now / 1700) * 4;
