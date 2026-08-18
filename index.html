@@ -5748,7 +5748,10 @@ const DOOR_RANGE = 900;           /* far enough that a lecture is worth the walk
    entry, reported as "neither walk inside building". The cycle turns
    faster now: shorter stays, shorter cooldown, a keener roll, so the
    walk-to-a-glowing-door hint actually plays while someone watches. */
-const INSIDE_MS = [25000, 80000];         /* a seminar, not an afternoon */
+const INSIDE_MS = [20000, 40000];         /* long enough for the quad to change
+                                             hands, short enough to come round
+                                             again — the campus runs on rotation
+                                             now, not residency */
 const DOOR_COOL = 120000;         /* one lecture, a stroll, another */
 const P_DOOR = 0.35;
 /* How much of the cast may be indoors at once. Without a ceiling they
@@ -9368,9 +9371,15 @@ function hintSectors(){
   }
   return out;
 }
-function nearestDoor(s){
-  const { n, cap } = indoorsNow();
-  if (n >= cap) return null;             /* enough of the campus is away */
+function nearestDoor(s, force){
+  /* `force` is the rotation talking: a student whose outside life has
+     run its span is LEAVING to make room, which is the cap's own goal —
+     holding them out because "enough are away" would jam the turnstile
+     the ceiling depends on */
+  if (!force){
+    const { n, cap } = indoorsNow();
+    if (n >= cap) return null;           /* enough of the campus is away */
+  }
   const pref = hintSectors();
   let best = null, bestD = DOOR_RANGE, bestP = null, bestPD = DOOR_RANGE;
   for (const d of DOORS){
@@ -9476,6 +9485,8 @@ function stepStudents(dt, now){
       s.g.position.set(W(nx), bob, W(ny));
       continue;
     }
+    /* the outside clock starts the first time the world steps them */
+    if (s.outAt === undefined){ s.outAt = now; s.outSpan = 20000 + Math.random() * 15000; }
     let moving = false;
     /* ── going inside, and coming back out ───────────────────────────
        Walk to a door, vanish through it, and reappear there later.
@@ -9526,6 +9537,8 @@ function stepStudents(dt, now){
       upgradeBody(s);
       s.g.visible = true;
       s.doorAt = now;
+      /* a fresh spell outside: the rotation clock rewinds */
+      s.outAt = now; s.outSpan = 20000 + Math.random() * 15000;
       /* out of the same doorway, facing the campus rather than the wall */
       s.pos[0] = s.door.x; s.pos[1] = s.door.y;
       s.g.rotation.y = Math.atan2(500 - s.pos[0], 500 - s.pos[1]);
@@ -9730,7 +9743,16 @@ function stepStudents(dt, now){
           s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
           continue;
         }
-        const door = (now - (s.doorAt || -1e9) > DOOR_COOL && Math.random() < P_DOOR)
+        /* the rotation clock: a student's visible life — walk, sit,
+           talk — runs about twenty to thirty-five seconds, and then
+           they head for a door NOT by dice but because their time on
+           the quad is spent, freeing their room for the next two or
+           three the crowd sends. "Then 2-3 different students, until
+           they all cycle through." The dice path stays for texture:
+           an early trip can still happen on a whim. */
+        const overdue = now - (s.outAt ?? now) > (s.outSpan ?? Infinity);
+        const door = overdue ? nearestDoor(s, true)
+          : (now - (s.doorAt || -1e9) > DOOR_COOL && Math.random() < P_DOOR)
           ? nearestDoor(s) : null;
         if (door){
           /* by the ways, not across the lawn: the trip runs the walk
@@ -9840,13 +9862,17 @@ function stepFacultyStroll(s, now, dt){
     s.g.visible = true;
     s.pos[0] = s.facDoor.x; s.pos[1] = s.facDoor.y;
     s.strollTo = [...s.home];             /* out of the door, back to the post */
+    /* ten to twenty seconds on the quad, then back to work — the same
+       cadence as their first appearance, every cycle */
+    s.facDutyAt = now + 10000 + Math.random() * 10000;
+    s.strollAt = now + 4000 + Math.random() * 5000;
     s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
     return;
   }
   if (!s.strollTo){
     if (!s.strollAt){
-      s.strollAt = now + 9000 + Math.random() * 12000;
-      s.facDutyAt = now + 18000 + Math.random() * 12000;
+      s.strollAt = now + 5000 + Math.random() * 7000;
+      s.facDutyAt = now + 10000 + Math.random() * 10000;
     }
     if (now >= (s.facDutyAt || Infinity)){
       /* time to teach: their OWN hall's door, never anyone else's */
@@ -9868,12 +9894,11 @@ function stepFacultyStroll(s, now, dt){
       s.facInside = true; s.inside = true;
       s.g.visible = false;
       s.until = now + 20000 + Math.random() * 15000;
-      s.facDutyAt = now + 45000 + Math.random() * 20000;
       topUpCrowd();
       return;
     }
     s.strollTo = null;                    /* arrived: settle back into the wait */
-    s.strollAt = now + 9000 + Math.random() * 16000;
+    s.strollAt = now + 4000 + Math.random() * 6000;
     if (Math.hypot(s.pos[0] - s.home[0], s.pos[1] - s.home[1]) < 4)
       s.g.rotation.y = s.baseYaw ?? s.g.rotation.y;
     s.held = holdStance(s.g);
