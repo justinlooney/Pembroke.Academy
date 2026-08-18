@@ -8944,8 +8944,14 @@ function topUpCrowd(){
      Somebody indoors whose time is up is queueing for a body slot, and
      a fresh stranger taking it first is how a person the visitor had
      already met never came back. Strangers fill what is left over. */
+  /* Two ways to be queueing, and the second is the one that mattered:
+     a student the ceiling has already turned away is put back to sleep
+     for four seconds, which stops them being "overdue" and quietly
+     un-reserved their own slot — the guard went quiet in precisely the
+     window it existed for. waitedOut is the honest flag for "denied
+     and still waiting", and it is cleared the moment they get out. */
   const t = performance.now();
-  if (students.some(s => s.inside && t >= (s.until || 0))) return;
+  if (students.some(s => s.inside && (t >= (s.until || 0) || (s.waitedOut || 0) > 0))) return;
   if (addExtra(crowdN)) crowdN++;
 }
 /* Crossfade rather than cut. A student who reaches a door and snaps from
