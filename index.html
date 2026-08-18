@@ -3314,7 +3314,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v122";
+const BUILD = "pembroke-v123";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -13913,7 +13913,13 @@ const NPC_LS = "pembroke.npc";       /* relationships + memories  */
    the Worker is deployed; committing the deployed URL here is what
    turns hosted AI on for every visitor at once. The settings card can
    override it per-browser for testing. */
-const AI_GATEWAY_DEFAULT = "";
+/* THE one configuration line of the Universal Character AI: the
+   production gateway every zero-setup visitor speaks through. Deployed
+   by the project owner (Cloudflare Worker "pembroke-ai" — Workers AI
+   binding, rate limiter, origin allowlist, kill switch AI_ENABLED);
+   committed here the day the deployment was confirmed. Empty string =
+   no gateway = canned dialogue only. */
+const AI_GATEWAY_DEFAULT = "https://pembroke-ai.pembroke-academy.workers.dev";
 const AI = (() => {
   let cfg;
   const base = { url: "http://127.0.0.1:11434", social: "gemma3:4b", academic: "phi4-mini",

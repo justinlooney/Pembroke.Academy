@@ -35,6 +35,12 @@ in the same dialect the local-Ollama path already speaks.
    `AI_GATEWAY_DEFAULT` in index.html (one line), switching hosted AI
    on for every visitor. (For your own testing before that commit:
    paste the URL into Settings → Character AI → Advanced → Gateway URL.)
+
+   ✓ Done: the production gateway
+   `https://pembroke-ai.pembroke-academy.workers.dev` is committed as
+   the default. Verify it any time with
+   `node tools/check-gateway.mjs` — health, the origin and schema
+   walls, and one real streamed chat, no secrets involved.
 5. **Production check** — open the site, footer → Local AI → Status
    should read **available**; tap a student and say hello.
 
