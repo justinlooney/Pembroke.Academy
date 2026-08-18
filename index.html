@@ -3314,7 +3314,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v123";
+const BUILD = "pembroke-v124";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -14151,8 +14151,18 @@ const AIQueue = { busy: false, ctrl: null };
    can reach the screen while the model is still choosing the rest */
 function aiPeekDialogue(raw){
   const m = raw.match(/"dialogue"\s*:\s*"((?:[^"\\]|\\.)*)/);
-  if (!m) return "";
-  try { return JSON.parse('"' + m[1].replace(/\\$/, "") + '"'); } catch(_){ return ""; }
+  if (m){
+    try { return JSON.parse('"' + m[1].replace(/\\$/, "") + '"'); } catch(_){ return ""; }
+  }
+  /* unquoted spelling, same recovery as aiParse: paint what follows
+     dialogue: and stop the moment another key starts arriving — or is
+     MID-ARRIVAL: a stream can end this frame on ", emo", and painting
+     that flicker is worse than holding two tokens back */
+  const loose = raw.match(/["']?dialogue["']?\s*:\s*["']?([\s\S]*)/);
+  if (!loose) return "";
+  return loose[1].replace(/\s*,?\s*["']?(emotion|intent)["']?\s*:[\s\S]*$/i, "")
+    .replace(/,\s*["']?(e(m(o(t(i(o(n)?)?)?)?)?)?|i(n(t(e(n(t)?)?)?)?)?)?["']?\s*:?\s*$/i, "")
+    .replace(/["'}\],]+\s*$/, "");
 }
 /* both providers speak the same wire dialect — one JSON object per
    line, tokens in message.content — so one reader serves them all */
@@ -14275,15 +14285,37 @@ async function aiGenerate(s, userText, history, onToken){
 /* structured output, defensively: salvage dialogue, discard bad intents */
 function aiParse(raw){
   let out = { dialogue: "", emotion: "neutral", intent: { type: "none" } };
-  try {
-    const j = JSON.parse(raw);
+  const take = (j) => {
     if (typeof j.dialogue === "string") out.dialogue = j.dialogue;
     if (typeof j.emotion === "string") out.emotion = j.emotion.slice(0, 24);
     if (j.intent && typeof j.intent.type === "string") out.intent = j.intent;
-  } catch(_){
-    const m = raw.match(/"dialogue"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-    out.dialogue = m ? JSON.parse('"' + m[1] + '"') : raw.replace(/[{}\[\]"]/g, "").trim().slice(0, 400);
+    return out;
+  };
+  try { return take(JSON.parse(raw)); } catch(_){}
+  /* the hosted models are sloppier than the schema: markdown fences,
+     prose around the object, unquoted keys and values. Field report,
+     verbatim: "it starts with dialogue: and always ends with
+     emotion:casual, intent:type:none" — the old last-resort stripped
+     the braces and showed every key. Recover in stages instead. */
+  const fenced = raw.replace(/```(?:json)?/gi, "");
+  const block = fenced.match(/\{[\s\S]*\}/);
+  if (block){ try { return take(JSON.parse(block[0])); } catch(_){} }
+  /* quoted dialogue inside an otherwise broken object */
+  const q = fenced.match(/"dialogue"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  if (q){ try { out.dialogue = JSON.parse('"' + q[1] + '"'); } catch(_){ out.dialogue = q[1]; } }
+  else {
+    /* unquoted: capture from dialogue: up to the next known key */
+    const loose = fenced.match(/["']?dialogue["']?\s*:\s*["']?([\s\S]*?)["']?\s*,?\s*(?=["']?emotion["']?\s*:|["']?intent["']?\s*:|\}|$)/);
+    out.dialogue = (loose ? loose[1] : fenced.replace(/[{}\[\]"]/g, ""))
+      .replace(/\s*,?\s*["']?(emotion|intent)["']?\s*:[\s\S]*$/i, "")
+      .trim().slice(0, 400);
   }
+  const em = fenced.match(/["']?emotion["']?\s*:\s*["']?([a-z ]{2,24})/i);
+  if (em) out.emotion = em[1].trim();
+  const it = fenced.match(/["']?type["']?\s*:\s*["']?([a-z_]{2,32})/i);
+  if (it) out.intent = { type: it[1] };   /* the governor's wall judges it */
+  const tg = fenced.match(/["']?target["']?\s*:\s*["']?([\w.\-]{1,32})/i);
+  if (tg && out.intent.type !== "none") out.intent.target = tg[1];
   return out;
 }
 /* ── the capability policy ─────────────────────────────────────────
