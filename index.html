@@ -1852,6 +1852,8 @@ const STUDY = {
           ["Evaluating with letters","With f(x) = 3x² − 2x, feeding in numbers is routine: f(−2) = 12 + 4 = 16. But the rule also eats expressions: f(a) = 3a² − 2a, and f(1 + h) = 3(1 + h)² − 2(1 + h) = 3h² + 4h + 1. That last move — evaluating at 1 + h and simplifying — looks like a party trick today. In three weeks it is the beating heart of the derivative."],
           ["The graph is the rule, drawn","Plot every (input, output) pair and you get the graph. That's why the vertical line test works: a vertical line is a single input, and if it meets the curve twice, that input has two outputs — the machine is broken. A scatter plot with two points stacked vertically fails; a curve with a gap over some x passes — a vertical line missing the graph entirely is allowed."],
           ["Domain: where the rule makes sense","√x refuses negative numbers; 1/x refuses zero. So B(r) = √(r + 3) demands r ≥ −3, and g(x) = x/(x² − x) breaks at x = 0 and x = 1 — everywhere else both rules are happy. The domain is simply the set of inputs the formula tolerates — and on a graph, it's the shadow the curve casts on the x-axis."],
+          ["Writing the answer like a mathematician","Domains get written in interval notation, and graders insist: x ≥ −3 is [−3, ∞), with the square bracket meaning −3 itself belongs; x > 0 is (0, ∞), the round bracket excluding the endpoint; and 'everything except 1' is (−∞, 1) ∪ (1, ∞), two pieces glued with the union symbol. Infinity always gets a round bracket — it is a direction, not a number you can reach. Same facts as the inequalities, in the notation every test expects."],
+          ["Functions in pieces","One function may need two formulas: the café's delivery fee is f(x) = 5 for orders under $20 and f(x) = 0 from $20 up — one rule, two clauses. Written mathematically: f(x) = x + 5 when x < 0, and f(x) = x² when x ≥ 0. To evaluate, let the INPUT choose the branch: f(−2) uses the first clause (−2 < 0), giving 3; f(3) uses the second, giving 9. The absolute value is secretly this: |x| is −x for negatives and x from zero up — the most famous piecewise function in mathematics, and every exam's favourite."],
           ["Mathematical models","A model is a function standing in for a piece of the world — demand for a product, CO₂ in the air, coffee going cold. The cycle is always: formulate a function from data or principle, compute with it, interpret the answer back in the world, then test it against fresh reality — and when reality disagrees, refine the model and go around again. Every remaining week of this course lives somewhere on that loop."] ],
         viz:{ kind:"vline", note:"Drag the vertical line across two curves — a parabola that always passes the test, and a sideways one that fails it where the line meets it twice." },
         worked:{ prompt:"g(x) = √(x − 2). Evaluate g(6), then find the domain.",
@@ -12182,7 +12184,7 @@ const MATH201_PSET = {
       given:[["Read the rule inside-out.","Add 7, then take the square root — so the root sees x + 7."]],
       q:"The domain starts at x = …", type:"num", ans:-7, tol:0,
       hints:["The root needs what it sees to be ≥ 0.","Solve x + 7 ≥ 0."],
-      sol:"x + 7 ≥ 0 gives x ≥ −7: the domain starts at −7." },
+      sol:"x + 7 ≥ 0 gives x ≥ −7: the domain starts at −7 — written [−7, ∞), square bracket because −7 itself belongs." },
     { c:1, lead:"h(x) = x² − 4x — one value is computed; finish the difference.",
       given:[["h(6) first.","h(6) = 36 − 24 = 12."]],
       q:"h(6) − h(2) = …", type:"num", ans:16, tol:0,
@@ -12203,6 +12205,26 @@ const MATH201_PSET = {
         hints:["16 · 4 first.","64 + 72/2."], sol:"64 + 36 = 100." },
       { q:"Which width is cheaper?", type:"mc", opts:["w = 1","w = 2","they tie"], a:0,
         hints:["You just computed both.","88 against 100."], sol:"w = 1 costs $88 — the 72/w term punishes narrow boxes less than the 16w² term punishes wide ones here." } ] },
+    { tier:"core", q:"f(x) = x + 5 for x < 0, and f(x) = x² for x ≥ 0. Then f(−2) + f(3) = …", type:"num", ans:12, tol:0,
+      hints:["The INPUT chooses the branch — check each input against the condition.","f(−2) uses x + 5 (since −2 < 0); f(3) uses x² (since 3 ≥ 0)."],
+      sol:"f(−2) = 3 from the first clause, f(3) = 9 from the second: 3 + 9 = 12. Using the wrong branch is THE piecewise error — always test the input against the conditions first." },
+    { tier:"stretch", q:"f(x) = x² + 3x. Compute the difference quotient (f(2 + h) − f(2))/h at h = 0.1 (1 decimal)", type:"num", ans:7.1, tol:0.001,
+      hints:["Expand f(2 + h) = (2 + h)² + 3(2 + h) first.","f(2 + h) = h² + 7h + 10 and f(2) = 10 — subtract, then divide by h: the quotient simplifies to 7 + h."],
+      sol:"(h² + 7h)/h = 7 + h, so at h = 0.1 the quotient is 7.1. Watch what happens as h shrinks: 7.01, 7.001… this number is heading somewhere, and Chapter 2 is about exactly where." },
+    { tier:"error analysis", q:"A classmate writes: “√(x − 4) has domain x > 4, because x = 4 would make the root zero.” The flaw is…", type:"mc",
+      opts:["zero under a root is allowed — the domain is x ≥ 4, written [4, ∞)","the inequality should point the other way: x ≤ 4","there is no flaw — the work is correct","roots of negative numbers are fine, so the domain is all reals"], a:0,
+      hints:["Is √0 defined? Compute it.","A root refuses NEGATIVES only — zero is a perfectly good input."],
+      sol:"√0 = 0 is legal; the root only refuses negatives. So x = 4 belongs and the domain is x ≥ 4 — in interval notation [4, ∞), square bracket because 4 is included. Grading your own work for exactly this kind of off-by-one-point error is a test-day superpower." },
+    { q:"The graph shows y = f(x). Read it.", art:"pw1", parts:[
+      { q:"f(1) = …", type:"num", ans:3, tol:0,
+        hints:["Find x = 1 on the horizontal axis, then rise to the curve.","The flat shelf between −1 and 3 sits at one height."],
+        sol:"Above x = 1 the graph runs along the shelf at height 3, so f(1) = 3." },
+      { q:"f(−4) = …", type:"num", ans:-3, tol:0,
+        hints:["The left end of the graph.","Below the axis counts negative."],
+        sol:"The curve starts at the point (−4, −3): f(−4) = −3." },
+      { q:"f(x) = 0 twice; the POSITIVE crossing is at x = … (1 decimal)", type:"num", ans:4.5, tol:0.1,
+        hints:["Where does the falling right-hand piece cut the x-axis?","It drops from (3, 3) to (6, −3) at a steady rate — zero is halfway."],
+        sol:"The right piece falls 6 units over 3, so it crosses zero halfway: x = 4.5. Reading a zero off a graph IS solving f(x) = 0 — the picture is the equation." } ] },
   ],
   "1.2": [
     { w:1, q:"Compose f(x) = x² − 1 and g(x) = 2x + 3, both ways", steps:[
@@ -12380,6 +12402,27 @@ const MATH201_PSET = {
         sol:"The logarithm — it reads the exponential's table backwards." } ] },
   ],
 };
+/* problem-set figures: static canvas drawings a question can hang on —
+   because "read the graph" is a test skill no amount of prose teaches */
+const PSET_ART = {
+  /* a piecewise-linear graph with a shelf and two axis crossings */
+  pw1(cv){
+    const g = cv.getContext("2d");
+    const m = stAxes(g, cv.width, cv.height, -5, 7, -4, 5);
+    const pts = [[-4, -3], [-1, 3], [3, 3], [6, -3]];
+    g.strokeStyle = "#d4af6a"; g.lineWidth = 2.5; g.beginPath();
+    pts.forEach(([x, y], i) => i ? g.lineTo(m.mx(x), m.my(y)) : g.moveTo(m.mx(x), m.my(y)));
+    g.stroke();
+    g.fillStyle = "#d4af6a";
+    for (const [x, y] of [pts[0], pts[3]]){
+      g.beginPath(); g.arc(m.mx(x), m.my(y), 4, 0, Math.PI * 2); g.fill();
+    }
+    /* light ticks so the axes are readable without a grid */
+    g.fillStyle = "rgba(148,163,184,.8)"; g.font = "12px system-ui";
+    for (let x = -4; x <= 6; x += 2) g.fillText(String(x), m.mx(x) - 4, m.my(0) + 16);
+    for (let y = -3; y <= 3; y += 3) if (y) g.fillText(String(y), m.mx(0) + 6, m.my(y) + 4);
+  },
+};
 function psetOf(courseId, n){
   return courseId === "MATH201" ? (MATH201_PSET[n] || null) : null;
 }
@@ -12460,6 +12503,7 @@ function jPractice(courseId, n){
       if (it.parts) return `
         <div class="st-unit">Step by step${it.tier ? " · " + it.tier : ""}</div>
         <div class="st-key" style="--c:${S.color}">${it.q}</div>
+        ${it.art ? `<div class="st-lab"><canvas class="st-cv" width="640" height="360" data-art="${it.art}" role="img" aria-label="${it.q}"></canvas></div>` : ""}
         ${it.parts.map((p2, pi) => oneProblem(p2, i, pi)).join("")}`;
       return `
         <div class="st-unit">Practice${it.tier ? " · " + it.tier : ""}</div>
@@ -12469,6 +12513,8 @@ function jPractice(courseId, n){
       <button type="button" class="jlink" data-back>← back to the lecture</button>
     </div>
   `);
+  /* the figures a question hangs on, drawn once at open */
+  jbody.querySelectorAll("[data-art]").forEach(cv => PSET_ART[cv.dataset.art]?.(cv));
   /* worked steps reveal one at a time, same as the lecture's example */
   jbody.querySelectorAll("[data-wreveal]").forEach(b => b.addEventListener("click", () => {
     const id = b.dataset.wreveal, host = jbody.querySelector(`[data-wstep="${id}"]`);
