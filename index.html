@@ -9935,31 +9935,39 @@ function stepFacultyStroll(s, now, dt){
     s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
     return;
   }
-  if (!s.strollTo){
-    if (!s.strollAt){
-      s.strollAt = now + 5000 + Math.random() * 7000;
-      s.facDutyAt = now + 10000 + Math.random() * 10000;
-    }
-    if (now >= (s.facDutyAt || Infinity)){
-      /* one member of staff at a time: CI photographed the quad with
-         BOTH faculty indoors and every named student away — a campus
-         with nobody to meet. The Dean and the professor stagger their
-         teaching so at least one anchor always holds a post. */
-      const otherIn = students.some(o => o !== s && (o.data?.tier ?? 2) <= 1 &&
-                                         (o.facInside || o.facGoing));
-      /* …but courtesy has a limit. If the other anchor is wedged — as
-         the Dean once was, indoors for an entire session — deferring
-         forever means this one never teaches at all, which is exactly
-         what a phone reported. Yield twice, then go. */
-      if (otherIn && (s.facYields = (s.facYields || 0) + 1) <= 2){
-        s.facDutyAt = now + 6000 + Math.random() * 6000; return;
-      }
+  /* ── the class bell, read from ANY state ─────────────────────────
+     This lived inside "not currently strolling", and that nesting was
+     the whole of the professor's bug: a figure who is always part-way
+     through a stroll never reaches the check at all. Measured, she
+     walked her apron for a hundred and fifty seconds with her duty
+     clock seventy seconds overdue and never once looked at it. Duty
+     outranks a stroll — when the bell goes, the stroll is abandoned
+     for the door. */
+  if (!s.facGoing && now >= (s.facDutyAt ??
+      (s.facDutyAt = now + 10000 + Math.random() * 10000))){
+    /* one member of staff at a time: CI photographed the quad with
+       BOTH faculty indoors and every named student away — a campus
+       with nobody to meet. The Dean and the professor stagger their
+       teaching so at least one anchor always holds a post. */
+    const otherIn = students.some(o => o !== s && (o.data?.tier ?? 2) <= 1 &&
+                                       (o.facInside || o.facGoing));
+    /* …but courtesy has a limit. If the other anchor is wedged — as
+       the Dean once was, indoors for an entire session — deferring
+       forever means this one never teaches at all, which is exactly
+       what a phone reported. Yield twice, then go. */
+    if (otherIn && (s.facYields = (s.facYields || 0) + 1) <= 2){
+      s.facDutyAt = now + 6000 + Math.random() * 6000;
+    } else {
       s.facYields = 0;
       /* time to teach: their OWN hall's door, never anyone else's */
       const door = DOORS.find(d2 => d2.sector === s.data?.at);
       if (door){ s.facDoor = door; s.facGoing = true; s.strollTo = [door.x, door.y]; }
       else s.facDutyAt = now + 60000;     /* no door on this sector: stay out */
-    } else if (now >= s.strollAt){
+    }
+  }
+  if (!s.strollTo){
+    if (!s.strollAt) s.strollAt = now + 5000 + Math.random() * 7000;
+    if (now >= s.strollAt){
       const away = Math.hypot(s.pos[0] - s.home[0], s.pos[1] - s.home[1]);
       s.strollTo = away > 4 ? [...s.home] /* out, then always back */
         : [s.home[0] + (Math.random() - 0.5) * 80,
@@ -9987,8 +9995,14 @@ function stepFacultyStroll(s, now, dt){
     s.held = holdStance(s.g);
     return;
   }
-  s.pos[0] += dx / d * s.speed * dt;
-  s.pos[1] += dy / d * s.speed * dt;
+  /* never step PAST the target: a stride longer than the two-unit
+     arrival threshold walks over it and turns around, and the figure
+     oscillates about a point it can never be said to have reached.
+     Long frames make the stride long, so this is a slow-device bug by
+     construction — clamp to what is left and arrival is guaranteed. */
+  const step = Math.min(s.speed * dt, d);
+  s.pos[0] += dx / d * step;
+  s.pos[1] += dy / d * step;
   s.g.rotation.y = Math.atan2(dx, dy);
   s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
   stepMotion(s, true, now, dt);
