@@ -9811,6 +9811,9 @@ function stepStudents(dt, now){
    than a stone's throw from the post the journey points at. Their
    pinned bodies are roamers, so the gait is already in the rig. */
 function stepFacultyStroll(s, now, dt){
+  if (convoView === s) return;           /* mid-conversation the close-up owns
+                                            the body — walking it would march it
+                                            out of its own portrait */
   const a = s.g.userData?.anim;
   const gaits = a?.roles?.gaits || [];
   if (!gaits.length) return;             /* a body that cannot walk holds its post */
@@ -9821,18 +9824,55 @@ function stepFacultyStroll(s, now, dt){
     s.speed = nom > 4 ? nom * 0.9 : 18;   /* an unhurried, faculty pace */
     s.walkT = 0; s.idleRate = s.idleRate || 0.95;
   }
+  /* ── inside their own hall ──────────────────────────────────────────
+     The faculty hold their posts, but not the SCREEN: on a phone the
+     body ceiling is two or three figures, and two staff who never
+     leave would BE the campus — "if prof and Dean are always present
+     no other characters can appear". So they teach: every so often
+     they walk through their own door and their room on the screen
+     goes to whoever the crowd sends next. The post stays theirs; they
+     re-emerge when the ceiling has room again, same rotation rule the
+     students obey. */
+  if (s.facInside){
+    if (now < s.until) return;
+    if (!roomOnScreen(s.g?.userData?.figure)){ s.until = now + 4000; return; }
+    s.facInside = false; s.inside = false;
+    s.g.visible = true;
+    s.pos[0] = s.facDoor.x; s.pos[1] = s.facDoor.y;
+    s.strollTo = [...s.home];             /* out of the door, back to the post */
+    s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+    return;
+  }
   if (!s.strollTo){
-    if (!s.strollAt) s.strollAt = now + 9000 + Math.random() * 16000;
-    if (now < s.strollAt) return;
-    const away = Math.hypot(s.pos[0] - s.home[0], s.pos[1] - s.home[1]);
-    s.strollTo = away > 4 ? [...s.home]   /* out, then always back */
-      : [s.home[0] + (Math.random() - 0.5) * 80,
-         s.home[1] + (Math.random() - 0.5) * 80];
+    if (!s.strollAt){
+      s.strollAt = now + 9000 + Math.random() * 12000;
+      s.facDutyAt = now + 18000 + Math.random() * 12000;
+    }
+    if (now >= (s.facDutyAt || Infinity)){
+      /* time to teach: their OWN hall's door, never anyone else's */
+      const door = DOORS.find(d2 => d2.sector === s.data?.at);
+      if (door){ s.facDoor = door; s.facGoing = true; s.strollTo = [door.x, door.y]; }
+      else s.facDutyAt = now + 60000;     /* no door on this sector: stay out */
+    } else if (now >= s.strollAt){
+      const away = Math.hypot(s.pos[0] - s.home[0], s.pos[1] - s.home[1]);
+      s.strollTo = away > 4 ? [...s.home] /* out, then always back */
+        : [s.home[0] + (Math.random() - 0.5) * 80,
+           s.home[1] + (Math.random() - 0.5) * 80];
+    } else return;
   }
   const dx = s.strollTo[0] - s.pos[0], dy = s.strollTo[1] - s.pos[1];
   const d = Math.hypot(dx, dy);
-  if (d < 2){                             /* arrived: settle back into the wait */
-    s.strollTo = null;
+  if (d < 2){
+    if (s.facGoing){                      /* through the door: the screen is free */
+      s.facGoing = false; s.strollTo = null;
+      s.facInside = true; s.inside = true;
+      s.g.visible = false;
+      s.until = now + 20000 + Math.random() * 15000;
+      s.facDutyAt = now + 45000 + Math.random() * 20000;
+      topUpCrowd();
+      return;
+    }
+    s.strollTo = null;                    /* arrived: settle back into the wait */
     s.strollAt = now + 9000 + Math.random() * 16000;
     if (Math.hypot(s.pos[0] - s.home[0], s.pos[1] - s.home[1]) < 4)
       s.g.rotation.y = s.baseYaw ?? s.g.rotation.y;
