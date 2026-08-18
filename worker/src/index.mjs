@@ -173,6 +173,23 @@ export const provider = {
   },
 };
 
+/* ── fallback burst control ──────────────────────────────────────────
+   The platform ratelimit binding is the preferred limiter, but it is
+   an unsafe binding some deploys reject. Rate limiting is part of the
+   cost/abuse boundary of a public inference endpoint, so it must never
+   silently disappear: when env.RL is missing, this per-isolate sliding
+   window takes over. Isolate-local means it's a floor rather than a
+   wall — each Cloudflare isolate counts separately — but every isolate
+   still caps any single IP at the same 8 requests/minute. */
+export const FB_RL = { windowMs: 60_000, max: 8, hits: new Map() };
+export function fallbackLimit(ip, now){
+  if (FB_RL.hits.size > 5000) FB_RL.hits.clear();
+  const h = (FB_RL.hits.get(ip) || []).filter(t => now - t < FB_RL.windowMs);
+  if (h.length >= FB_RL.max){ FB_RL.hits.set(ip, h); return false; }
+  h.push(now); FB_RL.hits.set(ip, h);
+  return true;
+}
+
 const cors = (origin) => ({
   "access-control-allow-origin": origin,
   "access-control-allow-headers": "content-type",
@@ -201,11 +218,14 @@ export default {
     if (env.AI_ENABLED === "0")
       return new Response("hosted AI is switched off", { status: 503, headers: C });
 
-    /* burst control per IP, when the binding exists */
+    /* burst control per IP — platform binding when present, the
+       in-memory fallback otherwise; never neither */
+    const ip = req.headers.get("cf-connecting-ip") || "?";
     if (env.RL){
-      const ip = req.headers.get("cf-connecting-ip") || "?";
       const { success } = await env.RL.limit({ key: ip });
       if (!success) return new Response("rate limited", { status: 429, headers: C });
+    } else if (!fallbackLimit(ip, Date.now())){
+      return new Response("rate limited", { status: 429, headers: C });
     }
 
     const raw = await req.text();

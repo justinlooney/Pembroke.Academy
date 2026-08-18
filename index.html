@@ -12884,7 +12884,8 @@ function aiWireConvo(s){
   s.aiHist = s.aiHist || [];                    /* working memory, session-lived */
   const submit = async () => {
     const text = input.value.trim();
-    if (!text || AIQueue.busy) return;
+    if (!text) return;
+    if (AIQueue.busy){ input.value = text; return; }   /* still talking — keep the words */
     input.value = "";
     document.getElementById("convo-said").textContent = "…";
     think.hidden = false; row.hidden = true;
@@ -13329,7 +13330,7 @@ async function aiGenerate(s, userText, history, onToken){
   const ai = s.data.ai || { cls: "social" };
   const t0 = performance.now();
   AI.diag.ttft = 0; AI.diag.fallback = "";
-  const timeout = setTimeout(() => AIQueue.ctrl.abort(), ai.cls === "social" ? 20000 : 35000);
+  const timeout = setTimeout(() => AIQueue.ctrl.abort(), ai.cls === "social" ? 30000 : 45000);
   try {
     let lastErr = null;
     for (const name of aiChain()){
@@ -13463,7 +13464,7 @@ function aiExtractMemories(name, transcript){
       NPCStore.remember(name, `The visitor said: "${x.slice(0, 140)}"`, Math.min(0.9, 0.4 + x.length / 300));
   }
 }
-window.__ai = { AI, NPCStore, aiParse, aiGovern, aiCourseFacts, aiSystemPrompt };   /* test/debug hook */
+window.__ai = { AI, NPCStore, AIQueue, aiParse, aiGovern, aiCourseFacts, aiSystemPrompt, aiHostedHealth: (...a) => aiHostedHealth(...a) };   /* test/debug hook */
 window.__talkTo = (name) => {          /* test/debug hook: pull a named persona into conversation */
   const s = students.find(s => s.data?.name === name && s.pos);
   if (s) convoOpen(s);

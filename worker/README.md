@@ -19,7 +19,11 @@ in the same dialect the local-Ollama path already speaks.
 
    That's it. The `[ai]` binding in wrangler.toml attaches Workers AI
    automatically — **no API keys, no secrets to create**. The per-IP
-   rate limit binding is declared in the same file.
+   rate limit binding is declared in the same file; if your account
+   rejects that binding (it is marked `unsafe` on some plans), remove
+   the `[[unsafe.bindings]]` block and deploy again — the Worker
+   detects the missing binding and enforces the same 8 req/min/IP with
+   its built-in fallback limiter, so the endpoint is never unlimited.
 3. **The URL** — wrangler prints it, shaped like
    `https://pembroke-ai.<your-subdomain>.workers.dev`. Verify it:
 
@@ -50,5 +54,6 @@ in the same dialect the local-Ollama path already speaks.
 POST `/chat` only · origin allowlist · strict schema · known character
 ids only · no client model/system fields · body ≤8KB, message ≤400
 chars, history ≤8 turns, memories ≤5 · completion budgets 140 (social)
-/ 300 (academic) tokens · 8 req/min/IP · 30s provider timeout · kill
-switch · zero secrets anywhere.
+/ 300 (academic) tokens · 8 req/min/IP (platform binding, with an
+in-Worker fallback limiter when the binding is absent) · 30s provider
+timeout · kill switch · zero secrets anywhere.
