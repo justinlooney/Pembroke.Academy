@@ -8950,14 +8950,15 @@ function topUpCrowd(){
      Somebody indoors whose time is up is queueing for a body slot, and
      a fresh stranger taking it first is how a person the visitor had
      already met never came back. Strangers fill what is left over. */
-  /* Two ways to be queueing, and the second is the one that mattered:
-     a student the ceiling has already turned away is put back to sleep
-     for four seconds, which stops them being "overdue" and quietly
-     un-reserved their own slot — the guard went quiet in precisely the
-     window it existed for. waitedOut is the honest flag for "denied
-     and still waiting", and it is cleared the moment they get out. */
-  const t = performance.now();
-  if (students.some(s => s.inside && (t >= (s.until || 0) || (s.waitedOut || 0) > 0))) return;
+  /* No reservation flag any more — ORDER does the job it kept getting
+     wrong. This used to refuse to fill while anybody was queueing
+     indoors, which handed returning students their priority at the
+     price of leaving the quad a body short: CI photographed two drawn
+     against a ceiling of three with ten bodies free. stepStudents now
+     calls this AFTER everyone has moved, so a student waiting to come
+     back out has already taken any slot that freed this tick, and the
+     crowd fills only what is genuinely left over. Priority without a
+     hole in the campus. */
   if (addExtra(crowdN)) crowdN++;
 }
 /* Crossfade rather than cut. A student who reaches a door and snaps from
@@ -9502,14 +9503,6 @@ function crowded(self, nx, ny){
 }
 let TOPUP_AT = 0;
 function stepStudents(dt, now){
-  /* the ceiling is refilled on a heartbeat, not only at door moments:
-     with the campus running on rotation there are instants when an
-     entry and a re-emergence miss each other and the quad sits under
-     its allowance — the smoke test caught one. topUpCrowd is
-     idempotent and cheap; asking every second costs nothing and keeps
-     the quad as full as the ceiling allows, which is the check's own
-     phrasing of the goal. */
-  if (now - TOPUP_AT > 1000){ TOPUP_AT = now; topUpCrowd(); }
   for (const s of students){
     if (s.static){
       /* micro-life: talkers shift and turn, the coder rocks gently */
@@ -9941,6 +9934,13 @@ function stepStudents(dt, now){
     }
     stepMotion(s, moving, now, dt);
   }
+  /* Everyone has moved, so every student who was owed a body has taken
+     one; whatever room is left belongs to the crowd. Filling here
+     rather than at the top of the loop is what lets returning students
+     have priority WITHOUT leaving the quad short — a rotation has
+     instants where an entrance and a re-emergence miss each other, and
+     a campus a body under its ceiling is what the smoke test sees. */
+  if (now - TOPUP_AT > 1000){ TOPUP_AT = now; topUpCrowd(); }
 }
 /* ── the faculty stroll ───────────────────────────────────────────────
    The Dean and the professor are statics: always findable at their
