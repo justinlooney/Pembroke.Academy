@@ -3314,7 +3314,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v123";
+const BUILD = "pembroke-v125";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -5773,8 +5773,14 @@ const P_DOOR = 0.35;
    to "at most one student anywhere in the cycle", and a phone session
    never caught anybody entering a building at all. A quarter of the
    roamers, cycling briskly, keeps the quad populated AND the door
-   hint playing. */
-const INSIDE_SHARE = 1 / 4;
+   hint playing.
+
+   Retired. Every value this constant ever took was an attempt to say
+   one thing — leave somebody out here to meet — through a proportion
+   that could not say it: three bodies fit on screen at once, so a
+   cast that takes turns must hold most of itself indoors, and a share
+   forbidding that forbade the turns. indoorsNow states the floor
+   directly now, and mayLeaveQuad states it for the named. */
 const SEATS = [];
 const SIT_RANGE = 420;            /* how far someone will go for a seat */
 /* Two figures, because a sit is only as good as what plays during it.
@@ -8940,6 +8946,31 @@ window.__crowdFill = () => {
    the campus being whoever won the first draw. */
 function topUpCrowd(){
   if (!crowdReady || crowdN >= CROWD_TARGET) return;
+  /* The next opening belongs to whoever is already waiting for it.
+     Somebody indoors whose time is up is queueing for a body slot, and
+     a fresh stranger taking it first is how a person the visitor had
+     already met never came back. Strangers fill what is left over. */
+  /* The old reservation refused to fill while ANYBODY was indoors,
+     which bought returning students their priority at the price of
+     leaving the quad a body short: CI photographed two drawn against a
+     ceiling of three with ten bodies free. Ordering alone replaced it,
+     and ordering alone is not quite enough — a student processed
+     earlier in the pass than the one who just walked through a door
+     misses the opening by an accident of array position, and the
+     stranger takes it before their next tick.
+
+     So: reserved, but only for somebody who has actually served their
+     time inside AND could step into the opening this instant. A stamped
+     readyAt alone is not enough — it survives for as long as the wait
+     does, and a wait can last the whole visit, which turns a one-frame
+     reservation into a standing ban on ever dealing another body. CI
+     read that back as a campus of three: "2 different people in four
+     minutes; 12 bodies were loaded". The room test is what bounds it.
+     Room and a queue means hold the slot, they take it next tick; no
+     room means the veto would be refusing something that could not
+     have happened anyway. */
+  if (students.some(o => o.data && o.inside && o.readyAt !== undefined &&
+                         roomOnScreen(o.g?.userData?.figure))) return;
   if (addExtra(crowdN)) crowdN++;
 }
 /* Crossfade rather than cut. A student who reaches a door and snaps from
@@ -9350,13 +9381,33 @@ function indoorsNow(){
   let n = 0, roamers = 0;
   for (const o of students){
     if (o.static || o.orbit) continue;
+    /* Strangers are not counted, in either direction. This cap exists
+       to stop the CAST emptying the quad — "2 bodies drawn, 32MB of
+       48MB" — and the anonymous crowd is not the cast: it is topped up
+       from twelve bodies within a second of a slot opening, and it is
+       the population makeRoomFor compresses when somebody with a name
+       needs their body back. Counting those compressions as "the
+       campus has gone indoors" is how the cap came to forbid the very
+       rotation it was protecting: instrumented over four simulated
+       minutes, a named student walked the quad for two hundred and
+       twenty-nine seconds, overdue the whole time, and was refused a
+       door on every one of them. */
+    if (!o.data) continue;
     roamers++;
     /* on their way counts as gone. Counting only those already through
        the door let several set off together and all arrive: a probe
        measured five indoors against a cap of four. */
     if (o.inside || o.mode === "todoor" || o.route) n++;
   }
-  return { n, cap: Math.max(1, Math.floor(roamers * INSIDE_SHARE)) };
+  /* The cap used to be a SHARE — at most a quarter of the cast away —
+     and that quarter fought the thing it was meant to serve. Only
+     three bodies fit on screen at once (48MB against 16MB each), so a
+     campus that rotates its cast has to hold MOST of it indoors: the
+     share said "no more than one away" exactly when the brief asked
+     for everybody to take a turn. Expressed as a floor instead, which
+     is what it always meant: everyone may be away except the two we
+     keep out here for the visitor to meet. */
+  return { n, cap: Math.max(1, roamers - 2) };
 }
 /* The halls the visitor's own timetable points at: the sectors of every
    course they have registered in, plus the chapel — always in season.
@@ -9370,6 +9421,169 @@ function hintSectors(){
     if (c) out.add(c.sector);
   }
   return out;
+}
+/* How many people with NAMES are out here to be met — the number the
+   whole campus exists to keep above zero. Counted for students and
+   faculty alike, because the rule below is one rule: CI photographed a
+   quad with the Dean, Elowen and Marcus all indoors and the professor
+   off screen, "nobody could be tapped at all", which happened because
+   the faculty walked out through a door the students were being held
+   back from. Nobody leaves unless two named people would remain. */
+function namedOnQuad(){
+  /* ON THE WAY counts as gone — the lesson indoorsNow learned first and
+     this forgot. Counting only those already through the door let two
+     people commit in the same instant: each looked out, saw three
+     faces including the other one already walking to a door, and went.
+     CI photographed the result — "Dean Aldergate — indoors; Prof.
+     Merion — off screen; Elowen — indoors", one face left on a campus
+     that promised two. Anyone routed to a door, walking the last steps
+     to it, or through it is already spent. */
+  return outHere().length;
+}
+function outHere(){
+  return students.filter(o => o.data && !o.inside && o.g?.visible !== false &&
+                              !o.facInside && !o.facGoing &&
+                              o.mode !== "todoor" && !o.door);
+}
+/* ── room for the people with names ──────────────────────────────────
+   Two paths used to walk out OVER the ceiling rather than wait behind
+   it: the student who had queued long enough, and the faculty coming
+   back to their post, who were never asked about it at all. Both were
+   written against a real failure — somebody the visitor had already met
+   never came back — and both answered it by overdrawing, which CI reads
+   exactly as it is: "64MB against a ceiling of 48MB", four bodies where
+   three fit.
+
+   There was never a third option because nobody went looking for one.
+   The crowd of strangers exists to fill whatever room the named cast is
+   not using; it is the compressible half of the campus, and the named
+   half is the half the visitor came for. So when somebody with a name
+   needs their slot back, a stranger gives one up. Gently first — the
+   stranger is simply made overdue, and the ordinary rotation walks them
+   to the nearest door within a few seconds, which looks like a person
+   leaving. Only once the wait has run long does one step inside where
+   they stand.
+
+   Nobody overdraws now, and nobody is stranded either: if there is no
+   stranger to compress, the ceiling is held entirely by named people,
+   and those rotate on clocks of their own. Room always comes. */
+function makeRoomFor(k, now, urgent){
+  if (roomOnScreen(k)) return true;
+  const out = students.filter(o => !o.data && !o.static && !o.orbit &&
+                                   !o.inside && o.g?.visible !== false);
+  if (!out.length){
+    /* No stranger left to compress — every slot is a named face. The
+       first version gave up here and told the caller to wait, which put
+       the Dean back in the building he had already served his time in:
+       the facduty probe watched him for seven minutes and he never came
+       out. That is the field report this release exists to fix, arrived
+       at from the other side.
+
+       So the last resort is a SWAP rather than a wait. The student who
+       has been out here longest, and whose span is spent, walks to
+       their own lecture as the faculty walks out of theirs — one body
+       hidden, one body shown, the ceiling untouched and the count of
+       named faces unchanged. Nobody mid-conversation is taken, because
+       that is a person the visitor is talking to. */
+    if (!urgent) return false;
+    const spent = students
+      .filter(o => o.data && (o.data.tier ?? 2) > 1 && !o.static && !o.orbit &&
+                   !o.inside && o.g?.visible !== false && !o.partner &&
+                   o.mode !== "approach" && o.mode !== "talk" &&
+                   now - (o.outAt ?? now) > (o.outSpan ?? Infinity))
+      .sort((a, b) => (a.outAt ?? 0) - (b.outAt ?? 0));
+    const c = spent[0];
+    if (!c) return false;
+    let cd = null, cbd = Infinity;
+    for (const d of DOORS){
+      const dist = Math.hypot(d.x - c.pos[0], d.y - c.pos[1]);
+      if (dist < cbd){ cbd = dist; cd = d; }
+    }
+    if (!cd) return false;
+    if (c.seat){ c.seat.taken = null; c.seat = null; }
+    c.door = cd; c.mode = "inside"; c.inside = true; c.route = null; c.target = null;
+    if (c.g) c.g.visible = false;
+    c.until = now + INSIDE_MS[0] + Math.random() * (INSIDE_MS[1] - INSIDE_MS[0]);
+    return roomOnScreen(k);
+  }
+  for (const o of out){
+    if (o.door || o.mode === "todoor") continue;
+    o.outSpan = o.outSpan ?? 1;
+    o.outAt = now - o.outSpan - 1;            /* overdue: take the next door */
+  }
+  if (!urgent) return false;
+  const o = out[0];
+  let best = null, bd = Infinity;
+  for (const d of DOORS){
+    const dist = Math.hypot(d.x - o.pos[0], d.y - o.pos[1]);
+    if (dist < bd){ bd = dist; best = d; }
+  }
+  if (!best) return false;
+  /* Retired, not parked. Parking them indoors was the first attempt and
+     it cost the campus a body: crowdN still counted them, so topUpCrowd
+     had met its target and dealt nobody, and they sat in the returning
+     queue holding a slot the named cast had just taken. Measured as a
+     quad drawing two where three fit, and as "2 different people in
+     four minutes". Retiring hands the body back to the deck instead —
+     the next top-up deals a FRESH one, which is the variety the visit
+     is judged on, from the same three slots. */
+  o.door = best; o.inside = true; o.retire = true;
+  if (o.g) o.g.visible = false;
+  return roomOnScreen(k);
+}
+/* Swept after the pass rather than mid-loop: students[] is being
+   iterated when the decision is made. */
+function sweepRetired(){
+  for (let i = students.length - 1; i >= 0; i--){
+    const o = students[i];
+    if (!o.retire) continue;
+    if (o.g){
+      world.remove(o.g);
+      for (let j = castMixers.length - 1; j >= 0; j--)
+        if (castMixers[j].g === o.g) castMixers.splice(j, 1);
+    }
+    if (o.seat) o.seat.taken = null;
+    students.splice(i, 1);
+    if (crowdN > 0) crowdN--;         /* their place in the crowd is open */
+    crowdDone = false;                /* and the ramp has somewhere to go */
+  }
+}
+function mayLeaveQuad(s){
+  if (!s.data) return true;                  /* the anonymous crowd is free */
+  /* Counted BY ROLE, because a flat "three named faces must be out" is
+     a floor set exactly at the ceiling — and a floor at the ceiling is
+     a lock. Three bodies fit on screen (48MB at 16MB each), so three
+     named out means every slot is named: let one anonymous extra take
+     a slot, as one always does, and the count can never reach three
+     again and the whole cast freezes where it stands. CI photographed
+     precisely that: "12 bodies were loaded and 1 trip(s) indoors
+     happened", two people met in four minutes.
+
+     What the floor was always trying to say is that the visitor can
+     always tap somebody worth talking to, and that splits cleanly in
+     two. The faculty stagger already keeps one of the Dean and the
+     professor outside at every moment, so that anchor is free — it
+     costs the students nothing. What is left to state is that the quad
+     keeps a STUDENT on it.
+
+     "Two students must be out before one may go" was the first attempt
+     and it wedged the same way the flat count did, one notch lower
+     down: with one slot spent on the faculty anchor and one on a
+     stranger, two students are never out together, so no student ever
+     leaves. CI: "2 different people in four minutes; 12 bodies were
+     loaded and 1 trip(s) indoors happened."
+
+     So the rule is about the HANDOVER rather than the census. Leave
+     freely while a classmate stays out here. Leave as the last student
+     on the quad only when another one has served their time inside and
+     is standing at the door waiting on a body — the slot goes student
+     to student, and the quad is never without one for longer than the
+     walk between them. */
+  if ((s.data.tier ?? 2) <= 1) return namedOnQuad() >= 2;
+  if (outHere().filter(o => (o.data.tier ?? 2) > 1).length >= 2) return true;
+  return namedOnQuad() >= 2 &&
+         students.some(o => o !== s && o.data && (o.data.tier ?? 2) > 1 &&
+                            o.inside && o.readyAt !== undefined);
 }
 function nearestDoor(s, force){
   /* `force` is the rotation talking: a student whose outside life has
@@ -9463,14 +9677,6 @@ function crowded(self, nx, ny){
 }
 let TOPUP_AT = 0;
 function stepStudents(dt, now){
-  /* the ceiling is refilled on a heartbeat, not only at door moments:
-     with the campus running on rotation there are instants when an
-     entry and a re-emergence miss each other and the quad sits under
-     its allowance — the smoke test caught one. topUpCrowd is
-     idempotent and cheap; asking every second costs nothing and keeps
-     the quad as full as the ceiling allows, which is the check's own
-     phrasing of the goal. */
-  if (now - TOPUP_AT > 1000){ TOPUP_AT = now; topUpCrowd(); }
   for (const s of students){
     if (s.static){
       /* micro-life: talkers shift and turn, the coder rocks gently */
@@ -9496,7 +9702,7 @@ function stepStudents(dt, now){
       continue;
     }
     /* the outside clock starts the first time the world steps them */
-    if (s.outAt === undefined){ s.outAt = now; s.outSpan = 20000 + Math.random() * 15000; }
+    if (s.outAt === undefined){ s.outAt = now; s.outSpan = 10000 + Math.random() * 10000; }
     let moving = false;
     /* ── going inside, and coming back out ───────────────────────────
        Walk to a door, vanish through it, and reappear there later.
@@ -9514,7 +9720,21 @@ function stepStudents(dt, now){
         if (gap < 10){
           s.mode = "inside";
           s.inside = true;
-          topUpCrowd();          /* their room on the screen is free now */
+          /* Not topUpCrowd() HERE. Calling it on this line handed the
+             slot to a stranger the instant a named student vanished —
+             before anybody queueing indoors could be asked for it, the
+             exact steal the reservation flag was written to stop and
+             the ordering rewrite was supposed to have made impossible.
+             It survived the rewrite by being upstream of it.
+
+             But leaving the slot to the next second's heartbeat is the
+             opposite mistake: a quad drawing two bodies where three fit
+             is a quad with a hole in it, which the suite reads as
+             sharply as it reads an overdraw. So the heartbeat is armed
+             to fire at the END of this same pass, once everybody has
+             moved and the queue has had its turn. Priority and no hole,
+             in one frame. */
+          TOPUP_AT = 0;
           s.until = now + INSIDE_MS[0] + Math.random() * (INSIDE_MS[1] - INSIDE_MS[0]);
           s.g.visible = false;
           continue;
@@ -9529,6 +9749,23 @@ function stepStudents(dt, now){
     }
     if (s.mode === "inside"){
       if (now < s.until) continue;      /* not drawn, not stepped, not there */
+      /* First in, first out. Who took the next opening used to be
+         decided by position in the students array, so the same faces
+         came back again and again while others waited out the whole
+         visit — the brief asks for two or three DIFFERENT students each
+         cycle, and that only happens if the queue is honoured. readyAt
+         is stamped once, when their time is served, and the longest
+         wait goes first. */
+      if (s.readyAt === undefined) s.readyAt = now;
+      /* Seniority within your own half of the campus. A stranger sent
+         indoors to free a slot joins this queue too, and without the
+         rank test they would hold their place ahead of the very person
+         the slot was freed for — the compression undone by the queue
+         that was supposed to distribute it. Named faces wait only
+         behind other named faces; strangers wait behind everyone. */
+      const rank = (o) => (o.data ? 1 : 0);
+      if (students.some(o => o !== s && o.inside && o.readyAt !== undefined &&
+                             rank(o) >= rank(s) && o.readyAt < s.readyAt)) continue;
       /* The ceiling decides when they come out, not only the clock.
          While they were in there somebody else may have taken the room
          their body needs, so they wait for it — which is the rotation
@@ -9536,19 +9773,30 @@ function stepStudents(dt, now){
          asked for. Checked BEFORE the upgrade, because upgradeBody may
          put them in a different body and this is about the one they
          are wearing now. */
+      /* The rotation waits for room — and MAKES room rather than
+         overdrawing for it. A student who cannot get their body back
+         sits invisible while fresh extras hold the screen, which is how
+         a campus quietly loses the people it introduced; the old answer
+         was to come out over budget after half a minute, and the budget
+         is not the kind of rule that bends. makeRoomFor asks a stranger
+         to go in instead — politely for the first quarter of a minute,
+         then not. */
       if (!roomOnScreen(s.g?.userData?.figure)){
-        s.until = now + 4000;
-        continue;
+        s.waitedOut = (s.waitedOut || 0) + 1;
+        makeRoomFor(s.g?.userData?.figure, now, s.waitedOut >= 4);
+        if (!roomOnScreen(s.g?.userData?.figure)){ s.until = now + 4000; continue; }
       }
+      s.waitedOut = 0;
       s.mode = "walk";
       s.inside = false;
+      s.readyAt = undefined;            /* out of the queue, back on the quad */
       /* the invisible moment: whoever went in may come out wearing the
          authored body a tap is worth answering from */
       upgradeBody(s);
       s.g.visible = true;
       s.doorAt = now;
       /* a fresh spell outside: the rotation clock rewinds */
-      s.outAt = now; s.outSpan = 20000 + Math.random() * 15000;
+      s.outAt = now; s.outSpan = 10000 + Math.random() * 10000;
       /* out of the same doorway, facing the campus rather than the wall */
       s.pos[0] = s.door.x; s.pos[1] = s.door.y;
       s.g.rotation.y = Math.atan2(500 - s.pos[0], 500 - s.pos[1]);
@@ -9645,7 +9893,14 @@ function stepStudents(dt, now){
        needs no exception. */
     if (s.mode === "talk"){
       const p = s.partner;
+      /* The watchdog: a conversation runs five to ten seconds, so one
+         still going a minute later is not a conversation, it is a
+         stuck state machine — a partner who stopped being stepped, a
+         clock that never got set. Whatever the cause, it ends here
+         rather than standing on the lawn for the rest of the visit. */
+      if (now - (s.talkAt || (s.talkAt = now)) > 60000) s.until = 0;
       if (!p || p.mode !== "talk" || p.partner !== s || now > s.until){
+        s.talkAt = 0;
         s.mode = "walk"; s.partner = null; s.socialAt = now;
         /* a beat before setting off, so a conversation ends rather than
            cuts */
@@ -9690,6 +9945,24 @@ function stepStudents(dt, now){
     else {
       if (s.mode === "linger") s.mode = "walk";
       if (s.seat && s.mode === "walk") leaveSeat(s);
+      /* Overdue and still mid-leg: take the door NOW rather than at the
+         next waypoint. The decision lived only in the arrival block
+         below, so a student whose leg is long — or whose device is
+         drawing slowly enough that one leg takes an age — could be far
+         past their turn before anything thought to ask them. Measured
+         in the test environment at an eighth of a frame per second:
+         not one student reached a waypoint in three and a half minutes,
+         so not one ever took a door. A slow phone is the same shape of
+         problem, just less extreme. */
+      if (s.mode === "walk" && !s.door && !s.route && s.data &&
+          now - (s.outAt ?? now) > (s.outSpan ?? Infinity) && mayLeaveQuad(s)){
+        const late = nearestDoor(s, true);
+        if (late){
+          s.door = late; s.target = null;
+          s.route = routeTo(s.node, doorNode(late.sector));
+          if (!(s.route && s.route.length)){ s.route = null; s.mode = "todoor"; }
+        }
+      }
       if (!s.target){
         /* a routed student resumes their trip; anyone else drifts */
         if (s.route && s.route.length) s.target = s.route.shift();
@@ -9743,7 +10016,24 @@ function stepStudents(dt, now){
            quad for minutes. Putting the lecture first let it preempt
            the talking and the campus went quiet — 23% of the cast
            indoors and conversations down to 2% of student-time. */
-        const other = (now - (s.socialAt || -1e9) > SOCIAL_COOL && Math.random() < P_MEET)
+        /* ── the clock comes first ──────────────────────────────────
+           Read here rather than twenty lines down, because everything
+           between here and there is a way of not leaving. A student
+           whose time on the quad is spent used to be offered a
+           conversation, then a bench, then a stand-about, and only
+           after all three declined was anybody asked whether they
+           ought to be going. Each of those is five to twenty seconds
+           in a state where the door is never mentioned, and they
+           compound: instrumented over four simulated minutes, sitting
+           down while already overdue was the single largest thing the
+           students did with their time, and a run came back with one
+           trip indoors and two people met.
+
+           So the pastimes are for students who still have time. Once
+           the span is spent the only question left is which door. */
+        const overdue = now - (s.outAt ?? now) > (s.outSpan ?? Infinity);
+        const other = (!overdue && now - (s.socialAt || -1e9) > SOCIAL_COOL &&
+                       Math.random() < P_MEET)
           ? findPartner(s, now) : null;
         if (other){
           const wait = now + 14000;         /* if we cannot reach them, give up */
@@ -9760,17 +10050,13 @@ function stepStudents(dt, now){
            three the crowd sends. "Then 2-3 different students, until
            they all cycle through." The dice path stays for texture:
            an early trip can still happen on a whim. */
-        const overdue = now - (s.outAt ?? now) > (s.outSpan ?? Infinity);
         /* the meeting floor: a NAMED student may only leave while at
            least two named people would remain on the quad. Rotation
            without this emptied the campus of everyone a visitor could
            tap — CI's phrasing: "nobody could be tapped at all". The
            anonymous crowd rotates freely; the people with names are
            the product. */
-        const namedOut = s.data
-          ? students.filter(o => o.data && !o.inside && o.g?.visible !== false).length
-          : 9;
-        const door = (namedOut <= 2) ? null
+        const door = !mayLeaveQuad(s) ? null
           : overdue ? nearestDoor(s, true)
           : (now - (s.doorAt || -1e9) > DOOR_COOL && Math.random() < P_DOOR)
           ? nearestDoor(s) : null;
@@ -9789,7 +10075,7 @@ function stepStudents(dt, now){
            student who would otherwise stand about for four seconds is
            better spent walking to a bench. */
         const cyc = seatCycle(s.roles);
-        const canSit = cyc && now - (s.sitAt || -1e9) > SIT_COOL &&
+        const canSit = !overdue && cyc && now - (s.sitAt || -1e9) > SIT_COOL &&
                        Math.random() < P_SIT;
         /* On the ground where they stand, or on a bench — decided by
            where this body's seat cycle bottoms out, not by preference.
@@ -9820,7 +10106,7 @@ function stepStudents(dt, now){
            top for every body on the campus now, so "stand idle" — one
            of the brief's three things to do after a walk — is a stint
            anybody can take. */
-        if (Math.random() < P_LINGER){
+        if (!overdue && Math.random() < P_LINGER){
           s.mode = "linger";
           s.pauseUntil = now + LINGER_MS[0] + Math.random() * (LINGER_MS[1] - LINGER_MS[0]);
         }
@@ -9833,8 +10119,49 @@ function stepStudents(dt, now){
            model, reads as the renderer having drawn the same man twice.
            Never step closer to someone you are already too close to;
            hang back a moment instead, the way you would. */
-        if (crowded(s, nx, ny)) s.pauseUntil = now + 300 + Math.random() * 700;
+        /* Politeness can deadlock. Two students who meet head-on inside
+           SPACE each refuse every step that closes the gap, and if
+           their destinations lie past one another they stand there
+           refusing until the tab closes — which reads, from a phone, as
+           two people stuck talking to each other. After a few refusals,
+           go around: sidestep perpendicular and take a different way.
+
+           The sidestep was fourteen feet, which is half of SPACE — half
+           way out of a bubble is still inside it, so `crowded` refused
+           the sidestep too and the breaker moved nobody. It steps clear
+           of the bubble now, or it is not a way around.
+
+           And politeness has a deadline for anyone on their way indoors.
+           A student stalled at a door is not merely standing about:
+           they are holding a body slot the next arrival needs, so the
+           whole cast stops turning over behind them. Measured across
+           four simulated minutes, one spent two hundred and twenty-six
+           seconds within a hundred feet of a door, refusing every step
+           that closed the gap. Past the deadline they brush through. A
+           shoulder through somebody for a frame is cheaper than a
+           campus that never rotates. */
+        const pushy = s.door && (s.blocked || 0) > 6;
+        if (crowded(s, nx, ny) && !pushy){
+          s.pauseUntil = now + 300 + Math.random() * 700;
+          if ((s.blocked = (s.blocked || 0) + 1) > 4){
+            const px = -dy / dist, py = dx / dist;   /* across their path */
+            const side = Math.random() < 0.5 ? 1 : -1;
+            const step = SPACE + 6;
+            const sx = s.pos[0] + px * side * step, sy = s.pos[1] + py * side * step;
+            if (!crowded(s, sx, sy)){ s.pos[0] = sx; s.pos[1] = sy; moving = true; }
+            /* A student with a door to reach KEEPS their count — the
+               sidestep is one attempt at going around, not a fresh
+               start, and resetting here is what kept the deadline above
+               from ever arriving. They also keep their heading: the
+               door is where they are going, and picking a new way is
+               how the old breaker turned a blocked trip into a wander
+               with a door attached that nobody ever walked to. */
+            if (!s.door){ s.blocked = 0; s.target = null; }
+            s.pauseUntil = 0;
+          }
+        }
         else {
+          s.blocked = 0;
           moving = true;
           s.pos[0] = nx; s.pos[1] = ny;
           s.g.rotation.y = Math.atan2(dx, dy);
@@ -9843,6 +10170,14 @@ function stepStudents(dt, now){
     }
     stepMotion(s, moving, now, dt);
   }
+  sweepRetired();
+  /* Everyone has moved, so every student who was owed a body has taken
+     one; whatever room is left belongs to the crowd. Filling here
+     rather than at the top of the loop is what lets returning students
+     have priority WITHOUT leaving the quad short — a rotation has
+     instants where an entrance and a re-emergence miss each other, and
+     a campus a body under its ceiling is what the smoke test sees. */
+  if (now - TOPUP_AT > 1000){ TOPUP_AT = now; topUpCrowd(); }
 }
 /* ── the faculty stroll ───────────────────────────────────────────────
    The Dean and the professor are statics: always findable at their
@@ -9877,7 +10212,26 @@ function stepFacultyStroll(s, now, dt){
      students obey. */
   if (s.facInside){
     if (now < s.until) return;
-    if (!roomOnScreen(s.g?.userData?.figure)){ s.until = now + 4000; return; }
+    /* The two people the whole journey points at must never be stuck
+       behind a crowd of strangers. Measured before anything guarded
+       this: the Dean went in once and stayed in for the rest of the
+       session, which then deferred the professor forever through the
+       stagger rule below.
+
+       The first fix was to ignore the ceiling entirely on the way out,
+       reasoning that a hidden figure still holds its textures so the
+       on-screen budget has no claim on a body already built. True about
+       memory, and beside the point: the budget is a rule about what is
+       DRAWN, and CI photographed the result as four bodies where three
+       fit. So the stranger gives up the slot instead — urgently, since
+       a returning Dean has already served his time inside and the whole
+       stagger waits on him. If there is no stranger to compress, the
+       ceiling is held by named faces who are themselves on rotation
+       clocks, and he takes the next opening rather than a frame. */
+    if (!makeRoomFor(s.g?.userData?.figure, now, true)){
+      s.until = now + 3000;
+      return;
+    }
     s.facInside = false; s.inside = false;
     s.g.visible = true;
     s.pos[0] = s.facDoor.x; s.pos[1] = s.facDoor.y;
@@ -9889,24 +10243,44 @@ function stepFacultyStroll(s, now, dt){
     s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
     return;
   }
-  if (!s.strollTo){
-    if (!s.strollAt){
-      s.strollAt = now + 5000 + Math.random() * 7000;
-      s.facDutyAt = now + 10000 + Math.random() * 10000;
-    }
-    if (now >= (s.facDutyAt || Infinity)){
-      /* one member of staff at a time: CI photographed the quad with
-         BOTH faculty indoors and every named student away — a campus
-         with nobody to meet. The Dean and the professor stagger their
-         teaching so at least one anchor always holds a post. */
-      const otherIn = students.some(o => o !== s && (o.data?.tier ?? 2) <= 1 &&
-                                         (o.facInside || o.facGoing));
-      if (otherIn){ s.facDutyAt = now + 6000 + Math.random() * 6000; return; }
+  /* ── the class bell, read from ANY state ─────────────────────────
+     This lived inside "not currently strolling", and that nesting was
+     the whole of the professor's bug: a figure who is always part-way
+     through a stroll never reaches the check at all. Measured, she
+     walked her apron for a hundred and fifty seconds with her duty
+     clock seventy seconds overdue and never once looked at it. Duty
+     outranks a stroll — when the bell goes, the stroll is abandoned
+     for the door. */
+  if (!s.facGoing && now >= (s.facDutyAt ??
+      (s.facDutyAt = now + 10000 + Math.random() * 10000))){
+    /* one member of staff at a time: CI photographed the quad with
+       BOTH faculty indoors and every named student away — a campus
+       with nobody to meet. The Dean and the professor stagger their
+       teaching so at least one anchor always holds a post. */
+    const otherIn = students.some(o => o !== s && (o.data?.tier ?? 2) <= 1 &&
+                                       (o.facInside || o.facGoing));
+    /* Both gates are absolute, and neither has an escape any more.
+       There WAS one — yield twice, then teach regardless — written
+       when the other anchor could wedge indoors for a whole session
+       and deferring forever meant never teaching at all. That wedge is
+       fixed at its root: the faculty come back out unconditionally, so
+       a yield always ends on its own. The escape survived only to let
+       both of them be indoors at once, which CI duly photographed —
+       "Dean Aldergate — indoors; Prof. Merion — indoors", nobody left
+       to tap. A bell that rings on an empty quad is never the lesser
+       evil; it waits and rings again. */
+    if (!mayLeaveQuad(s) || otherIn){
+      s.facDutyAt = now + 5000 + Math.random() * 5000;
+    } else {
       /* time to teach: their OWN hall's door, never anyone else's */
       const door = DOORS.find(d2 => d2.sector === s.data?.at);
       if (door){ s.facDoor = door; s.facGoing = true; s.strollTo = [door.x, door.y]; }
       else s.facDutyAt = now + 60000;     /* no door on this sector: stay out */
-    } else if (now >= s.strollAt){
+    }
+  }
+  if (!s.strollTo){
+    if (!s.strollAt) s.strollAt = now + 5000 + Math.random() * 7000;
+    if (now >= s.strollAt){
       const away = Math.hypot(s.pos[0] - s.home[0], s.pos[1] - s.home[1]);
       s.strollTo = away > 4 ? [...s.home] /* out, then always back */
         : [s.home[0] + (Math.random() - 0.5) * 80,
@@ -9923,7 +10297,7 @@ function stepFacultyStroll(s, now, dt){
       /* a short class, not a sabbatical: the faculty are the two
          people the journey points at, so their door only swallows
          them briefly — outside roughly as much as in */
-      s.until = now + 12000 + Math.random() * 8000;
+      s.until = now + 20000 + Math.random() * 15000;
       topUpCrowd();
       return;
     }
@@ -9934,8 +10308,14 @@ function stepFacultyStroll(s, now, dt){
     s.held = holdStance(s.g);
     return;
   }
-  s.pos[0] += dx / d * s.speed * dt;
-  s.pos[1] += dy / d * s.speed * dt;
+  /* never step PAST the target: a stride longer than the two-unit
+     arrival threshold walks over it and turns around, and the figure
+     oscillates about a point it can never be said to have reached.
+     Long frames make the stride long, so this is a slow-device bug by
+     construction — clamp to what is left and arrival is guaranteed. */
+  const step = Math.min(s.speed * dt, d);
+  s.pos[0] += dx / d * step;
+  s.pos[1] += dy / d * step;
   s.g.rotation.y = Math.atan2(dx, dy);
   s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
   stepMotion(s, true, now, dt);
@@ -14151,8 +14531,18 @@ const AIQueue = { busy: false, ctrl: null };
    can reach the screen while the model is still choosing the rest */
 function aiPeekDialogue(raw){
   const m = raw.match(/"dialogue"\s*:\s*"((?:[^"\\]|\\.)*)/);
-  if (!m) return "";
-  try { return JSON.parse('"' + m[1].replace(/\\$/, "") + '"'); } catch(_){ return ""; }
+  if (m){
+    try { return JSON.parse('"' + m[1].replace(/\\$/, "") + '"'); } catch(_){ return ""; }
+  }
+  /* unquoted spelling, same recovery as aiParse: paint what follows
+     dialogue: and stop the moment another key starts arriving — or is
+     MID-ARRIVAL: a stream can end this frame on ", emo", and painting
+     that flicker is worse than holding two tokens back */
+  const loose = raw.match(/["']?dialogue["']?\s*:\s*["']?([\s\S]*)/);
+  if (!loose) return "";
+  return loose[1].replace(/\s*,?\s*["']?(emotion|intent)["']?\s*:[\s\S]*$/i, "")
+    .replace(/,\s*["']?(e(m(o(t(i(o(n)?)?)?)?)?)?|i(n(t(e(n(t)?)?)?)?)?)?["']?\s*:?\s*$/i, "")
+    .replace(/["'}\],]+\s*$/, "");
 }
 /* both providers speak the same wire dialect — one JSON object per
    line, tokens in message.content — so one reader serves them all */
@@ -14275,15 +14665,37 @@ async function aiGenerate(s, userText, history, onToken){
 /* structured output, defensively: salvage dialogue, discard bad intents */
 function aiParse(raw){
   let out = { dialogue: "", emotion: "neutral", intent: { type: "none" } };
-  try {
-    const j = JSON.parse(raw);
+  const take = (j) => {
     if (typeof j.dialogue === "string") out.dialogue = j.dialogue;
     if (typeof j.emotion === "string") out.emotion = j.emotion.slice(0, 24);
     if (j.intent && typeof j.intent.type === "string") out.intent = j.intent;
-  } catch(_){
-    const m = raw.match(/"dialogue"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-    out.dialogue = m ? JSON.parse('"' + m[1] + '"') : raw.replace(/[{}\[\]"]/g, "").trim().slice(0, 400);
+    return out;
+  };
+  try { return take(JSON.parse(raw)); } catch(_){}
+  /* the hosted models are sloppier than the schema: markdown fences,
+     prose around the object, unquoted keys and values. Field report,
+     verbatim: "it starts with dialogue: and always ends with
+     emotion:casual, intent:type:none" — the old last-resort stripped
+     the braces and showed every key. Recover in stages instead. */
+  const fenced = raw.replace(/```(?:json)?/gi, "");
+  const block = fenced.match(/\{[\s\S]*\}/);
+  if (block){ try { return take(JSON.parse(block[0])); } catch(_){} }
+  /* quoted dialogue inside an otherwise broken object */
+  const q = fenced.match(/"dialogue"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  if (q){ try { out.dialogue = JSON.parse('"' + q[1] + '"'); } catch(_){ out.dialogue = q[1]; } }
+  else {
+    /* unquoted: capture from dialogue: up to the next known key */
+    const loose = fenced.match(/["']?dialogue["']?\s*:\s*["']?([\s\S]*?)["']?\s*,?\s*(?=["']?emotion["']?\s*:|["']?intent["']?\s*:|\}|$)/);
+    out.dialogue = (loose ? loose[1] : fenced.replace(/[{}\[\]"]/g, ""))
+      .replace(/\s*,?\s*["']?(emotion|intent)["']?\s*:[\s\S]*$/i, "")
+      .trim().slice(0, 400);
   }
+  const em = fenced.match(/["']?emotion["']?\s*:\s*["']?([a-z ]{2,24})/i);
+  if (em) out.emotion = em[1].trim();
+  const it = fenced.match(/["']?type["']?\s*:\s*["']?([a-z_]{2,32})/i);
+  if (it) out.intent = { type: it[1] };   /* the governor's wall judges it */
+  const tg = fenced.match(/["']?target["']?\s*:\s*["']?([\w.\-]{1,32})/i);
+  if (tg && out.intent.type !== "none") out.intent.target = tg[1];
   return out;
 }
 /* ── the capability policy ─────────────────────────────────────────
