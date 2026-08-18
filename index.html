@@ -12394,7 +12394,11 @@ function psetGradedKeys(ps){
 }
 function psetState(courseId, n){
   const ext = studyExt(courseId, n);
-  ext.ps = ext.ps || { earned: {} };
+  /* normalize, never trust: this lives in localStorage, where an old
+     build or a bad write can leave ps present but missing its earned
+     map — and st.earned[k] on that would throw in every reader */
+  if (!ext.ps || typeof ext.ps !== "object") ext.ps = {};
+  if (!ext.ps.earned || typeof ext.ps.earned !== "object") ext.ps.earned = {};
   return ext.ps;
 }
 function psetCleared(courseId, n){
@@ -12509,9 +12513,11 @@ function jPractice(courseId, n){
       }
       host.classList.toggle("right", !!good); host.classList.toggle("wrong", !good);
       why.hidden = false;
+      /* earn BEFORE logging: studyLog saves, so setting the flag first
+         folds both changes into one synchronous storage write */
+      if (good && !burned[key] && !st.earned[key]) st.earned[key] = 1;
       studyLog(courseId, n, "pset", !!good);
       if (good){
-        if (!burned[key] && !st.earned[key]){ st.earned[key] = 1; saveStudy(); }
         why.textContent = burned[key] && !st.earned[key]
           ? "✓ right — but the solution was showing, so it is not earned. Reopen the set to earn it."
           : "✓ " + (it.sol || "earned");
