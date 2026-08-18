@@ -3309,7 +3309,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v118";
+const BUILD = "pembroke-v119";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -5734,9 +5734,15 @@ gltf.load("assets/lamp.glb", (g) => {
    Doors come from the DOORS table the player's own prompt uses, so a
    student walks to the same doorway you do. */
 const DOOR_RANGE = 900;           /* far enough that a lecture is worth the walk */
-const INSIDE_MS = [35000, 140000];        /* a class, or an hour with a book */
-const DOOR_COOL = 200000;         /* nobody attends four lectures in a row */
-const P_DOOR = 0.22;
+/* The trips were real and nobody ever saw one: at most one student per
+   cycle, walks of a minute, then 35-140s invisible indoors — a phone
+   session could watch the quad for ten minutes and never catch an
+   entry, reported as "neither walk inside building". The cycle turns
+   faster now: shorter stays, shorter cooldown, a keener roll, so the
+   walk-to-a-glowing-door hint actually plays while someone watches. */
+const INSIDE_MS = [25000, 80000];         /* a seminar, not an afternoon */
+const DOOR_COOL = 120000;         /* one lecture, a stroll, another */
+const P_DOOR = 0.35;
 /* How much of the cast may be indoors at once. Without a ceiling they
    all go: a probe run had every one of the eight roamers inside a
    building simultaneously at t+150s, which is not a quiet campus, it is
@@ -5749,8 +5755,15 @@ const P_DOOR = 0.22;
    population sat AT the cap for almost the whole run (4 of 12, cap 4,
    29% of student-samples against a 33% ceiling). When the cap is what
    binds, shortening the visits only speeds the turnstile; it does not
-   put anyone back on the quad. Both moved. */
-const INSIDE_SHARE = 1 / 5;
+   put anyone back on the quad. Both moved.
+
+   And then a quarter, back up half a step — the fifth swung too far
+   the other way: with the faster v119 turnstile the pipeline drained
+   to "at most one student anywhere in the cycle", and a phone session
+   never caught anybody entering a building at all. A quarter of the
+   roamers, cycling briskly, keeps the quad populated AND the door
+   hint playing. */
+const INSIDE_SHARE = 1 / 4;
 const SEATS = [];
 const SIT_RANGE = 420;            /* how far someone will go for a seat */
 /* Two figures, because a sit is only as good as what plays during it.
@@ -6552,8 +6565,13 @@ const loadedLoitering = () => LOITERING.filter(k => castLib[k]);
 const CAST_PLAN = [
   { k: "any" },                                             /* Elowen — roams        */
   { k: "loiter", at: [790, 428], face: -0.9, live: true, pose: 0 }, /* Marcus — Drosdick door apron */
-  { k: "any", needs: "idle", at: [449, 449], face: 0.8,     /* Priya  — plaza        */
-    kind: "chat", clip: "idle" },
+  /* Priya — a roamer now, the same medicine Sofia took. She stood on
+     the plaza as kind "chat", swivelling through her body's gesture
+     clip at nobody — reported from a phone as "one person is stuck in
+     idle talking mode". A chat pose with no partner is a pantomime,
+     and the roamer machinery already lets her stop and talk to someone
+     real when the campus offers one. */
+  { k: "any" },
   { k: "loiter", at: [286, 838], face:  0.2, live: true, pose: 1 }, /* Jun — Alden front.
      He stood at 270,700 — inside the science hall, behind its south
      wall. Out on the front now, facing the quad. */
@@ -8438,8 +8456,18 @@ function buildCast(){
      characters the student journey depends on take the bodies first —
      a random student surviving while the advisor vanished would break
      the actual product. */
+  /* Within a tier, the students who MOVE take bodies before the ones
+     the plan parks somewhere. On a phone whose budget stops the cast at
+     four figures, tier order alone filled the last two slots with
+     whoever came first in the roster — which could be a door-apron
+     loiterer and a plaza static, leaving zero walkers on the campus:
+     nobody strolling, nobody ever entering a building, reported as
+     exactly that. The Dean and the professor still come first; after
+     them, walkers before statues. */
+  const parked = i => (CAST_PLAN[i].at || CAST_PLAN[i].orbit) ? 1 : 0;
   const order = STUDENT_ROSTER.map((st, i) => i)
-    .sort((a, b) => (STUDENT_ROSTER[a].tier ?? 2) - (STUDENT_ROSTER[b].tier ?? 2));
+    .sort((a, b) => ((STUDENT_ROSTER[a].tier ?? 2) - (STUDENT_ROSTER[b].tier ?? 2)) ||
+                    (parked(a) - parked(b)));
   order.forEach(i => { const st = STUDENT_ROSTER[i];
     if (!present[i]) return;             /* in a lecture */
     if (CAST_USED.has(st.name)) return;  /* already on the campus */
@@ -8484,12 +8512,12 @@ function buildCast(){
       g.position.set(W(plan.at[0]), 0, W(plan.at[1]));
       g.rotation.y = plan.face || 0;
       if (clip){ setClipOn(g, clip); stagger(g, clip); }
-      /* No clip answers the plan — Priya asks for an idle and no body
-         on this campus owns one since the lent Idle was withdrawn, and
-         the loiterers never asked for anything. Without a stance these
-         students keep whatever pose the build left, which for a while
-         was 0.7 seconds into the sit-down. holdStance holds a walk at
-         its feet-passing frame instead; `held` puts breathe() on it. */
+      /* No clip answers the plan — a parked student may ask for a pose
+         their body does not own, and the loiterers never asked for
+         anything. Without a stance these students keep whatever pose
+         the build left, which for a while was 0.7 seconds into the
+         sit-down. holdStance holds a walk at its feet-passing frame
+         instead; `held` puts breathe() on it. */
       const held = !clip && holdStance(g);
       /* Their roles, same as a roamer gets. Without this line every
          student who stands still — the ones at the doors, the ones on
