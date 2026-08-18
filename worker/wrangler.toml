@@ -1,0 +1,26 @@
+# Pembroke Academy — hosted character-AI gateway.
+# Deploy:  cd worker && npx wrangler deploy
+# The AI binding needs no API key: inference runs on your Cloudflare
+# account's Workers AI allocation, and its plan limits are the hard
+# cost ceiling for this endpoint.
+name = "pembroke-ai"
+main = "src/index.mjs"
+compatibility_date = "2026-08-01"
+
+[ai]
+binding = "AI"
+
+[vars]
+# The ONE origin allowed to talk to this gateway (plus localhost dev).
+ALLOWED_ORIGIN = "https://justinlooney.github.io"
+# Kill switch: set to "0" (wrangler deploy --var AI_ENABLED:0, or the
+# dashboard) and every request answers 503 while the campus falls back
+# to canned dialogue. No redeploy of the site needed.
+AI_ENABLED = "1"
+
+# Per-IP rate limit: 8 requests per minute burst protection.
+[[unsafe.bindings]]
+name = "RL"
+type = "ratelimit"
+namespace_id = "1101"
+simple = { limit = 8, period = 60 }
