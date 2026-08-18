@@ -8950,15 +8950,20 @@ function topUpCrowd(){
      Somebody indoors whose time is up is queueing for a body slot, and
      a fresh stranger taking it first is how a person the visitor had
      already met never came back. Strangers fill what is left over. */
-  /* No reservation flag any more — ORDER does the job it kept getting
-     wrong. This used to refuse to fill while anybody was queueing
-     indoors, which handed returning students their priority at the
-     price of leaving the quad a body short: CI photographed two drawn
-     against a ceiling of three with ten bodies free. stepStudents now
-     calls this AFTER everyone has moved, so a student waiting to come
-     back out has already taken any slot that freed this tick, and the
-     crowd fills only what is genuinely left over. Priority without a
-     hole in the campus. */
+  /* The old reservation refused to fill while ANYBODY was indoors,
+     which bought returning students their priority at the price of
+     leaving the quad a body short: CI photographed two drawn against a
+     ceiling of three with ten bodies free. Ordering alone replaced it,
+     and ordering alone is not quite enough — a student processed
+     earlier in the pass than the one who just walked through a door
+     misses the opening by an accident of array position, and the
+     stranger takes it before their next tick.
+
+     So: reserved, but only for somebody who has actually served their
+     time inside and is standing at the door waiting on a body. That is
+     what a stamped readyAt means. It is a reservation measured in one
+     frame rather than in the whole length of a visit. */
+  if (students.some(o => o.data && o.inside && o.readyAt !== undefined)) return;
   if (addExtra(crowdN)) crowdN++;
 }
 /* Crossfade rather than cut. A student who reaches a door and snaps from
@@ -9414,12 +9419,79 @@ function namedOnQuad(){
      Merion — off screen; Elowen — indoors", one face left on a campus
      that promised two. Anyone routed to a door, walking the last steps
      to it, or through it is already spent. */
+  return outHere().length;
+}
+function outHere(){
   return students.filter(o => o.data && !o.inside && o.g?.visible !== false &&
                               !o.facInside && !o.facGoing &&
-                              o.mode !== "todoor" && !o.door).length;
+                              o.mode !== "todoor" && !o.door);
+}
+/* ── room for the people with names ──────────────────────────────────
+   Two paths used to walk out OVER the ceiling rather than wait behind
+   it: the student who had queued long enough, and the faculty coming
+   back to their post, who were never asked about it at all. Both were
+   written against a real failure — somebody the visitor had already met
+   never came back — and both answered it by overdrawing, which CI reads
+   exactly as it is: "64MB against a ceiling of 48MB", four bodies where
+   three fit.
+
+   There was never a third option because nobody went looking for one.
+   The crowd of strangers exists to fill whatever room the named cast is
+   not using; it is the compressible half of the campus, and the named
+   half is the half the visitor came for. So when somebody with a name
+   needs their slot back, a stranger gives one up. Gently first — the
+   stranger is simply made overdue, and the ordinary rotation walks them
+   to the nearest door within a few seconds, which looks like a person
+   leaving. Only once the wait has run long does one step inside where
+   they stand.
+
+   Nobody overdraws now, and nobody is stranded either: if there is no
+   stranger to compress, the ceiling is held entirely by named people,
+   and those rotate on clocks of their own. Room always comes. */
+function makeRoomFor(k, now, urgent){
+  if (roomOnScreen(k)) return true;
+  const out = students.filter(o => !o.data && !o.static && !o.orbit &&
+                                   !o.inside && o.g?.visible !== false);
+  if (!out.length) return false;              /* only named faces out there */
+  for (const o of out){
+    if (o.door || o.mode === "todoor") continue;
+    o.outSpan = o.outSpan ?? 1;
+    o.outAt = now - o.outSpan - 1;            /* overdue: take the next door */
+  }
+  if (!urgent) return false;
+  const o = out[0];
+  let best = null, bd = Infinity;
+  for (const d of DOORS){
+    const dist = Math.hypot(d.x - o.pos[0], d.y - o.pos[1]);
+    if (dist < bd){ bd = dist; best = d; }
+  }
+  if (!best) return false;
+  o.door = best; o.mode = "inside"; o.inside = true;
+  if (o.g) o.g.visible = false;
+  o.until = now + INSIDE_MS[0] + Math.random() * (INSIDE_MS[1] - INSIDE_MS[0]);
+  return roomOnScreen(k);
 }
 function mayLeaveQuad(s){
-  return !s.data || namedOnQuad() >= 3;      /* the anonymous crowd is free */
+  if (!s.data) return true;                  /* the anonymous crowd is free */
+  /* Counted BY ROLE, because a flat "three named faces must be out" is
+     a floor set exactly at the ceiling — and a floor at the ceiling is
+     a lock. Three bodies fit on screen (48MB at 16MB each), so three
+     named out means every slot is named: let one anonymous extra take
+     a slot, as one always does, and the count can never reach three
+     again and the whole cast freezes where it stands. CI photographed
+     precisely that: "12 bodies were loaded and 1 trip(s) indoors
+     happened", two people met in four minutes.
+
+     What the floor was always trying to say is that the visitor can
+     always tap somebody worth talking to, and that splits cleanly in
+     two. The faculty stagger already keeps one of the Dean and the
+     professor outside at every moment, so the anchor is free — it
+     costs the students nothing. On top of it, one named STUDENT stays
+     out. Two named faces out at all times, same promise as before, but
+     stated so that a stranger holding the third slot no longer stops
+     the rotation the brief asks for. */
+  if ((s.data.tier ?? 2) <= 1) return namedOnQuad() >= 2;
+  return outHere().filter(o => (o.data.tier ?? 2) > 1).length >= 2;
 }
 function nearestDoor(s, force){
   /* `force` is the rotation talking: a student whose outside life has
@@ -9556,7 +9628,21 @@ function stepStudents(dt, now){
         if (gap < 10){
           s.mode = "inside";
           s.inside = true;
-          topUpCrowd();          /* their room on the screen is free now */
+          /* Not topUpCrowd() HERE. Calling it on this line handed the
+             slot to a stranger the instant a named student vanished —
+             before anybody queueing indoors could be asked for it, the
+             exact steal the reservation flag was written to stop and
+             the ordering rewrite was supposed to have made impossible.
+             It survived the rewrite by being upstream of it.
+
+             But leaving the slot to the next second's heartbeat is the
+             opposite mistake: a quad drawing two bodies where three fit
+             is a quad with a hole in it, which the suite reads as
+             sharply as it reads an overdraw. So the heartbeat is armed
+             to fire at the END of this same pass, once everybody has
+             moved and the queue has had its turn. Priority and no hole,
+             in one frame. */
+          TOPUP_AT = 0;
           s.until = now + INSIDE_MS[0] + Math.random() * (INSIDE_MS[1] - INSIDE_MS[0]);
           s.g.visible = false;
           continue;
@@ -9579,8 +9665,15 @@ function stepStudents(dt, now){
          is stamped once, when their time is served, and the longest
          wait goes first. */
       if (s.readyAt === undefined) s.readyAt = now;
+      /* Seniority within your own half of the campus. A stranger sent
+         indoors to free a slot joins this queue too, and without the
+         rank test they would hold their place ahead of the very person
+         the slot was freed for — the compression undone by the queue
+         that was supposed to distribute it. Named faces wait only
+         behind other named faces; strangers wait behind everyone. */
+      const rank = (o) => (o.data ? 1 : 0);
       if (students.some(o => o !== s && o.inside && o.readyAt !== undefined &&
-                             o.readyAt < s.readyAt)) continue;
+                             rank(o) >= rank(s) && o.readyAt < s.readyAt)) continue;
       /* The ceiling decides when they come out, not only the clock.
          While they were in there somebody else may have taken the room
          their body needs, so they wait for it — which is the rotation
@@ -9588,15 +9681,18 @@ function stepStudents(dt, now){
          asked for. Checked BEFORE the upgrade, because upgradeBody may
          put them in a different body and this is about the one they
          are wearing now. */
-      /* The rotation waits for room — but only so long. A student who
-         cannot get their body back sits invisible forever while fresh
-         extras hold the screen, which is how a campus quietly loses
-         the people it introduced. After half a minute of waiting they
-         come out regardless: one body over a soft budget for a moment
-         costs a frame, a missing person costs the visit. */
+      /* The rotation waits for room — and MAKES room rather than
+         overdrawing for it. A student who cannot get their body back
+         sits invisible while fresh extras hold the screen, which is how
+         a campus quietly loses the people it introduced; the old answer
+         was to come out over budget after half a minute, and the budget
+         is not the kind of rule that bends. makeRoomFor asks a stranger
+         to go in instead — politely for the first quarter of a minute,
+         then not. */
       if (!roomOnScreen(s.g?.userData?.figure)){
         s.waitedOut = (s.waitedOut || 0) + 1;
-        if (s.waitedOut < 8){ s.until = now + 4000; continue; }
+        makeRoomFor(s.g?.userData?.figure, now, s.waitedOut >= 4);
+        if (!roomOnScreen(s.g?.userData?.figure)){ s.until = now + 4000; continue; }
       }
       s.waitedOut = 0;
       s.mode = "walk";
@@ -9985,14 +10081,26 @@ function stepFacultyStroll(s, now, dt){
      students obey. */
   if (s.facInside){
     if (now < s.until) return;
-    /* No ceiling check on the way OUT. A hidden figure still holds its
-       textures — nothing was freed by making them invisible — so the
-       on-screen budget has no claim on a body that is already built,
-       and the two people the whole journey points at must never be
-       stuck behind a crowd of strangers. Measured before this line
-       existed: the Dean went in once and stayed in for the rest of the
+    /* The two people the whole journey points at must never be stuck
+       behind a crowd of strangers. Measured before anything guarded
+       this: the Dean went in once and stayed in for the rest of the
        session, which then deferred the professor forever through the
-       stagger rule below. */
+       stagger rule below.
+
+       The first fix was to ignore the ceiling entirely on the way out,
+       reasoning that a hidden figure still holds its textures so the
+       on-screen budget has no claim on a body already built. True about
+       memory, and beside the point: the budget is a rule about what is
+       DRAWN, and CI photographed the result as four bodies where three
+       fit. So the stranger gives up the slot instead — urgently, since
+       a returning Dean has already served his time inside and the whole
+       stagger waits on him. If there is no stranger to compress, the
+       ceiling is held by named faces who are themselves on rotation
+       clocks, and he takes the next opening rather than a frame. */
+    if (!makeRoomFor(s.g?.userData?.figure, now, true)){
+      s.until = now + 3000;
+      return;
+    }
     s.facInside = false; s.inside = false;
     s.g.visible = true;
     s.pos[0] = s.facDoor.x; s.pos[1] = s.facDoor.y;
