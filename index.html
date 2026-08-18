@@ -5773,8 +5773,14 @@ const P_DOOR = 0.35;
    to "at most one student anywhere in the cycle", and a phone session
    never caught anybody entering a building at all. A quarter of the
    roamers, cycling briskly, keeps the quad populated AND the door
-   hint playing. */
-const INSIDE_SHARE = 1 / 4;
+   hint playing.
+
+   Retired. Every value this constant ever took was an attempt to say
+   one thing — leave somebody out here to meet — through a proportion
+   that could not say it: three bodies fit on screen at once, so a
+   cast that takes turns must hold most of itself indoors, and a share
+   forbidding that forbade the turns. indoorsNow states the floor
+   directly now, and mayLeaveQuad states it for the named. */
 const SEATS = [];
 const SIT_RANGE = 420;            /* how far someone will go for a seat */
 /* Two figures, because a sit is only as good as what plays during it.
@@ -9368,7 +9374,15 @@ function indoorsNow(){
        measured five indoors against a cap of four. */
     if (o.inside || o.mode === "todoor" || o.route) n++;
   }
-  return { n, cap: Math.max(1, Math.floor(roamers * INSIDE_SHARE)) };
+  /* The cap used to be a SHARE — at most a quarter of the cast away —
+     and that quarter fought the thing it was meant to serve. Only
+     three bodies fit on screen at once (48MB against 16MB each), so a
+     campus that rotates its cast has to hold MOST of it indoors: the
+     share said "no more than one away" exactly when the brief asked
+     for everybody to take a turn. Expressed as a floor instead, which
+     is what it always meant: everyone may be away except the two we
+     keep out here for the visitor to meet. */
+  return { n, cap: Math.max(1, roamers - 2) };
 }
 /* The halls the visitor's own timetable points at: the sectors of every
    course they have registered in, plus the chapel — always in season.
@@ -9521,7 +9535,7 @@ function stepStudents(dt, now){
       continue;
     }
     /* the outside clock starts the first time the world steps them */
-    if (s.outAt === undefined){ s.outAt = now; s.outSpan = 20000 + Math.random() * 15000; }
+    if (s.outAt === undefined){ s.outAt = now; s.outSpan = 10000 + Math.random() * 10000; }
     let moving = false;
     /* ── going inside, and coming back out ───────────────────────────
        Walk to a door, vanish through it, and reappear there later.
@@ -9554,6 +9568,16 @@ function stepStudents(dt, now){
     }
     if (s.mode === "inside"){
       if (now < s.until) continue;      /* not drawn, not stepped, not there */
+      /* First in, first out. Who took the next opening used to be
+         decided by position in the students array, so the same faces
+         came back again and again while others waited out the whole
+         visit — the brief asks for two or three DIFFERENT students each
+         cycle, and that only happens if the queue is honoured. readyAt
+         is stamped once, when their time is served, and the longest
+         wait goes first. */
+      if (s.readyAt === undefined) s.readyAt = now;
+      if (students.some(o => o !== s && o.inside && o.readyAt !== undefined &&
+                             o.readyAt < s.readyAt)) continue;
       /* The ceiling decides when they come out, not only the clock.
          While they were in there somebody else may have taken the room
          their body needs, so they wait for it — which is the rotation
@@ -9574,13 +9598,14 @@ function stepStudents(dt, now){
       s.waitedOut = 0;
       s.mode = "walk";
       s.inside = false;
+      s.readyAt = undefined;            /* out of the queue, back on the quad */
       /* the invisible moment: whoever went in may come out wearing the
          authored body a tap is worth answering from */
       upgradeBody(s);
       s.g.visible = true;
       s.doorAt = now;
       /* a fresh spell outside: the rotation clock rewinds */
-      s.outAt = now; s.outSpan = 20000 + Math.random() * 15000;
+      s.outAt = now; s.outSpan = 10000 + Math.random() * 10000;
       /* out of the same doorway, facing the campus rather than the wall */
       s.pos[0] = s.door.x; s.pos[1] = s.door.y;
       s.g.rotation.y = Math.atan2(500 - s.pos[0], 500 - s.pos[1]);
@@ -10007,7 +10032,7 @@ function stepFacultyStroll(s, now, dt){
       /* a short class, not a sabbatical: the faculty are the two
          people the journey points at, so their door only swallows
          them briefly — outside roughly as much as in */
-      s.until = now + 12000 + Math.random() * 8000;
+      s.until = now + 20000 + Math.random() * 15000;
       topUpCrowd();
       return;
     }
