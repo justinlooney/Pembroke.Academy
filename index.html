@@ -3314,7 +3314,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v125";
+const BUILD = "pembroke-v126";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -6092,7 +6092,12 @@ const STUDENT_ROSTER = [
      part in the student lifecycle. Always on campus (attendance is
      forced below), stationed by his own hall, advisor-class AI. */
   { name:"Dean Aldergate", ai:{ cls:"advisor", year:"dean of students", traits:["courtly","attentive","quietly funny","remembers everyone"], style:"warm and unhurried, an old-fashioned advisor's cadence; asks one good question at a time" },
-    looks:"m", c:0xa78bfa, at:"adm", major:"Dean of Students · Academic Advising", tier:0,
+    /* looks follows the body. It is read only to pick a stand-in if the
+       pinned one has not arrived, so a stale "m" here would put a man on
+       the Administration apron in the seconds before char17 lands — the
+       swapping-faculty fault this campus has already been reported for
+       once, arriving through the back door. */
+    looks:"f", c:0xa78bfa, at:"adm", major:"Dean of Students · Academic Advising", tier:0,
     says:["My door is always open — and so, apparently, is the quad.","Advising hours are whenever a student finds me.","Every degree here started as a conversation."],
     ask:[["What does an advisor actually do?",
           "I listen until your interests stop sounding like a list and start sounding like a direction. Then I show you the majors that point that way, and the registrar does the paperwork — I never touch the pen."],
@@ -6240,6 +6245,7 @@ const CAST_FILES = {
   char14:  "assets/stu_char14.glb",     /* 200k tris, the fourth man     */
   char15:  "assets/stu_char15.glb",     /* 200k tris, 0.59 verts a tri   */
   char16:  "assets/stu_char16.glb",     /* 200k tris, the fifth man      */
+  char17:  "assets/stu_char17.glb",     /* 200k tris, the Dean himself   */
 };
 /* ── who has to be here before the doors open ─────────────────────────
    Twelve rigged files is 31MB, all of it decoded on the main thread
@@ -6347,7 +6353,8 @@ const CAST_MB = {
                      measured from the files rather than remembered. */
                   char2: 2.77, char4: 2.67, char5: 2.81, char6: 2.55,
                   char7: 2.62, char8: 2.73, char9: 2.58, char10: 2.77,
-                  char11: 3.51, char14: 2.88, char15: 3.13, char16: 2.67 };
+                  char11: 3.51, char14: 2.88, char15: 3.13, char16: 2.67,
+                  char17: 3.28 };
 /* Measured, not guessed: these are the six bodies with a shirt mesh the
    wardrobe can find. See the note above about the ten that have none. */
 /* Nobody. The last dressable body was walker and he is retired, so the
@@ -6367,7 +6374,7 @@ const CAST_DRESSABLE = [];
  * on the quad — reported from a phone as "none of the female characters
  * are present", which is very nearly what the numbers say. */
 const CAST_FEM = new Set(["char2", "char4", "char8", "char9",
-                          "char10", "char11", "char15"]);
+                          "char10", "char11", "char15", "char17"]);
 /* ── what a visitor holds in people at any moment ─────────────────────
    A HARD CEILING on the TEXTURE MEMORY of the bodies being drawn.
 
@@ -6427,7 +6434,14 @@ const BODY_VRAM_MB = 16.0;
    before the campus drew anything. Two different questions: how much
    comes down the wire before a visitor sees the place, and how much the
    GPU holds while they are looking at it. */
-const FIRST_WAVE_MB = 8.0;
+/* 8.0 until the Dean was given a body of his own. The two faculty board
+   first, and at char9 + char17 they spend 5.86MB of it — which left
+   2.14 for the third, and the cheapest body on the campus is 2.55. The
+   opening wave would have come out at two figures on a quad whose
+   ceiling draws three, so the first thing a visitor sees would be a
+   campus with a hole in it until the late wave landed. Raised by the
+   half megabyte that keeps three: 2.58 + 3.28 + 2.55 = 8.41. */
+const FIRST_WAVE_MB = 8.5;
 /* Which bodies are being drawn RIGHT NOW, and what they weigh together.
    Distinct bodies, not figures: a body is downloaded and decoded once
    and every figure wearing it shares that, so two students in the same
@@ -6533,18 +6547,27 @@ const CAST_HEIGHT = {
                       char2: 41, char4: 41, char5: 43,
                       char6: 42, char7: 43, char8: 40, char9: 41,
                       char10: 41, char11: 41, char14: 43, char15: 40,
-                      char16: 42 };
+                      char16: 42, char17: 42 };
 /* Which bodies can be given a waypoint and told to walk it, and which
    are only good for standing about. Ten that walk against a crowd
    that caps at ten: the round robin runs out of new people only on the
    eleventh, and by then they are scattered over sixty-eight
    waypoints. */
 const ROAMING = ["char2", "char4", "char5", "char6", "char7", "char8",
-                 "char9", "char10", "char11", "char14", "char15", "char16"];
+                 "char9", "char10", "char11", "char14", "char15", "char16",
+                 "char17"];
 /* The two bodies the faculty wear, every visit: Merion in char9, the
-   Dean in char6 — the lightest of each pool, 5.13MB together, so
-   identity can ride the first wave without sinking it. */
-const FACULTY_BODIES = ["char9", "char6"];
+   Dean in char17 — a body authored for him and worn by nobody else.
+ *
+ * The Dean was char6, which is the lightest body on the campus and was
+ * chosen for exactly that: identity had to ride the first wave without
+ * sinking it. char17 costs 3.28MB against char6's 2.55, and the trade
+ * is the point — the Dean now looks like the Dean rather than like the
+ * cheapest man available, and char6 goes back to the student pool it
+ * was drawn from, where it is still the lightest body the crowd can
+ * deal. FIRST_WAVE_MB is raised by the difference so the opening quad
+ * still holds three; see the note there. */
+const FACULTY_BODIES = ["char9", "char17"];
 /* Drawn here rather than beside drawFirstWave, because it reads ROAMING
    and a const cannot be read before it is declared — putting the call
    next to the function threw on load, which is a blank campus. */
@@ -6625,8 +6648,14 @@ const CAST_PLAN = [
      the journey asks the visitor to do. */
   { k: "char9", at: [248, 356], face: 0.7, live: true, pose: 0 }, /* Prof. Merion —
      on the Library's door apron, chalk-distance from her own lectures. */
-  { k: "char6", at: [702, 848], face: -0.5, live: true, pose: 0 }, /* Dean Aldergate —
-     on the Administration apron, where "meet with your advisor" points. */
+  { k: "char17", at: [702, 848], face: -0.5, live: true, pose: 0 }, /* Dean Aldergate —
+     on the Administration apron, where "meet with your advisor" points.
+     char17 is his and nobody else's: it is absent from AUTHORED_M, so no
+     student can ever upgrade into the Dean's face, and wornFigures keeps
+     the crowd from being dealt it while he is wearing it — indoors as
+     well as out, because that map counts every student and not only the
+     drawn ones. He wore char6 until this build, which is back in the
+     student pool now. */
 ];
 const castLib = {};
 const castMixers = [];
@@ -15511,7 +15540,7 @@ function renderJourney(){
     submitted ? stamp(st.admissions.applicationSubmittedAt) : (st.admissions.draft ? "draft saved" : "after your visit")]);
   stages.push(["Accepted", st.admissions.acceptedAt ? "done" : "locked", stamp(st.admissions.acceptedAt) || "—"]);
   stages.push(["Meet With Advisor", st.advising.completedAt ? "done" : (st.admissions.acceptedAt ? "now" : "locked"),
-    st.advising.completedAt ? stamp(st.advising.completedAt) : "Dean Aldergate — here, or find him by Administration Hall"]);
+    st.advising.completedAt ? stamp(st.advising.completedAt) : "Dean Aldergate — here, or find them by Administration Hall"]);
   stages.push(["Declare Major", st.academics.declaredMajorId ? "done" : (st.advising.completedAt ? "now" : "locked"),
     st.academics.declaredMajorId ? MAJORS.find(m => m.id === st.academics.declaredMajorId).title : "—"]);
   stages.push(["Register For Classes", st.registration.completedAt ? "done" : (st.academics.declaredMajorId ? "now" : "locked"),
