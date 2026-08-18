@@ -9097,7 +9097,15 @@ function holdStance(g){
   if (R.talk && a.actions[R.talk]){
     setClipOn(g, R.talk);
     const talk = a.actions[R.talk];
-    talk.setEffectiveTimeScale(0.85 + Math.random() * 0.25);
+    /* WAITING pace, not conversation pace. At 0.85-1.1x this loop is a
+       person mid-anecdote, and a parked figure playing it at nobody
+       was reported from a phone as "stuck in idle talking mode" — the
+       gestures read as speech the moment they run at speech speed.
+       Slowed to a third they read as a person shifting their weight
+       and looking about: alive, present, saying nothing. Conversation
+       speed comes back the moment a real conversation starts — the
+       convo scene resets this action's own timescale both ways. */
+    talk.setEffectiveTimeScale(0.30 + Math.random() * 0.12);
     talk.time = Math.random() * talk.getClip().duration;
     return "live";
   }
@@ -12816,6 +12824,12 @@ function convoOpen(s){
        this trap for a while ("setClip alone will not unpause it"); the
        conversation did not. */
     release(s);
+    /* Back UP to conversation speed: the parked cast idles this same
+       action at a third pace so it reads as waiting rather than
+       speech, and a chat that inherited that crawl would gesture in
+       slow motion at the visitor. convoClose re-parks statics through
+       holdStance, which re-slows it on the way out. */
+    g.userData.anim?.actions[convoClip]?.setEffectiveTimeScale(0.9 + Math.random() * 0.2);
   }
   else holdStill(s);                  /* nobody ships an idle of their own */
   /* Now settle the pose the clip actually asks for, then turn him to
