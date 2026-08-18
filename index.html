@@ -10010,21 +10010,19 @@ function stepFacultyStroll(s, now, dt){
        teaching so at least one anchor always holds a post. */
     const otherIn = students.some(o => o !== s && (o.data?.tier ?? 2) <= 1 &&
                                        (o.facInside || o.facGoing));
-    /* …but courtesy has a limit. If the other anchor is wedged — as
-       the Dean once was, indoors for an entire session — deferring
-       forever means this one never teaches at all, which is exactly
-       what a phone reported. Yield twice, then go. */
-    /* the same floor the students obey: a member of staff walking out
-       of a quad that is down to its last two named faces is the exact
-       failure CI photographed, and their duty bell does not outrank
-       having somebody to meet. This one has no yield limit — an empty
-       quad is never the lesser evil. */
-    if (!mayLeaveQuad(s)){
+    /* Both gates are absolute, and neither has an escape any more.
+       There WAS one — yield twice, then teach regardless — written
+       when the other anchor could wedge indoors for a whole session
+       and deferring forever meant never teaching at all. That wedge is
+       fixed at its root: the faculty come back out unconditionally, so
+       a yield always ends on its own. The escape survived only to let
+       both of them be indoors at once, which CI duly photographed —
+       "Dean Aldergate — indoors; Prof. Merion — indoors", nobody left
+       to tap. A bell that rings on an empty quad is never the lesser
+       evil; it waits and rings again. */
+    if (!mayLeaveQuad(s) || otherIn){
       s.facDutyAt = now + 5000 + Math.random() * 5000;
-    } else if (otherIn && (s.facYields = (s.facYields || 0) + 1) <= 2){
-      s.facDutyAt = now + 6000 + Math.random() * 6000;
     } else {
-      s.facYields = 0;
       /* time to teach: their OWN hall's door, never anyone else's */
       const door = DOORS.find(d2 => d2.sector === s.data?.at);
       if (door){ s.facDoor = door; s.facGoing = true; s.strollTo = [door.x, door.y]; }
