@@ -9754,6 +9754,24 @@ function stepStudents(dt, now){
     else {
       if (s.mode === "linger") s.mode = "walk";
       if (s.seat && s.mode === "walk") leaveSeat(s);
+      /* Overdue and still mid-leg: take the door NOW rather than at the
+         next waypoint. The decision lived only in the arrival block
+         below, so a student whose leg is long — or whose device is
+         drawing slowly enough that one leg takes an age — could be far
+         past their turn before anything thought to ask them. Measured
+         in the test environment at an eighth of a frame per second:
+         not one student reached a waypoint in three and a half minutes,
+         so not one ever took a door. A slow phone is the same shape of
+         problem, just less extreme. */
+      if (s.mode === "walk" && !s.door && !s.route && s.data &&
+          now - (s.outAt ?? now) > (s.outSpan ?? Infinity) && mayLeaveQuad(s)){
+        const late = nearestDoor(s, true);
+        if (late){
+          s.door = late; s.target = null;
+          s.route = routeTo(s.node, doorNode(late.sector));
+          if (!(s.route && s.route.length)){ s.route = null; s.mode = "todoor"; }
+        }
+      }
       if (!s.target){
         /* a routed student resumes their trip; anyone else drifts */
         if (s.route && s.route.length) s.target = s.route.shift();
