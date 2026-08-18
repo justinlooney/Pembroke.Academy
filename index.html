@@ -3314,7 +3314,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v124";
+const BUILD = "pembroke-v125";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -8940,6 +8940,12 @@ window.__crowdFill = () => {
    the campus being whoever won the first draw. */
 function topUpCrowd(){
   if (!crowdReady || crowdN >= CROWD_TARGET) return;
+  /* The next opening belongs to whoever is already waiting for it.
+     Somebody indoors whose time is up is queueing for a body slot, and
+     a fresh stranger taking it first is how a person the visitor had
+     already met never came back. Strangers fill what is left over. */
+  const t = performance.now();
+  if (students.some(s => s.inside && t >= (s.until || 0))) return;
   if (addExtra(crowdN)) crowdN++;
 }
 /* Crossfade rather than cut. A student who reaches a door and snaps from
@@ -9536,10 +9542,17 @@ function stepStudents(dt, now){
          asked for. Checked BEFORE the upgrade, because upgradeBody may
          put them in a different body and this is about the one they
          are wearing now. */
+      /* The rotation waits for room — but only so long. A student who
+         cannot get their body back sits invisible forever while fresh
+         extras hold the screen, which is how a campus quietly loses
+         the people it introduced. After half a minute of waiting they
+         come out regardless: one body over a soft budget for a moment
+         costs a frame, a missing person costs the visit. */
       if (!roomOnScreen(s.g?.userData?.figure)){
-        s.until = now + 4000;
-        continue;
+        s.waitedOut = (s.waitedOut || 0) + 1;
+        if (s.waitedOut < 8){ s.until = now + 4000; continue; }
       }
+      s.waitedOut = 0;
       s.mode = "walk";
       s.inside = false;
       /* the invisible moment: whoever went in may come out wearing the
@@ -9645,7 +9658,14 @@ function stepStudents(dt, now){
        needs no exception. */
     if (s.mode === "talk"){
       const p = s.partner;
+      /* The watchdog: a conversation runs five to ten seconds, so one
+         still going a minute later is not a conversation, it is a
+         stuck state machine — a partner who stopped being stepped, a
+         clock that never got set. Whatever the cause, it ends here
+         rather than standing on the lawn for the rest of the visit. */
+      if (now - (s.talkAt || (s.talkAt = now)) > 60000) s.until = 0;
       if (!p || p.mode !== "talk" || p.partner !== s || now > s.until){
+        s.talkAt = 0;
         s.mode = "walk"; s.partner = null; s.socialAt = now;
         /* a beat before setting off, so a conversation ends rather than
            cuts */
@@ -9833,8 +9853,27 @@ function stepStudents(dt, now){
            model, reads as the renderer having drawn the same man twice.
            Never step closer to someone you are already too close to;
            hang back a moment instead, the way you would. */
-        if (crowded(s, nx, ny)) s.pauseUntil = now + 300 + Math.random() * 700;
+        if (crowded(s, nx, ny)){
+          s.pauseUntil = now + 300 + Math.random() * 700;
+          /* Politeness can deadlock. Two students who meet head-on
+             inside SPACE each refuse every step that closes the gap,
+             and if their destinations lie past one another they stand
+             there refusing until the tab closes — which reads, from a
+             phone, as two people stuck talking to each other. After a
+             few refusals, go around: sidestep perpendicular and take a
+             different way. */
+          if ((s.blocked = (s.blocked || 0) + 1) > 4){
+            s.blocked = 0;
+            const px = -dy / dist, py = dx / dist;   /* across their path */
+            const side = Math.random() < 0.5 ? 1 : -1;
+            const sx = s.pos[0] + px * side * 14, sy = s.pos[1] + py * side * 14;
+            if (!crowded(s, sx, sy)){ s.pos[0] = sx; s.pos[1] = sy; moving = true; }
+            s.target = null;                         /* and pick a new way */
+            s.pauseUntil = 0;
+          }
+        }
         else {
+          s.blocked = 0;
           moving = true;
           s.pos[0] = nx; s.pos[1] = ny;
           s.g.rotation.y = Math.atan2(dx, dy);
@@ -9877,7 +9916,14 @@ function stepFacultyStroll(s, now, dt){
      students obey. */
   if (s.facInside){
     if (now < s.until) return;
-    if (!roomOnScreen(s.g?.userData?.figure)){ s.until = now + 4000; return; }
+    /* No ceiling check on the way OUT. A hidden figure still holds its
+       textures — nothing was freed by making them invisible — so the
+       on-screen budget has no claim on a body that is already built,
+       and the two people the whole journey points at must never be
+       stuck behind a crowd of strangers. Measured before this line
+       existed: the Dean went in once and stayed in for the rest of the
+       session, which then deferred the professor forever through the
+       stagger rule below. */
     s.facInside = false; s.inside = false;
     s.g.visible = true;
     s.pos[0] = s.facDoor.x; s.pos[1] = s.facDoor.y;
@@ -9901,7 +9947,14 @@ function stepFacultyStroll(s, now, dt){
          teaching so at least one anchor always holds a post. */
       const otherIn = students.some(o => o !== s && (o.data?.tier ?? 2) <= 1 &&
                                          (o.facInside || o.facGoing));
-      if (otherIn){ s.facDutyAt = now + 6000 + Math.random() * 6000; return; }
+      /* …but courtesy has a limit. If the other anchor is wedged — as
+         the Dean once was, indoors for an entire session — deferring
+         forever means this one never teaches at all, which is exactly
+         what a phone reported. Yield twice, then go. */
+      if (otherIn && (s.facYields = (s.facYields || 0) + 1) <= 2){
+        s.facDutyAt = now + 6000 + Math.random() * 6000; return;
+      }
+      s.facYields = 0;
       /* time to teach: their OWN hall's door, never anyone else's */
       const door = DOORS.find(d2 => d2.sector === s.data?.at);
       if (door){ s.facDoor = door; s.facGoing = true; s.strollTo = [door.x, door.y]; }
