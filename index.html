@@ -9761,7 +9761,17 @@ function stepStudents(dt, now){
            they all cycle through." The dice path stays for texture:
            an early trip can still happen on a whim. */
         const overdue = now - (s.outAt ?? now) > (s.outSpan ?? Infinity);
-        const door = overdue ? nearestDoor(s, true)
+        /* the meeting floor: a NAMED student may only leave while at
+           least two named people would remain on the quad. Rotation
+           without this emptied the campus of everyone a visitor could
+           tap — CI's phrasing: "nobody could be tapped at all". The
+           anonymous crowd rotates freely; the people with names are
+           the product. */
+        const namedOut = s.data
+          ? students.filter(o => o.data && !o.inside && o.g?.visible !== false).length
+          : 9;
+        const door = (namedOut <= 2) ? null
+          : overdue ? nearestDoor(s, true)
           : (now - (s.doorAt || -1e9) > DOOR_COOL && Math.random() < P_DOOR)
           ? nearestDoor(s) : null;
         if (door){
@@ -9885,6 +9895,13 @@ function stepFacultyStroll(s, now, dt){
       s.facDutyAt = now + 10000 + Math.random() * 10000;
     }
     if (now >= (s.facDutyAt || Infinity)){
+      /* one member of staff at a time: CI photographed the quad with
+         BOTH faculty indoors and every named student away — a campus
+         with nobody to meet. The Dean and the professor stagger their
+         teaching so at least one anchor always holds a post. */
+      const otherIn = students.some(o => o !== s && (o.data?.tier ?? 2) <= 1 &&
+                                         (o.facInside || o.facGoing));
+      if (otherIn){ s.facDutyAt = now + 6000 + Math.random() * 6000; return; }
       /* time to teach: their OWN hall's door, never anyone else's */
       const door = DOORS.find(d2 => d2.sector === s.data?.at);
       if (door){ s.facDoor = door; s.facGoing = true; s.strollTo = [door.x, door.y]; }
@@ -9903,7 +9920,10 @@ function stepFacultyStroll(s, now, dt){
       s.facGoing = false; s.strollTo = null;
       s.facInside = true; s.inside = true;
       s.g.visible = false;
-      s.until = now + 20000 + Math.random() * 15000;
+      /* a short class, not a sabbatical: the faculty are the two
+         people the journey points at, so their door only swallows
+         them briefly — outside roughly as much as in */
+      s.until = now + 12000 + Math.random() * 8000;
       topUpCrowd();
       return;
     }
