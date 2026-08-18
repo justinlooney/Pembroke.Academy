@@ -6090,7 +6090,7 @@ const STUDENT_ROSTER = [
           "Because 'how fast is this changing right now' turns out to be the question under every other question — prices, populations, positions. Calculus is just that question asked carefully."]] },
   /* The Dean is not a student: she is the first character who takes
      part in the student lifecycle. Always on campus (attendance is
-     forced below), stationed by his own hall, advisor-class AI. */
+     forced below), stationed by her own hall, advisor-class AI. */
   /* `pron` is stated rather than left to the model to infer. Nothing in
      the prompt carried gender before, so a character's pronouns were
      whatever the LLM guessed from a name — and a guess is exactly the
@@ -6656,11 +6656,12 @@ const CAST_PLAN = [
      on the Library's door apron, chalk-distance from her own lectures. */
   { k: "char17", at: [702, 848], face: -0.5, live: true, pose: 0 }, /* Dean Aldergate —
      on the Administration apron, where "meet with your advisor" points.
-     char17 is his and nobody else's: it is absent from AUTHORED_M, so no
-     student can ever upgrade into the Dean's face, and wornFigures keeps
-     the crowd from being dealt it while he is wearing it — indoors as
+     char17 is hers and nobody else's: it is in neither AUTHORED_F nor
+     AUTHORED_M, which are the two pools upgradeBody draws from, so no
+     student can ever upgrade into the Dean's face. wornFigures keeps
+     the crowd from being dealt it while she is wearing it — indoors as
      well as out, because that map counts every student and not only the
-     drawn ones. He wore char6 until this build, which is back in the
+     drawn ones. She wore char6 until this build, and it is back in the
      student pool now. */
 ];
 const castLib = {};
@@ -9510,8 +9511,8 @@ function makeRoomFor(k, now, urgent){
     /* No stranger left to compress — every slot is a named face. The
        first version gave up here and told the caller to wait, which put
        the Dean back in the building she had already served her time in:
-       the facduty probe watched him for seven minutes and he never came
-       out. That is the field report this release exists to fix, arrived
+       the facduty probe watched her for seven minutes and she never
+       came out. That is the field report this release exists to fix, arrived
        at from the other side.
 
        So the last resort is a SWAP rather than a wait. The student who
@@ -10260,9 +10261,9 @@ function stepFacultyStroll(s, now, dt){
        DRAWN, and CI photographed the result as four bodies where three
        fit. So the stranger gives up the slot instead — urgently, since
        a returning Dean has already served her time inside and the whole
-       stagger waits on him. If there is no stranger to compress, the
+       stagger waits on her. If there is no stranger to compress, the
        ceiling is held by named faces who are themselves on rotation
-       clocks, and he takes the next opening rather than a frame. */
+       clocks, and she takes the next opening rather than a frame. */
     if (!makeRoomFor(s.g?.userData?.figure, now, true)){
       s.until = now + 3000;
       return;
