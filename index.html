@@ -9383,6 +9383,19 @@ function hintSectors(){
   }
   return out;
 }
+/* How many people with NAMES are out here to be met — the number the
+   whole campus exists to keep above zero. Counted for students and
+   faculty alike, because the rule below is one rule: CI photographed a
+   quad with the Dean, Elowen and Marcus all indoors and the professor
+   off screen, "nobody could be tapped at all", which happened because
+   the faculty walked out through a door the students were being held
+   back from. Nobody leaves unless two named people would remain. */
+function namedOnQuad(){
+  return students.filter(o => o.data && !o.inside && o.g?.visible !== false).length;
+}
+function mayLeaveQuad(s){
+  return !s.data || namedOnQuad() >= 3;      /* the anonymous crowd is free */
+}
 function nearestDoor(s, force){
   /* `force` is the rotation talking: a student whose outside life has
      run its span is LEAVING to make room. But leaving is only useful
@@ -9793,10 +9806,7 @@ function stepStudents(dt, now){
            tap — CI's phrasing: "nobody could be tapped at all". The
            anonymous crowd rotates freely; the people with names are
            the product. */
-        const namedOut = s.data
-          ? students.filter(o => o.data && !o.inside && o.g?.visible !== false).length
-          : 9;
-        const door = (namedOut <= 2) ? null
+        const door = !mayLeaveQuad(s) ? null
           : overdue ? nearestDoor(s, true)
           : (now - (s.doorAt || -1e9) > DOOR_COOL && Math.random() < P_DOOR)
           ? nearestDoor(s) : null;
@@ -9961,7 +9971,14 @@ function stepFacultyStroll(s, now, dt){
        the Dean once was, indoors for an entire session — deferring
        forever means this one never teaches at all, which is exactly
        what a phone reported. Yield twice, then go. */
-    if (otherIn && (s.facYields = (s.facYields || 0) + 1) <= 2){
+    /* the same floor the students obey: a member of staff walking out
+       of a quad that is down to its last two named faces is the exact
+       failure CI photographed, and their duty bell does not outrank
+       having somebody to meet. This one has no yield limit — an empty
+       quad is never the lesser evil. */
+    if (!mayLeaveQuad(s)){
+      s.facDutyAt = now + 5000 + Math.random() * 5000;
+    } else if (otherIn && (s.facYields = (s.facYields || 0) + 1) <= 2){
       s.facDutyAt = now + 6000 + Math.random() * 6000;
     } else {
       s.facYields = 0;
