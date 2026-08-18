@@ -9406,7 +9406,17 @@ function hintSectors(){
    the faculty walked out through a door the students were being held
    back from. Nobody leaves unless two named people would remain. */
 function namedOnQuad(){
-  return students.filter(o => o.data && !o.inside && o.g?.visible !== false).length;
+  /* ON THE WAY counts as gone — the lesson indoorsNow learned first and
+     this forgot. Counting only those already through the door let two
+     people commit in the same instant: each looked out, saw three
+     faces including the other one already walking to a door, and went.
+     CI photographed the result — "Dean Aldergate — indoors; Prof.
+     Merion — off screen; Elowen — indoors", one face left on a campus
+     that promised two. Anyone routed to a door, walking the last steps
+     to it, or through it is already spent. */
+  return students.filter(o => o.data && !o.inside && o.g?.visible !== false &&
+                              !o.facInside && !o.facGoing &&
+                              o.mode !== "todoor" && !o.door).length;
 }
 function mayLeaveQuad(s){
   return !s.data || namedOnQuad() >= 3;      /* the anonymous crowd is free */
