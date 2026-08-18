@@ -3314,7 +3314,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v121";
+const BUILD = "pembroke-v122";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -6466,7 +6466,11 @@ function drawFirstWave(){
     const j = Math.floor(Math.random() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
-  for (const k of pool) if (fits(k)) take(k);
+  /* the faculty's own bodies board first — the Dean and the professor
+     are pinned to them, and a first wave without them is a campus
+     where the two people the journey points at stand in as strangers */
+  for (const k of FACULTY_BODIES) if (CAST_FILES[k] && fits(k)) take(k);
+  for (const k of pool) if (!picks.includes(k) && fits(k)) take(k);
 
   /* BOTH, if the wave is big enough to hold both. One woman was the
      rule and it was half a rule: it was written when a phone reported
@@ -6485,7 +6489,7 @@ function drawFirstWave(){
     if (picks.length < 2) return;
     const has = picks.some(k => CAST_FEM.has(k) === wantFem);
     if (has) return;
-    const give = picks.filter(k => CAST_FEM.has(k) !== wantFem)
+    const give = picks.filter(k => CAST_FEM.has(k) !== wantFem && !FACULTY_BODIES.includes(k))
                       .sort((a, b) => (CAST_MB[b] || 0) - (CAST_MB[a] || 0))[0];
     const room = spent - (give ? CAST_MB[give] || 0 : 0);
     const want = pool.filter(k => CAST_FEM.has(k) === wantFem && !picks.includes(k))
@@ -6528,6 +6532,10 @@ const CAST_HEIGHT = {
    waypoints. */
 const ROAMING = ["char2", "char4", "char5", "char6", "char7", "char8",
                  "char9", "char10", "char11", "char14", "char15", "char16"];
+/* The two bodies the faculty wear, every visit: Merion in char9, the
+   Dean in char6 — the lightest of each pool, 5.13MB together, so
+   identity can ride the first wave without sinking it. */
+const FACULTY_BODIES = ["char9", "char6"];
 /* Drawn here rather than beside drawFirstWave, because it reads ROAMING
    and a const cannot be read before it is declared — putting the call
    next to the function threw on load, which is a blank campus. */
@@ -6598,9 +6606,17 @@ const CAST_PLAN = [
      the campus now, on the same paths as everyone else, just faster. */
   { k: "any", needs: "gait", jog: true },                   /* Amara  — runs the campus */
   { k: "any" },                                             /* Kenji  — roams        */
-  { k: "loiter", at: [248, 356], face: 0.7, live: true, pose: 0 }, /* Prof. Merion —
+  /* The faculty are PINNED to their bodies. "loiter" dealt them
+     whichever body was free — and on an early wave that fell across
+     gender lines: a phone reported "prof. merion changed into a
+     different character", and tapping the young man she was wearing
+     opened her calculus conversation, which reads as a haunting.
+     A student can be anyone this visit; the Dean and the professor
+     must be the same person every visit, because finding THEM is what
+     the journey asks the visitor to do. */
+  { k: "char9", at: [248, 356], face: 0.7, live: true, pose: 0 }, /* Prof. Merion —
      on the Library's door apron, chalk-distance from her own lectures. */
-  { k: "loiter", at: [702, 848], face: -0.5, live: true, pose: 0 }, /* Dean Aldergate —
+  { k: "char6", at: [702, 848], face: -0.5, live: true, pose: 0 }, /* Dean Aldergate —
      on the Administration apron, where "meet with your advisor" points. */
 ];
 const castLib = {};
@@ -8480,14 +8496,22 @@ function buildCast(){
     if (!present[i]) return;             /* in a lecture */
     if (CAST_USED.has(st.name)) return;  /* already on the campus */
     const plan = CAST_PLAN[i];
+    /* A pinned character waits for their OWN body rather than standing
+       in with a stranger's: bodyFor's fallback is right for legacy
+       names and wrong for identity — a stand-in Dean is the bug this
+       pin exists to end. The second pass builds them when it lands. */
+    if ((st.tier ?? 2) <= 1 && CAST_HEIGHT[plan.k] && !castLib[plan.k]) return;
     const k = bodyFor(plan.k, st.looks, plan.needs);
     if (!k) return;                      /* nothing loaded YET — the
        second pass will build them once the late wave lands, which is
        what lets the first wave be small enough to arrive quickly */
     /* Dressed off this visit's seed, so Elowen is not wearing the same
        shirt she wore last time either. Her name, her lines and where
-       she is going are hers; her clothes are not. */
-    const seed = VISIT + i * 101;
+       she is going are hers; her clothes are not. The FACULTY dress off
+       a fixed seed instead: the same person wears the same clothes,
+       or "changed into a different character" comes back as a report
+       about wardrobe. */
+    const seed = (st.tier ?? 2) <= 1 ? 9000 + i * 7 : VISIT + i * 101;
     const g = prepFigure(k, CAST_HEIGHT[k] * buildOf(seed), plan.live, plan.pose || 0);
     if (!g) return;
     if (ROAMING.includes(k)) dressFigure(g, seed);
@@ -9433,6 +9457,8 @@ function stepStudents(dt, now){
       /* micro-life: talkers shift and turn, the coder rocks gently */
       if (s.kind === "chat") s.g.rotation.y = s.baseYaw + Math.sin(now / 1400 + s.phase0) * 0.14;
       else if (s.kind === "laptop") s.g.rotation.x = Math.sin(now / 1100 + s.phase0) * 0.016;
+      /* the faculty stroll their aprons — see stepFacultyStroll */
+      if ((s.data?.tier ?? 2) <= 1) stepFacultyStroll(s, now, dt);
       continue;
     }
     if (s.orbit){
@@ -9775,6 +9801,49 @@ function stepStudents(dt, now){
     }
     stepMotion(s, moving, now, dt);
   }
+}
+/* ── the faculty stroll ───────────────────────────────────────────────
+   The Dean and the professor are statics: always findable at their
+   posts, never routed anywhere. But a figure that NEVER moves is the
+   statue problem wearing a suit — a phone watching two pinned staff
+   reported "they are not walking". So between waits they take a small
+   turn about their apron: a few steps out, a few back, never more
+   than a stone's throw from the post the journey points at. Their
+   pinned bodies are roamers, so the gait is already in the rig. */
+function stepFacultyStroll(s, now, dt){
+  const a = s.g.userData?.anim;
+  const gaits = a?.roles?.gaits || [];
+  if (!gaits.length) return;             /* a body that cannot walk holds its post */
+  if (!s.home) s.home = [...s.pos];
+  if (!s.gait2){                          /* first stroll: kit the walker out */
+    s.gait2 = gaits.filter(n2 => n2 !== "Jogging")[0] || gaits[0];
+    const nom = a.nominal?.[s.gait2];
+    s.speed = nom > 4 ? nom * 0.9 : 18;   /* an unhurried, faculty pace */
+    s.walkT = 0; s.idleRate = s.idleRate || 0.95;
+  }
+  if (!s.strollTo){
+    if (!s.strollAt) s.strollAt = now + 9000 + Math.random() * 16000;
+    if (now < s.strollAt) return;
+    const away = Math.hypot(s.pos[0] - s.home[0], s.pos[1] - s.home[1]);
+    s.strollTo = away > 4 ? [...s.home]   /* out, then always back */
+      : [s.home[0] + (Math.random() - 0.5) * 80,
+         s.home[1] + (Math.random() - 0.5) * 80];
+  }
+  const dx = s.strollTo[0] - s.pos[0], dy = s.strollTo[1] - s.pos[1];
+  const d = Math.hypot(dx, dy);
+  if (d < 2){                             /* arrived: settle back into the wait */
+    s.strollTo = null;
+    s.strollAt = now + 9000 + Math.random() * 16000;
+    if (Math.hypot(s.pos[0] - s.home[0], s.pos[1] - s.home[1]) < 4)
+      s.g.rotation.y = s.baseYaw ?? s.g.rotation.y;
+    s.held = holdStance(s.g);
+    return;
+  }
+  s.pos[0] += dx / d * s.speed * dt;
+  s.pos[1] += dy / d * s.speed * dt;
+  s.g.rotation.y = Math.atan2(dx, dy);
+  s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+  stepMotion(s, true, now, dt);
 }
 /* Which clip, at what pace — the same answer whether the student is
    walking a path, closing on somebody to talk to, or standing still
