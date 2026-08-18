@@ -6088,10 +6088,16 @@ const STUDENT_ROSTER = [
           "MATH 201 — applied calculus, twenty-eight lectures, functions to the Fundamental Theorem. The course lives in the Great Library's course of study; my job is the part a page can't do: noticing where YOU are stuck."],
          ["Why calculus at all?",
           "Because 'how fast is this changing right now' turns out to be the question under every other question — prices, populations, positions. Calculus is just that question asked carefully."]] },
-  /* The Dean is not a student: he is the first character who takes
+  /* The Dean is not a student: she is the first character who takes
      part in the student lifecycle. Always on campus (attendance is
      forced below), stationed by his own hall, advisor-class AI. */
-  { name:"Dean Aldergate", ai:{ cls:"advisor", year:"dean of students", traits:["courtly","attentive","quietly funny","remembers everyone"], style:"warm and unhurried, an old-fashioned advisor's cadence; asks one good question at a time" },
+  /* `pron` is stated rather than left to the model to infer. Nothing in
+     the prompt carried gender before, so a character's pronouns were
+     whatever the LLM guessed from a name — and a guess is exactly the
+     wrong basis, on a campus where a visitor may be told about the Dean
+     by somebody else. Optional: a character without it simply has
+     nothing said about theirs. */
+  { name:"Dean Aldergate", ai:{ cls:"advisor", year:"dean of students", pron:"she/her", traits:["courtly","attentive","quietly funny","remembers everyone"], style:"warm and unhurried, an old-fashioned advisor's cadence; asks one good question at a time" },
     /* looks follows the body. It is read only to pick a stand-in if the
        pinned one has not arrived, so a stale "m" here would put a man on
        the Administration apron in the seconds before char17 lands — the
@@ -6245,7 +6251,7 @@ const CAST_FILES = {
   char14:  "assets/stu_char14.glb",     /* 200k tris, the fourth man     */
   char15:  "assets/stu_char15.glb",     /* 200k tris, 0.59 verts a tri   */
   char16:  "assets/stu_char16.glb",     /* 200k tris, the fifth man      */
-  char17:  "assets/stu_char17.glb",     /* 200k tris, the Dean himself   */
+  char17:  "assets/stu_char17.glb",     /* 200k tris, the Dean herself   */
 };
 /* ── who has to be here before the doors open ─────────────────────────
    Twelve rigged files is 31MB, all of it decoded on the main thread
@@ -6434,7 +6440,7 @@ const BODY_VRAM_MB = 16.0;
    before the campus drew anything. Two different questions: how much
    comes down the wire before a visitor sees the place, and how much the
    GPU holds while they are looking at it. */
-/* 8.0 until the Dean was given a body of his own. The two faculty board
+/* 8.0 until the Dean was given a body of her own. The two faculty board
    first, and at char9 + char17 they spend 5.86MB of it — which left
    2.14 for the third, and the cheapest body on the campus is 2.55. The
    opening wave would have come out at two figures on a quad whose
@@ -6557,7 +6563,7 @@ const ROAMING = ["char2", "char4", "char5", "char6", "char7", "char8",
                  "char9", "char10", "char11", "char14", "char15", "char16",
                  "char17"];
 /* The two bodies the faculty wear, every visit: Merion in char9, the
-   Dean in char17 — a body authored for him and worn by nobody else.
+   Dean in char17 — a body authored for her and worn by nobody else.
  *
  * The Dean was char6, which is the lightest body on the campus and was
  * chosen for exactly that: identity had to ride the first wave without
@@ -9503,7 +9509,7 @@ function makeRoomFor(k, now, urgent){
   if (!out.length){
     /* No stranger left to compress — every slot is a named face. The
        first version gave up here and told the caller to wait, which put
-       the Dean back in the building he had already served his time in:
+       the Dean back in the building she had already served her time in:
        the facduty probe watched him for seven minutes and he never came
        out. That is the field report this release exists to fix, arrived
        at from the other side.
@@ -10253,7 +10259,7 @@ function stepFacultyStroll(s, now, dt){
        memory, and beside the point: the budget is a rule about what is
        DRAWN, and CI photographed the result as four bodies where three
        fit. So the stranger gives up the slot instead — urgently, since
-       a returning Dean has already served his time inside and the whole
+       a returning Dean has already served her time inside and the whole
        stagger waits on him. If there is no stranger to compress, the
        ceiling is held by named faces who are themselves on rotation
        clocks, and he takes the next opening rather than a frame. */
@@ -14474,7 +14480,7 @@ function aiSystemPrompt(s, userText){
   })() : "";
   return [
     `You are ${d.name}, a ${ai.year || "student"} at Pembroke Academy studying ${d.major}. You are a person in this world, never an assistant: no "how can I help you today", no mention of being an AI, no offers of general assistance. You are mid-walk on campus having a chat.`,
-    `Personality: ${(ai.traits || []).join(", ")}. Voice: ${ai.style}. Keep replies to 1-3 short sentences${ai.cls === "academic" ? ", except when actually teaching a concept — then up to 6, always concrete, image-first" : ""}. Contractions, hesitations, opinions welcome.`,
+    `Personality: ${(ai.traits || []).join(", ")}.${ai.pron ? ` Your pronouns are ${ai.pron}.` : ""} Voice: ${ai.style}. Keep replies to 1-3 short sentences${ai.cls === "academic" ? ", except when actually teaching a concept — then up to 6, always concrete, image-first" : ""}. Contractions, hesitations, opinions welcome.`,
     `Knowledge boundaries: ${knowledge}`,
     `Where you are: ${aiPlaceOf(s.pos)}, ${aiClock()}. Your home hall is ${hall ? hall.hall : "the quad"}. You are currently ${s.inside ? "just out of a lecture" : s.mode === "todoor" || s.route ? "walking to a class" : "out on the paths"}.`,
     `The visitor: ${player.name ? "named " + player.name + ", " : ""}${player.status === "enrolled" ? `an enrolled student${player.major ? " in " + player.major : ""}${player.courses.length ? ", taking " + player.courses.join(" and ") : ""}` : player.status === "visitor" ? "someone new to campus, possibly a prospective student" : "an applicant working through admissions"}.`,
@@ -15540,7 +15546,7 @@ function renderJourney(){
     submitted ? stamp(st.admissions.applicationSubmittedAt) : (st.admissions.draft ? "draft saved" : "after your visit")]);
   stages.push(["Accepted", st.admissions.acceptedAt ? "done" : "locked", stamp(st.admissions.acceptedAt) || "—"]);
   stages.push(["Meet With Advisor", st.advising.completedAt ? "done" : (st.admissions.acceptedAt ? "now" : "locked"),
-    st.advising.completedAt ? stamp(st.advising.completedAt) : "Dean Aldergate — here, or find them by Administration Hall"]);
+    st.advising.completedAt ? stamp(st.advising.completedAt) : "Dean Aldergate — here, or find her by Administration Hall"]);
   stages.push(["Declare Major", st.academics.declaredMajorId ? "done" : (st.advising.completedAt ? "now" : "locked"),
     st.academics.declaredMajorId ? MAJORS.find(m => m.id === st.academics.declaredMajorId).title : "—"]);
   stages.push(["Register For Classes", st.registration.completedAt ? "done" : (st.academics.declaredMajorId ? "now" : "locked"),
