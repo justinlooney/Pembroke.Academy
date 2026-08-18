@@ -9373,13 +9373,14 @@ function hintSectors(){
 }
 function nearestDoor(s, force){
   /* `force` is the rotation talking: a student whose outside life has
-     run its span is LEAVING to make room, which is the cap's own goal —
-     holding them out because "enough are away" would jam the turnstile
-     the ceiling depends on */
-  if (!force){
-    const { n, cap } = indoorsNow();
-    if (n >= cap) return null;           /* enough of the campus is away */
-  }
+     run its span is LEAVING to make room. But leaving is only useful
+     BOUNDED — with no cap at all the whole cast walked indoors within
+     a minute of each other and CI photographed the result: "2 bodies
+     drawn, 32MB of 48MB". An overdue student jumps the ordinary queue
+     with a looser cap, never past it. */
+  const { n, cap } = indoorsNow();
+  if (n >= (force ? Math.max(2, Math.ceil(cap * 4 / 3)) : cap))
+    return null;                         /* enough of the campus is away */
   const pref = hintSectors();
   let best = null, bestD = DOOR_RANGE, bestP = null, bestPD = DOOR_RANGE;
   for (const d of DOORS){
@@ -9460,7 +9461,16 @@ function crowded(self, nx, ny){
   }
   return false;
 }
+let TOPUP_AT = 0;
 function stepStudents(dt, now){
+  /* the ceiling is refilled on a heartbeat, not only at door moments:
+     with the campus running on rotation there are instants when an
+     entry and a re-emergence miss each other and the quad sits under
+     its allowance — the smoke test caught one. topUpCrowd is
+     idempotent and cheap; asking every second costs nothing and keeps
+     the quad as full as the ceiling allows, which is the check's own
+     phrasing of the goal. */
+  if (now - TOPUP_AT > 1000){ TOPUP_AT = now; topUpCrowd(); }
   for (const s of students){
     if (s.static){
       /* micro-life: talkers shift and turn, the coder rocks gently */
