@@ -29,12 +29,20 @@
  * redirect cannot legally be returned from a worker, and CDNs redirect.
  * A script that dies that way takes the whole page with it.
  *
- * BUMP VERSION whenever anything under assets/ changes, or returning
- * visitors keep the old models forever.
+ * VERSION tracks the RELEASE and versions only the shell. It used to
+ * prefix the model depot too, which meant every release — however
+ * text-only — flushed ~39MB of cached models and made a returning
+ * phone download the campus again to read a lecture edit. Review
+ * caught it. The depot now carries its own version, ASSETS_V, bumped
+ * ONLY when a file under assets/ changes in place — new files under
+ * new names need no bump, cacheFirst simply fetches them once. The
+ * engine and the stylesheet are re-precached by every install with
+ * cache:"reload", so they track releases despite living in the depot.
  */
-const VERSION = "pembroke-v120";
+const VERSION = "pembroke-v121";
+const ASSETS_V = "pembroke-assets-v1";
 const SHELL = VERSION + "-shell";
-const DEPOT = VERSION + "-assets";
+const DEPOT = ASSETS_V + "-depot";
 
 /* A response that arrived through a redirect is rejected by the browser
    when a worker hands it back. Rebuilding it drops the redirect flag and
@@ -111,10 +119,13 @@ self.addEventListener("install", (e) => {
 });
 
 self.addEventListener("activate", (e) => {
+  /* keep exactly the current shell and the current depot: old
+     per-release shells go, and so do the old per-release depots from
+     the era when VERSION prefixed both — one last flush, never again */
   e.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(
-        keys.filter((k) => !k.startsWith(VERSION)).map((k) => caches.delete(k))))
+        keys.filter((k) => k !== SHELL && k !== DEPOT).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });

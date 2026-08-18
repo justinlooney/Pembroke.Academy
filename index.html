@@ -1852,6 +1852,8 @@ const STUDY = {
           ["Evaluating with letters","With f(x) = 3x² − 2x, feeding in numbers is routine: f(−2) = 12 + 4 = 16. But the rule also eats expressions: f(a) = 3a² − 2a, and f(1 + h) = 3(1 + h)² − 2(1 + h) = 3h² + 4h + 1. That last move — evaluating at 1 + h and simplifying — looks like a party trick today. In three weeks it is the beating heart of the derivative."],
           ["The graph is the rule, drawn","Plot every (input, output) pair and you get the graph. That's why the vertical line test works: a vertical line is a single input, and if it meets the curve twice, that input has two outputs — the machine is broken. A scatter plot with two points stacked vertically fails; a curve with a gap over some x passes — a vertical line missing the graph entirely is allowed."],
           ["Domain: where the rule makes sense","√x refuses negative numbers; 1/x refuses zero. So B(r) = √(r + 3) demands r ≥ −3, and g(x) = x/(x² − x) breaks at x = 0 and x = 1 — everywhere else both rules are happy. The domain is simply the set of inputs the formula tolerates — and on a graph, it's the shadow the curve casts on the x-axis."],
+          ["Writing the answer like a mathematician","Domains get written in interval notation, and graders insist: x ≥ −3 is [−3, ∞), with the square bracket meaning −3 itself belongs; x > 0 is (0, ∞), the round bracket excluding the endpoint; and 'everything except 1' is (−∞, 1) ∪ (1, ∞), two pieces glued with the union symbol. Infinity always gets a round bracket — it is a direction, not a number you can reach. Same facts as the inequalities, in the notation every test expects."],
+          ["Functions in pieces","One function may need two formulas: the café's delivery fee is f(x) = 5 for orders under $20 and f(x) = 0 from $20 up — one rule, two clauses. Written mathematically: f(x) = x + 5 when x < 0, and f(x) = x² when x ≥ 0. To evaluate, let the INPUT choose the branch: f(−2) uses the first clause (−2 < 0), giving 3; f(3) uses the second, giving 9. The absolute value is secretly this: |x| is −x for negatives and x from zero up — the most famous piecewise function in mathematics, and every exam's favourite."],
           ["Mathematical models","A model is a function standing in for a piece of the world — demand for a product, CO₂ in the air, coffee going cold. The cycle is always: formulate a function from data or principle, compute with it, interpret the answer back in the world, then test it against fresh reality — and when reality disagrees, refine the model and go around again. Every remaining week of this course lives somewhere on that loop."] ],
         viz:{ kind:"vline", note:"Drag the vertical line across two curves — a parabola that always passes the test, and a sideways one that fails it where the line meets it twice." },
         worked:{ prompt:"g(x) = √(x − 2). Evaluate g(6), then find the domain.",
@@ -1889,6 +1891,7 @@ const STUDY = {
           ["Arithmetic on whole functions","Functions add, subtract and multiply pointwise: (f + g)(x) is just f(x) + g(x). The only care is the domain: a combination only makes sense where BOTH ingredients do, so the new domain is the overlap of the old two — and for a quotient f/g, strike out every x where g(x) = 0 besides. With f(x) = √x (domain x ≥ 0) and g(x) = x − 5 (domain everywhere), f · g lives on x ≥ 0 but f/g on x ≥ 0 with x = 5 removed."],
           ["Composition: one machine feeds another","f(g(x)) runs the inside machine first and pipes its output into the outside one. Order matters: squaring then adding 3 is not adding 3 then squaring. Half of Chapter 3's chain rule is simply learning to SEE the inside function."],
           ["Example — tracing a composition","Let f(x) = x² and g(x) = x − 3, and set h(x) = f(g(x)), k(x) = g(f(x)). Trace the input 5 through h: the inner machine gives g(5) = 2, and feeding 2 to f gives f(2) = 4 — so h(5) = 4. Now the other order: f(5) = 25, then k(5) = g(25) = 22. Same parts, different plumbing, different answers."],
+          ["The domain rides along","A composition's domain has two gates: x must be legal for the INNER machine, and the inner machine's OUTPUT must be legal for the outer one. For f(g(x)) with f(x) = √x and g(x) = x − 3, the root demands g(x) ≥ 0, so the domain is x ≥ 3 — written [3, ∞) — even though g alone accepts everything. Tests love this question precisely because the constraint hides one machine deep."],
           ["Example — a composition that means something","A campus survey drone climbs to A(t) = −3t² + 7t hundred meters t minutes after launch, and the air temperature at altitude x hundred meters is f(x) = 21 − 0.8x °C. Then h(t) = f(A(t)) reads: minutes in, temperature at the drone out — h(1) = f(4) = 17.8°. Expanding gives the direct formula h(t) = 21 − 0.8(−3t² + 7t) = 2.4t² − 5.6t + 21. And A(f(x))? The algebra computes, but feeding a temperature into a function that expects minutes is nonsense — composition has to respect units, not just parentheses."],
           ["Example — undressing a formula","Given L(t) = (5t + 2)³, find an inner and outer function. Read the recipe aloud: first compute 5t + 2, THEN cube. So g(t) = 5t + 2 inside, f(x) = x³ outside, and L = f(g(t)). Other splits exist — g(t) = 5t with f(x) = (x + 2)³ also works — but the cleanest cut is at the natural seam. This decomposing eye is exactly what the chain rule will demand."],
           ["The four moves","Adding outside slides the graph up. Adding inside slides it left — inside changes are always backwards: if g(x) = f(x + 3), then g(1) = f(4), so the point that lived at 4 now shows up at 1. Multiplying outside stretches vertically; a minus sign outside flips it over the x-axis. Every move leaves the shape recognisable."],
@@ -1934,6 +1937,7 @@ const STUDY = {
           ["Same slope everywhere","Pick any two points of a line and Δy/Δx comes out identical. That is the line's defining privilege, and the failure of that privilege — curves — is what calculus was invented for."],
           ["Building the equation","With slope m through (x₁, y₁): y − y₁ = m(x − x₁) — any point (x, y) is on the line exactly when the slope from (x₁, y₁) to it equals m, which is all this equation says. Multiply out and you land on y = mx + b, where b is simply where the line greets the y-axis."],
           ["Example — a line through two points","Find the line through (−2, 5) and (4, −7). Slope first: m = (−7 − 5)/(4 − (−2)) = −12/6 = −2. Then point-slope with either point: y − 5 = −2(x + 2), which tidies to y = −2x + 1. Check with the point you didn't use: −2(4) + 1 = −7. ✓"],
+          ["Parallel and perpendicular","Parallel lines never meet because they climb at the same rate: SAME slope, different intercepts. Perpendicular lines meet at a right angle, and their slopes multiply to −1 — each is the other's negative reciprocal. So everything parallel to y = 2x + 5 has slope 2, and everything perpendicular to it has slope −1/2. Two facts, asked on every line test ever written, and both are one sentence about slope."],
           ["Example — a model from a point and a rate","The chapel cistern fills at a steady 250 gallons per hour, and two hours after the pump starts it holds 900 gallons. Steady rate means linear: V − 900 = 250(t − 2), so V(t) = 250t + 400. The 400 is what the cistern held before the pump woke up — an intercept you never measured directly, recovered by the algebra."],
           ["Example — a line through data","Pembroke's enrollment since 2010 (call that t = 0) climbs roughly linearly: the scatter of yearly points hugs a line without sitting on one. Choose two well-separated, representative points — say (2, 1310) and (10, 1430): m = 120/8 = 15 students per year, giving E(t) = 15t + 1280. A different pair gives a slightly different line; the model isn't THE truth, it's a serviceable summary of the trend."],
           ["Interpolation and extrapolation","Using E(t) = 15t + 1280 inside the data — E(7) = 1385, an estimate for 2017 — is interpolation, and it's usually trustworthy. Pushing outside — E(20) = 1580 for 2030 — is extrapolation, a bet that the trend holds. And 'when does enrollment pass 1500?' solves to t = 14.67, but only whole years mean anything: E(14) = 1490 falls short and E(15) = 1505 clears it, so the model says 2025. Always hand a model's answer back to the world it came from."],
@@ -3310,7 +3314,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v120";
+const BUILD = "pembroke-v121";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -12182,7 +12186,7 @@ const MATH201_PSET = {
       given:[["Read the rule inside-out.","Add 7, then take the square root — so the root sees x + 7."]],
       q:"The domain starts at x = …", type:"num", ans:-7, tol:0,
       hints:["The root needs what it sees to be ≥ 0.","Solve x + 7 ≥ 0."],
-      sol:"x + 7 ≥ 0 gives x ≥ −7: the domain starts at −7." },
+      sol:"x + 7 ≥ 0 gives x ≥ −7: the domain starts at −7 — written [−7, ∞), square bracket because −7 itself belongs." },
     { c:1, lead:"h(x) = x² − 4x — one value is computed; finish the difference.",
       given:[["h(6) first.","h(6) = 36 − 24 = 12."]],
       q:"h(6) − h(2) = …", type:"num", ans:16, tol:0,
@@ -12203,6 +12207,26 @@ const MATH201_PSET = {
         hints:["16 · 4 first.","64 + 72/2."], sol:"64 + 36 = 100." },
       { q:"Which width is cheaper?", type:"mc", opts:["w = 1","w = 2","they tie"], a:0,
         hints:["You just computed both.","88 against 100."], sol:"w = 1 costs $88 — the 72/w term punishes narrow boxes less than the 16w² term punishes wide ones here." } ] },
+    { tier:"core", q:"f(x) = x + 5 for x < 0, and f(x) = x² for x ≥ 0. Then f(−2) + f(3) = …", type:"num", ans:12, tol:0,
+      hints:["The INPUT chooses the branch — check each input against the condition.","f(−2) uses x + 5 (since −2 < 0); f(3) uses x² (since 3 ≥ 0)."],
+      sol:"f(−2) = 3 from the first clause, f(3) = 9 from the second: 3 + 9 = 12. Using the wrong branch is THE piecewise error — always test the input against the conditions first." },
+    { tier:"stretch", q:"f(x) = x² + 3x. Compute the difference quotient (f(2 + h) − f(2))/h at h = 0.1 (1 decimal)", type:"num", ans:7.1, tol:0.001,
+      hints:["Expand f(2 + h) = (2 + h)² + 3(2 + h) first.","f(2 + h) = h² + 7h + 10 and f(2) = 10 — subtract, then divide by h: the quotient simplifies to 7 + h."],
+      sol:"(h² + 7h)/h = 7 + h, so at h = 0.1 the quotient is 7.1. Watch what happens as h shrinks: 7.01, 7.001… this number is heading somewhere, and Chapter 2 is about exactly where." },
+    { tier:"error analysis", q:"A classmate writes: “√(x − 4) has domain x > 4, because x = 4 would make the root zero.” The flaw is…", type:"mc",
+      opts:["zero under a root is allowed — the domain is x ≥ 4, written [4, ∞)","the inequality should point the other way: x ≤ 4","there is no flaw — the work is correct","roots of negative numbers are fine, so the domain is all reals"], a:0,
+      hints:["Is √0 defined? Compute it.","A root refuses NEGATIVES only — zero is a perfectly good input."],
+      sol:"√0 = 0 is legal; the root only refuses negatives. So x = 4 belongs and the domain is x ≥ 4 — in interval notation [4, ∞), square bracket because 4 is included. Grading your own work for exactly this kind of off-by-one-point error is a test-day superpower." },
+    { q:"The graph shows y = f(x). Read it.", art:"pw1", parts:[
+      { q:"f(1) = …", type:"num", ans:3, tol:0,
+        hints:["Find x = 1 on the horizontal axis, then rise to the curve.","The flat shelf between −1 and 3 sits at one height."],
+        sol:"Above x = 1 the graph runs along the shelf at height 3, so f(1) = 3." },
+      { q:"f(−4) = …", type:"num", ans:-3, tol:0,
+        hints:["The left end of the graph.","Below the axis counts negative."],
+        sol:"The curve starts at the point (−4, −3): f(−4) = −3." },
+      { q:"f(x) = 0 twice; the POSITIVE crossing is at x = … (1 decimal)", type:"num", ans:4.5, tol:0.1,
+        hints:["Where does the falling right-hand piece cut the x-axis?","It drops from (3, 3) to (6, −3) at a steady rate — zero is halfway."],
+        sol:"The right piece falls 6 units over 3, so it crosses zero halfway: x = 4.5. Reading a zero off a graph IS solving f(x) = 0 — the picture is the equation." } ] },
   ],
   "1.2": [
     { w:1, q:"Compose f(x) = x² − 1 and g(x) = 2x + 3, both ways", steps:[
@@ -12238,6 +12262,25 @@ const MATH201_PSET = {
         hints:["The outside constant lifts.","Up 3 from the parent vertex."], sol:"y = 3, so the vertex is (2, 3)." },
       { q:"y at x = 4 is …", type:"num", ans:7, tol:0,
         hints:["Substitute.","(4 − 2)² + 3."], sol:"4 + 3 = 7." } ] },
+    { tier:"core", q:"f(x) = √x and g(x) = x − 3. The domain of f(g(x)) starts at x = …", type:"num", ans:3, tol:0,
+      hints:["The OUTER machine's rule constrains the INNER machine's output.","The root needs g(x) = x − 3 ≥ 0."],
+      sol:"x − 3 ≥ 0 gives x ≥ 3 — written [3, ∞). A composition's domain is where the inner function's output is legal food for the outer one." },
+    { tier:"stretch", q:"f(x) = 2x + 1. Feed the machine its own output: f(f(2)) = …", type:"num", ans:11, tol:0,
+      hints:["Inner pass first.","f(2) = 5 — now run it again."],
+      sol:"f(2) = 5, then f(5) = 11. Composing a function with itself is still just composition — iteration is how spreadsheets, populations, and fractals all run." },
+    { tier:"error analysis", q:"A classmate writes: “(f∘g)(x) just means f(x) · g(x).” The flaw is…", type:"mc",
+      opts:["composition pipes g's OUTPUT into f — it is f(g(x)), not a product","it actually means g(f(x))","there is no flaw","it means f(x) + g(x)"], a:0,
+      hints:["Try it with f = x², g = x + 1 at x = 2 — do the two readings agree?","f(g(2)) = 9, but f(2)·g(2) = 12."],
+      sol:"Composition is machines in series: g runs first and f eats its output — f(g(x)). With f = x², g = x + 1 at x = 2: composition gives 9, the product gives 12. Different operations, different answers." },
+    { q:"The grey dashed curve is the parent y = x²; the gold curve is its shifted twin.", art:"tf1", parts:[
+      { q:"The gold vertex sits at x = …", type:"num", ans:3, tol:0,
+        hints:["Where does the gold curve bottom out?","The dot marks it."], sol:"x = 3." },
+      { q:"…and at y = …", type:"num", ans:-2, tol:0,
+        hints:["Read the dot's height.","Below the axis counts negative."], sol:"y = −2: the vertex is (3, −2)." },
+      { q:"Which moves produced the gold curve?", type:"mc",
+        opts:["right 3 and down 2","left 3 and down 2","right 3 and up 2"], a:0,
+        hints:["Follow the vertex: it travelled from (0, 0) to…","(3, −2)."],
+        sol:"Right 3, down 2 — so its formula is y = (x − 3)² − 2. Reading moves off a graph is writing the formula backwards." } ] },
   ],
   "1.3": [
     { w:1, q:"The line through (1, 3) and (4, 12)", steps:[
@@ -12273,6 +12316,23 @@ const MATH201_PSET = {
         hints:["Point-slope from (−1, 4).","y − 4 = −2(x + 1)."], sol:"y = −2x + 2, so b = 2." },
       { q:"The x-intercept is x = …", type:"num", ans:1, tol:0,
         hints:["Set y = 0.","0 = −2x + 2."], sol:"x = 1 — where the line crosses the axis." } ] },
+    { tier:"core", q:"The line through (0, 4) PARALLEL to y = 3x − 1 has, at x = 2, the value y = …", type:"num", ans:10, tol:0,
+      hints:["Parallel means the same slope.","y = 3x + 4 — now evaluate."],
+      sol:"Parallel lines share slope 3, and through (0, 4) that is y = 3x + 4, so y(2) = 10." },
+    { tier:"stretch", q:"The slope of any line PERPENDICULAR to y = 2x + 5 is … (1 decimal)", type:"num", ans:-0.5, tol:0.01,
+      hints:["Perpendicular slopes multiply to −1.","Flip the fraction and the sign of 2."],
+      sol:"m = −1/2: the negative reciprocal. Check: 2 · (−1/2) = −1, the perpendicularity fingerprint." },
+    { tier:"error analysis", q:"For the points (2, 5) and (6, 13), a classmate computes m = (6 − 2)/(13 − 5) = 0.5. The flaw is…", type:"mc",
+      opts:["that is run over RISE — slope is Δy/Δx, giving 8/4 = 2","the subtraction order is wrong","nothing — 0.5 is correct","the points must be swapped first"], a:0,
+      hints:["Which differences go on top?","Slope is CHANGE IN OUTPUT over change in input."],
+      sol:"Slope puts Δy on top: (13 − 5)/(6 − 2) = 2. Inverting rise and run is the single most common slope error, and it silently reciprocates every answer." },
+    { q:"The graph shows one line.", art:"ln1", parts:[
+      { q:"Its y-intercept is b = …", type:"num", ans:-2, tol:0,
+        hints:["Where does it cut the vertical axis?","The lower dot."], sol:"b = −2, straight off the axis crossing." },
+      { q:"Its slope is m = … (1 decimal)", type:"num", ans:1.5, tol:0.01,
+        hints:["Rise over run between the two dots.","From (0, −2) to (4, 4): rise 6, run 4."], sol:"m = 6/4 = 1.5." },
+      { q:"Its x-intercept is x ≈ … (within 0.15)", type:"num", ans:1.33, tol:0.15,
+        hints:["Where does it cut the horizontal axis?","Or solve 1.5x − 2 = 0."], sol:"x = 4/3 ≈ 1.33 — the graph and the equation agree, which is the whole point of graphs." } ] },
   ],
   "1.4": [
     { w:1, q:"Revenue R(x) = −3x² + 42x: find the peak", steps:[
@@ -12306,6 +12366,23 @@ const MATH201_PSET = {
         hints:["(−1)³ = −1.","−2 + 6."], sol:"4 again — two different inputs, one output. Fine for a function; the reverse would not be." },
       { q:"At most how many turning points can a cubic have?", type:"mc", opts:["one","two","three"], a:1,
         hints:["Degree n turns at most n − 1 times.","n = 3 here."], sol:"Two — rise, fall, rise is the cubic's whole repertoire." } ] },
+    { tier:"core", q:"The minimum VALUE of y = 2(x − 3)² + 1 is …", type:"num", ans:1, tol:0,
+      hints:["Vertex form answers this by sight.","The squared term is never negative — its smallest is 0."],
+      sol:"The square bottoms out at 0 (at x = 3), leaving y = 1. Vertex form a(x − h)² + k reads the minimum VALUE k and its LOCATION h at a glance — tests ask for both and grade them separately." },
+    { tier:"stretch", q:"Average cost a(x) = x + 16/x dollars per unit. a(4) = …", type:"num", ans:8, tol:0,
+      hints:["Both terms at x = 4.","4 + 16/4."],
+      sol:"a(4) = 4 + 4 = 8. Try a(2) = 10 and a(8) = 10 on your own: both terms' tug-of-war really does bottom out near x = 4 — Chapter 4 will prove the minimum sits exactly where the terms balance." },
+    { tier:"error analysis", q:"A classmate writes: “the degree of (x³ + 1)² is 5, because 3 + 2 = 5.” The flaw is…", type:"mc",
+      opts:["squaring a cubic DOUBLES its degree: (x³)² = x⁶, so degree 6","it is 9 — degrees multiply by the exponent plus one","no flaw — 5 is right","the degree of a square is always even, so it must be 4"], a:0,
+      hints:["Squaring means multiplying the polynomial by ITSELF.","Degrees ADD under multiplication: 3 + 3."],
+      sol:"(x³ + 1)² = (x³ + 1)(x³ + 1), and degrees add under multiplication: 3 + 3 = 6. The exponent outside is a COUNT of factors, not a term to add." },
+    { q:"The graph shows a cubic. Read its features.", art:"cb1", parts:[
+      { q:"The local maximum VALUE is y = …", type:"num", ans:2, tol:0,
+        hints:["The hilltop's height, not its position.","The left dot."], sol:"The hill crests at (−1, 2): the local max value is 2." },
+      { q:"The local minimum sits at x = …", type:"num", ans:1, tol:0,
+        hints:["The valley's POSITION this time.","The right dot."], sol:"x = 1 — value questions and location questions are different questions; graders separate them." },
+      { q:"How many zeros does this cubic have?", type:"num", ans:3, tol:0,
+        hints:["Count the axis crossings.","Left of the hill, between the turns, right of the valley."], sol:"Three crossings — the most a cubic can have, and this one uses its full allowance." } ] },
   ],
   "1.5": [
     { w:1, q:"Model a colony of 300 growing 6% per hour", steps:[
@@ -12341,6 +12418,25 @@ const MATH201_PSET = {
         hints:["Square the factor.","0.96 · 0.96."], sol:"0.9216 — factors compound by multiplying." },
       { q:"After two years the plane has kept about…", type:"mc", opts:["96% of its value","92% of its value","88% of its value"], a:1,
         hints:["You just computed it.","0.9216 as a percentage."], sol:"About 92% — NOT 100 − 2·4 = 92 by luck of rounding: the honest number is 92.16%, from the square." } ] },
+    { tier:"core", q:"A sample follows y = 80 · (1/2)^(t/3). At t = 9, y = …", type:"num", ans:10, tol:0,
+      hints:["Count the half-lives in 9.","Three halvings: 80 → 40 → 20 → …"],
+      sol:"9/3 = 3 half-lives: 80 · (1/2)³ = 10. The exponent counts halvings exactly as it counted doublings." },
+    { tier:"stretch", q:"Solve 5 · 2ᵗ = 80 for t.", type:"num", ans:4, tol:0,
+      hints:["Isolate the exponential first.","2ᵗ = 16 — two to what power?"],
+      sol:"2ᵗ = 16 = 2⁴, so t = 4. When the number IS a clean power, recognition beats logarithms; 1.6 handles the messy cases." },
+    { tier:"error analysis", q:"A classmate writes: “8% growth for two years is 16% total.” The flaw is…", type:"mc",
+      opts:["growth COMPOUNDS: ×1.08² = 1.1664, so 16.64% — the second year grows the first year's growth too","it is 15.36% — the rates subtract a little","no flaw — percentages add","it depends on the starting amount"], a:0,
+      hints:["Two years means the factor applies twice.","1.08 · 1.08 = ?"],
+      sol:"×1.08 twice is ×1.1664: 16.64%, not 16%. Adding percentage points ignores that year two's 8% acts on a bigger base — small at 8%, ruinous at 30%." },
+    { q:"The graph shows y = 2ˣ, two landmarks dotted.", art:"ex1", parts:[
+      { q:"Its value at x = 0 is …", type:"num", ans:1, tol:0,
+        hints:["Every exponential shares this point.","Anything to the zeroth power."], sol:"2⁰ = 1 — the (0, 1) pivot the whole family passes through." },
+      { q:"Its value at x = 2 is …", type:"num", ans:4, tol:0,
+        hints:["The upper dot.","2²."], sol:"4, read straight off the dot." },
+      { q:"Moving left, the curve approaches…", type:"mc",
+        opts:["the x-axis, never touching it","the y-axis","the line y = 1"], a:0,
+        hints:["Follow the tail: 1/2, 1/4, 1/8…","Smaller and smaller, but never zero."],
+        sol:"The x-axis is its horizontal asymptote: 2ˣ shrinks toward 0 leftward but never reaches it — an exponential is never zero." } ] },
   ],
   "1.6": [
     { w:1, q:"Evaluate three logarithms cold", steps:[
@@ -12378,7 +12474,113 @@ const MATH201_PSET = {
         opts:["the exponential","the logarithm","the derivative"], a:1,
         hints:["Forward asks how many; backwards asks when.","The inverse function."],
         sol:"The logarithm — it reads the exponential's table backwards." } ] },
+    { tier:"core", q:"log₃(1/9) = …", type:"num", ans:-2, tol:0,
+      hints:["Fractions under a log mean negative exponents.","3 to what power gives 1/9?"],
+      sol:"3⁻² = 1/9, so log₃(1/9) = −2. A log is negative exactly when its input sits below 1." },
+    { tier:"stretch", q:"Solve 100 · e^(0.5t) = 300. t ≈ … (2 decimals)", type:"num", ans:2.2, tol:0.01,
+      hints:["Isolate: e^(0.5t) = 3.","Take ln: 0.5t = ln 3."],
+      sol:"t = 2 ln 3 ≈ 2.20 — the tripling time at 50% continuous growth, and the exact form 2 ln 3 is the full-credit answer." },
+    { tier:"error analysis", q:"A classmate writes: “ln(a + b) = ln a + ln b.” The flaw is…", type:"mc",
+      opts:["logs split PRODUCTS, not sums: ln(ab) = ln a + ln b — there is no rule for ln(a + b)","the right side should be ln a · ln b","no flaw — that is the log rule","it should be ln(a + b) = ln a − ln b"], a:0,
+      hints:["Test it: a = b = 1. Left side ln 2 ≈ 0.69; right side?","ln 1 + ln 1 = 0."],
+      sol:"ln(1 + 1) = ln 2 ≈ 0.69 but ln 1 + ln 1 = 0 — the claimed rule fails its first test. The true rule ln(ab) = ln a + ln b turns MULTIPLICATION into addition; sums under a log simply do not split." },
+    { q:"The graph shows y = log₂ x, three landmarks dotted.", art:"lg1", parts:[
+      { q:"Its value at x = 4 is …", type:"num", ans:2, tol:0,
+        hints:["The middle dot.","2 to what power gives 4?"], sol:"log₂ 4 = 2." },
+      { q:"It reaches y = 3 at x = …", type:"num", ans:8, tol:0,
+        hints:["Read the highest dot.","2³."], sol:"x = 8 — each unit of height costs DOUBLE the input: that slow climb is the log's signature." },
+      { q:"Its vertical asymptote is…", type:"mc",
+        opts:["the y-axis (x = 0)","the x-axis","the line x = 1"], a:0,
+        hints:["Follow the curve down and left.","You can only un-exponentiate positive numbers."],
+        sol:"The wall at x = 0: the log plunges along the y-axis because its domain is x > 0 — the exponential's range, reflected." } ] },
   ],
+};
+/* problem-set figures: static canvas drawings a question can hang on —
+   because "read the graph" is a test skill no amount of prose teaches */
+const PSET_ART = {
+  /* a piecewise-linear graph with a shelf and two axis crossings */
+  pw1(cv){
+    const g = cv.getContext("2d");
+    const m = stAxes(g, cv.width, cv.height, -5, 7, -4, 5);
+    const pts = [[-4, -3], [-1, 3], [3, 3], [6, -3]];
+    g.strokeStyle = "#d4af6a"; g.lineWidth = 2.5; g.beginPath();
+    pts.forEach(([x, y], i) => i ? g.lineTo(m.mx(x), m.my(y)) : g.moveTo(m.mx(x), m.my(y)));
+    g.stroke();
+    g.fillStyle = "#d4af6a";
+    for (const [x, y] of [pts[0], pts[3]]){
+      g.beginPath(); g.arc(m.mx(x), m.my(y), 4, 0, Math.PI * 2); g.fill();
+    }
+    /* light ticks so the axes are readable without a grid */
+    g.fillStyle = "rgba(148,163,184,.8)"; g.font = "12px system-ui";
+    for (let x = -4; x <= 6; x += 2) g.fillText(String(x), m.mx(x) - 4, m.my(0) + 16);
+    for (let y = -3; y <= 3; y += 3) if (y) g.fillText(String(y), m.mx(0) + 6, m.my(y) + 4);
+  },
+  /* the parent parabola (ghost) and its shifted twin */
+  tf1(cv){
+    const g = cv.getContext("2d");
+    const m = stAxes(g, cv.width, cv.height, -4, 7, -3, 8);
+    g.setLineDash([5, 4]);
+    stCurve(g, m, x => x * x, -2.6, 2.6, "rgba(148,163,184,.55)");
+    g.setLineDash([]);
+    stCurve(g, m, x => (x - 3) * (x - 3) - 2, 0.1, 5.9, "#d4af6a");
+    g.fillStyle = "#d4af6a";
+    g.beginPath(); g.arc(m.mx(3), m.my(-2), 4, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "rgba(148,163,184,.8)"; g.font = "12px system-ui";
+    for (let x = -2; x <= 6; x += 2) if (x) g.fillText(String(x), m.mx(x) - 4, m.my(0) + 16);
+    for (const y of [-2, 4]) g.fillText(String(y), m.mx(0) + 6, m.my(y) + 4);
+  },
+  /* one straight line, intercepts on show */
+  ln1(cv){
+    const g = cv.getContext("2d");
+    const m = stAxes(g, cv.width, cv.height, -3, 5, -5, 5);
+    stCurve(g, m, x => 1.5 * x - 2, -1.8, 4.4, "#d4af6a");
+    g.fillStyle = "#d4af6a";
+    for (const [x, y] of [[0, -2], [4, 4]]){
+      g.beginPath(); g.arc(m.mx(x), m.my(y), 4, 0, Math.PI * 2); g.fill();
+    }
+    g.fillStyle = "rgba(148,163,184,.8)"; g.font = "12px system-ui";
+    for (let x = -2; x <= 4; x += 2) if (x) g.fillText(String(x), m.mx(x) - 4, m.my(0) + 16);
+    for (let y = -4; y <= 4; y += 2) if (y) g.fillText(String(y), m.mx(0) + 6, m.my(y) + 4);
+  },
+  /* a cubic with a hill, a valley, and three crossings */
+  cb1(cv){
+    const g = cv.getContext("2d");
+    const m = stAxes(g, cv.width, cv.height, -3, 3, -4, 4);
+    stCurve(g, m, x => x * x * x - 3 * x, -2.3, 2.3, "#d4af6a");
+    g.fillStyle = "#d4af6a";
+    for (const [x, y] of [[-1, 2], [1, -2]]){
+      g.beginPath(); g.arc(m.mx(x), m.my(y), 4, 0, Math.PI * 2); g.fill();
+    }
+    g.fillStyle = "rgba(148,163,184,.8)"; g.font = "12px system-ui";
+    for (let x = -2; x <= 2; x++) if (x) g.fillText(String(x), m.mx(x) - 4, m.my(0) + 16);
+    for (const y of [-2, 2]) g.fillText(String(y), m.mx(0) + 6, m.my(y) + 4);
+  },
+  /* the doubling curve, two landmarks dotted */
+  ex1(cv){
+    const g = cv.getContext("2d");
+    const m = stAxes(g, cv.width, cv.height, -3.4, 3.4, -1, 9);
+    stCurve(g, m, x => Math.pow(2, x), -3.2, 3.1, "#d4af6a");
+    g.fillStyle = "#d4af6a";
+    for (const [x, y] of [[0, 1], [2, 4]]){
+      g.beginPath(); g.arc(m.mx(x), m.my(y), 4, 0, Math.PI * 2); g.fill();
+    }
+    g.fillStyle = "rgba(148,163,184,.8)"; g.font = "12px system-ui";
+    for (let x = -3; x <= 3; x++) if (x) g.fillText(String(x), m.mx(x) - 4, m.my(0) + 16);
+    for (const y of [1, 4, 8]) g.fillText(String(y), m.mx(0) + 6, m.my(y) + 4);
+  },
+  /* the logarithm, climbing ever slower off its wall */
+  lg1(cv){
+    const g = cv.getContext("2d");
+    const m = stAxes(g, cv.width, cv.height, -1, 9.5, -3, 4);
+    stCurve(g, m, x => Math.log2(x), 0.15, 9.2, "#d4af6a");
+    g.fillStyle = "#d4af6a";
+    for (const [x, y] of [[1, 0], [4, 2], [8, 3]]){
+      g.beginPath(); g.arc(m.mx(x), m.my(y), 4, 0, Math.PI * 2); g.fill();
+    }
+    g.fillStyle = "rgba(148,163,184,.8)"; g.font = "12px system-ui";
+    for (const x of [1, 4, 8]) g.fillText(String(x), m.mx(x) - 4, m.my(0) + 16);
+    for (const y of [2, 3]) g.fillText(String(y), m.mx(0) + 6, m.my(y) + 4);
+  },
 };
 function psetOf(courseId, n){
   return courseId === "MATH201" ? (MATH201_PSET[n] || null) : null;
@@ -12460,6 +12662,7 @@ function jPractice(courseId, n){
       if (it.parts) return `
         <div class="st-unit">Step by step${it.tier ? " · " + it.tier : ""}</div>
         <div class="st-key" style="--c:${S.color}">${it.q}</div>
+        ${it.art ? `<div class="st-lab"><canvas class="st-cv" width="640" height="360" data-art="${it.art}" role="img" aria-label="${it.q}"></canvas></div>` : ""}
         ${it.parts.map((p2, pi) => oneProblem(p2, i, pi)).join("")}`;
       return `
         <div class="st-unit">Practice${it.tier ? " · " + it.tier : ""}</div>
@@ -12469,6 +12672,8 @@ function jPractice(courseId, n){
       <button type="button" class="jlink" data-back>← back to the lecture</button>
     </div>
   `);
+  /* the figures a question hangs on, drawn once at open */
+  jbody.querySelectorAll("[data-art]").forEach(cv => PSET_ART[cv.dataset.art]?.(cv));
   /* worked steps reveal one at a time, same as the lecture's example */
   jbody.querySelectorAll("[data-wreveal]").forEach(b => b.addEventListener("click", () => {
     const id = b.dataset.wreveal, host = jbody.querySelector(`[data-wstep="${id}"]`);
