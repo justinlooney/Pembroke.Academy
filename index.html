@@ -3011,7 +3011,8 @@ function studyProgress(id){
   const st = study[id] || {};
   return { total: all.length, mastered: all.filter(s => st[s.n] === 2).length };
 }
-window.__study = { STUDY, progress: studyProgress, state: () => study };   /* test/debug hook */
+window.__study = { STUDY, progress: studyProgress, state: () => study,
+                   psetOf, psetState, psetGradedKeys, save: saveStudy };   /* test/debug hook */
 let done = loadDone();
 let currentSector = localStorage.getItem(LS_SECTOR) || "all";
 const byId = Object.fromEntries(COURSES.map(c => [c.id, c]));
@@ -3309,7 +3310,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v119";
+const BUILD = "pembroke-v120";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -11677,7 +11678,7 @@ function studySignals(courseId){
   const log = (study[courseId] || {}).log || [];
   const secs = studySections(courseId);
   const nameOf = n => { const x = secs.find(s2 => s2.n === n); return x ? `§${x.n} ${x.t}` : n; };
-  const kindName = { kc: "knowledge check", hw: "homework", turn: "practice" };
+  const kindName = { kc: "knowledge check", hw: "homework", turn: "practice", pset: "problem set" };
   /* stumbles: most recent misses, grouped by section+kind */
   const missed = {};
   for (const e of log.slice(-30)) if (!e.ok){
@@ -12022,13 +12023,15 @@ function jLessonFull(courseId, n){
           ${q.opts.map((o, oi) => `<label class="st-opt"><input type="radio" name="q${qi}" value="${oi}"><span>${o}</span></label>`).join("")}
           <div class="st-why" hidden></div>
         </fieldset>`).join("")}
-      <div class="flex items-center gap-3 mt-2">
+      <div class="flex items-center gap-3 mt-2 flex-wrap">
         <button type="submit" class="jcta" style="--c:${S.color}">Check my work</button>
+        ${psetOf(courseId, n) ? `<button type="button" class="jlink" data-pset>Problem Set${psetCleared(courseId, n) && psetState(courseId, n).cleared ? " · cleared ✓" : ""}</button>` : ""}
         <button type="button" class="jlink" data-hw>Homework ${ext.hw ? `· best ${ext.hw[0]}/${ext.hw[1]}` : ""}</button>
         <button type="button" class="jlink" data-back>← all lectures</button>
       </div>
     </form>
   `);
+  jbody.querySelector("[data-pset]")?.addEventListener("click", () => jPractice(courseId, n));
   /* the lab: first touch counts as the interactive completed */
   const cvEl = jbody.querySelector(".st-cv"), slide = jbody.querySelector(".st-slide"),
         read = jbody.querySelector(".st-read");
@@ -12087,11 +12090,22 @@ function stGradeKC(courseId, n, sec, S){
     why.textContent = (good ? "✓ " : "✗ ") + q.why;
   });
   if (right === sec.qs.length){
-    study[courseId][n] = 2;
-    saveStudy();
-    renderCourses();
-    toast("📖 Lecture mastered", `${sec.n} · ${sec.t} — sealed into your study record.`, S.color, 4200);
-    setTimeout(() => jStudy(courseId), 900);
+    /* checks passed — remembered even if mastery has another half */
+    const ext = studyExt(courseId, n);
+    ext.kc = 1;
+    /* a section with a problem set is not mastered by reading and two
+       questions: the set must be cleared too. Sections without one
+       keep the old bar. */
+    if (psetCleared(courseId, n)){
+      study[courseId][n] = 2;
+      saveStudy();
+      renderCourses();
+      toast("📖 Lecture mastered", `${sec.n} · ${sec.t} — sealed into your study record.`, S.color, 4200);
+      setTimeout(() => jStudy(courseId), 900);
+    } else {
+      saveStudy();
+      toast("Checks passed ✓", `One half of mastery. Clear the ${sec.n} problem set to seal it.`, S.color, 5200);
+    }
   }
 }
 
@@ -12135,6 +12149,392 @@ function jHomework(courseId, n){
     saveStudy();
     toast("Homework recorded", `${score}/${qs.length} — best attempt kept. Fresh numbers on every retry.`, S.color, 4200);
   });
+}
+
+/* ── the problem set: where the learning actually happens ──────────
+   The lecture presents; this room teaches. Each section's set runs a
+   deliberate ramp — two fully worked examples to imitate, two
+   completion problems where the first steps are given and the student
+   finishes, then practice from warm-up to a step-checked multi-part —
+   because watching, finishing, and doing are three different skills
+   and a course that only asks the third teaches none of them.
+
+   Grading is honest about help: a problem is EARNED by answering it
+   before its solution is shown. Hints cost nothing — a nudge, then
+   the setup — but the full solution burns the problem for this visit
+   (reopen the set and it is earnable again; earned ones stay earned
+   forever). The set is CLEARED at three quarters earned, and for a
+   section that has one, mastery = knowledge checks passed AND the
+   set cleared. Reading is no longer mastering. */
+/* Unit I's sets. Kinds: {w:1} worked (watch, step by step) · {c:1}
+   completion (given steps, finish the answer) · practice with tier ·
+   {parts} step-checked multi-part. Every number checked by hand. */
+const MATH201_PSET = {
+  "1.1": [
+    { w:1, q:"Evaluate f(x) = 2x² − 3x + 1 three ways", steps:[
+      ["f(0): feed in zero.","Every x-term dies: f(0) = 1. The constant term IS the value at zero."],
+      ["f(−2): watch the signs.","2(−2)² − 3(−2) + 1 = 8 + 6 + 1 = 15 — the minus times minus turned the middle term positive."],
+      ["f(a + 1): the rule eats expressions too.","2(a + 1)² − 3(a + 1) + 1 = 2a² + 4a + 2 − 3a − 3 + 1 = 2a² + a. Expand, then collect — this move is the derivative's seed."] ] },
+    { w:1, q:"Find two domains", steps:[
+      ["√(5 − x): what does a root refuse?","Negatives. Demand 5 − x ≥ 0, so x ≤ 5 — every number up to five, nothing beyond."],
+      ["1/(x² − 9): what does a fraction refuse?","A zero below. x² − 9 = 0 at x = ±3, so the domain is every real number except 3 and −3."] ] },
+    { c:1, lead:"g(x) = √(x + 7) — the first step is done; finish the domain.",
+      given:[["Read the rule inside-out.","Add 7, then take the square root — so the root sees x + 7."]],
+      q:"The domain starts at x = …", type:"num", ans:-7, tol:0,
+      hints:["The root needs what it sees to be ≥ 0.","Solve x + 7 ≥ 0."],
+      sol:"x + 7 ≥ 0 gives x ≥ −7: the domain starts at −7." },
+    { c:1, lead:"h(x) = x² − 4x — one value is computed; finish the difference.",
+      given:[["h(6) first.","h(6) = 36 − 24 = 12."]],
+      q:"h(6) − h(2) = …", type:"num", ans:16, tol:0,
+      hints:["Compute h(2) exactly the same way.","h(2) = 4 − 8 = −4 — now subtract carefully."],
+      sol:"h(2) = −4, and 12 − (−4) = 16. Subtracting a negative adds." },
+    { tier:"warm-up", q:"f(x) = 3x + 2. f(4) = …", type:"num", ans:14, tol:0,
+      hints:["Multiply first, then add.","3 · 4 = 12."], sol:"f(4) = 12 + 2 = 14." },
+    { tier:"core", q:"The domain of 1/(x − 7) is every real number except x = …", type:"num", ans:7, tol:0,
+      hints:["Fractions only break one way.","Set the denominator to zero."], sol:"x − 7 = 0 at x = 7." },
+    { tier:"core", q:"The domain of √(2x − 10) starts at x = …", type:"num", ans:5, tol:0,
+      hints:["The inside must be ≥ 0.","Solve 2x − 10 ≥ 0."], sol:"2x ≥ 10, so x ≥ 5." },
+    { tier:"applied", q:"The café charges $1.60 for 8 oz of cocoa and $3.20 for 16 oz. Price per ounce, in dollars: …", type:"num", ans:0.2, tol:0.001,
+      hints:["Rate = price over ounces.","1.60/8, or (3.20 − 1.60)/(16 − 8) — same answer."], sol:"$0.20 an ounce, both ways of reading the table." },
+    { q:"The quad planter costs C(w) = 16w² + 72/w dollars at width w metres.", parts:[
+      { q:"C(1) = …", type:"num", ans:88, tol:0,
+        hints:["Both terms at w = 1.","16 + 72."], sol:"16 · 1 + 72/1 = 88." },
+      { q:"C(2) = …", type:"num", ans:100, tol:0,
+        hints:["16 · 4 first.","64 + 72/2."], sol:"64 + 36 = 100." },
+      { q:"Which width is cheaper?", type:"mc", opts:["w = 1","w = 2","they tie"], a:0,
+        hints:["You just computed both.","88 against 100."], sol:"w = 1 costs $88 — the 72/w term punishes narrow boxes less than the 16w² term punishes wide ones here." } ] },
+  ],
+  "1.2": [
+    { w:1, q:"Compose f(x) = x² − 1 and g(x) = 2x + 3, both ways", steps:[
+      ["f(g(1)): inner machine first.","g(1) = 5, then f(5) = 25 − 1 = 24."],
+      ["g(f(1)): the other order.","f(1) = 0, then g(0) = 3. Same parts, different plumbing: 24 versus 3."],
+      ["The moral.","Composition is not commutative — which machine runs first changes everything downstream."] ] },
+    { w:1, q:"Read y = −2(x + 1)² − 3 as moves on the parent parabola", steps:[
+      ["Inside first.","x + 1 slides the parabola LEFT 1 — inside changes are backwards."],
+      ["The outside multiplier.","−2 stretches it to double height and flips it into a hill."],
+      ["The outside constant.","−3 drops the whole hill 3. Vertex (−1, −3), opening downward — a maximum."] ] },
+    { c:1, lead:"The survey drone: altitude A(t) = −t² + 4t hundred metres, temperature f(x) = 20 − 0.5x °C at altitude x. The inner machine has run; finish it.",
+      given:[["A(2) first.","A(2) = −4 + 8 = 4 — at two minutes, the drone sits at 4 hundred metres."]],
+      q:"h(2) = f(A(2)) = … °C", type:"num", ans:18, tol:0,
+      hints:["Feed 4 into the outer machine.","20 − 0.5 · 4."], sol:"f(4) = 20 − 2 = 18 °C at the drone." },
+    { c:1, lead:"Decompose L(x) = (3x − 2)⁵: the seam is found; evaluate the inner part.",
+      given:[["Where is the seam?","First compute 3x − 2, THEN raise to the fifth: g(x) = 3x − 2 inside, f(u) = u⁵ outside."]],
+      q:"g(4) = …", type:"num", ans:10, tol:0,
+      hints:["Just the inner machine.","3 · 4 − 2."], sol:"g(4) = 10 — and L(4) would be 10⁵, the outer machine's turn." },
+    { tier:"warm-up", q:"f(x) = x², g(x) = x + 1. (f + g)(2) = …", type:"num", ans:7, tol:0,
+      hints:["Pointwise: f(2) plus g(2).","4 + 3."], sol:"(f + g)(2) = 4 + 3 = 7." },
+    { tier:"core", q:"f(x) = x², g(x) = x + 3. f(g(1)) = …", type:"num", ans:16, tol:0,
+      hints:["Inner first.","g(1) = 4, then square."], sol:"f(4) = 16. (g(f(1)) would be 4 — order matters.)" },
+    { tier:"core", q:"The graph of y = f(x − 5) is the graph of f shifted…", type:"mc",
+      opts:["right 5","left 5","up 5","down 5"], a:0,
+      hints:["Inside changes are backwards.","To reproduce the old f(0) you must feed in x = 5."],
+      sol:"Right 5 — minus inside moves toward positive x." },
+    { tier:"applied", q:"A rival charges g(x) = 1.2 · C(x) for x crates. If C(10) = $40, then g(10) = $…", type:"num", ans:48, tol:0,
+      hints:["A vertical stretch is a percentage.","1.2 × 40."], sol:"$48 — twenty percent over on every order." },
+    { q:"The parabola y = (x − 2)² + 3.", parts:[
+      { q:"The vertex sits at x = …", type:"num", ans:2, tol:0,
+        hints:["Inside changes are backwards.","x − 2 slides right 2."], sol:"x = 2." },
+      { q:"…and at y = …", type:"num", ans:3, tol:0,
+        hints:["The outside constant lifts.","Up 3 from the parent vertex."], sol:"y = 3, so the vertex is (2, 3)." },
+      { q:"y at x = 4 is …", type:"num", ans:7, tol:0,
+        hints:["Substitute.","(4 − 2)² + 3."], sol:"4 + 3 = 7." } ] },
+  ],
+  "1.3": [
+    { w:1, q:"The line through (1, 3) and (4, 12)", steps:[
+      ["Slope first, always.","m = (12 − 3)/(4 − 1) = 9/3 = 3."],
+      ["Point-slope with either point.","y − 3 = 3(x − 1), which tidies to y = 3x."],
+      ["Check with the point you did not use.","3 · 4 = 12 ✓ — the line really does pass through both."] ] },
+    { w:1, q:"A model from a point and a rate: the chapel cistern", steps:[
+      ["Steady 250 gal/h and V(2) = 900 — write point-slope.","V − 900 = 250(t − 2)."],
+      ["Tidy it.","V(t) = 250t + 400 — the 400 is what the cistern held before the pump started, recovered by algebra."],
+      ["Use it.","V(6) = 1500 + 400 = 1900 gallons at six hours."] ] },
+    { c:1, lead:"Slope −2 through (3, 5) — point-slope is written; finish the intercept.",
+      given:[["Point-slope.","y − 5 = −2(x − 3)."]],
+      q:"The y-intercept is b = …", type:"num", ans:11, tol:0,
+      hints:["Multiply out the right side.","y = −2x + 6 + 5."], sol:"y = −2x + 11: the line greets the y-axis at 11." },
+    { c:1, lead:"Enrollment E(t) = 15t + 1280 — the equation is set; finish the solve.",
+      given:[["When does enrollment reach 1400?","Set 15t + 1280 = 1400."]],
+      q:"t = …", type:"num", ans:8, tol:0,
+      hints:["Subtract 1280 first.","15t = 120."], sol:"t = 8 — eight years after the model's zero year." },
+    { tier:"warm-up", q:"Slope through (2, 5) and (6, 13): m = …", type:"num", ans:2, tol:0,
+      hints:["Rise over run.","8 over 4."], sol:"m = 2." },
+    { tier:"core", q:"C(x) = 90 + 7x dollars for x units. C(12) = …", type:"num", ans:174, tol:0,
+      hints:["Fixed plus per-unit.","90 + 84."], sol:"$174." },
+    { tier:"core", q:"In C(x) = 90 + 7x, the 7 means…", type:"mc",
+      opts:["the cost of each additional unit","the fixed cost","the cost of the first unit","the average cost"], a:0,
+      hints:["Which number multiplies x?","The slope is a rate: dollars per one more unit."],
+      sol:"Each additional unit adds $7; the 90 was spent before unit one." },
+    { tier:"applied", q:"E(t) = 15t + 1280. Interpolate E(4) = …", type:"num", ans:1340, tol:0,
+      hints:["Straight substitution.","60 + 1280."], sol:"1340 — inside the data, so trustworthy." },
+    { q:"The line through (−1, 4) and (3, −4).", parts:[
+      { q:"m = …", type:"num", ans:-2, tol:0,
+        hints:["Δy over Δx, sign and all.","(−4 − 4)/(3 − (−1))."], sol:"−8/4 = −2." },
+      { q:"The y-intercept b = …", type:"num", ans:2, tol:0,
+        hints:["Point-slope from (−1, 4).","y − 4 = −2(x + 1)."], sol:"y = −2x + 2, so b = 2." },
+      { q:"The x-intercept is x = …", type:"num", ans:1, tol:0,
+        hints:["Set y = 0.","0 = −2x + 2."], sol:"x = 1 — where the line crosses the axis." } ] },
+  ],
+  "1.4": [
+    { w:1, q:"Revenue R(x) = −3x² + 42x: find the peak", steps:[
+      ["The vertex formula.","x = −b/(2a) = −42/(2 · (−3)) = 7."],
+      ["How high?","R(7) = −147 + 294 = 147."],
+      ["Why a peak and not a valley?","a = −3 is negative: the parabola opens downward, so the turn is a maximum — seven units, revenue 147."] ] },
+    { w:1, q:"Average cost from C(x) = 0.5x² + 8x + 640", steps:[
+      ["Divide the whole thing by x.","a(x) = C(x)/x = 0.5x + 8 + 640/x — three terms, three behaviours."],
+      ["Evaluate at x = 40.","a(40) = 20 + 8 + 16 = 44 dollars a unit."],
+      ["Read the terms.","The 640/x is fixed cost spread thin; the 0.5x is scale catching up with you. Their tug-of-war is where the minimum lives — Chapter 4 finds it."] ] },
+    { c:1, lead:"Degree of (x² + 2)(x³ − x) — the rule is stated; finish it.",
+      given:[["Degrees add under multiplication.","The leading terms multiply: x² · x³."]],
+      q:"The degree is …", type:"num", ans:5, tol:0,
+      hints:["No need to expand anything else.","2 + 3."], sol:"Degree 5 — the product of the leaders decides." },
+    { c:1, lead:"Brightness varies inversely with distance squared, and B(4) = 270 — k is found; finish it.",
+      given:[["Find the constant.","B = k/d², so k = 270 · 16 = 4320."]],
+      q:"B(12) = …", type:"num", ans:30, tol:0,
+      hints:["Same k, new distance.","4320/144."], sol:"B(12) = 30 — triple the distance, a ninth of the light." },
+    { tier:"warm-up", q:"Degree of (x⁴ + 1)(x² − 3): …", type:"num", ans:6, tol:0,
+      hints:["Degrees add.","4 + 2."], sol:"6." },
+    { tier:"core", q:"As x → −∞, y = x³ heads…", type:"mc", opts:["up","down","toward zero","toward 3"], a:1,
+      hints:["Cube a huge negative number.","Odd degree keeps the sign."], sol:"Down — odd degree, positive leader: opposite arms." },
+    { tier:"core", q:"y = −2x² + 16x peaks at x = …", type:"num", ans:4, tol:0,
+      hints:["x = −b/(2a).","−16/(2 · (−2))."], sol:"x = 4, height R(4) = 32." },
+    { tier:"applied", q:"A varies directly with t, and A(3) = 21. A(10) = …", type:"num", ans:70, tol:0,
+      hints:["A = kt; find k first.","k = 21/3."], sol:"k = 7, so A(10) = 70." },
+    { q:"The cubic g(t) = 2t³ − 6t.", parts:[
+      { q:"g(2) = …", type:"num", ans:4, tol:0,
+        hints:["Cube first.","16 − 12."], sol:"2 · 8 − 12 = 4." },
+      { q:"g(−1) = …", type:"num", ans:4, tol:0,
+        hints:["(−1)³ = −1.","−2 + 6."], sol:"4 again — two different inputs, one output. Fine for a function; the reverse would not be." },
+      { q:"At most how many turning points can a cubic have?", type:"mc", opts:["one","two","three"], a:1,
+        hints:["Degree n turns at most n − 1 times.","n = 3 here."], sol:"Two — rise, fall, rise is the cubic's whole repertoire." } ] },
+  ],
+  "1.5": [
+    { w:1, q:"Model a colony of 300 growing 6% per hour", steps:[
+      ["Rate to factor.","6% growth means ×1.06 each hour."],
+      ["Write the model.","P(t) = 300 · 1.06ᵗ."],
+      ["Three hours.","P(3) = 300 · 1.06³ ≈ 300 · 1.1910 ≈ 357.3 — call it 357 individuals."] ] },
+    { w:1, q:"Doubling time in action: P(t) = 50 · 2^(t/4)", steps:[
+      ["How many doublings fit in t = 12?","12/4 = 3 doublings."],
+      ["Run them.","50 → 100 → 200 → 400."],
+      ["The shortcut.","P(12) = 50 · 2³ = 400 — the exponent counts doublings, nothing more mysterious."] ] },
+    { c:1, lead:"A machine loses 12% of its value each year — the reading is done; finish the factor.",
+      given:[["Losing 12% means keeping…","100% − 12% = 88% of the value, each year."]],
+      q:"The yearly factor is …", type:"num", ans:0.88, tol:0.001,
+      hints:["Keep-fraction as a decimal.","88% = ?"], sol:"×0.88 per year — decay is a factor below 1." },
+    { c:1, lead:"Show 2^(3+2t) is 8 · 4ᵗ in disguise — the split is done; finish the check.",
+      given:[["Split the exponent.","2^(3+2t) = 2³ · (2²)ᵗ = 8 · 4ᵗ."]],
+      q:"Both spellings at t = 1 give …", type:"num", ans:32, tol:0,
+      hints:["Either form, your choice.","8 · 4, or 2⁵."], sol:"32 both ways — same exponential, two spellings." },
+    { tier:"warm-up", q:"A 5% annual raise multiplies salary each year by …", type:"num", ans:1.05, tol:0.001,
+      hints:["Add the rate to 1.","5% = 0.05."], sol:"×1.05 — and two years is ×1.05², not ×1.10." },
+    { tier:"core", q:"P(t) = 120 · 2^(t/6). P(18) = …", type:"num", ans:960, tol:0,
+      hints:["Count the doublings.","18/6 = 3."], sol:"120 · 8 = 960." },
+    { tier:"core", q:"Yearly readings: 200, 260, 338, 439. The growth is…", type:"mc",
+      opts:["linear","exponential","neither"], a:1,
+      hints:["Check differences, then check ratios.","260/200 = 1.3, 338/260 = 1.3…"],
+      sol:"Each year is 1.3× the last — a constant FACTOR, so exponential: ≈200 · 1.3ᵗ." },
+    { tier:"core", q:"The number e sits between…", type:"mc", opts:["1 and 2","2 and 3","3 and 4"], a:1,
+      hints:["The slope-1-at-crossing base.","2ˣ crosses too flat, 3ˣ too steep."], sol:"e ≈ 2.718, between 2 and 3." },
+    { q:"The flight club trainer: V(t) = 48000 · 0.96ᵗ dollars.", parts:[
+      { q:"V(1) = …", type:"num", ans:46080, tol:0,
+        hints:["One year, one factor.","48000 · 0.96."], sol:"$46,080." },
+      { q:"The two-year factor 0.96² = … (4 decimals)", type:"num", ans:0.9216, tol:0.0005,
+        hints:["Square the factor.","0.96 · 0.96."], sol:"0.9216 — factors compound by multiplying." },
+      { q:"After two years the plane has kept about…", type:"mc", opts:["96% of its value","92% of its value","88% of its value"], a:1,
+        hints:["You just computed it.","0.9216 as a percentage."], sol:"About 92% — NOT 100 − 2·4 = 92 by luck of rounding: the honest number is 92.16%, from the square." } ] },
+  ],
+  "1.6": [
+    { w:1, q:"Evaluate three logarithms cold", steps:[
+      ["log₄ 64: say it backwards.","4 to what power gives 64? 4³ = 64, so log₄ 64 = 3."],
+      ["log₂ (1/8): fractions mean negatives.","2⁻³ = 1/8, so the answer is −3."],
+      ["ln e⁵: ln IS log base e.","It reads the exponent straight off: 5."] ] },
+    { w:1, q:"Solve 4e^(3t) = 28 exactly", steps:[
+      ["Isolate the exponential.","e^(3t) = 7."],
+      ["Take ln of both sides.","3t = ln 7 — the log pulls the exponent down."],
+      ["Divide, then (only now) reach for a calculator.","t = (ln 7)/3 ≈ 0.6486. The exact answer keeps the ln."] ] },
+    { c:1, lead:"Solve ln x = 3 — the translation is done; finish it.",
+      given:[["Say it backwards.","ln x = 3 means e³ = x."]],
+      q:"x ≈ … (2 decimals)", type:"num", ans:20.09, tol:0.05,
+      hints:["e³ on the calculator, last step only.","e ≈ 2.718, cubed."], sol:"x = e³ ≈ 20.09." },
+    { c:1, lead:"Solve 2ᵗ = 10 — the ln is applied; finish it.",
+      given:[["Take ln of both sides.","t · ln 2 = ln 10."]],
+      q:"t ≈ … (2 decimals)", type:"num", ans:3.32, tol:0.01,
+      hints:["Divide by ln 2.","ln 10 ≈ 2.3026, ln 2 ≈ 0.6931."], sol:"t = ln 10 / ln 2 ≈ 3.32 — just past the third doubling, which 2³ = 8 < 10 predicted." },
+    { tier:"warm-up", q:"log₅ 125 = …", type:"num", ans:3, tol:0,
+      hints:["5 to what power?","5 · 5 · 5."], sol:"3." },
+    { tier:"warm-up", q:"logₐ 1 = … (any base a)", type:"num", ans:0, tol:0,
+      hints:["a to what power gives 1?","Anything to the zeroth power."], sol:"0, in every base." },
+    { tier:"core", q:"ln e⁷ = …", type:"num", ans:7, tol:0,
+      hints:["ln reads exponents of e.","No calculator."], sol:"7 — ln and e-to-the undo each other." },
+    { tier:"core", q:"The graph of y = log₂ x is the graph of y = 2ˣ reflected across…", type:"mc",
+      opts:["the x-axis","the y-axis","the line y = x"], a:2,
+      hints:["Inverses swap inputs and outputs.","(a, 2ᵃ) twins with (2ᵃ, a)."],
+      sol:"The mirror line y = x — inverse functions always reflect there." },
+    { q:"A culture doubles hourly from 1000: N(t) = 1000 · 2ᵗ.", parts:[
+      { q:"N(3) = …", type:"num", ans:8000, tol:0,
+        hints:["Three doublings.","1000 · 8."], sol:"8000 cells." },
+      { q:"N reaches 32,000 at t = …", type:"num", ans:5, tol:0,
+        hints:["2ᵗ = 32.","2⁵."], sol:"t = 5 — log₂ 32 = 5 is the backwards sentence." },
+      { q:"Which machine answers the WHEN question in general?", type:"mc",
+        opts:["the exponential","the logarithm","the derivative"], a:1,
+        hints:["Forward asks how many; backwards asks when.","The inverse function."],
+        sol:"The logarithm — it reads the exponential's table backwards." } ] },
+  ],
+};
+function psetOf(courseId, n){
+  return courseId === "MATH201" ? (MATH201_PSET[n] || null) : null;
+}
+function psetGradedKeys(ps){
+  const keys = [];
+  ps.forEach((it, i) => {
+    if (it.w) return;                       /* worked examples aren't graded */
+    if (it.parts) it.parts.forEach((_, pi) => keys.push(i + "." + pi));
+    else keys.push(String(i));
+  });
+  return keys;
+}
+function psetState(courseId, n){
+  const ext = studyExt(courseId, n);
+  ext.ps = ext.ps || { earned: {} };
+  return ext.ps;
+}
+function psetCleared(courseId, n){
+  const ps = psetOf(courseId, n);
+  if (!ps) return true;                     /* no set, nothing to clear */
+  const st = psetState(courseId, n);
+  const keys = psetGradedKeys(ps);
+  return keys.filter(k => st.earned[k]).length >= Math.ceil(keys.length * 0.75);
+}
+function jPractice(courseId, n){
+  const c = byId[courseId], sec = studySections(courseId).find(s => s.n === n);
+  const S = sectorOf(c), ps = psetOf(courseId, n);
+  if (!ps) return;
+  const st = psetState(courseId, n);
+  const burned = {};                        /* solutions shown THIS visit */
+  const keys = psetGradedKeys(ps);
+  const earnedNow = () => keys.filter(k => st.earned[k]).length;
+  const oneProblem = (it, i, pi) => {
+    const key = pi === undefined ? String(i) : i + "." + pi;
+    const got = st.earned[key];
+    return `
+      <div class="st-q ${got ? "right" : ""}" data-ps="${key}">
+        <div class="st-ask">${pi === undefined ? "" : "abcdefg"[pi] + ") "}${it.q}</div>
+        ${it.type === "mc"
+          ? it.opts.map((o, oi) => `<label class="st-opt"><input type="radio" name="ps${key}" value="${oi}"><span>${o}</span></label>`).join("")
+          : `<input class="st-num" type="text" inputmode="decimal" aria-label="your answer" placeholder="your answer">`}
+        <button type="button" class="jlink" data-go>check</button>
+        <button type="button" class="jlink" data-hint>hint</button>
+        <div class="st-why" ${got ? "" : "hidden"}>${got ? "✓ earned" : ""}</div>
+      </div>`;
+  };
+  jOpen(`
+    <div class="jp-kicker" style="color:${S.color}">${c.code} · Problem Set ${sec.n}</div>
+    <h3 class="font-serif-d text-2xl text-[color:var(--parchment)] mt-1 mb-1">${sec.t} — the real work</h3>
+    <p class="text-[12.5px] text-slate-400 mb-2">Two examples to watch, two to finish, the rest are yours.
+      Hints are free; showing a solution burns that problem until you reopen the set.
+      Earn three quarters and the set is cleared.</p>
+    <div class="st-prog" style="--c:${S.color}">
+      <div class="st-prog-fill" data-fill style="width:${keys.length ? earnedNow() / keys.length * 100 : 0}%"></div>
+      <span data-count>${earnedNow()} of ${keys.length} earned${st.cleared ? " · cleared ✓" : ""}</span>
+    </div>
+    ${ps.map((it, i) => {
+      if (it.w) return `
+        <div class="st-unit">Worked — ${it.q}</div>
+        <div data-psworked="${i}">
+          ${it.steps.map(([ask, reveal], si) => `
+            <div class="st-step" data-wstep="${i}.${si}" ${si ? "hidden" : ""}>
+              <div class="st-ask">${ask}</div>
+              <div class="st-reveal" hidden>${reveal}</div>
+              <button type="button" class="jlink" data-wreveal="${i}.${si}">reveal this step</button>
+            </div>`).join("")}
+        </div>`;
+      if (it.c) return `
+        <div class="st-unit">Finish it — the first steps are done</div>
+        <div class="st-key" style="--c:${S.color}">${it.lead}</div>
+        ${it.given.map(([h2, p2]) => `
+          <div class="st-step"><div class="st-ask">${h2}</div><div class="st-reveal">${p2}</div></div>`).join("")}
+        ${oneProblem(it, i)}`;
+      if (it.parts) return `
+        <div class="st-unit">Step by step${it.tier ? " · " + it.tier : ""}</div>
+        <div class="st-key" style="--c:${S.color}">${it.q}</div>
+        ${it.parts.map((p2, pi) => oneProblem(p2, i, pi)).join("")}`;
+      return `
+        <div class="st-unit">Practice${it.tier ? " · " + it.tier : ""}</div>
+        ${oneProblem(it, i)}`;
+    }).join("")}
+    <div class="flex items-center gap-3 mt-3">
+      <button type="button" class="jlink" data-back>← back to the lecture</button>
+    </div>
+  `);
+  /* worked steps reveal one at a time, same as the lecture's example */
+  jbody.querySelectorAll("[data-wreveal]").forEach(b => b.addEventListener("click", () => {
+    const id = b.dataset.wreveal, host = jbody.querySelector(`[data-wstep="${id}"]`);
+    host.querySelector(".st-reveal").hidden = false; b.remove();
+    const [i, si] = id.split(".").map(Number);
+    const next = jbody.querySelector(`[data-wstep="${i}.${si + 1}"]`);
+    if (next) next.hidden = false;
+  }));
+  const refresh = () => {
+    const cleared = psetCleared(courseId, n);
+    if (cleared && !st.cleared){
+      st.cleared = 1; saveStudy();
+      toast("📐 Problem set cleared", `${sec.n} · ${sec.t} — the work is yours now.`, S.color, 4200);
+      /* checks already passed? then THIS was the missing half of mastery */
+      const ext = studyExt(courseId, n);
+      if (ext.kc && study[courseId][n] !== 2){
+        study[courseId][n] = 2; saveStudy(); renderCourses();
+        toast("📖 Lecture mastered", `${sec.n} · ${sec.t} — sealed into your study record.`, S.color, 4200);
+      }
+    }
+    jbody.querySelector("[data-fill]").style.width = (keys.length ? earnedNow() / keys.length * 100 : 0) + "%";
+    jbody.querySelector("[data-count]").textContent =
+      `${earnedNow()} of ${keys.length} earned${st.cleared ? " · cleared ✓" : ""}`;
+  };
+  /* every gradable problem: check → earn, hint ladder → solution burn */
+  const itemOf = key => {
+    const [i, pi] = key.split(".").map(Number);
+    return Number.isFinite(pi) ? ps[i].parts[pi] : ps[i];
+  };
+  jbody.querySelectorAll("[data-ps]").forEach(host => {
+    const key = host.dataset.ps, it = itemOf(key);
+    const why = host.querySelector(".st-why");
+    let hintsUsed = 0;
+    host.querySelector("[data-go]").addEventListener("click", () => {
+      let good;
+      if (it.type === "mc"){
+        const pick = host.querySelector(`input[name="ps${key}"]:checked`);
+        good = pick && +pick.value === it.a;
+      } else {
+        const v = parseFloat(host.querySelector(".st-num").value.replace(",", "."));
+        good = Number.isFinite(v) && Math.abs(v - it.ans) <= (it.tol || 0) + 1e-9;
+      }
+      host.classList.toggle("right", !!good); host.classList.toggle("wrong", !good);
+      why.hidden = false;
+      studyLog(courseId, n, "pset", !!good);
+      if (good){
+        if (!burned[key] && !st.earned[key]){ st.earned[key] = 1; saveStudy(); }
+        why.textContent = burned[key] && !st.earned[key]
+          ? "✓ right — but the solution was showing, so it is not earned. Reopen the set to earn it."
+          : "✓ " + (it.sol || "earned");
+        refresh();
+      } else {
+        why.textContent = "✗ not yet — the hint button is free.";
+      }
+    });
+    host.querySelector("[data-hint]").addEventListener("click", e => {
+      const b = e.currentTarget;
+      why.hidden = false;
+      if (hintsUsed < (it.hints?.length || 0)){
+        why.textContent = "Hint: " + it.hints[hintsUsed++];
+        if (hintsUsed >= (it.hints?.length || 0)) b.textContent = "show the full solution";
+      } else {
+        burned[key] = true;
+        why.textContent = "Solution — " + (it.sol || "");
+        b.remove();
+      }
+    });
+  });
+  jbody.querySelector("[data-back]").addEventListener("click", () => jStudySection(courseId, n));
+  refresh();
 }
 
 /* ── the gradebook: the policy, the evidence, the arithmetic ─────── */
