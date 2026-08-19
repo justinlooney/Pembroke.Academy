@@ -4421,15 +4421,13 @@ const assetLog = [];
    visit and nobody can be asked to reproduce that with a flag set. It
    costs one comparison a frame and at most 120 records. */
 const STALL_MS = 250;              /* below this the screen still moves */
-const trace = { stalls: [], lost: 0, worst: 0, frames: 0, t0: performance.now() };
+const trace = { stalls: [], lost: 0, worst: 0, worstAt: null, frames: 0, t0: performance.now() };
 function traceFrame(now, rawSec){
   trace.frames++;
   const ms = rawSec * 1000;
   if (ms < STALL_MS) return;
   trace.lost += ms;
-  trace.worst = Math.max(trace.worst, ms);
-  if (trace.stalls.length >= 120) return;   /* the shape is long since clear */
-  trace.stalls.push({
+  const rec = {
     at: Math.round(now - trace.t0),
     ms: Math.round(ms),
     /* Who was mid-parse. `late` marks the bodies fetched for the crowd,
@@ -4438,7 +4436,18 @@ function traceFrame(now, rawSec){
     decoding: assetLog.filter(a => a.ms == null).map(a => a.name + (a.late ? " (late)" : "")),
     rung, dpr: renderer.getPixelRatio(),
     why: LADDER_WHY,
-  });
+  };
+  /* The worst is kept as a RECORD, not as a number beside a list that
+     stops growing. Reading the figure from a running maximum and the
+     blame from the biggest surviving entry is two sources for one
+     fact, and past the cap they part company: the panel would print
+     "worst 5135ms" and then attribute whichever smaller stall happened
+     to be the largest one still in the list. A diagnostic that lies
+     confidently is worse than one that says nothing, and this release
+     is about that panel telling the truth. */
+  if (ms > trace.worst){ trace.worst = ms; trace.worstAt = rec; }
+  if (trace.stalls.length >= 120) return;   /* the shape is long since clear */
+  trace.stalls.push(rec);
 }
 /* test/debug hook: the whole trace, and a summary a person can read on
    the phone that produced it. */
@@ -12299,7 +12308,7 @@ function dbgUpdate(now, dt, raw){
        mattered, went unattributed. */
     (trace.stalls.length
       ? (() => {
-          const w = trace.stalls.reduce((a, b) => (b.ms > a.ms ? b : a));
+          const w = trace.worstAt;
           return "stalls " + trace.stalls.length + " frame(s), " + (trace.lost / 1000).toFixed(1) +
             "s lost, worst " + Math.round(trace.worst) + "ms\n" +
             "       worst at " + (w.at / 1000).toFixed(1) + "s " +
