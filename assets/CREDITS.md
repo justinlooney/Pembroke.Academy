@@ -41,7 +41,8 @@ published; anyone wanting the original should go to the source links here.
   (It replaced "New Colgate University Dorm" from Sketchfab, which is no longer
   distributed here — a different building, not a re-export of the same one.)
 - **"Baseball stadium 3d drone survey - Pix4d"** — by **KCraw** (https://sketchfab.com/goldenhornet),
-  **CC-BY-4.0**. Adapted: meshopt + WebP 2K; Pembroke Field, southwest athletics district. `ballpark.glb`- **Drosdick Hall (exterior)** — supplied via the project owner, generated from their
+  **CC-BY-4.0**. Adapted: meshopt + WebP 2K; Pembroke Field, southwest athletics district. `ballpark.glb`
+- **Drosdick Hall (exterior)** — supplied via the project owner, generated from their
   own building pipeline: collegiate gothic hall with crowned tower and baked site
   apron (plaza and trees), 300,000 triangles, one material, three JPEG textures.
   Stands as the engineering hall at the campus's east quarter. `drosdick_hall.glb`
