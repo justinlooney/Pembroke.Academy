@@ -148,11 +148,19 @@ self.addEventListener("activate", (e) => {
     await Promise.all(keys.filter((k) => k !== SHELL && k !== DEPOT)
                           .map((k) => caches.delete(k)));
     /* and inside the depot we keep, drop the files that were retired.
+
+       ignoreVary because a stored response carries whatever Vary the
+       host sent — GitHub Pages varies on Accept-Encoding — and a
+       delete built from a bare URL string has none of those headers
+       to match against. Without it the delete can quietly match
+       nothing, which is the one failure this whole mechanism exists
+       to avoid: 34MB left on a phone with no symptom anybody sees.
+
        Failing here costs disk, not correctness, so it must never take
        the activation down with it. */
     try {
       const depot = await caches.open(DEPOT);
-      await Promise.all(RETIRED.map((u) => depot.delete(u)));
+      await Promise.all(RETIRED.map((u) => depot.delete(u, { ignoreVary: true })));
     } catch (_) {}
     await self.clients.claim();
   })());
