@@ -3314,7 +3314,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v125";
+const BUILD = "pembroke-v126";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -6088,11 +6088,22 @@ const STUDENT_ROSTER = [
           "MATH 201 — applied calculus, twenty-eight lectures, functions to the Fundamental Theorem. The course lives in the Great Library's course of study; my job is the part a page can't do: noticing where YOU are stuck."],
          ["Why calculus at all?",
           "Because 'how fast is this changing right now' turns out to be the question under every other question — prices, populations, positions. Calculus is just that question asked carefully."]] },
-  /* The Dean is not a student: he is the first character who takes
+  /* The Dean is not a student: she is the first character who takes
      part in the student lifecycle. Always on campus (attendance is
-     forced below), stationed by his own hall, advisor-class AI. */
-  { name:"Dean Aldergate", ai:{ cls:"advisor", year:"dean of students", traits:["courtly","attentive","quietly funny","remembers everyone"], style:"warm and unhurried, an old-fashioned advisor's cadence; asks one good question at a time" },
-    looks:"m", c:0xa78bfa, at:"adm", major:"Dean of Students · Academic Advising", tier:0,
+     forced below), stationed by her own hall, advisor-class AI. */
+  /* `pron` is stated rather than left to the model to infer. Nothing in
+     the prompt carried gender before, so a character's pronouns were
+     whatever the LLM guessed from a name — and a guess is exactly the
+     wrong basis, on a campus where a visitor may be told about the Dean
+     by somebody else. Optional: a character without it simply has
+     nothing said about theirs. */
+  { name:"Dean Aldergate", ai:{ cls:"advisor", year:"dean of students", pron:"she/her", traits:["courtly","attentive","quietly funny","remembers everyone"], style:"warm and unhurried, an old-fashioned advisor's cadence; asks one good question at a time" },
+    /* looks follows the body. It is read only to pick a stand-in if the
+       pinned one has not arrived, so a stale "m" here would put a man on
+       the Administration apron in the seconds before char17 lands — the
+       swapping-faculty fault this campus has already been reported for
+       once, arriving through the back door. */
+    looks:"f", c:0xa78bfa, at:"adm", major:"Dean of Students · Academic Advising", tier:0,
     says:["My door is always open — and so, apparently, is the quad.","Advising hours are whenever a student finds me.","Every degree here started as a conversation."],
     ask:[["What does an advisor actually do?",
           "I listen until your interests stop sounding like a list and start sounding like a direction. Then I show you the majors that point that way, and the registrar does the paperwork — I never touch the pen."],
@@ -6240,6 +6251,7 @@ const CAST_FILES = {
   char14:  "assets/stu_char14.glb",     /* 200k tris, the fourth man     */
   char15:  "assets/stu_char15.glb",     /* 200k tris, 0.59 verts a tri   */
   char16:  "assets/stu_char16.glb",     /* 200k tris, the fifth man      */
+  char17:  "assets/stu_char17.glb",     /* 200k tris, the Dean herself   */
 };
 /* ── who has to be here before the doors open ─────────────────────────
    Twelve rigged files is 31MB, all of it decoded on the main thread
@@ -6347,7 +6359,8 @@ const CAST_MB = {
                      measured from the files rather than remembered. */
                   char2: 2.77, char4: 2.67, char5: 2.81, char6: 2.55,
                   char7: 2.62, char8: 2.73, char9: 2.58, char10: 2.77,
-                  char11: 3.51, char14: 2.88, char15: 3.13, char16: 2.67 };
+                  char11: 3.51, char14: 2.88, char15: 3.13, char16: 2.67,
+                  char17: 3.28 };
 /* Measured, not guessed: these are the six bodies with a shirt mesh the
    wardrobe can find. See the note above about the ten that have none. */
 /* Nobody. The last dressable body was walker and he is retired, so the
@@ -6367,7 +6380,7 @@ const CAST_DRESSABLE = [];
  * on the quad — reported from a phone as "none of the female characters
  * are present", which is very nearly what the numbers say. */
 const CAST_FEM = new Set(["char2", "char4", "char8", "char9",
-                          "char10", "char11", "char15"]);
+                          "char10", "char11", "char15", "char17"]);
 /* ── what a visitor holds in people at any moment ─────────────────────
    A HARD CEILING on the TEXTURE MEMORY of the bodies being drawn.
 
@@ -6427,7 +6440,14 @@ const BODY_VRAM_MB = 16.0;
    before the campus drew anything. Two different questions: how much
    comes down the wire before a visitor sees the place, and how much the
    GPU holds while they are looking at it. */
-const FIRST_WAVE_MB = 8.0;
+/* 8.0 until the Dean was given a body of her own. The two faculty board
+   first, and at char9 + char17 they spend 5.86MB of it — which left
+   2.14 for the third, and the cheapest body on the campus is 2.55. The
+   opening wave would have come out at two figures on a quad whose
+   ceiling draws three, so the first thing a visitor sees would be a
+   campus with a hole in it until the late wave landed. Raised by the
+   half megabyte that keeps three: 2.58 + 3.28 + 2.55 = 8.41. */
+const FIRST_WAVE_MB = 8.5;
 /* Which bodies are being drawn RIGHT NOW, and what they weigh together.
    Distinct bodies, not figures: a body is downloaded and decoded once
    and every figure wearing it shares that, so two students in the same
@@ -6533,18 +6553,27 @@ const CAST_HEIGHT = {
                       char2: 41, char4: 41, char5: 43,
                       char6: 42, char7: 43, char8: 40, char9: 41,
                       char10: 41, char11: 41, char14: 43, char15: 40,
-                      char16: 42 };
+                      char16: 42, char17: 42 };
 /* Which bodies can be given a waypoint and told to walk it, and which
    are only good for standing about. Ten that walk against a crowd
    that caps at ten: the round robin runs out of new people only on the
    eleventh, and by then they are scattered over sixty-eight
    waypoints. */
 const ROAMING = ["char2", "char4", "char5", "char6", "char7", "char8",
-                 "char9", "char10", "char11", "char14", "char15", "char16"];
+                 "char9", "char10", "char11", "char14", "char15", "char16",
+                 "char17"];
 /* The two bodies the faculty wear, every visit: Merion in char9, the
-   Dean in char6 — the lightest of each pool, 5.13MB together, so
-   identity can ride the first wave without sinking it. */
-const FACULTY_BODIES = ["char9", "char6"];
+   Dean in char17 — a body authored for her and worn by nobody else.
+ *
+ * The Dean was char6, which is the lightest body on the campus and was
+ * chosen for exactly that: identity had to ride the first wave without
+ * sinking it. char17 costs 3.28MB against char6's 2.55, and the trade
+ * is the point — the Dean now looks like the Dean rather than like the
+ * cheapest man available, and char6 goes back to the student pool it
+ * was drawn from, where it is still the lightest body the crowd can
+ * deal. FIRST_WAVE_MB is raised by the difference so the opening quad
+ * still holds three; see the note there. */
+const FACULTY_BODIES = ["char9", "char17"];
 /* Drawn here rather than beside drawFirstWave, because it reads ROAMING
    and a const cannot be read before it is declared — putting the call
    next to the function threw on load, which is a blank campus. */
@@ -6625,8 +6654,15 @@ const CAST_PLAN = [
      the journey asks the visitor to do. */
   { k: "char9", at: [248, 356], face: 0.7, live: true, pose: 0 }, /* Prof. Merion —
      on the Library's door apron, chalk-distance from her own lectures. */
-  { k: "char6", at: [702, 848], face: -0.5, live: true, pose: 0 }, /* Dean Aldergate —
-     on the Administration apron, where "meet with your advisor" points. */
+  { k: "char17", at: [702, 848], face: -0.5, live: true, pose: 0 }, /* Dean Aldergate —
+     on the Administration apron, where "meet with your advisor" points.
+     char17 is hers and nobody else's: it is in neither AUTHORED_F nor
+     AUTHORED_M, which are the two pools upgradeBody draws from, so no
+     student can ever upgrade into the Dean's face. wornFigures keeps
+     the crowd from being dealt it while she is wearing it — indoors as
+     well as out, because that map counts every student and not only the
+     drawn ones. She wore char6 until this build, and it is back in the
+     student pool now. */
 ];
 const castLib = {};
 const castMixers = [];
@@ -6744,7 +6780,7 @@ function wornFigures(){
   }
   return worn;
 }
-function drawBody(pool, looks){
+function drawBody(pool, looks, spare){
   if (!pool.length) return null;
   const worn = wornFigures();
   /* The named cast obeys the ceiling too. It is drawn before the crowd,
@@ -6754,7 +6790,7 @@ function drawBody(pool, looks){
      A student who cannot be built now is built when there is room:
      buildCast is resumable and runs again as the late wave settles. */
   const drawn = onScreenBodies();
-  const free = pool.filter(x => !worn.has(x) && roomOnScreen(x, drawn));
+  const free = pool.filter(x => !worn.has(x) && (spare || roomOnScreen(x, drawn)));
   if (!free.length) return null;               /* everyone left is already out */
   const want = looks ? free.filter(x => CAST_FEM.has(x) === (looks === "f")) : [];
   const from = want.length ? want : free;
@@ -6768,7 +6804,12 @@ function drawBody(pool, looks){
    named cast asks by name, and CAST_PLAN cannot know that a body has
    left the roster or that its model 404'd. Standing in for them is a
    smaller loss than losing the student. */
-function bodyFor(k, looks, needs){
+/* `spare` means "this figure is arriving straight into a lecture" — it
+   will be hidden the moment it is built, so the DRAWN ceiling has no
+   claim on it. See the note at the buildCast call site: without this
+   the named cast could never grow past whoever fitted on screen at the
+   two instants it happened to run. */
+function bodyFor(k, looks, needs, spare){
   /* "any" means this student has no particular body — nothing about
      them depends on which one they are, so they are dealt one each
      visit like the crowd, preferring a body that matches their `looks`
@@ -6790,7 +6831,8 @@ function bodyFor(k, looks, needs){
     /* The need comes first and the look second: a student who cannot
        hold the pose their plan calls for is a frozen figure, which is
        worse than a mismatched one. */
-    return drawBody(pool.filter(x => canDo(x, needs)), looks) || drawBody(pool, looks);
+    return drawBody(pool.filter(x => canDo(x, needs)), looks, spare) ||
+           drawBody(pool, looks, spare);
   }
   if (castLib[k]) return k;
   const pool = ROAMING.includes(k) ? loadedRoaming() : loadedLoitering();
@@ -8510,7 +8552,22 @@ function buildCast(){
        names and wrong for identity — a stand-in Dean is the bug this
        pin exists to end. The second pass builds them when it lands. */
     if ((st.tier ?? 2) <= 1 && CAST_HEIGHT[plan.k] && !castLib[plan.k]) return;
-    const k = bodyFor(plan.k, st.looks, plan.needs);
+    /* ── arriving into a lecture ──────────────────────────────────
+       A student who cannot be DRAWN can still exist: they arrive the
+       way this campus already lets people exist off screen, which is
+       inside a building. Without this the named cast is frozen at
+       whoever fitted on screen the moment buildCast ran — two faculty
+       and one student on a three-body ceiling — and that one student
+       can never leave, because the floor asks for another student to
+       stay behind. Nothing rotates, and a single occluded figure is
+       the whole tappable campus.
+
+       Bounded, because a hidden body still holds its textures: enough
+       students that two can be out and a third is always coming. */
+    const roomNow = roomOnScreen(plan.k === "any" ? null : plan.k);
+    const built = students.filter(o => o.data && (o.data.tier ?? 2) > 1).length;
+    const spare = !roomNow && (st.tier ?? 2) > 1 && built < NAMED_STUDENTS;
+    const k = bodyFor(plan.k, st.looks, plan.needs, spare);
     if (!k) return;                      /* nothing loaded YET — the
        second pass will build them once the late wave lands, which is
        what lets the first wave be small enough to arrive quickly */
@@ -8577,6 +8634,20 @@ function buildCast(){
        finds him just as well as circling the lawn did. */
     const s = makeRoamer(g, ALL_WAYS[Math.floor(Math.random() * ALL_WAYS.length)], { data: st },
                          plan.jog ? "Jogging" : null);
+    /* Seated in a lecture rather than dropped onto a full quad. `spare`
+       says this body was dealt over the drawn ceiling on purpose, so it
+       must not be drawn until the rotation opens a slot — which the
+       ordinary re-emergence does, on the ordinary clock, through a
+       door like everybody else. Coming out of a door they never walked
+       into is the only liberty taken, and it is the same liberty the
+       first wave takes when the campus opens with people already on
+       the lawn. */
+    if (spare && s){
+      s.inside = true; s.mode = "inside";
+      s.g.visible = false;
+      s.door = DOORS[Math.floor(Math.random() * DOORS.length)];
+      s.until = performance.now() + Math.random() * INSIDE_MS[0];
+    }
     /* The multiplier existed because she was not actually jogging: the
        forced gait was being dropped, so half again the pace was the
        only thing making the runner read as a runner. Now that she gets
@@ -8878,6 +8949,11 @@ function addExtra(n){
              persona ? { data: persona } : undefined);
   return true;
 }
+/* How many students with names the campus will keep bodies for. Three
+   is the smallest number that satisfies the floor and still rotates:
+   two out here for a visitor to meet and one indoors on their way back
+   round. The faculty are not counted — they have their own two. */
+const NAMED_STUDENTS = 3;
 function stepCrowd(now, dt, raw){
   /* a slow average, so one stutter — a model finishing its decode, a
      texture uploading — does not permanently cap the campus.
@@ -8944,7 +9020,7 @@ window.__crowdFill = () => {
    goes indoors, which is the moment room appears: the ceiling caps who
    is ON SCREEN, so the cast rotates through the buildings rather than
    the campus being whoever won the first draw. */
-function topUpCrowd(){
+function topUpCrowd(now = performance.now()){
   if (!crowdReady || crowdN >= CROWD_TARGET) return;
   /* The next opening belongs to whoever is already waiting for it.
      Somebody indoors whose time is up is queueing for a body slot, and
@@ -8959,16 +9035,29 @@ function topUpCrowd(){
      misses the opening by an accident of array position, and the
      stranger takes it before their next tick.
 
-     So: reserved, but only for somebody who has actually served their
-     time inside AND could step into the opening this instant. A stamped
-     readyAt alone is not enough — it survives for as long as the wait
-     does, and a wait can last the whole visit, which turns a one-frame
-     reservation into a standing ban on ever dealing another body. CI
-     read that back as a campus of three: "2 different people in four
-     minutes; 12 bodies were loaded". The room test is what bounds it.
-     Room and a queue means hold the slot, they take it next tick; no
-     room means the veto would be refusing something that could not
-     have happened anyway. */
+     And then: not reserved at all.
+
+     Three versions of that reservation shipped and all three punched
+     the same hole. Keyed on readyAt it lasted a whole visit. Paired
+     with a room test it was the identical bug in a disguise, because
+     room is exactly the condition under which a veto bites. Given a
+     deadline it went from a coin toss to one sample in sixty — better,
+     and still a hole, because withholding a fill is the one thing a
+     reservation can do and an unfilled slot IS the fault.
+
+     And then, once the queue was awake: priority, safely.
+
+     Every one of those versions failed the same way, and it was never
+     the priority that was wrong — it was that the person being given
+     priority was asleep. A student who failed a room check went away
+     for four seconds, so the slot was held for somebody who could not
+     take it, and the hold read as a hole. They re-check every tick now.
+
+     So this yields a slot to a named student who is queueing indoors
+     AND has room to step into it — which, with the sleep gone, they do
+     on their very next tick. The yield lasts one frame by construction
+     rather than by a deadline, and if no named face can use the slot
+     the crowd fills it immediately. */
   if (students.some(o => o.data && o.inside && o.readyAt !== undefined &&
                          roomOnScreen(o.g?.userData?.figure))) return;
   if (addExtra(crowdN)) crowdN++;
@@ -9474,9 +9563,9 @@ function makeRoomFor(k, now, urgent){
   if (!out.length){
     /* No stranger left to compress — every slot is a named face. The
        first version gave up here and told the caller to wait, which put
-       the Dean back in the building he had already served his time in:
-       the facduty probe watched him for seven minutes and he never came
-       out. That is the field report this release exists to fix, arrived
+       the Dean back in the building she had already served her time in:
+       the facduty probe watched her for seven minutes and she never
+       came out. That is the field report this release exists to fix, arrived
        at from the other side.
 
        So the last resort is a SWAP rather than a wait. The student who
@@ -9492,6 +9581,16 @@ function makeRoomFor(k, now, urgent){
                    o.mode !== "approach" && o.mode !== "talk" &&
                    now - (o.outAt ?? now) > (o.outSpan ?? Infinity))
       .sort((a, b) => (a.outAt ?? 0) - (b.outAt ?? 0));
+    /* The swap obeys the same floor everything else does. It did not,
+       and being the one path that could take a student off the quad
+       without asking, it took the LAST one: a probe ended four
+       simulated minutes with both students indoors and the campus down
+       to two faculty. The faculty member waiting on this slot can wait
+       — students rotate on their own clock and another will be out
+       shortly — but a quad with nobody to talk to cannot be undone by
+       waiting. */
+    if (spent.length && outHere().filter(o => (o.data.tier ?? 2) > 1).length < 2)
+      return false;
     const c = spent[0];
     if (!c) return false;
     let cd = null, cbd = Infinity;
@@ -9546,6 +9645,11 @@ function sweepRetired(){
     students.splice(i, 1);
     if (crowdN > 0) crowdN--;         /* their place in the crowd is open */
     crowdDone = false;                /* and the ramp has somewhere to go */
+    /* Fill it at the end of THIS pass. Without this the slot a retired
+       stranger frees waits on the one-second heartbeat, and a second is
+       a whole frame or more on the hardware the crowd governor exists
+       to protect — a quad visibly a body short, for no reason. */
+    TOPUP_AT = 0;
   }
 }
 function mayLeaveQuad(s){
@@ -9573,17 +9677,23 @@ function mayLeaveQuad(s){
      leaves. CI: "2 different people in four minutes; 12 bodies were
      loaded and 1 trip(s) indoors happened."
 
-     So the rule is about the HANDOVER rather than the census. Leave
-     freely while a classmate stays out here. Leave as the last student
-     on the quad only when another one has served their time inside and
-     is standing at the door waiting on a body — the slot goes student
-     to student, and the quad is never without one for longer than the
-     walk between them. */
+     The second attempt let the LAST student go on a handover: leave if
+     a classmate has served their time inside and is waiting on a body,
+     since the slot then passes student to student. That traded a
+     certainty for a promise, and the promise is not the same thing —
+     "waiting on a body" is a state somebody can sit in for a while, so
+     the quad kept its census on paper and emptied of students in fact.
+     CI: "nobody could be tapped at all — Dean Aldergate off screen;
+     Prof. Merion indoors; Elowen indoors; Priya indoors."
+
+     So: a student leaves only while another student is actually out
+     here. What made that unworkable before was strangers holding the
+     slots a returning classmate needed, and that is now makeRoomFor's
+     job — a stranger gives a body up when somebody with a name wants
+     one. The census is affordable again because the thing that starved
+     it has been fixed at its source. */
   if ((s.data.tier ?? 2) <= 1) return namedOnQuad() >= 2;
-  if (outHere().filter(o => (o.data.tier ?? 2) > 1).length >= 2) return true;
-  return namedOnQuad() >= 2 &&
-         students.some(o => o !== s && o.data && (o.data.tier ?? 2) > 1 &&
-                            o.inside && o.readyAt !== undefined);
+  return outHere().filter(o => (o.data.tier ?? 2) > 1).length >= 2;
 }
 function nearestDoor(s, force){
   /* `force` is the rotation talking: a student whose outside life has
@@ -9783,8 +9893,15 @@ function stepStudents(dt, now){
          then not. */
       if (!roomOnScreen(s.g?.userData?.figure)){
         s.waitedOut = (s.waitedOut || 0) + 1;
-        makeRoomFor(s.g?.userData?.figure, now, s.waitedOut >= 4);
-        if (!roomOnScreen(s.g?.userData?.figure)){ s.until = now + 4000; continue; }
+        makeRoomFor(s.g?.userData?.figure, now, s.waitedOut >= 60);
+        /* Checked EVERY tick, not every four seconds. Sleeping on
+           s.until was how a student came to be queueing and unavailable
+           at the same moment: room would open while they were still
+           asleep on the last failed check, a stranger would take it,
+           and by the time they woke the slot was gone again. A room
+           test is a set lookup — it can afford to be asked every frame, and
+           asking is what makes waiting bounded rather than a lottery. */
+        if (!roomOnScreen(s.g?.userData?.figure)) continue;
       }
       s.waitedOut = 0;
       s.mode = "walk";
@@ -10177,7 +10294,43 @@ function stepStudents(dt, now){
      have priority WITHOUT leaving the quad short — a rotation has
      instants where an entrance and a re-emergence miss each other, and
      a campus a body under its ceiling is what the smoke test sees. */
-  if (now - TOPUP_AT > 1000){ TOPUP_AT = now; topUpCrowd(); }
+  /* The world's clock, not the wall's. __sim steps the crowd on a clock
+     that runs AHEAD of performance.now(), so a topUpCrowd() left to its
+     own default would compare a synthetic `now` against a hold stamped
+     from the same synthetic clock and read every reservation as live —
+     the rotation CI measures, frozen by a courtesy meant to last a
+     frame. */
+  if (now - TOPUP_AT > 1000){
+    TOPUP_AT = now;
+    /* ── the named cast grows into the room the rotation makes ────────
+       buildCast ran exactly twice: once when the first wave settled and
+       once when the late one did. Both times it asks bodyFor for a
+       body, and bodyFor refuses when the ceiling is full — so the named
+       cast was whoever happened to fit at those two instants, and on a
+       three-body ceiling that is the Dean, the professor, and ONE
+       student. It never grew again, however much room the rotation
+       freed afterwards.
+
+       Everything downstream followed from that. A lone student cannot
+       satisfy a floor that asks for two students out here, so she never
+       left, so the cast never turned over: CI read back "3 different
+       people in four minutes, 1 trip indoors". And with the two
+       faculty spending their own slots — one indoors on duty, one at
+       whatever angle the camera could not reach — that single student
+       WAS the entire tappable campus. Stand a stranger in front of her
+       and there is nobody left to talk to at all, which is exactly what
+       was photographed: "nobody could be tapped at all — Dean off
+       screen; Prof. Merion indoors; Elowen, someone is standing in
+       front of them."
+
+       So it runs on the heartbeat, and it runs BEFORE the crowd is
+       topped up: a freed slot belongs to a student with a name and a
+       conversation before it belongs to a stranger. It is guarded by
+       CAST_USED and returns immediately once the roster is spent, so
+       the steady state costs one pass over the roster a second. */
+    buildCast();
+    topUpCrowd(now);
+  }
 }
 /* ── the faculty stroll ───────────────────────────────────────────────
    The Dean and the professor are statics: always findable at their
@@ -10224,10 +10377,10 @@ function stepFacultyStroll(s, now, dt){
        memory, and beside the point: the budget is a rule about what is
        DRAWN, and CI photographed the result as four bodies where three
        fit. So the stranger gives up the slot instead — urgently, since
-       a returning Dean has already served his time inside and the whole
-       stagger waits on him. If there is no stranger to compress, the
+       a returning Dean has already served her time inside and the whole
+       stagger waits on her. If there is no stranger to compress, the
        ceiling is held by named faces who are themselves on rotation
-       clocks, and he takes the next opening rather than a frame. */
+       clocks, and she takes the next opening rather than a frame. */
     if (!makeRoomFor(s.g?.userData?.figure, now, true)){
       s.until = now + 3000;
       return;
@@ -10298,7 +10451,8 @@ function stepFacultyStroll(s, now, dt){
          people the journey points at, so their door only swallows
          them briefly — outside roughly as much as in */
       s.until = now + 20000 + Math.random() * 15000;
-      topUpCrowd();
+      TOPUP_AT = 0;                   /* fill it at the end of this pass */
+      topUpCrowd(now);
       return;
     }
     s.strollTo = null;                    /* arrived: settle back into the wait */
@@ -14445,7 +14599,7 @@ function aiSystemPrompt(s, userText){
   })() : "";
   return [
     `You are ${d.name}, a ${ai.year || "student"} at Pembroke Academy studying ${d.major}. You are a person in this world, never an assistant: no "how can I help you today", no mention of being an AI, no offers of general assistance. You are mid-walk on campus having a chat.`,
-    `Personality: ${(ai.traits || []).join(", ")}. Voice: ${ai.style}. Keep replies to 1-3 short sentences${ai.cls === "academic" ? ", except when actually teaching a concept — then up to 6, always concrete, image-first" : ""}. Contractions, hesitations, opinions welcome.`,
+    `Personality: ${(ai.traits || []).join(", ")}.${ai.pron ? ` Your pronouns are ${ai.pron}.` : ""} Voice: ${ai.style}. Keep replies to 1-3 short sentences${ai.cls === "academic" ? ", except when actually teaching a concept — then up to 6, always concrete, image-first" : ""}. Contractions, hesitations, opinions welcome.`,
     `Knowledge boundaries: ${knowledge}`,
     `Where you are: ${aiPlaceOf(s.pos)}, ${aiClock()}. Your home hall is ${hall ? hall.hall : "the quad"}. You are currently ${s.inside ? "just out of a lecture" : s.mode === "todoor" || s.route ? "walking to a class" : "out on the paths"}.`,
     `The visitor: ${player.name ? "named " + player.name + ", " : ""}${player.status === "enrolled" ? `an enrolled student${player.major ? " in " + player.major : ""}${player.courses.length ? ", taking " + player.courses.join(" and ") : ""}` : player.status === "visitor" ? "someone new to campus, possibly a prospective student" : "an applicant working through admissions"}.`,
@@ -15511,7 +15665,7 @@ function renderJourney(){
     submitted ? stamp(st.admissions.applicationSubmittedAt) : (st.admissions.draft ? "draft saved" : "after your visit")]);
   stages.push(["Accepted", st.admissions.acceptedAt ? "done" : "locked", stamp(st.admissions.acceptedAt) || "—"]);
   stages.push(["Meet With Advisor", st.advising.completedAt ? "done" : (st.admissions.acceptedAt ? "now" : "locked"),
-    st.advising.completedAt ? stamp(st.advising.completedAt) : "Dean Aldergate — here, or find him by Administration Hall"]);
+    st.advising.completedAt ? stamp(st.advising.completedAt) : "Dean Aldergate — here, or find her by Administration Hall"]);
   stages.push(["Declare Major", st.academics.declaredMajorId ? "done" : (st.advising.completedAt ? "now" : "locked"),
     st.academics.declaredMajorId ? MAJORS.find(m => m.id === st.academics.declaredMajorId).title : "—"]);
   stages.push(["Register For Classes", st.registration.completedAt ? "done" : (st.academics.declaredMajorId ? "now" : "locked"),
