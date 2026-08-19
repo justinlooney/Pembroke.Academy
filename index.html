@@ -12721,12 +12721,21 @@ function kcUnanswered(sec){
   });
   const nag = jbody.querySelector("#kc-nag");
   if (nag){
+    /* Every check carries two questions today, so "some but not all"
+       can only ever be one of them and the plural never appears. It
+       is written anyway: the day a check grows a third question is
+       not the day to discover the message says "Question 1 and 2
+       still needs an answer". */
+    const list = blanks.length > 1
+      ? blanks.slice(0, -1).join(", ") + " and " + blanks[blanks.length - 1]
+      : String(blanks[0]);
     nag.hidden = !blanks.length;
-    nag.textContent = blanks.length
-      ? (blanks.length === sec.qs.length
-          ? "Nothing is selected yet — answer before checking."
-          : `Question ${blanks.join(" and ")} still needs an answer.`)
-      : "";
+    nag.textContent = !blanks.length ? ""
+      : blanks.length === sec.qs.length
+        ? "Nothing is selected yet — answer before checking."
+        : blanks.length === 1
+          ? `Question ${list} still needs an answer.`
+          : `Questions ${list} still need an answer.`;
   }
   return blanks.length > 0;
 }
@@ -12740,10 +12749,11 @@ function stGradeKC(courseId, n, sec, S){
     const pick = jbody.querySelector(`input[name="q${qi}"]:checked`);
     const fs = jbody.querySelector(`[data-q="${qi}"]`);
     const why = fs.querySelector(".st-why");
-    /* !!pick, not pick: the guard above means it is never null here,
-       but `pick && …` yields the ELEMENT when the comparison is not
-       reached, and studyLog now refuses anything that is not a
-       boolean — a wrong answer must not become an unrecorded one */
+    /* !!pick, not pick: `pick && …` evaluates to pick itself when pick
+       is falsy — null here, not a boolean — and studyLog now refuses
+       anything that is not strictly true or false. The guard above
+       means that cannot happen from this call site, but a wrong answer
+       must not become an unrecorded one if it ever does. */
     const good = !!pick && +pick.value === q.a;
     if (good) right++;
     studyLog(courseId, n, "kc", good);

@@ -226,8 +226,14 @@ try {
     if (!document.getElementById("st-quiz")) return { ready: false };
     submit();                                     /* nothing selected */
     await new Promise(r => setTimeout(r, 250));
+    const nag = document.getElementById("kc-nag");
     const blank = { logged: logged().length, revealed: revealed(), marked: marked(),
-                    named: document.getElementById("kc-nag")?.hidden === false };
+                    /* the TEXT, not merely the element's visibility — a
+                       step called "says which questions are missing"
+                       that only checks a hidden attribute is claiming
+                       more than it looked at */
+                    named: nag?.hidden === false ? (nag.textContent || "").trim() : "",
+                    flagged: document.querySelectorAll("#st-quiz .st-q.blank").length };
 
     document.querySelectorAll("#st-quiz [data-q]").forEach(fs => {
       const r = fs.querySelector("input[type=radio]");
@@ -253,7 +259,9 @@ try {
        kc.ready ? kc.blank.logged + " entr(ies) written" : "");
   step("an unanswered check reveals nothing", kc.ready && kc.blank.revealed === 0 && kc.blank.marked === 0,
        kc.ready ? kc.blank.revealed + " revealed, " + kc.blank.marked + " marked" : "");
-  step("and says which questions are missing", kc.ready && kc.blank.named);
+  step("and says which questions are missing",
+       kc.ready && /answer/i.test(kc.blank.named) && kc.blank.flagged >= 2,
+       kc.ready ? JSON.stringify(kc.blank.named) + " · " + kc.blank.flagged + " flagged" : "");
   step("a real attempt is still graded and recorded",
        kc.ready && kc.real.marked >= 2 && kc.real.revealed >= 2 && kc.real.logged >= 2,
        kc.ready ? kc.real.marked + " marked, " + kc.real.revealed + " revealed, " +
