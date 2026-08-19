@@ -3314,7 +3314,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v130";
+const BUILD = "pembroke-v131";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -3528,21 +3528,40 @@ const LADDER = [
                        shadowMap.enabled would have cost two full
                        material invalidations, one of them mid-load,
                        which is the fault wearing a different hat. */
-/* One way. The preset is an ARRIVAL phase, not a running policy: it
-   starts on, it ends once, and it does not come back.
- *
-   Driven purely by "is anything outstanding" it would re-engage every
-   time the site fetched something later — an interior, the atrium —
-   and each transition costs a resize, so a rule meant to stop the
-   screen flickering would have become a slower flicker of its own,
-   spread across the whole visit. After the arrival, changing quality
-   is the ladder's job and it has a measurement to do it on. */
-let loadPreset = false, presetDpr = 0, presetDone = false;
+/* It comes back. The first version did not, and the reasoning was that
+   re-engaging on every later fetch would cost a resize each time and
+   become a slower flicker of its own spread across the visit.
+
+   That was the wrong side of the trade, and the phone said so. The
+   atrium is a 27MB Gaussian capture that preloads when the visitor
+   walks within a hundred and fifty feet of Drosdick Hall — long after
+   the cast has landed and the preset has retired — and its decode was
+   measured on an Adreno at a single frame of 5135ms. Five seconds, at
+   pixel ratio 2 with ssao and 3072 shadow maps, because the one thing
+   that would have turned those down had decided its job was over.
+   "quality rung 5/5" is not the campus this fixes; "the black screen
+   still flickers some" is.
+
+   A resize is one frame. Weighed against five seconds it is not a
+   close question, and the flapping the one-way rule was protecting
+   against cannot happen anyway: `arriving` already carries a four
+   second settling window, so a burst of arrivals is one transition
+   down and one back up however many files it contains.
+
+   What the preset cannot do is make the decode itself shorter. A main
+   thread blocked for five seconds draws nothing whatever the pixel
+   ratio is. It makes the frames on either side of the block cheap,
+   which is worth having and is not the whole answer — see the note on
+   the atrium's own load. */
+let loadPreset = false, presetDpr = 0;
 function setLoadPreset(on){
-  if (on === loadPreset || (on && presetDone)) return;
-  if (!on) presetDone = true;
+  if (on === loadPreset) return;
   loadPreset = on;
   if (on){
+    /* Captured fresh each time. The ladder may have shed a pixel-ratio
+       rung since the last arrival, and restoring a number from before
+       that would hand back quality the ladder had already taken away on
+       an honest measurement. */
     presetDpr = renderer.getPixelRatio();
     if (presetDpr > 1) renderer.setPixelRatio(1);
     if (ssao) ssao.enabled = false;
@@ -12272,12 +12291,21 @@ function dbgUpdate(now, dt, raw){
        what the stalls are made of. Reading them together is the whole
        diagnosis. */
     "ladder " + (loadPreset ? "arrival preset on — " : "") + LADDER_WHY + "\n" +
+    /* The WORST stall and what it was blamed on, not the last one. The
+       last is merely the most recent and is usually the least
+       interesting: a phone came back with "5 frame(s), 6.6s lost,
+       worst 5135ms" and then named the suspects of a 300ms one that
+       happened to be latest — the five second frame, the only one that
+       mattered, went unattributed. */
     (trace.stalls.length
-      ? "stalls " + trace.stalls.length + " frame(s), " + (trace.lost / 1000).toFixed(1) +
-        "s lost, worst " + Math.round(trace.worst) + "ms\n" +
-        "       last at " + (trace.stalls[trace.stalls.length - 1].at / 1000).toFixed(1) + "s" +
-        (trace.stalls[trace.stalls.length - 1].decoding.length
-          ? " during " + trace.stalls[trace.stalls.length - 1].decoding[0] : "") + "\n"
+      ? (() => {
+          const w = trace.stalls.reduce((a, b) => (b.ms > a.ms ? b : a));
+          return "stalls " + trace.stalls.length + " frame(s), " + (trace.lost / 1000).toFixed(1) +
+            "s lost, worst " + Math.round(trace.worst) + "ms\n" +
+            "       worst at " + (w.at / 1000).toFixed(1) + "s " +
+            (w.decoding.length ? "during " + w.decoding.slice(0, 2).join(" + ")
+                               : "with nothing decoding") + "\n";
+        })()
       : "") +
     "draws  " + inf.render.calls + "   tris " + (inf.render.triangles / 1e6).toFixed(2) + "M\n" +
     "tex    " + inf.memory.textures + "   geo " + inf.memory.geometries + "\n" +
