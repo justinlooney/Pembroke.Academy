@@ -234,37 +234,47 @@ try {
 
   /* AT 1024x768 ON PURPOSE. The suite runs at 1280x800, where the
      window (1.6) and the restored 52% column (0.92) both read WIDE, so
-     standBack() returns 1 either way and this bug is invisible — the
+     standBack() returns 1 either way and this bug cannot be seen — the
      first version of this check sat at the suite's own viewport and
      passed against the unfixed code. At 1024x768 the window reads wide
-     (1.33) and the column reads narrow (0.77), so the two disagree
-     about PORTRAIT_K and the mis-measurement shows: camera 1707 out
-     becomes 1138, a third too close, and nothing recomputes it. */
-  await page.evaluate(() => document.getElementById("walkbtn").click());
+     (1.33) while the column reads narrow (0.77), so the two disagree
+     about PORTRAIT_K and the mis-measurement shows.
+
+     Calibrated against this page rather than against copied constants:
+     `wide` is the standoff the suite's own viewport produces, where
+     the stage reads wide and the multiplier is 1. A narrow stage must
+     then stand meaningfully FURTHER back. Framing off the window
+     instead of the stage returns the wide standoff — which is the
+     failure, and is what the >1.2x test catches. Resizing alone never
+     re-frames the camera, so a baseline read after the resize would be
+     the OLD viewport's position; that mistake is what this comment
+     exists to stop the next person repeating. */
+  const wide = await page.evaluate(() => {
+    const p = window.__app.camera.position, st = document.getElementById("stage");
+    return { far: Math.hypot(p.x, p.y, p.z), ratio: st.clientWidth / st.clientHeight };
+  });
+  step("the suite's own viewport frames a wide stage", wide.ratio >= 0.85,
+       "stage ratio " + wide.ratio.toFixed(2) + " · standoff " + Math.round(wide.far));
+
+  await page.evaluate(() => document.getElementById("walkbtn").click());   /* out of walk */
   await page.waitForTimeout(400);
   await page.setViewportSize({ width: 1024, height: 768 });
   await page.waitForTimeout(600);
-  const framed = await page.evaluate(() => {
-    const p = window.__app.camera.position, st = document.getElementById("stage");
-    return { far: Math.hypot(p.x, p.y, p.z), stage: [st.clientWidth, st.clientHeight] };
-  });
-  await page.evaluate(() => document.getElementById("walkbtn").click());   /* in */
+  await page.evaluate(() => document.getElementById("walkbtn").click());   /* in  */
   await page.waitForTimeout(500);
   await page.evaluate(() => document.getElementById("walkbtn").click());   /* and out */
   await page.waitForTimeout(700);
   const framing = await page.evaluate(() => {
     const p = window.__app.camera.position, st = document.getElementById("stage");
     return { on: window.__walker.on, far: Math.hypot(p.x, p.y, p.z),
+             ratio: st.clientWidth / st.clientHeight,
              stage: [st.clientWidth, st.clientHeight] };
   });
-  /* against the view this page framed for itself a moment earlier at
-     the same size — not a copied constant, which would only re-encode
-     AERIAL and PORTRAIT_K and stop meaning anything if either moved */
-  const drift = Math.abs(framing.far - framed.far) / Math.max(1, framed.far);
   step("leaving walk mode frames the aerial view for the stage, not the window",
-       !framing.on && drift < 0.02,
-       `camera ${Math.round(framing.far)} out, framed at ${Math.round(framed.far)} before walking` +
-       ` · stage ${framing.stage.join("x")}`);
+       !framing.on && framing.ratio < 0.85 && framing.far > wide.far * 1.2,
+       `stage ${framing.stage.join("x")} ratio ${framing.ratio.toFixed(2)} · standoff ` +
+       `${Math.round(framing.far)}, wide standoff ${Math.round(wide.far)}` +
+       (framing.far <= wide.far * 1.2 ? "  (framed off the window, not the stage)" : ""));
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.waitForTimeout(600);
 
