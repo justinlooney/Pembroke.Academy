@@ -6571,13 +6571,25 @@ const CAST_HEIGHT = {
                       char10: 41, char11: 41, char14: 43, char15: 40,
                       char16: 42, char17: 42, char18: 43 };
 /* Which bodies can be given a waypoint and told to walk it, and which
-   are only good for standing about. Ten that walk against a crowd
-   that caps at ten: the round robin runs out of new people only on the
-   eleventh, and by then they are scattered over sixty-eight
-   waypoints. */
+   are only good for standing about.
+ *
+ * The count used to be written into this comment — "ten that walk
+ * against a crowd that caps at ten" — and it was ten when it was
+ * written and is fourteen now, because two faculty bodies and two
+ * before them were added by people reading a different part of the
+ * file. A number in prose is a number nobody updates, so it is read
+ * from the list instead and printed once at boot, where a wrong one
+ * would be visible rather than merely written down.
+ *
+ * The point the prose was making still holds and does not depend on
+ * the exact figure: there are more distinct bodies than the crowd can
+ * put out at once, so the round robin runs out of NEW people only
+ * after everybody has had a turn, and by then they are scattered over
+ * sixty-eight waypoints. */
 const ROAMING = ["char2", "char4", "char5", "char6", "char7", "char8",
                  "char9", "char10", "char11", "char14", "char15", "char16",
                  "char17", "char18"];
+console.info("cast: " + ROAMING.length + " bodies can walk the campus");
 /* The two bodies the faculty wear, every visit: Merion in char18, the
    Dean in char17 — each a body authored for the part and worn by
    nobody else.
