@@ -39,8 +39,8 @@
  * engine and the stylesheet are re-precached by every install with
  * cache:"reload", so they track releases despite living in the depot.
  */
-const VERSION = "pembroke-v126";
-const ASSETS_V = "pembroke-assets-v2";
+const VERSION = "pembroke-v127";
+const ASSETS_V = "pembroke-assets-v3";
 const SHELL = VERSION + "-shell";
 const DEPOT = ASSETS_V + "-depot";
 
