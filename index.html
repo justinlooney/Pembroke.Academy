@@ -130,7 +130,6 @@ if ("serviceWorker" in navigator){
   --lawn1:#17331e; --lawn2:#112618; --lawn3:#0c1d10;
   --lawnEdge:rgba(168,180,140,.30);
   --walk1:rgba(216,206,178,.17); --walk2:rgba(216,206,178,.09);
-  --isky1:#0d1428; --isky2:#2a4677;
   --terra1:#6b3527; --terra2:#4a231a; --terra3:#381a13;
 }
 body.day{
@@ -139,7 +138,6 @@ body.day{
   --lawn1:#83ad6c; --lawn2:#74a05d; --lawn3:#639252;
   --lawnEdge:rgba(235,230,210,.5);
   --walk1:rgba(238,232,214,.92); --walk2:rgba(214,205,182,.88);
-  --isky1:#8fc3ee; --isky2:#d6e9f8;
   --terra1:#c26243; --terra2:#9c4a32; --terra3:#7e3a27;
 }
 /* canvas color lives on html only — body must stay transparent or its
@@ -756,72 +754,72 @@ body.day .hall-tag{background:linear-gradient(180deg, rgba(24,30,44,.86), rgba(2
 .stu-tag{font-size:9px;letter-spacing:.08em;color:#f1f5f9;text-shadow:0 1px 3px rgba(0,0,0,.9);white-space:nowrap;}
 .walkmode .hall-tag .t2,.walkmode .hall-tag .t3{display:none;}
 
-/* ── interior classroom scene ──────────────────────────────────── */
+/* ── the hall panel ────────────────────────────────────────────── */
 #interior{
   position:absolute;inset:0;z-index:30;
   opacity:0;pointer-events:none;
   transition:opacity .45s ease;
 }
 #interior.open{opacity:1;pointer-events:auto;}
-/* Inside the REAL nave the world itself is the control — a dragged
-   finger looks around, exactly as outside. The full-bleed overlay was
-   eating that drag before the canvas ever saw it, so in the nave the
-   overlay goes click-through and only its buttons catch the pointer. */
-#interior.open.nave{pointer-events:none;}
-#interior.open.nave .int-btn{pointer-events:auto;}
-/* the room itself is rendered in WebGL; this overlay is HUD only */
+/* the panel covers the canvas completely, so the campus HUD goes with it */
 .interior-open #labels2d, .interior-open #quest, .interior-open #walkhud,
 .interior-open #doorprompt, .interior-open #minimap,
 .interior-open .moon, .interior-open .cloud{display:none !important;}
 .interior-open #campus-wing-intro, .interior-open #campus-legend,
 .interior-open #campus-hints{opacity:0;}
-.int-wall{position:absolute;left:0;right:0;top:0;height:64%;background-size:100% 100%;}
-.int-wall::after{content:"";position:absolute;inset:0;
-  background:radial-gradient(120% 90% at 50% 108%, transparent 40%, rgba(0,0,0,.5) 100%);}
-.int-floor{position:absolute;left:0;right:0;bottom:0;height:36.5%;
-  background:
-    repeating-linear-gradient(90deg, rgba(0,0,0,.22) 0 2px, transparent 2px 64px),
-    repeating-linear-gradient(0deg, rgba(0,0,0,.12) 0 1.5px, transparent 1.5px 26px),
-    linear-gradient(180deg,#57452f,#3a2d1e 70%,#241b11);}
-.int-floor::before{content:"";position:absolute;inset:0;
-  background:radial-gradient(70% 100% at 50% 0%, rgba(255,224,150,.10), transparent 60%);}
-.int-window{
-  position:absolute;top:7%;width:88px;height:52%;
-  clip-path:path("M0 300 L0 62 Q0 12 44 0 Q88 12 88 62 L88 300 Z");
-  background:
-    repeating-linear-gradient(0deg, rgba(20,18,14,.5) 0 2px, transparent 2px 34px),
-    repeating-linear-gradient(90deg, rgba(20,18,14,.5) 0 2px, transparent 2px 21px),
-    linear-gradient(180deg,var(--isky1),var(--isky2));
-  box-shadow:inset 0 0 0 5px #241f17, inset 0 0 40px rgba(0,0,0,.35);
+
+/* The photograph. One WebP per hall under assets/interiors/, set as a
+   background on first entry and never touched again; a hall without a
+   photograph gets its sector colour as a plate instead, which is why
+   every rule here works against --plate rather than the image. The
+   scrim is not decoration — the record is set in parchment over a
+   photograph of a real room, and without it the text is unreadable
+   wherever the room is bright. */
+.int-plate{position:absolute;inset:0;background:var(--plate,#0a0d16);
+  background-size:cover;background-position:center;}
+.int-plate::after{content:"";position:absolute;inset:0;
+  background:linear-gradient(103deg, rgba(5,8,14,.92) 0%, rgba(5,8,14,.85) 38%,
+                             rgba(5,8,14,.58) 66%, rgba(5,8,14,.74) 100%);}
+@media (max-width:719px){
+  /* on a phone the column is the whole width, so the scrim must be too */
+  .int-plate::after{background:linear-gradient(180deg, rgba(5,8,14,.78) 0%,
+                              rgba(5,8,14,.88) 40%, rgba(5,8,14,.94) 100%);}
 }
-.int-board{
-  position:absolute;left:50%;top:12%;transform:translateX(-50%);
-  width:min(46%, 430px);padding:1.1rem 1.4rem 1.3rem;
-  background:linear-gradient(160deg,#1e3227,#16261d 70%);
-  border:9px solid #4a3822;border-radius:4px;
-  box-shadow:0 14px 40px -10px rgba(0,0,0,.75), inset 0 0 34px rgba(0,0,0,.5);
-}
-.int-board .chalk-title{font-family:'Cormorant Garamond',serif;font-style:italic;font-weight:600;font-size:15px;color:#f0ead6;opacity:.92;border-bottom:1px dashed rgba(240,234,214,.4);padding-bottom:.35rem;margin-bottom:.55rem;}
-.int-board .chalk-line{font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.9;color:#e6dfc8;opacity:.85;text-shadow:0 0 4px rgba(240,234,214,.25);white-space:pre-wrap;}
-.int-lamp{position:absolute;top:0;width:5px;height:9%;background:linear-gradient(#0d0b08,#241d12);}
-.int-lamp::before{content:"";position:absolute;left:50%;top:100%;transform:translateX(-50%);
-  width:34px;height:20px;border-radius:0 0 17px 17px;background:linear-gradient(180deg,#3a2f1c,#191510);
-  box-shadow:inset 0 -6px 10px rgba(255,214,130,.55);}
-.int-lamp::after{content:"";position:absolute;left:50%;top:calc(100% + 14px);transform:translateX(-50%);
-  width:150px;height:230px;pointer-events:none;
-  background:radial-gradient(50% 45% at 50% 12%, rgba(255,220,140,.28), transparent 70%);}
-.int-desk-row{position:absolute;left:0;right:0;display:flex;justify-content:center;gap:5%;}
-.int-desk{position:relative;width:23%;max-width:170px;height:30px;border-radius:5px 5px 3px 3px;
-  background:linear-gradient(180deg,#6b543a,#4a3a26 45%,#33281a);
-  box-shadow:0 10px 16px -6px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,230,180,.18);}
-.int-desk .pupil{position:absolute;bottom:82%;width:26px;height:26px;}
-.int-desk .pupil i{position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:22px;height:15px;border-radius:9px 9px 0 0;background:linear-gradient(180deg,var(--pc),color-mix(in srgb,var(--pc) 55%, #000));}
-.int-desk .pupil b{position:absolute;left:50%;bottom:13px;transform:translateX(-50%);width:11px;height:11px;border-radius:50%;background:#e2cfae;box-shadow:inset -2px -2px 3px rgba(0,0,0,.3);}
-.int-prof{position:absolute;width:64px;}
-.int-prof .gown{position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:26px;height:40px;border-radius:11px 11px 5px 5px;background:linear-gradient(180deg,#2c2c34,#101014);}
-.int-prof .cap{position:absolute;left:50%;bottom:38px;transform:translateX(-50%);width:13px;height:13px;border-radius:50%;background:#e2cfae;}
-.int-prof .cap::after{content:"";position:absolute;left:50%;top:-3px;transform:translateX(-50%);width:19px;height:5px;background:#15151a;border-radius:2px;}
-.int-lectern{position:absolute;width:34px;height:44px;background:linear-gradient(180deg,#5d4930,#3a2d1c);border-radius:4px 4px 2px 2px;box-shadow:0 8px 14px -5px rgba(0,0,0,.6);}
+.int-sheet{position:absolute;inset:0;overflow-y:auto;overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  padding:clamp(1.2rem,3.6vw,2.8rem) clamp(1rem,4vw,3rem) 7.5rem;}
+.int-sheet > *{max-width:660px;}
+.int-head{margin-bottom:1.15rem;}
+.int-kicker{font-size:9.5px;letter-spacing:.3em;text-transform:uppercase;color:var(--brass);}
+.int-title{font-family:'Cormorant Garamond',serif;font-weight:600;line-height:1.06;
+  font-size:clamp(1.65rem,4.6vw,2.5rem);color:var(--parchment);margin:.15rem 0 .3rem;}
+.int-motto{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:14.5px;
+  color:rgba(212,175,106,.85);}
+.int-teaching{font-size:11.5px;color:#94a3b8;margin-top:.55rem;line-height:1.65;}
+.int-sec{font-size:9.5px;letter-spacing:.26em;text-transform:uppercase;color:rgba(212,175,106,.7);
+  margin:1.5rem 0 .6rem;}
+.int-card{border:1px solid rgba(212,175,106,.2);border-radius:13px;
+  background:rgba(8,12,22,.62);padding:.8rem .95rem;margin-bottom:.55rem;}
+.int-card.on{border-color:rgba(212,175,106,.5);background:rgba(16,22,38,.72);}
+.int-row{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap;}
+.int-code{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.05em;
+  color:var(--brass);white-space:nowrap;}
+.int-name{font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:600;
+  color:#e8eefb;line-height:1.2;}
+.int-meta{font-size:11px;color:#8595ad;margin-top:.3rem;line-height:1.6;}
+.int-meta b{color:#cbd5e1;font-weight:600;}
+.int-state{margin-left:auto;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
+  border:1px solid currentColor;border-radius:999px;padding:.1rem .5rem;white-space:nowrap;}
+.int-state.sealed{color:#34d399;} .int-state.open{color:var(--brass);}
+.int-state.wait{color:#64748b;}
+.int-quiet{font-size:12.5px;color:#94a3b8;line-height:1.8;}
+.int-quiet p{margin-bottom:.7rem;}
+/* the progress bar on the registrar's card */
+.int-bar{height:5px;border-radius:3px;background:rgba(148,163,184,.18);overflow:hidden;margin:.55rem 0 .35rem;}
+.int-bar i{display:block;height:100%;border-radius:3px;background:var(--brass);}
+.int-tag{display:inline-block;font-size:9px;letter-spacing:.13em;text-transform:uppercase;
+  border:1px solid rgba(52,211,153,.5);color:#34d399;border-radius:999px;
+  padding:.05rem .42rem;margin-left:.4rem;vertical-align:.08em;}
 /* ── talking to somebody ──────────────────────────────────────────────
    The campus stops while this is open. Standing on the quad costs 887
    draw calls and 6.4M triangles; one person costs six draws and forty
@@ -877,15 +875,21 @@ body.convo-open #stage{position:fixed;inset:0;z-index:31;}
   .convo-said{font-size:13.5px;}
   .convo-ask{padding:.36rem .8rem;font-size:11px;}
 }
-.int-hud{position:absolute;left:0;right:0;bottom:0;padding:1rem 1.5rem 1.2rem;
-  display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap;
-  background:linear-gradient(0deg, rgba(8,10,16,.88), transparent);}
+/* The row floats over the end of the record, so it carries its own
+   fade — and it is click-through except for the buttons themselves,
+   or it would eat scroll gestures that start low on a phone. */
+.int-hud{position:absolute;left:0;right:0;bottom:0;padding:1.6rem 1.5rem 1.2rem;
+  display:flex;align-items:flex-end;justify-content:flex-end;gap:1rem;flex-wrap:wrap;
+  pointer-events:none;
+  background:linear-gradient(0deg, rgba(5,8,14,.97) 0%, rgba(5,8,14,.95) 62%, transparent);}
+.int-hud > div{justify-content:flex-end;pointer-events:auto;}
 .int-btn{border:1px solid rgba(212,175,106,.5);border-radius:999px;padding:.45rem 1.1rem;
   font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--parchment);
   background:rgba(10,16,30,.7);transition:all .25s ease;cursor:pointer;}
 .int-btn:hover{background:rgba(212,175,106,.18);box-shadow:0 0 18px -6px var(--brass);}
-body.day #interior .int-room{background:linear-gradient(180deg,#3a3124 0%,#453a29 58%,#241d14 100%);}
-body.day .int-lamp::after{opacity:.45;}
+/* toasts stay on top of everything by design — they just move up
+   out of the panel's button row rather than landing across it */
+body.panel-open #toasts{bottom:5.5rem;}
 
 @media (max-width:1023px){
   #scene{--zoom:.42;}
@@ -895,8 +899,6 @@ body.day .int-lamp::after{opacity:.45;}
   #walkbtn{top:3.9rem;right:1rem;width:40px;height:40px;font-size:16px;}
   #minimap{top:6.8rem;right:1rem;width:96px;height:96px;}
   #quest{left:1rem;top:auto;bottom:5.2rem;max-width:250px;}
-  .int-board{width:60%;}
-  .int-window{width:60px;height:44%;clip-path:path("M0 300 L0 46 Q0 9 30 0 Q60 9 60 46 L60 300 Z");}
 }
 @media (max-width:639px){
   #scene{--zoom:.32;}
@@ -1248,14 +1250,26 @@ body.day .int-lamp::after{opacity:.45;}
       </div>
     </div>
 
-    <!-- ═══════ INTERIOR CLASSROOM SCENE (revealed on entering a hall) ═══════ -->
+    <!-- ═══════ THE HALL PANEL (revealed on entering a building) ═══════
+         Not a room any more. Walking through a door used to open a
+         second 3D scene — an amphitheater, a 3.9MB nave, a 27MB
+         Gaussian capture of an atrium — and the field report on all
+         of it was the same: "blurry and distorted". A hall is worth
+         entering for what it TELLS you, so the door now opens the
+         hall's own record over a photograph of the room. See
+         openInterior(). -->
     <div id="interior" aria-hidden="true">
-      <div class="int-hud">
-        <div>
-          <div class="text-[9.5px] uppercase tracking-[.3em]" id="int-track" style="color:var(--brass)"></div>
-          <div class="font-serif-d text-2xl font-semibold text-[color:var(--parchment)] leading-tight" id="int-hall"></div>
-          <div class="text-[11.5px] text-slate-400 mt-0.5" id="int-teaching"></div>
+      <div class="int-plate" id="int-plate"></div>
+      <div class="int-sheet" id="int-sheet" tabindex="-1">
+        <div class="int-head">
+          <div class="int-kicker" id="int-track"></div>
+          <h2 class="int-title" id="int-hall"></h2>
+          <div class="int-motto" id="int-motto"></div>
+          <div class="int-teaching" id="int-teaching"></div>
         </div>
+        <div id="int-body"></div>
+      </div>
+      <div class="int-hud">
         <div class="flex gap-2.5 flex-wrap">
           <button class="int-btn" id="int-study" hidden>📖 Continue the course</button>
           <button class="int-btn" id="int-courses">Open course ledger</button>
@@ -1321,10 +1335,7 @@ body.day .int-lamp::after{opacity:.45;}
 {
   "imports": {
     "three": "./assets/vendor/three/build/three.module.js",
-    "three/addons/": "./assets/vendor/three/examples/jsm/",
-
-    "@sparkjsdev/spark": "./assets/vendor/spark/spark.module.min.js",
-    "three-mesh-bvh": "./assets/vendor/three-mesh-bvh/index.module.js"
+    "three/addons/": "./assets/vendor/three/examples/jsm/"
   }
 }
 </script>
@@ -1815,6 +1826,64 @@ const COURSES = [
     ].join("\n")
   },
 ];
+
+/* ── ③a THE FACULTY ───────────────────────────────────────────────
+   Every course is taught by somebody, and until now the campus could
+   not say who: a visitor could read a syllabus, sit the practice
+   checks, and never learn a single name. Eight teaching faculty
+   across four halls, each with an office, hours, and the one thing
+   their students say about them.
+
+   Two of them already walk the quad. Prof. Merion and Dean Aldergate
+   have bodies, personas, and conversation, and they are the SAME
+   people here — `walks: true` is what lets the hall panel say so,
+   rather than presenting a stranger who happens to share a name. The
+   other six are faculty on paper, which is what most of a university
+   is to most of its students most of the time.
+
+   `teaches` holds course ids, so a hall's roster is derived from the
+   courses that hall teaches and the two lists cannot drift. */
+const FACULTY = [
+  { id:"merion", name:"Prof. Merion", title:"Professor of Mathematics",
+    sector:"lib", teaches:["MATH201","MATH202"], walks:true,
+    office:"The Chalk Vault, Room 2", hours:"Tue & Thu · 14:00–16:00",
+    known:"Will not let a symbol past him until you can say what it looks like." },
+  { id:"calloway", name:"Dr. Ines Calloway", title:"Associate Professor of Mathematics",
+    sector:"lib", teaches:["MATH101","MATH120"],
+    office:"Great Library, Reading Room C", hours:"Mon & Wed · 09:30–11:30",
+    known:"Teaches the foundation courses by choice, and defends the choice loudly." },
+  { id:"renn", name:"Dr. Halvard Renn", title:"Professor of Mathematics",
+    sector:"lib", teaches:["MATH301"],
+    office:"Great Library, under the dome", hours:"Fri · 13:00–17:00",
+    known:"Draws the surface before he writes the integral, every single time." },
+  { id:"okonjo", name:"Prof. Adaeze Okonjo", title:"Professor of Computer Science",
+    sector:"eng", teaches:["CS101","CS201"],
+    office:"Drosdick Hall, Studio 4", hours:"Mon–Thu · 16:00–18:00",
+    known:"Reads your code aloud. If it does not read as English, it goes back." },
+  { id:"vance", name:"Dr. Samir Vance", title:"Associate Professor of Software Engineering",
+    sector:"eng", teaches:["CS301"],
+    office:"Drosdick Hall, the long table by the skylight", hours:"Wed · 10:00–13:00",
+    known:"Keeps a jar labelled 'undefined behaviour'. It is not empty." },
+  { id:"fairbairn", name:"Dr. Wren Fairbairn", title:"Professor of Electrical Engineering",
+    sector:"sci", teaches:["EE210","EE310"],
+    office:"Alden Laboratory, Bench 3", hours:"Tue & Fri · 11:00–14:00",
+    known:"Will hand you a scope probe mid-sentence and wait for you to find the answer." },
+  { id:"estrella", name:"Dr. Nadia Estrella", title:"Professor of Autonomous Systems",
+    sector:"adm", teaches:["AI401"],
+    office:"The Autonomy Wing, Room 2.1", hours:"Thu · 09:00–12:00",
+    known:"Trusts the filter, verifies the sensor, and expects you to do both." },
+  { id:"lark", name:"Prof. Tobias Lark", title:"Professor of Aerial Robotics · Flight Operations",
+    sector:"adm", teaches:["AI450"],
+    office:"Flight Operations Room, Aldergate", hours:"Fri · 08:00–10:00, and on the quad lawn at 09:00",
+    known:"Runs the Friday flight test in any weather the airframe can take." },
+];
+/* The dean is not faculty and teaches nothing — she is the advisor the
+   registrar's panel names, and she has a body on the quad. */
+const DEAN = { name:"Dean E. Aldergate", title:"Dean of Students · Academic Advising",
+               walks:true, office:"Aldergate Administration Hall, the front office",
+               hours:"Open door, most afternoons",
+               known:"Remembers everyone, and asks one good question at a time." };
+const teacherOf = (courseId) => FACULTY.find(f => f.teaches.includes(courseId)) || null;
 
 /* ── ③b THE COURSE OF STUDY ───────────────────────────────────────
    A real syllabus behind a course card: units, lectures, and a short
@@ -3314,7 +3383,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v131";
+const BUILD = "pembroke-v132";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -4500,10 +4569,6 @@ window.__assets = assetLog;   /* test/debug hook */
    materials so the night cycle can light them from within */
 const glassGlowMats = [];
 let cathedralRoot = null;
-/* the authored cathedral's nave camera, measured off the model when it
-   lands — null until then, and the interior falls back to the
-   procedural nave scene */
-let cathNave = null;
 
 /* The outer world — stadiums, residence hall, horizon cathedrals — is
    scenery rather than somewhere you take a class, so it sits a walk away
@@ -5032,25 +5097,13 @@ BUILDINGS.forEach(spec => {
           }
           o.material = std;
         });
-        /* the nave camera: just inside the south door, eye height,
-           looking down the length toward the apse — plus the box the
-           visitor may walk within, inset from the authored walls */
-        const bb = new THREE.Box3().setFromObject(root);
-        const cx = (bb.min.x + bb.max.x) / 2;
-        cathNave = { pos: [cx, 14, bb.max.z - 34], sway: [5, 1.2],
-                     look: [cx, 30, bb.min.z + 40],
-                     bounds: { minX: bb.min.x + 18, maxX: bb.max.x - 18,
-                               minZ: bb.min.z + 22, maxZ: bb.max.z - 10 },
-                     root };   /* the nave is only served once this is visible */
         window.__cathedralIn = true;
       } }],
     /* Drosdick Hall itself — the author's collegiate gothic hall with
        its baked site apron (trees, plaza) standing where the
        procedural engineering hall did, at the presence the reference
        photographs ask for. Second in the queue behind the chapel: it
-       is the other building the campus tells you to walk to. Its
-       walk-in interior is the Marble atrium, which streams separately
-       on intent (see drosdickPreload); this is only the shell. The
+       is the other building the campus tells you to walk to. The
        collider was registered at build time — the building is solid
        before it is visible. */
     ["assets/drosdick_hall.glb", {
@@ -10947,572 +11000,39 @@ function stepMotion(s, moving, now, dt){
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   AMPHITHEATER LECTURE HALLS — real 3D interiors, one per sector.
-   Curved tiered rows, green triple chalkboard carrying the hall's
-   actual lesson, wood-slat wall, projector screen, seated cohort.
-   ══════════════════════════════════════════════════════════════════ */
+   THE HALL PANEL — what a door opens onto now.
+
+   Three walk-in interiors used to live here: a procedural
+   amphitheater, the authored nave (3.9MB), and the Grand Atrium as a
+   1.92M-splat Marble capture (27MB of .spz plus a 2.2MB collider,
+   the 520KB Spark module and the 200KB BVH library, all decoded on
+   the main thread the moment somebody walked near the door). The
+   field report on the pair that shipped was the same sentence about
+   both: "really bad when you walk inside, blurry and distorted."
+
+   They are gone — assets, loaders, first-person camera, retry
+   ladder, the second render target and the second scene graph. What
+   a hall is worth entering for is what it can TELL you: which
+   courses meet here, who teaches them, where you stand in the
+   sequence. That is HTML over a photograph, it is legible on the
+   cheapest phone, and it costs one 150KB image instead of thirty
+   megabytes. See openInterior() for the record itself.
+
+   `interiorView` survives as the name of the state — every guard
+   that used to mean "a second scene is being drawn" now means "a
+   panel is over the campus", which is the same answer to the same
+   question: nothing outside should be listening. */
 let interiorView = null;
-/* first-person state inside the real nave — created on the first frame
-   inside, discarded on the way out so every visit starts at the door */
-let naveCam = null;
-window.__nave = () => naveCam;   /* test/debug hook */
-const interiorScenes = {};
-const intCamera = new THREE.PerspectiveCamera(52, 1, 1, 4000);
-
-/* ══════════════════════════════════════════════════════════════════
-   DROSDICK HALL — the Marble Grand Atrium.
-
-   The interior of the engineering hall is a World Labs Marble capture:
-   a 1.92M-splat Gaussian reconstruction of the Grand Atrium Learning
-   Commons (assets/drosdick_atrium.spz, 28MB) rendered through Spark,
-   with an invisible 85k-triangle mesh (assets/drosdick_collider.glb)
-   supplying floors, stairs and walls for the first-person camera. The
-   two came out of the same Marble world: the collider carries its
-   aligning transform baked into its root node, so loading both and
-   applying NO further transform lines them up — verified by rendering
-   the splat with the collider as a wireframe overlay before any of
-   this was wired in. Everything stays in the capture's native meters;
-   the atrium never mixes coordinates with the campus, because it is
-   its own scene that only the interior branch ever renders.
-
-   None of it — not the 523KB Spark module, not the BVH library, not
-   the assets — is touched at first paint. The whole stack loads on
-   intent: walking near the Drosdick door, opening the hall from the
-   aerial view, or entering. Until it is ready (or if any part of it
-   fails), the amphitheater fallback serves, same as the chapel served
-   before its authored model landed. Software renderers never load it
-   at all: a machine that cannot hold the campus at 25fps has no
-   business decoding two million splats. */
-const drosdick = {
-  state: "unloaded",       /* unloaded → preloading → ready | error */
-  scene: null, splat: null, colliderMesh: null,
-  bytes: 0, loadMs: 0, splats: 0, tier: "full", err: null,
-  bytesGot: 0, bytesTotal: 0,   /* streaming progress, for the panel —
-                                   "marble preloading" alone, read off a
-                                   phone on a slow connection, looks
-                                   stuck; a number moving does not */
-  spawn: null,             /* measured off the collider when it lands */
-};
-window.__drosdick = { get: () => ({ ...drosdick, scene: undefined, splat: undefined,
-                                    colliderMesh: undefined }),
-                      fp: () => fpDros,
-                      preload: () => drosdickPreload() };   /* test/debug hook */
-let fpDros = null;         /* first-person state, fresh at every door */
-let interiorMarble = false;   /* latched per visit by engineOpenInterior */
-let interiorCath = false;     /* same latch for the real nave: a visit that
-                                 began in the fallback stays there, and a
-                                 model still hidden for its arrival compile
-                                 (see loadLandmark) is not yet a nave */
-const DROS_EYE = 1.62;     /* the capture is meter-scaled: real eye height */
-const DROS_STEP = 0.5;     /* tallest rise one stride may take — stairs pass, walls do not */
-
-/* A 28MB fetch on one bar of signal will sometimes die — reported as
-   "marble error Failed to fetch", after which the amphitheater was
-   PERMANENT for the session because nothing ever tried again. Failure
-   now schedules its own retry, backing off 15s → 2min, four attempts;
-   walking through the door resets the count and tries immediately,
-   because that is a person asking. */
-let drosRetryT = null, drosAttempts = 0;
-function drosdickRetryLater(){
-  if (softGL || drosAttempts >= 4 || drosRetryT) return;
-  const wait = Math.min(120_000, 15_000 * 2 ** drosAttempts);
-  drosRetryT = setTimeout(() => { drosRetryT = null; drosdickPreload(); }, wait);
-}
-async function drosdickPreload(){
-  if (drosdick.state !== "unloaded" && drosdick.state !== "error") return;
-  drosdick.state = "preloading";
-  drosdick.err = null; drosdick.bytesGot = 0; drosdick.bytesTotal = 0;
-  const t0 = performance.now();
-  /* the ledger keeps the quality ladder honest: decode stalls while
-     the atrium streams in must read as loading, not as a slow GPU */
-  const rec = { name: "drosdick_atrium.spz", t0, ms: null, late: true };
-  assetLog.push(rec);
-  try {
-    /* the capture streams through a reader so the panel can show bytes
-       moving — on the connection that reported this, the whole
-       preload spanned minutes and looked frozen without a number */
-    const fetchSpz = async () => {
-      const r = await fetch("assets/drosdick_atrium.spz");
-      if (!r.ok) throw new Error("spz http " + r.status);
-      if (!r.body) return r.arrayBuffer();
-      /* Chunks are ACCUMULATED, never preallocated: the first version
-         sized a buffer from content-length and returned it even when
-         the stream ended early, handing the decoder real bytes
-         followed by zeros — "Junk found after end of compressed
-         data", from the same phone whose connection cuts streams
-         short. content-length is only trusted as a progress display;
-         a stream that ends below it throws, and the retry machinery
-         does the rest. */
-      drosdick.bytesTotal = +r.headers.get("content-length") || 0;
-      const reader = r.body.getReader();
-      const chunks = [];
-      let got = 0;
-      for (;;){
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value); got += value.length;
-        drosdick.bytesGot = got;
-      }
-      /* content-length is WIRE bytes; the reader yields DECODED bytes.
-         GitHub Pages gzips even this already-gzipped file (~0.03%
-         larger on the wire), so a perfect download read 28,287,036 of
-         a claimed 28,295,6xx and threw "short read" on success — from
-         the same phone, once the real network entered the picture. The
-         guard only speaks when no content-encoding is in play. */
-      if (!r.headers.get("content-encoding") &&
-          drosdick.bytesTotal && got < drosdick.bytesTotal)
-        throw new Error("spz short read " + got + "/" + drosdick.bytesTotal);
-      const out = new Uint8Array(got);
-      let off = 0;
-      for (const c of chunks){ out.set(c, off); off += c.length; }
-      return out.buffer;
-    };
-    const [spark, bvh, glb, buf] = await Promise.all([
-      import("@sparkjsdev/spark"),
-      import("three-mesh-bvh"),
-      new Promise((res, rej) => gltf.load("assets/drosdick_collider.glb", res, undefined, rej)),
-      fetchSpz(),
-    ]);
-    drosdick.bytes = buf.byteLength;
-
-    /* the collider: never in any scene, never rendered — it exists only
-       as a BVH-accelerated raycast target. Its root node carries the
-       transform that aligns it with the splat, so the world matrix is
-       resolved once here and the mesh queried in world space forever. */
-    let colMesh = null;
-    glb.scene.traverse(o => { if (o.isMesh && !colMesh) colMesh = o; });
-    if (!colMesh) throw new Error("collider has no mesh");
-    colMesh.geometry.boundsTree = new bvh.MeshBVH(colMesh.geometry);
-    colMesh.raycast = bvh.acceleratedRaycast;
-    glb.scene.updateMatrixWorld(true);
-    drosdick.colliderMesh = colMesh;
-
-    /* the splat: full density on machines with a real GPU and a mouse,
-       half density on phones — 1.92M splats is a desktop budget */
-    let splat = new spark.SplatMesh({ fileBytes: new Uint8Array(buf),
-                                      fileName: "drosdick_atrium.spz" });
-    await splat.initialized;
-    if (matchMedia("(pointer: coarse)").matches){
-      const src = splat.packedSplats;
-      const half = new spark.PackedSplats({ maxSplats: (src.numSplats >> 1) + 1 });
-      src.forEachSplat((i, center, scales, quat, opacity, color) => {
-        if (!(i & 1)) half.pushSplat(center, scales, quat, opacity, color);
-      });
-      splat = new spark.SplatMesh({ packedSplats: half });
-      await splat.initialized;
-      drosdick.tier = "half";
-    }
-    drosdick.splats = splat.packedSplats.numSplats;
-
-    const sc = new THREE.Scene();
-    sc.background = new THREE.Color(0x0a0a0c);
-    /* no lights: the capture is its own lighting, baked into the
-       splats, and Spark does not read the scene's lamps anyway */
-    sc.add(splat);
-    drosdick.scene = sc; drosdick.splat = splat;
-
-    drosdick.spawn = drosdickSpawn();
-    drosdick.loadMs = performance.now() - t0;
-    rec.ms = drosdick.loadMs;
-    drosdick.state = "ready";
-    /* Whoever is standing in the amphitheater when the capture lands
-       gets carried into the real room right now — reported twice as
-       "drosdick hall has wrong interior", which settles the question
-       of whether a mid-visit upgrade is jarring or wanted. Re-opening
-       the interior re-latches it onto the atrium and spawns at the
-       door of the capture. */
-    if (interiorView === "eng" && !interiorMarble){
-      openInterior("eng");
-      toast("🏛️ The Grand Atrium has arrived",
-            "The Marble capture finished streaming — welcome to the Learning Commons. Drag to look, ▲ to walk.",
-            SECTORS.eng.color, 8000);
-    }
-  } catch (e) {
-    rec.ms = performance.now() - rec.t0; rec.err = true;
-    rec.why = String((e && e.message) || e).slice(0, 28);
-    drosdick.err = String((e && e.message) || e);
-    drosdick.state = "error";      /* the amphitheater serves meanwhile */
-    drosAttempts++;
-    drosdickRetryLater();
-  }
-}
-
-/* one shared raycaster against the collider, zero per-frame allocation */
-const _dRay = new THREE.Raycaster();
-const _dHits = [];
-_dRay.firstHitOnly = true;             /* honored by the BVH: nearest hit only */
-function drosdickCast(ox, oy, oz, dx, dy, dz, far){
-  _dRay.ray.origin.set(ox, oy, oz);
-  _dRay.ray.direction.set(dx, dy, dz).normalize();
-  _dRay.near = 0; _dRay.far = far;
-  _dHits.length = 0;
-  drosdick.colliderMesh.raycast(_dRay, _dHits);
-  if (!_dHits.length) return null;
-  let best = _dHits[0];
-  for (const h of _dHits) if (h.distance < best.distance) best = h;
-  return best;
-}
-
-/* The spawn: south end of the long axis, facing north into the atrium
-   — the view every promotional angle of the space uses. Measured, not
-   assumed: candidate spots are probed straight down and the first one
-   standing on the room's true floor (not a table, not a bench) wins.
-   The reconstruction's floor is its lowest broad plane, so "true
-   floor" means: within a shoe's height of the lowest hit found. */
-function drosdickSpawn(){
-  const spots = [];
-  for (const z of [24, 22, 26, 20, 18])
-    for (const x of [0, 1.5, -1.5, 3, -3])
-      { const hit = drosdickCast(x, 6, z, 0, -1, 0, 12);
-        if (hit) spots.push({ x, z, floor: hit.point.y }); }
-  if (!spots.length) return { x: 0, z: 22, floor: -2.4, h: 0, pitch: 0.02 };
-  const lowest = Math.min(...spots.map(s => s.floor));
-  const s = spots.find(s => s.floor < lowest + 0.25) || spots[0];
-  return { x: s.x, z: s.z, floor: s.floor, h: 0, pitch: 0.02 };
-}
-
-const woodFloorTex = canvasTex(256, (x, px) => {
-  x.fillStyle = "#c8a878"; x.fillRect(0, 0, px, px);
-  for (let r = 0; r < 16; r++){
-    x.fillStyle = ["#c2a06e","#cfae7e","#bd9a68","#c9a97a"][r % 4];
-    x.fillRect(0, r * 16, px, 15);
-    x.fillStyle = "rgba(90,60,30,.25)"; x.fillRect(0, r * 16 + 15, px, 1);
-    x.fillRect((r * 73) % px, r * 16, 1, 15);
-  }
-}, 4);
-const woodWallTex = canvasTex(256, (x, px) => {
-  x.fillStyle = "#c9a26b"; x.fillRect(0, 0, px, px);
-  for (let r = 0; r < 26; r++){
-    x.fillStyle = ["#c49c64","#d0aa74","#bd9660"][r % 3];
-    x.fillRect(0, r * 10, px, 9);
-    x.fillStyle = "rgba(80,52,24,.3)"; x.fillRect(0, r * 10 + 9, px, 1);
-  }
-}, 3);
-const carpetTex = canvasTex(128, (x, px) => {
-  x.fillStyle = "#8a6a5e"; x.fillRect(0, 0, px, px);
-  speck(x, px, 1600, ["#9c7c6e","#7a5a50","#a89086","#6a4c44"], 1);
-}, 6);
-
-function boardTexture(S){
-  const c = document.createElement("canvas"); c.width = 1024; c.height = 300;
-  const x = c.getContext("2d");
-  x.fillStyle = "#3a6b4e"; x.fillRect(0, 0, 1024, 300);
-  for (let i = 0; i < 500; i++){
-    x.fillStyle = `rgba(255,255,255,${0.015 + (i % 5) * 0.006})`;
-    x.fillRect((i * 53.7) % 1024, (i * 91.3) % 300, 8 + (i % 20), 1.5);
-  }
-  x.fillStyle = "#2c2620";
-  x.fillRect(336, 0, 5, 300); x.fillRect(682, 0, 5, 300);
-  x.fillStyle = "rgba(240,236,220,.92)";
-  x.font = "italic 30px Georgia, serif";
-  x.fillText(S.hall, 30, 52);
-  x.strokeStyle = "rgba(240,236,220,.5)"; x.setLineDash([6, 5]);
-  x.beginPath(); x.moveTo(30, 66); x.lineTo(320, 66); x.stroke(); x.setLineDash([]);
-  x.font = "22px 'Courier New', monospace";
-  S.board.forEach((line, i) => x.fillText(line, 30 + (i > 1 ? 330 : 0), (i > 1 ? 60 : 116) + (i % 2) * 46));
-  x.font = "20px 'Courier New', monospace";
-  x.fillText("E = mc²", 730, 250);
-  /* the traditional stick figure, asking for help */
-  x.strokeStyle = "rgba(240,236,220,.85)"; x.lineWidth = 2;
-  x.beginPath(); x.arc(940, 190, 10, 0, 7); x.stroke();
-  x.beginPath(); x.moveTo(940, 200); x.lineTo(940, 228); x.moveTo(925, 210); x.lineTo(955, 214);
-  x.moveTo(940, 228); x.lineTo(928, 248); x.moveTo(940, 228); x.lineTo(952, 248); x.stroke();
-  x.font = "16px 'Courier New', monospace"; x.fillText("Help", 926, 266);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-
-function buildInteriorScene(key){
-  const S = SECTORS[key];
-  const sc = new THREE.Scene();
-  sc.background = new THREE.Color(0x23262c);
-  sc.userData.cam = { pos: [60, 148, 228], look: [-30, 30, -200], sway: [80, 5] };
-  sc.add(new THREE.HemisphereLight(0xfff4e0, 0x6a5a48, 1.05));
-  const keyLight = new THREE.DirectionalLight(0xfff0d8, 1.5);
-  keyLight.position.set(-160, 300, 200);
-  keyLight.castShadow = true;
-  keyLight.shadow.mapSize.set(1024, 1024);
-  Object.assign(keyLight.shadow.camera, { left: -400, right: 400, top: 400, bottom: -400, far: 1200 });
-  sc.add(keyLight, keyLight.target);
-
-  const mat = {
-    floor:  new THREE.MeshStandardMaterial({ map: woodFloorTex, roughness: 0.4, metalness: 0.05 }),
-    wood:   new THREE.MeshStandardMaterial({ map: woodWallTex, roughness: 0.8 }),
-    white:  new THREE.MeshStandardMaterial({ color: 0xf2f0ea, roughness: 0.9 }),
-    carpet: new THREE.MeshStandardMaterial({ map: carpetTex, roughness: 1 }),
-    desk:   new THREE.MeshStandardMaterial({ map: woodFloorTex, roughness: 0.55 }),
-    dark:   new THREE.MeshStandardMaterial({ color: 0x2e3138, roughness: 0.7 }),
-    brown:  new THREE.MeshStandardMaterial({ color: 0x5a3a22, roughness: 0.6 }),
-    winGlow:new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.2 }),
-    strip:  new THREE.MeshStandardMaterial({ color: 0xf8f8f4, emissive: 0xfff6dc, emissiveIntensity: 0.9 }),
-  };
-  const box = (m, w, h, d, x2, y2, z2, ry = 0) => {
-    const ms = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
-    ms.position.set(x2, y2, z2); ms.rotation.y = ry;
-    ms.castShadow = ms.receiveShadow = true;
-    sc.add(ms); return ms;
-  };
-  /* the shell */
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(680, 560), mat.floor);
-  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; sc.add(floor);
-  const front = new THREE.Mesh(new THREE.PlaneGeometry(680, 185), mat.wood);
-  front.position.set(0, 92, -260); front.receiveShadow = true; sc.add(front);
-  const back = new THREE.Mesh(new THREE.PlaneGeometry(680, 185), mat.white);
-  back.position.set(0, 92, 275); back.rotation.y = Math.PI; sc.add(back);
-  [[-1, 0], [1, Math.PI]].forEach(([sx, ry]) => {
-    const side = new THREE.Mesh(new THREE.PlaneGeometry(560, 185), mat.white);
-    side.position.set(sx * 338, 92, 5); side.rotation.y = sx > 0 ? -Math.PI / 2 : Math.PI / 2;
-    sc.add(side);
-  });
-  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(680, 560), mat.white);
-  ceil.rotation.x = Math.PI / 2; ceil.position.y = 184; sc.add(ceil);
-  for (let lx = -2; lx <= 2; lx++)
-    for (let lz = 0; lz < 3; lz++)
-      box(mat.strip, 56, 2.4, 9, lx * 120, 182, -140 + lz * 160);
-  /* daylight band: right wall + clerestory over the back rows */
-  for (let wz = -1; wz <= 1; wz++)
-    box(mat.winGlow, 4, 74, 118, 336, 116, wz * 150);
-  for (let wx = -2; wx <= 2; wx++)
-    box(mat.winGlow, 108, 60, 4, wx * 124, 128, 272);
-  /* the teaching wall */
-  box(mat.dark, 310, 92, 3, -40, 84, -257);
-  const board = new THREE.Mesh(new THREE.PlaneGeometry(304, 88), 
-    new THREE.MeshStandardMaterial({ map: boardTexture(S), roughness: 0.75 }));
-  board.position.set(-40, 84, -255); sc.add(board);
-  box(mat.white, 210, 13, 3, 60, 152, -257);              /* projector screen (rolled) */
-  box(mat.dark, 12, 16, 8, -240, 148, -254);              /* speakers */
-  box(mat.dark, 12, 16, 8, 170, 148, -254);
-  box(mat.brown, 62, 4, 30, 90, 30, -196);                /* professor's desk */
-  box(mat.brown, 5, 28, 26, 64, 14, -196);
-  box(mat.brown, 5, 28, 26, 116, 14, -196);
-  box(mat.dark, 16, 1.6, 11, 82, 33, -196);               /* laptop */
-  box(mat.dark, 15, 22, 2.5, 82, 43, -191);
-  const bin = new THREE.Mesh(new THREE.CylinderGeometry(5, 4, 11, 10), mat.dark);
-  bin.position.set(130, 5.5, -190); sc.add(bin);
-
-  /* five curved tiers rising toward the back — arcs centered on stage */
-  const AC = new THREE.Vector3(0, 0, -180);               /* arc center     */
-  const T0 = Math.PI * 1.5, TL = Math.PI * 0.58;          /* facing stage   */
-  const seatMats = {};
-  const seat = new THREE.BoxGeometry(13, 2.2, 12);
-  const backG = new THREE.BoxGeometry(13, 14, 2.2);
-  for (let r = 0; r < 5; r++){
-    const R0 = 150 + r * 62, y2 = 12 + r * 15;
-    const tierGeo = new THREE.RingGeometry(R0 - 12, R0 + 50, 48, 1, T0 - TL / 2, TL);
-    const tier = new THREE.Mesh(tierGeo, mat.carpet);
-    tier.rotation.x = -Math.PI / 2;
-    tier.position.set(AC.x, y2, AC.z);
-    tier.receiveShadow = true; sc.add(tier);
-    const riser = new THREE.Mesh(
-      new THREE.CylinderGeometry(R0 - 12, R0 - 12, y2, 48, 1, true, Math.PI - TL / 2, TL), mat.white);
-    riser.position.set(AC.x, y2 / 2, AC.z); sc.add(riser);
-    const deskR = new THREE.Mesh(new THREE.RingGeometry(R0, R0 + 15, 48, 1, T0 - TL / 2, TL), mat.desk);
-    deskR.rotation.x = -Math.PI / 2;
-    deskR.position.set(AC.x, y2 + 25, AC.z); sc.add(deskR);
-    const fascia = new THREE.Mesh(
-      new THREE.CylinderGeometry(R0, R0, 25, 48, 1, true, Math.PI - TL / 2, TL), mat.wood);
-    fascia.position.set(AC.x, y2 + 12.5, AC.z); sc.add(fascia);
-    /* chairs along the arc, aisle gap at center */
-    const seats = 12;
-    for (let k2 = 0; k2 < seats; k2++){
-      const a = (k2 / (seats - 1) - 0.5) * (TL * 0.86);
-      if (Math.abs(a) < 0.055) continue;
-      const px2 = AC.x + Math.sin(a) * (R0 + 27);
-      const pz2 = AC.z + Math.cos(a) * (R0 + 27);
-      const sm = new THREE.Mesh(seat, mat.dark);
-      sm.position.set(px2, y2 + 14, pz2); sm.rotation.y = -a + Math.PI;
-      sm.castShadow = true; sc.add(sm);
-      const bm = new THREE.Mesh(backG, mat.dark);
-      bm.position.set(px2 + Math.sin(a) * 6, y2 + 21, pz2 + Math.cos(a) * 6);
-      bm.rotation.y = -a + Math.PI; bm.castShadow = true; sc.add(bm);
-      /* a scattered cohort in attendance — laptop coders on the seats */
-      if ((k2 * 7 + r * 5) % 3 === 0 && castLib.laptop){
-        /* prepFigure can now decline a body it cannot measure, so these
-           two interior callers check like every other one does */
-        const fig = prepFigure("laptop", 22);
-        if (fig){
-          fig.position.set(px2, y2 + 15.2, pz2);
-          fig.rotation.y = -a + Math.PI;
-          sc.add(fig);
-        }
-      }
-    }
-    /* aisle steps */
-    box(mat.white, 20, 3, 9, AC.x, y2 - 4, AC.z + R0 - 17);
-  }
-  /* the professor at the lectern, caught mid-gesture */
-  const prof0 = castLib.chat ? prepFigure("chat", 42) : null;
-  if (prof0){
-    prof0.position.set(52, 11, -200);
-    prof0.rotation.y = Math.PI * 0.55;
-    sc.add(prof0);
-  } else {
-    const prof = mkPerson(0x2c2c34, 97);
-    prof.g.position.set(52, 11, -200);
-    prof.g.rotation.y = Math.PI * 0.9;
-    prof.armR.rotation.x = -1.2;
-    sc.add(prof.g);
-  }
-  return sc;
-}
-
-/* stained glass, drawn by hand: jewel-toned mosaic under black leading */
-function stainedGlassTex(seed){
-  const c = document.createElement("canvas"); c.width = 128; c.height = 384;
-  const x = c.getContext("2d");
-  x.fillStyle = "#0a0908"; x.fillRect(0, 0, 128, 384);
-  const jewels = ["#27418f","#8f1f2b","#1e6b3a","#b8791f","#5a2d7a","#1f7a8a","#a33d1e"];
-  const rnd = (i) => { const v = Math.sin(seed * 127.1 + i * 311.7) * 43758.5; return v - Math.floor(v); };
-  let k = 0;
-  for (let ry = 0; ry < 12; ry++){
-    for (let rx = 0; rx < 4; rx++){
-      const px = rx * 32, py = ry * 32;
-      x.fillStyle = jewels[Math.floor(rnd(k) * jewels.length)];
-      x.beginPath();
-      x.moveTo(px + 3 + rnd(k+1)*6, py + 3);
-      x.lineTo(px + 29 - rnd(k+2)*6, py + 5 + rnd(k+3)*8);
-      x.lineTo(px + 27, py + 29 - rnd(k+4)*6);
-      x.lineTo(px + 4 + rnd(k+5)*7, py + 27);
-      x.closePath(); x.fill();
-      k += 7;
-    }
-  }
-  /* lancet arch mask: black out the top corners */
-  x.fillStyle = "#0a0908";
-  x.beginPath(); x.moveTo(0,0); x.lineTo(0,70); x.quadraticCurveTo(2,10,64,2); x.lineTo(0,0); x.fill();
-  x.beginPath(); x.moveTo(128,0); x.lineTo(128,70); x.quadraticCurveTo(126,10,64,2); x.lineTo(128,0); x.fill();
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-function roseWindowTex(){
-  const c = document.createElement("canvas"); c.width = c.height = 512;
-  const x = c.getContext("2d");
-  x.fillStyle = "#0a0908"; x.fillRect(0, 0, 512, 512);
-  const jewels = ["#27418f","#8f1f2b","#1e6b3a","#b8791f","#5a2d7a","#1f7a8a"];
-  const cx = 256, cy = 256;
-  for (let ring = 0; ring < 3; ring++){
-    const r0 = 60 + ring * 62, r1 = r0 + 54;
-    const petals = 12 + ring * 4;
-    for (let p = 0; p < petals; p++){
-      const a0 = (p / petals) * Math.PI * 2, a1 = ((p + 0.86) / petals) * Math.PI * 2;
-      x.fillStyle = jewels[(p + ring * 2) % jewels.length];
-      x.beginPath();
-      x.arc(cx, cy, r1, a0, a1); x.arc(cx, cy, r0, a1, a0, true);
-      x.closePath(); x.fill();
-    }
-  }
-  x.fillStyle = "#c8a23c";
-  x.beginPath(); x.arc(cx, cy, 52, 0, 7); x.fill();
-  x.fillStyle = "#8f1f2b";
-  x.beginPath(); x.arc(cx, cy, 40, 0, 7); x.fill();
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-
-/* The space behind Drosdick's door while the atrium streams (or on a
-   machine that can never hold it): dark, warm, deliberately
-   unfurnished — a room being delivered, not a classroom pretending
-   otherwise. The amphitheater that used to stand in here was deleted
-   by instruction; the Marble capture is this hall's only interior. */
-function buildArrivalScene(){
-  const sc = new THREE.Scene();
-  sc.background = new THREE.Color(0x0b0a10);
-  sc.fog = new THREE.Fog(0x0b0a10, 60, 420);
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(600, 600),
-    new THREE.MeshStandardMaterial({ color: 0x17161c, roughness: 0.95 }));
-  floor.rotation.x = -Math.PI / 2;
-  sc.add(floor);
-  const glow = new THREE.PointLight(0xf59e0b, 2600, 700, 1.9);
-  glow.position.set(0, 120, -60); sc.add(glow);
-  sc.add(new THREE.HemisphereLight(0x8a7a58, 0x0c0a08, 0.5));
-  sc.userData.cam = { pos: [0, 40, 150], look: [0, 30, -80], sway: [6, 2] };
-  return sc;
-}
-function buildCathedralInterior(){
-  const sc = new THREE.Scene();
-  sc.background = new THREE.Color(0x0c0a0e);
-  sc.userData.cam = { pos: [0, 100, 330], look: [0, 92, -380], sway: [46, 5] };
-  /* stand inside tabitown's real modeled nave, fixed-lit like a shrine */
-  gltf.load("assets/cathedral2.glb", (g) => {
-    const root = g.scene;
-    root.updateMatrixWorld(true);
-    let box = new THREE.Box3().setFromObject(root);
-    const size = new THREE.Vector3(); box.getSize(size);
-    const sc2 = 340 / size.y;
-    root.scale.setScalar(sc2);
-    root.updateMatrixWorld(true);
-    box = new THREE.Box3().setFromObject(root);
-    const ctr = new THREE.Vector3(); box.getCenter(ctr);
-    root.position.set(-ctr.x, -box.min.y, -ctr.z);
-    root.traverse(o => {
-      if (o.isMesh){
-        o.castShadow = o.receiveShadow = true;
-        const nm = (o.material && o.material.name || "").toLowerCase();
-        if (nm.includes("glass")){
-          o.material = o.material.clone();
-          o.material.emissiveMap = o.material.map || null;
-          o.material.emissive = new THREE.Color(0xffffff);
-          o.material.emissiveIntensity = 1.15;
-        }
-      }
-    });
-    sc.add(root);
-    sc.userData.cam = {
-      pos: [0, size.y * sc2 * 0.28, size.z * sc2 * 0.24],
-      look: [0, size.y * sc2 * 0.24, -size.z * sc2 * 0.4],
-      sway: [size.x * sc2 * 0.06, 4],
-    };
-  });
-  sc.add(new THREE.HemisphereLight(0xa8956e, 0x2c241a, 0.95));
-  const glow1 = new THREE.PointLight(0xffc878, 4200, 900, 1.8);
-  glow1.position.set(0, 150, -320); sc.add(glow1);
-  const glow2 = new THREE.PointLight(0xffc878, 2800, 800, 1.8);
-  glow2.position.set(0, 150, 140); sc.add(glow2);
-  const moon = new THREE.DirectionalLight(0xcfd8ff, 0.55);
-  moon.position.set(-260, 380, 60); sc.add(moon);
-
-  return sc;
-}
 
 function engineOpenInterior(key){
-  /* entering the engineering hall is the strongest possible signal of
-     intent — if the atrium never started loading (front door reached
-     without tripping the proximity preload, or an aerial entry), start
-     now; this visit gets the amphitheater, the next one the atrium */
-  if (key === "eng" && !softGL){ drosAttempts = 0; drosdickPreload(); }
-  /* Latched at the door, not evaluated per frame: a visitor who
-     entered while the atrium was still streaming keeps the
-     amphitheater for THIS visit — being teleported into a different
-     room mid-lecture because a download finished is not "seamless".
-     The next entry gets the atrium. */
-  const marbleReady = key === "eng" && drosdick.state === "ready";
-  interiorMarble = marbleReady;
-  const cathReal = key === "cathedral" && !!cathNave && cathNave.root.visible;
-  interiorCath = cathReal;
-  if (!interiorScenes[key] && !cathReal && !marbleReady)
-    /* The amphitheater that stood in for Drosdick is DELETED by
-       instruction — the only interior that hall has is the Marble
-       atrium. Until the capture lands (or on a machine that can never
-       hold it), the door opens into a dark arrival space and the
-       subtitle says what is happening; the moment the stream
-       finishes, the atrium opens around the visitor. */
-    interiorScenes[key] = key === "cathedral" ? buildCathedralInterior()
-                        : key === "eng" ? buildArrivalScene()
-                        : buildInteriorScene(key);
   interiorView = key;
   wingEl.classList.add("interior-open");
-  /* the drag-through overlay only inside a real first-person interior
-     — the authored nave or the Marble atrium — see the CSS */
-  document.getElementById("interior").classList.toggle("nave",
-    cathReal || marbleReady);
+  document.body.classList.add("panel-open");
 }
 function engineCloseInterior(){
   interiorView = null;
-  interiorMarble = false;
-  interiorCath = false;
-  naveCam = null;
-  fpDros = null;
   wingEl.classList.remove("interior-open");
+  document.body.classList.remove("panel-open");
 }
 
 /* ── highlight hooks used by the workspace ───────────────────────── */
@@ -11917,14 +11437,9 @@ renderer.domElement.addEventListener("wheel", (e) => {
    tap still talks to people: the tap handler ignores anything that
    moved more than six pixels, and a look is exactly a move. */
 let lookPtr = null, lookLast = null, lookDown = 0;
-/* the same finger steers three cameras: the walker outside, the nave
-   camera inside the real chapel, and the atrium camera in Drosdick —
-   whichever first-person state is live gets the drag */
-const naveLive = () => (interiorView === "cathedral" && naveCam) ||
-                       (interiorView === "eng" && fpDros) || null;
 renderer.domElement.addEventListener("pointerdown", (e) => {
   lookDown++;
-  if (!walker.on && !naveLive()) return;
+  if (!walker.on) return;
   if (lookDown === 1){ lookPtr = e.pointerId; lookLast = [e.clientX, e.clientY]; }
   else { lookPtr = null; lookLast = null; }
 });
@@ -11932,13 +11447,6 @@ renderer.domElement.addEventListener("pointermove", (e) => {
   if (e.pointerId !== lookPtr || !lookLast) return;
   const dx = e.clientX - lookLast[0], dy = e.clientY - lookLast[1];
   lookLast = [e.clientX, e.clientY];
-  const fp = naveLive();
-  if (fp){
-    /* radians, straight onto the interior camera; same feel as outside */
-    fp.h -= dx * 0.0045;
-    fp.pitch = Math.max(-0.55, Math.min(0.6, fp.pitch - dy * 0.0042));
-    return;
-  }
   if (!walker.on) return;
   jOrient("look");
   /* finer when zoomed, same as the turn keys */
@@ -12039,17 +11547,6 @@ function walkUpdate(dt){
   for (const d of DOORS){
     if (Math.hypot(d.x - walker.x, d.y - walker.y) < 54){ walker.door = d.sector; break; }
   }
-  /* a stroll toward Drosdick is the atrium's cue to start streaming:
-     150 units out is ~8 seconds of walking, and the whole 30MB usually
-     lands in less. Never on a software renderer — a machine that can't
-     hold the campus has no business decoding two million splats. And
-     never while the campus itself is still arriving: on a slow
-     connection the capture was stealing bandwidth from the cast, the
-     panel reading "13/13 all in 676.8s" with students still missing.
-     Walking through the door still preloads unconditionally — that is
-     intent, not passing by. */
-  if (!softGL && drosdick.state === "unloaded" && window.__crowd?.().ready &&
-      Math.hypot(865 - walker.x, 412 - walker.y) < 150) drosdickPreload();
   if (walker.door === "adm") jOrient("adm");   /* orientation: found Administration Hall */
   const dp = document.getElementById("doorprompt");
   dp.classList.toggle("show", !!walker.door);
@@ -12058,10 +11555,7 @@ function walkUpdate(dt){
 window.addEventListener("keydown", e => {
   if (e.target.matches("input,textarea")) return;
   if (e.key === "f" || e.key === "F"){ walker.on ? exitWalk() : enterWalk(); return; }
-  /* arrows and WASD also drive the nave camera inside the real chapel
-     and the atrium camera inside Drosdick */
-  if (!walker.on && !(interiorView === "cathedral" && interiorCath)
-                 && !(interiorView === "eng" && interiorMarble)) return;
+  if (!walker.on) return;
   walker.keys[e.code] = true;
   if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
   if (e.code === "KeyE") enterDoor();
@@ -12318,7 +11812,7 @@ function dbgUpdate(now, dt, raw){
       : "") +
     "draws  " + inf.render.calls + "   tris " + (inf.render.triangles / 1e6).toFixed(2) + "M\n" +
     "tex    " + inf.memory.textures + "   geo " + inf.memory.geometries + "\n" +
-    "view   " + (interiorView ? "interior" : walker.on ? "walk" : "aerial") +
+    "view   " + (interiorView ? "panel " + interiorView : walker.on ? "walk" : "aerial") +
       " · " + (window.__visual || "?") + "\n" +
     "crowd  " + students.length + " people" +
       (CROWD_FORCE !== null ? "  (forced by ?crowd)" :
@@ -12329,22 +11823,6 @@ function dbgUpdate(now, dt, raw){
       (pending ? "  (" + pending + " loading)" : "  all in " + (last / 1000).toFixed(1) + "s") + "\n" +
     (lateAll ? "cast   " + lateIn + "/" + lateAll + " later bodies" +
                (lateIn < lateAll ? "  (arriving)" : "") + "\n" : "") +
-    /* the Marble interior, once anything has asked for it */
-    (drosdick.state !== "unloaded"
-      ? "marble " + drosdick.state +
-        (drosdick.state === "error"
-           ? "  " + (drosdick.err || "").slice(0, 30) + (drosRetryT ? "  (retrying)" : "")
-         : drosdick.state === "preloading" && drosdick.bytesTotal
-           ? "  " + (drosdick.bytesGot / 1048576).toFixed(1) + "/" +
-             (drosdick.bytesTotal / 1048576).toFixed(1) + "MB"
-         : drosdick.splats
-           ? "  " + (drosdick.splats / 1e6).toFixed(2) + "M splats (" + drosdick.tier + ")" +
-             "  " + (drosdick.bytes / 1048576).toFixed(1) + "MB in " +
-             (drosdick.loadMs / 1000).toFixed(1) + "s"
-           : "") +
-        (fpDros ? "\n       at " + fpDros.x.toFixed(1) + "," + fpDros.z.toFixed(1) +
-                  " floor " + fpDros.floor.toFixed(2) : "") + "\n"
-      : "") +
     /* the character AI, once anything has used or configured it */
     (AI.cfg.on || AI.diag.status !== "off"
       ? "ai     " + AI.diag.status +
@@ -12435,88 +11913,14 @@ renderer.setAnimationLoop(() => {
     lp.needsUpdate = true;
   }
   drawMinimap();
-  if (interiorView){
-    /* The chapel's interior is the authored model's own nave once it
-       has landed — the camera stands inside the WORLD, just in from
-       the south door, and the procedural nave scene is only the
-       fallback for the minute before the model arrives (and for the
-       harness, which enters long before the deferred queue runs). */
-    const marble = interiorView === "eng" && interiorMarble;
-    const real = interiorView === "cathedral" && interiorCath;
-    const cam = marble ? null : real ? cathNave : interiorScenes[interiorView].userData.cam;
-    if (marble){
-      /* The Marble atrium — same steering as the nave, but the floor
-         and walls come from the collider mesh, not a clamp box. The
-         camera stands on whatever the down-ray finds, which is what
-         makes the stairs stairs; a stride is refused when a chest-high
-         ray hits a wall or the floor ahead jumps more than a step. */
-      if (!fpDros){
-        const s = drosdick.spawn;
-        fpDros = { x: s.x, z: s.z, floor: s.floor, eyeY: s.floor + DROS_EYE,
-                   h: s.h, pitch: s.pitch };
-      }
-      const k = walker.keys, turn = 1.7 * dt;
-      if (k.ArrowLeft || k.tleft)   fpDros.h += turn;
-      if (k.ArrowRight || k.tright) fpDros.h -= turn;
-      const mv = ((k.ArrowUp || k.KeyW || k.tfwd) ? 1 : 0) - ((k.ArrowDown || k.KeyS) ? 1 : 0);
-      if (mv){
-        const hurry = k.ShiftLeft || k.ShiftRight;
-        const sp = (hurry ? 3.2 : 1.7) * dt * mv;   /* meters per second, a stroll */
-        const ux = -Math.sin(fpDros.h), uz = -Math.cos(fpDros.h);
-        const wall = drosdickCast(fpDros.x, fpDros.floor + 1.15, fpDros.z,
-                                  ux * Math.sign(sp), 0, uz * Math.sign(sp),
-                                  Math.abs(sp) + 0.4);
-        if (!wall){
-          const nx = fpDros.x + ux * sp, nz = fpDros.z + uz * sp;
-          const fl = drosdickCast(nx, fpDros.floor + 1.3, nz, 0, -1, 0, 4);
-          if (fl && Math.abs(fl.point.y - fpDros.floor) <= DROS_STEP){
-            fpDros.x = nx; fpDros.z = nz; fpDros.floor = fl.point.y;
-          }
-        }
-      }
-      /* the eye eases onto each new tread instead of snapping */
-      fpDros.eyeY += (fpDros.floor + DROS_EYE - fpDros.eyeY) * Math.min(1, 12 * dt);
-      intCamera.fov = 62; intCamera.near = 0.08; intCamera.far = 250;
-      intCamera.rotation.order = "YXZ";
-      intCamera.position.set(fpDros.x, fpDros.eyeY, fpDros.z);
-      intCamera.rotation.set(fpDros.pitch, fpDros.h, 0);
-    } else if (real){
-      /* The real nave is a place, not a postcard: "couldn't look left
-         right or around in the chapel." The visitor steers here the
-         same way they steer outside — ◀ ▶ pads and arrow keys turn,
-         ▲/W walks, a dragged finger looks — clamped to the authored
-         walls. First frame inside faces the apse, exactly the view
-         the fixed camera used to hold. */
-      if (!naveCam){
-        const dx = cam.look[0] - cam.pos[0], dz = cam.look[2] - cam.pos[2];
-        naveCam = { x: cam.pos[0], z: cam.pos[2],
-                    h: Math.atan2(-dx, -dz),
-                    pitch: Math.atan2(cam.look[1] - cam.pos[1], Math.hypot(dx, dz)) };
-      }
-      /* campus units again — undo whatever the atrium set */
-      intCamera.fov = 52; intCamera.near = 1; intCamera.far = 4000;
-      const k = walker.keys, turn = 1.7 * dt;
-      if (k.ArrowLeft || k.tleft)   naveCam.h += turn;
-      if (k.ArrowRight || k.tright) naveCam.h -= turn;
-      const mv = ((k.ArrowUp || k.KeyW || k.tfwd) ? 1 : 0) - ((k.ArrowDown || k.KeyS) ? 1 : 0);
-      if (mv){
-        const sp = 62 * dt, B = cam.bounds;
-        naveCam.x = Math.min(B.maxX, Math.max(B.minX, naveCam.x - Math.sin(naveCam.h) * mv * sp));
-        naveCam.z = Math.min(B.maxZ, Math.max(B.minZ, naveCam.z - Math.cos(naveCam.h) * mv * sp));
-      }
-      intCamera.rotation.order = "YXZ";
-      intCamera.position.set(naveCam.x, cam.pos[1], naveCam.z);
-      intCamera.rotation.set(naveCam.pitch, naveCam.h, 0);
-    } else {
-      intCamera.fov = 52; intCamera.near = 1; intCamera.far = 4000;
-      const sway = Math.sin(now / 5200);
-      intCamera.position.set(cam.pos[0] + sway * cam.sway[0], cam.pos[1] + sway * cam.sway[1], cam.pos[2]);
-      intCamera.lookAt(cam.look[0], cam.look[1], cam.look[2]);
-    }
-    intCamera.aspect = camera.aspect;
-    intCamera.updateProjectionMatrix();
-    renderer.render(marble ? drosdick.scene : real ? world : interiorScenes[interiorView], intCamera);
-  } else {
+  /* A panel is an opaque page over the canvas: the campus behind it
+     cannot be seen, so it is not drawn. Not a saving that was
+     available before — the old interiors put a SECOND scene on the
+     GPU while you read, which is what made walking indoors the most
+     expensive thing the page did. The simulation keeps running (four
+     mixers and a walk cycle, microseconds), so the quad you come back
+     out onto has moved on rather than been paused. */
+  if (!interiorView){
     labelRenderer.render(world, camera);
     composer.render();
   }
@@ -14050,9 +13454,6 @@ function toggleDone(id){
 function selectSector(key, fromCampus){
   if (key !== "all") jOrient("ledger");   /* orientation: opened a hall's course ledger */
   closeInterior();
-  /* opening Drosdick's coursework from the aerial view is intent
-     enough — start streaming the atrium before the walk over */
-  if (key === "eng" && !softGL){ drosAttempts = 0; drosdickPreload(); }
   currentSector = key;
   localStorage.setItem(LS_SECTOR, key);
 
@@ -15560,39 +14961,221 @@ window.__convo = { open: convoOpen, close: convoClose, on: () => !!convoView,
                    named: () => students.filter(s => s.data) };
 window.__interior = { open: (k) => openInterior(k), close: () => closeInterior() };   /* test/debug hook */
 
+/* ══════════════════════════════════════════════════════════════════
+   THE HALL PANEL — the record a door opens onto.
+
+   Three shapes, one surface:
+
+     an academic hall   what meets here, and who teaches it
+     Administration     the registrar's own record of this student
+     the Chapel         nothing to enrol in; a page that says so well
+
+   Every number on it is read from state that already exists — the
+   course list, `done`, the study ledger, the Journey — so the panel
+   cannot disagree with the course cards or the journey panel. It
+   builds its HTML on open and throws it away on close: a hall is
+   looked at for a minute, and a live subscription would be a
+   standing cost for a rare view.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* One photograph per hall, sized for a phone and cached by the worker
+   like any other asset. A hall with no photograph falls back to its
+   own sector colour, which is why nothing below assumes an image
+   landed — including the case where the fetch simply fails.
+
+   The second value is the focus. `cover` crops a landscape photograph
+   hard in a column this tall — sideways on a desktop, downward on a
+   phone — so each photo names the part worth keeping rather than
+   trusting the centre: the administration lobby's centre is its empty
+   floor, and its arcade is off to the right. */
+const HALL_PHOTO = { cathedral: ["assets/interiors/cathedral.webp",      "50% 44%"],
+                     adm:       ["assets/interiors/administration.webp", "58% 38%"] };
+const photoIn = {};   /* key -> true once decoded; a second entry is free */
+function setPlate(key){
+  const plate = document.getElementById("int-plate");
+  const S = SECTORS[key];
+  /* the colour plate is always set, so there is something behind the
+     text on the first frame and something to keep if no photo exists */
+  plate.style.setProperty("--plate",
+    `radial-gradient(120% 90% at 22% 0%, ${S.soft}0.28), transparent 62%), ` +
+    `linear-gradient(160deg, #0d1220 0%, #070a12 60%, #04060c 100%)`);
+  plate.style.backgroundImage = "";
+  plate.style.backgroundPosition = "";   /* or the last hall's framing
+                                            would offset this one's plate */
+  const shot = HALL_PHOTO[key];
+  if (!shot) return;
+  const [src, focus] = shot;
+  const show = () => {
+    plate.style.backgroundImage = `url("${src}")`;
+    plate.style.backgroundPosition = focus;
+  };
+  if (photoIn[key]){ show(); return; }
+  /* decoded off to the side first: assigning the URL straight to the
+     element paints the panel and THEN swaps in the photo a beat later,
+     which reads as a flash on the one screen we just spent a release
+     making stop flashing */
+  const img = new Image();
+  img.onload = () => { photoIn[key] = true; if (interiorView === key) show(); };
+  img.src = src;
+}
+
+/* what the student has done with one course, in the panel's words */
+function courseStanding(c, reg){
+  if (done.includes(c.id)) return { cls: "sealed", label: "sealed" };
+  if (reg.includes(c.id))  return { cls: "open",   label: "registered" };
+  const p = STUDY[c.id] ? studyProgress(c.id) : null;
+  if (p && p.mastered)     return { cls: "open",   label: p.mastered + "/" + p.total + " mastered" };
+  return { cls: "wait", label: c.prereqs.length
+    ? "needs " + c.prereqs.map(id => byId[id]?.code || id).join(" · ")
+    : "open to all" };
+}
+
+function facultyCard(f){
+  return `<div class="int-card">
+    <div class="int-row"><span class="int-name">${esc(f.name)}</span>${
+      f.walks ? `<span class="int-tag">on the quad</span>` : ""}</div>
+    <div class="int-meta">${esc(f.title)}<br>
+      <b>${esc(f.office)}</b> · ${esc(f.hours)}<br>
+      ${esc(f.known)}</div>
+  </div>`;
+}
+
+/* an academic hall: the courses that meet here, then the people who
+   teach them — the two things the field report asked for */
+function hallRecord(key){
+  const list = COURSES.filter(c => c.sector === key);
+  const reg = Journey.get().registration.registeredCourseIds || [];
+  const staff = FACULTY.filter(f => f.sector === key);
+  const sealed = list.filter(c => done.includes(c.id)).length;
+  return `
+    <div class="int-sec">In this hall · ${sealed} of ${list.length} sealed</div>
+    ${list.map(c => {
+      const t = teacherOf(c.id), st = courseStanding(c, reg);
+      return `<div class="int-card${reg.includes(c.id) ? " on" : ""}">
+        <div class="int-row">
+          <span class="int-code">${esc(c.code)}</span>
+          <span class="int-name">${esc(c.title)}</span>
+          <span class="int-state ${st.cls}">${esc(st.label)}</span>
+        </div>
+        <div class="int-meta">${esc(c.level)} · ${c.credits} credits${
+          t ? ` · taught by <b>${esc(t.name)}</b>` : ""}</div>
+      </div>`;
+    }).join("")}
+    <div class="int-sec">Faculty · ${staff.length} in residence</div>
+    ${staff.map(facultyCard).join("")}`;
+}
+
+/* Administration: what the university holds on this student. Reads
+   the Journey rather than restating it — if the registrar's record
+   and the journey panel ever disagree, one of them is lying, and
+   there is only one copy of the truth. */
+function registrarRecord(){
+  const st = Journey.get();
+  const status = Journey.status();
+  const major = st.academics.declaredMajorId
+    ? MAJORS.find(m => m.id === st.academics.declaredMajorId) : null;
+  const reg = st.registration.registeredCourseIds || [];
+  const seq = major ? major.required : COURSES.map(c => c.id);
+  const sealed = seq.filter(id => done.includes(id));
+  const pct = Math.round(100 * sealed.length / Math.max(1, seq.length));
+  const credits = sealed.reduce((a, id) => a + (byId[id]?.credits || 0), 0);
+  const WORD = { visitor:"Prospective — no application on file", applicant:"Application received",
+                 accepted:"Accepted — advising not yet complete", advised:"Advised — major not yet declared",
+                 declared:"Major declared — not yet registered", enrolled:"Enrolled" };
+  return `
+    <div class="int-sec">The registrar's record</div>
+    <div class="int-card on">
+      <div class="int-row"><span class="int-name">${esc(WORD[status] || status)}</span></div>
+      <div class="int-meta">
+        <b>Declared major</b> — ${major ? esc(major.title) : "none on file"}<br>
+        <b>Term</b> — ${esc(st.registration.term || st.admissions.term || "not yet assigned")}<br>
+        <b>Registered this term</b> — ${reg.length
+          ? reg.map(id => esc(byId[id]?.code || id)).join(", ") : "nothing yet"}
+      </div>
+    </div>
+    <div class="int-sec">Sequence progress${major ? " · " + esc(major.title) : ""}</div>
+    <div class="int-card">
+      <div class="int-bar"><i style="width:${pct}%"></i></div>
+      <div class="int-meta"><b>${sealed.length} of ${seq.length}</b> courses sealed ·
+        <b>${credits}</b> credits earned${major
+          ? ` of ${major.credits} required` : " across the whole catalog"}</div>
+    </div>
+    ${seq.filter(id => !done.includes(id)).slice(0, 3).map(id => {
+      const c = byId[id], t = c && teacherOf(id);
+      if (!c) return "";
+      return `<div class="int-card"><div class="int-row">
+          <span class="int-code">${esc(c.code)}</span>
+          <span class="int-name">${esc(c.title)}</span>
+          <span class="int-state wait">ahead</span></div>
+        <div class="int-meta">${esc(SECTORS[c.sector].hall)}${
+          t ? ` · <b>${esc(t.name)}</b>` : ""}</div></div>`;
+    }).join("")}
+    <div class="int-sec">Who sits in this building</div>
+    ${facultyCard(DEAN)}
+    ${FACULTY.filter(f => f.sector === "adm").map(facultyCard).join("")}`;
+}
+
+/* The chapel enrols nobody. It was given a walk-in nave, and the nave
+   was the worst-looking room on the campus; what it is actually for
+   is a minute of not being asked to achieve anything. */
+function chapelRecord(){
+  return `
+    <div class="int-sec">The Chapel</div>
+    <div class="int-card"><div class="int-quiet">
+      <p>Nothing is taught here and nothing is assessed. The chapel keeps
+      the north end of the quad, its bells keep the hours, and the
+      lancets on the east wall are worth the walk about an hour before
+      the light goes.</p>
+      <p>Students read here between lectures because it is the one room
+      on campus where nobody will ask them how the problem set is
+      going.</p>
+    </div></div>
+    <div class="int-sec">Hours</div>
+    <div class="int-card"><div class="int-meta">
+      <b>Open</b> — first bell to last light, every day of term<br>
+      <b>Bells</b> — on the hour, and at 18:00 for evensong<br>
+      <b>Quiet hours</b> — always
+    </div></div>`;
+}
+
 function openInterior(key){
   const S = SECTORS[key];
   if (!S) return;
   document.getElementById("int-track").textContent = S.track;
-  document.getElementById("int-hall").textContent = S.room;
+  document.getElementById("int-hall").textContent = S.hall;
+  document.getElementById("int-motto").textContent = S.motto || "";
   const next = COURSES.find(c => c.sector === key && !done.includes(c.id));
-  /* the classroom is an access path into the course of study — the
-     efficient path stays on the course card, this one is for immersion */
+  /* the panel is an access path into the course of study — the
+     efficient path stays on the course card, this one is for the
+     student who walked here */
   const studyHere = COURSES.find(c => c.sector === key && STUDY[c.id]);
   const sb = document.getElementById("int-study");
   sb.hidden = !studyHere;
   if (studyHere) sb.onclick = () => { closeInterior(); jStudy(studyHere.id); };
   document.getElementById("int-teaching").textContent =
-    (key === "cathedral"
-      ? "No lecture here — only candlelight, stained glass, and the long thoughts of scholars."
-      : next
-        ? `Now in session: ${next.code} — ${next.title}`
-        : "Every course sealed — the hall stands in your honor.") +
-    /* the one state that reads as a bug when it goes unexplained:
-       the amphitheater standing in while the Marble capture streams */
-    (key === "eng" && drosdick.state !== "ready"
-      ? (softGL
-          ? "  ·  The Grand Atrium needs a stronger GPU than this device offers."
-          : "  ·  The Grand Atrium is still streaming in — it will open around you the moment it finishes.")
-      : "");
+    key === "cathedral" ? S.room
+    : next ? `${S.room} · now in session: ${next.code} — ${next.title}`
+           : `${S.room} · every course sealed — the hall stands in your honour.`;
+  document.getElementById("int-body").innerHTML =
+    key === "cathedral" ? chapelRecord()
+    : key === "adm"     ? registrarRecord()
+                        : hallRecord(key);
+  setPlate(key);
   engineOpenInterior(key);
   interiorEl.classList.add("open");
   interiorEl.setAttribute("aria-hidden", "false");
+  const sheet = document.getElementById("int-sheet");
+  sheet.scrollTop = 0;
+  sheet.focus({ preventScroll: true });
 }
 function closeInterior(){
   engineCloseInterior();
   interiorEl.classList.remove("open");
   interiorEl.setAttribute("aria-hidden", "true");
+  /* the markup goes with the view: it is rebuilt from state on every
+     open, so keeping it costs memory and risks showing a stale record
+     for the frame before the next open finishes */
+  document.getElementById("int-body").innerHTML = "";
 }
 document.getElementById("int-leave").addEventListener("click", closeInterior);
 document.getElementById("int-courses").addEventListener("click", () => {
