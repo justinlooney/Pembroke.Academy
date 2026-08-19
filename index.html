@@ -1059,6 +1059,11 @@ body.panel-open #toasts{bottom:5.5rem;}
 .st-why{margin-top:.5rem;font-size:12px;color:#94a3b8;font-style:italic;}
 .st-q.right .st-why{color:#6ee7b7;}
 .st-q.wrong .st-why{color:#fca5a5;}
+/* "you have not answered yet" — deliberately not the wrong-answer red.
+   Nothing has been marked and nothing has been recorded; saying so in
+   the colour of a miss would be its own small lie. */
+.st-nag{margin-top:.6rem;font-size:12.5px;color:var(--brass);}
+.st-q.blank{border-color:rgba(212,175,106,.55);}
 /* the lesson player's blocks */
 .st-prof{margin:.4rem 0 .8rem;padding:.75rem .95rem;border-left:3px solid var(--brass);
   border-radius:.4rem;background:rgba(212,175,106,.07);font-size:13px;color:#cbd5e1;
@@ -3124,7 +3129,11 @@ function studyProgress(id){
   return { total: all.length, mastered: all.filter(s => st[s.n] === 2).length };
 }
 window.__study = { STUDY, progress: studyProgress, state: () => study,
-                   psetOf, psetState, psetGradedKeys, save: saveStudy };   /* test/debug hook */
+                   psetOf, psetState, psetGradedKeys, save: saveStudy,
+                   /* open a lecture directly: the panel is otherwise
+                      four clicks deep behind enrolment, and a check
+                      that has to enrol first is testing enrolment */
+                   openSection: (id, n) => jStudySection(id, n) };   /* test/debug hook */
 let done = loadDone();
 let currentSector = localStorage.getItem(LS_SECTOR) || "all";
 const byId = Object.fromEntries(COURSES.map(c => [c.id, c]));
@@ -3422,7 +3431,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v133";
+const BUILD = "pembroke-v134";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -12267,6 +12276,19 @@ function jStudy(courseId){
    verdict, when. Capped FIFO; the tutor reads SIGNALS from this,
    never raw answers. */
 function studyLog(courseId, n, kind, okAns){
+  /* A record of what a student got right and wrong is only worth
+     keeping if every entry means one of those two things. `ok ? 1 : 0`
+     will happily turn null — "they never answered" — into a miss
+     indistinguishable from a wrong answer, and that miss goes on to
+     become a "stumble" the professor teaches to. Refuse it: an entry
+     that cannot say which happened does not belong in the ledger, and
+     saying so on the console is how the next one gets found. */
+  if (typeof okAns !== "boolean"){
+    console.error("study: refusing to record a " + typeof okAns + " outcome for " +
+                  courseId + " " + n + " (" + kind + ") — an attempt is right or wrong, " +
+                  "and anything else is a bug in the caller, not a miss");
+    return;
+  }
   study[courseId] = study[courseId] || {};
   const log = study[courseId].log = study[courseId].log || [];
   log.push({ n, k: kind, ok: okAns ? 1 : 0, at: Date.now() });
@@ -12625,6 +12647,7 @@ function jLessonFull(courseId, n){
         </fieldset>`).join("")}
       <div class="flex items-center gap-3 mt-2 flex-wrap">
         <button type="submit" class="jcta" style="--c:${S.color}">Check my work</button>
+        <div class="st-nag" id="kc-nag" role="status" hidden></div>
         ${psetOf(courseId, n) ? `<button type="button" class="jlink" data-pset>Problem Set${psetCleared(courseId, n) && psetState(courseId, n).cleared ? " · cleared ✓" : ""}</button>` : ""}
         <button type="button" class="jlink" data-hw>Homework ${ext.hw ? `· best ${ext.hw[0]}/${ext.hw[1]}` : ""}</button>
         <button type="button" class="jlink" data-back>← all lectures</button>
@@ -12674,14 +12697,64 @@ function jLessonFull(courseId, n){
   });
 }
 
+/* ── an unanswered question is not a wrong one ────────────────────
+   Submitting a knowledge check with nothing selected used to mark
+   every question wrong, reveal every correct answer permanently, and
+   write a miss per question into the study record. The reveal alone
+   destroys the assessment — you cannot un-see the answer — but the
+   log entry is worse, because studySignals() groups misses into
+   "recent stumbles" and hands them to Prof. Merion as the thing to
+   teach to. One accidental submit had him working on a struggle that
+   never happened.
+
+   Shared by both lesson views on purpose: the full player and the
+   lite one carry separate graders (they diverge in what they record
+   and what they seal, which is its own issue), and a guard that only
+   one of them called would leave the reveal live in the other. */
+function kcUnanswered(sec){
+  const blanks = [];
+  sec.qs.forEach((q, qi) => {
+    const fs = jbody.querySelector(`[data-q="${qi}"]`);
+    const answered = !!jbody.querySelector(`input[name="q${qi}"]:checked`);
+    fs?.classList.toggle("blank", !answered);
+    if (!answered) blanks.push(qi + 1);
+  });
+  const nag = jbody.querySelector("#kc-nag");
+  if (nag){
+    /* Every check carries two questions today, so "some but not all"
+       can only ever be one of them and the plural never appears. It
+       is written anyway: the day a check grows a third question is
+       not the day to discover the message says "Question 1 and 2
+       still needs an answer". */
+    const list = blanks.length > 1
+      ? blanks.slice(0, -1).join(", ") + " and " + blanks[blanks.length - 1]
+      : String(blanks[0]);
+    nag.hidden = !blanks.length;
+    nag.textContent = !blanks.length ? ""
+      : blanks.length === sec.qs.length
+        ? "Nothing is selected yet — answer before checking."
+        : blanks.length === 1
+          ? `Question ${list} still needs an answer.`
+          : `Questions ${list} still need an answer.`;
+  }
+  return blanks.length > 0;
+}
+
 /* the knowledge-check marker, shared by both lesson views */
 function stGradeKC(courseId, n, sec, S){
+  /* nothing graded, nothing revealed, nothing recorded */
+  if (kcUnanswered(sec)) return;
   let right = 0;
   sec.qs.forEach((q, qi) => {
     const pick = jbody.querySelector(`input[name="q${qi}"]:checked`);
     const fs = jbody.querySelector(`[data-q="${qi}"]`);
     const why = fs.querySelector(".st-why");
-    const good = pick && +pick.value === q.a;
+    /* !!pick, not pick: `pick && …` evaluates to pick itself when pick
+       is falsy — null here, not a boolean — and studyLog now refuses
+       anything that is not strictly true or false. The guard above
+       means that cannot happen from this call site, but a wrong answer
+       must not become an unrecorded one if it ever does. */
+    const good = !!pick && +pick.value === q.a;
     if (good) right++;
     studyLog(courseId, n, "kc", good);
     fs.classList.toggle("right", good);
@@ -13408,6 +13481,7 @@ function jStudySection(courseId, n){
         </fieldset>`).join("")}
       <div class="flex items-center gap-3 mt-2">
         <button type="submit" class="jcta" style="--c:${S.color}">Check my work</button>
+        <div class="st-nag" id="kc-nag" role="status" hidden></div>
         <button type="button" class="jlink" data-back>← all lectures</button>
       </div>
     </form>
@@ -13415,6 +13489,7 @@ function jStudySection(courseId, n){
   jbody.querySelector("[data-back]").addEventListener("click", () => jStudy(courseId));
   jbody.querySelector("#st-quiz").addEventListener("submit", (e) => {
     e.preventDefault();
+    if (kcUnanswered(sec)) return;   /* see kcUnanswered — same guard, both views */
     let right = 0;
     sec.qs.forEach((q, qi) => {
       const pick = jbody.querySelector(`input[name="q${qi}"]:checked`);
