@@ -12247,11 +12247,23 @@ function dbgUpdate(now, dt, raw){
     (fps < 10 ? "       SLOW MOTION: the campus runs at " +
                 (fps / 10).toFixed(2) + "x real time below 10fps\n" : "") +
     "gpu    " + ((glInfo || "unknown").slice(0, 30)) + "\n" +
+    /* What is RUNNING, not what is attached. The arrival preset silences
+       ssao and bloom with .enabled and stops the shadow pass by freezing
+       autoUpdate — none of which removes a pass or clears
+       shadowMap.enabled, so this line went on reporting "ssao+bloom" and
+       "shadows 3072" while neither was costing a frame. Photographed on
+       a phone with the preset plainly working: the panel under-reported
+       its own fix, in the release whose subject is a panel that tells
+       the truth about the load. */
     "post   " + (softGL ? "reduced (soft GL)"
-                        : [ssao && "ssao", composer.passes.includes(bloom) && "bloom",
+                        : [ssao && ssao.enabled && "ssao",
+                           composer.passes.includes(bloom) && bloom.enabled && "bloom",
                            !q.has("nosmaa") && "smaa"].filter(Boolean).join("+") || "none") +
       "   dpr " + renderer.getPixelRatio() +
-      (renderer.shadowMap.enabled ? "  shadows " + sun.shadow.mapSize.x : "  no shadows") +
+      (renderer.shadowMap.enabled
+        ? (renderer.shadowMap.autoUpdate ? "  shadows " + sun.shadow.mapSize.x
+                                         : "  shadows held")
+        : "  no shadows") +
       (rung ? "\n       quality rung " + rung + "/" + LADDER.length +
               " — given up to hold " + FPS_WANT + "fps" : "") + "\n" +
     /* Why the ladder is where it is, and what the screen lost getting
