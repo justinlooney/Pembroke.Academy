@@ -204,6 +204,72 @@ try {
   /* walk mode: stand at the cathedral doors and expect the prompt */
   step("walk mode engages", await pressUntil("f", () => window.__walker.on === true));
 
+  /* Walk mode takes the whole window and gives it back. Everything
+     below this point drives the campus through page.evaluate, which
+     never touches layout — so the full-bleed behaviour had no check at
+     all until a review pointed out that CI could not see it.
+
+     The exit framing is the assertion that earns its place. standBack()
+     reads the STAGE's aspect to decide whether a narrow view needs the
+     camera pulled back by PORTRAIT_K, so framing the aerial view while
+     the wing was still fullscreen measured the window instead of the
+     column the camera was about to live in — and nothing recomputes it
+     afterwards. Asserted as a value, not a class: the camera either
+     ends up where a fresh aerial view would put it, or it does not. */
+  const bleed = await page.evaluate(() => ({
+    wing: (() => { const r = document.getElementById("campus-wing").getBoundingClientRect();
+                   return { w: Math.round(r.width), h: Math.round(r.height),
+                            x: Math.round(r.x), y: Math.round(r.y) }; })(),
+    vw: window.innerWidth, vh: window.innerHeight,
+    locked: getComputedStyle(document.body).overflow === "hidden",
+    masthead: getComputedStyle(document.getElementById("topbar")).visibility,
+  }));
+  step("walking takes the whole window",
+       bleed.wing.x === 0 && bleed.wing.y === 0 &&
+       bleed.wing.w === bleed.vw && bleed.wing.h === bleed.vh,
+       `wing ${bleed.wing.w}x${bleed.wing.h} at ${bleed.wing.x},${bleed.wing.y} · viewport ${bleed.vw}x${bleed.vh}`);
+  step("the page is locked while walking", bleed.locked);
+  step("the masthead does not paint through the sky", bleed.masthead === "hidden",
+       "visibility " + bleed.masthead);
+
+  /* AT 1024x768 ON PURPOSE. The suite runs at 1280x800, where the
+     window (1.6) and the restored 52% column (0.92) both read WIDE, so
+     standBack() returns 1 either way and this bug is invisible — the
+     first version of this check sat at the suite's own viewport and
+     passed against the unfixed code. At 1024x768 the window reads wide
+     (1.33) and the column reads narrow (0.77), so the two disagree
+     about PORTRAIT_K and the mis-measurement shows: camera 1707 out
+     becomes 1138, a third too close, and nothing recomputes it. */
+  await page.evaluate(() => document.getElementById("walkbtn").click());
+  await page.waitForTimeout(400);
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.waitForTimeout(600);
+  const framed = await page.evaluate(() => {
+    const p = window.__app.camera.position, st = document.getElementById("stage");
+    return { far: Math.hypot(p.x, p.y, p.z), stage: [st.clientWidth, st.clientHeight] };
+  });
+  await page.evaluate(() => document.getElementById("walkbtn").click());   /* in */
+  await page.waitForTimeout(500);
+  await page.evaluate(() => document.getElementById("walkbtn").click());   /* and out */
+  await page.waitForTimeout(700);
+  const framing = await page.evaluate(() => {
+    const p = window.__app.camera.position, st = document.getElementById("stage");
+    return { on: window.__walker.on, far: Math.hypot(p.x, p.y, p.z),
+             stage: [st.clientWidth, st.clientHeight] };
+  });
+  /* against the view this page framed for itself a moment earlier at
+     the same size — not a copied constant, which would only re-encode
+     AERIAL and PORTRAIT_K and stop meaning anything if either moved */
+  const drift = Math.abs(framing.far - framed.far) / Math.max(1, framed.far);
+  step("leaving walk mode frames the aerial view for the stage, not the window",
+       !framing.on && drift < 0.02,
+       `camera ${Math.round(framing.far)} out, framed at ${Math.round(framed.far)} before walking` +
+       ` · stage ${framing.stage.join("x")}`);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.waitForTimeout(600);
+
+  step("walk mode engages again", await pressUntil("f", () => window.__walker.on === true));
+
   /* The drop point, tested against every wall. v94 shipped with the
      walk-in point at 500,802 INSIDE a building that had been moved
      that morning — the player materialised trapped between buttress

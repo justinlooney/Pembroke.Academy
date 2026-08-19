@@ -11437,16 +11437,27 @@ function exitWalk(){
   walker.on = false;
   controls.enabled = true;
   renderer.domElement.style.touchAction = "";
-  aerialHome();
+  /* THE WING GOES BACK IN THE PAGE FIRST, and everything that measures
+     the stage happens after. standBack() reads the stage's aspect to
+     decide whether this is a narrow view that needs the camera pulled
+     back by PORTRAIT_K, and aerialPos() scales the whole home position
+     by it. Framing the aerial view while the wing was still fixed
+     inset:0 measured the WINDOW, not the column the camera is about to
+     live in — so a landscape laptop, whose window reads wide (k=1) but
+     whose restored 52% column reads narrow (k=1.5), landed a third too
+     close to the campus and stayed there, because nothing recomputes
+     the home position afterwards. Portrait phones hid it: both states
+     read narrow, so k came out the same either way. */
+  wing.classList.remove("walkmode");
+  document.body.classList.remove("walkmode");
+  resize();                        /* the stage has its own shape again */
+  window.scrollTo(0, walkScrollY); /* to the paragraph you left, not the top */
+  aerialHome();                    /* NOW the measurement is of the right box */
   controls.target.set(0, 30, 0);
   camera.rotation.set(0, 0, 0);
   camera.fov = fovFor(camera.aspect);       /* hand the fov back to the aerial view */
   camera.updateProjectionMatrix();
   applyFog();
-  wing.classList.remove("walkmode");
-  document.body.classList.remove("walkmode");
-  resize();                        /* and back into the page it goes */
-  window.scrollTo(0, walkScrollY); /* to the paragraph you left, not the top */
   hallTags.forEach(t => t.position.y = t.userData.hover.aerial);
   document.getElementById("walkbtn").textContent = "🎮";
   document.getElementById("doorprompt").classList.remove("show");
@@ -15232,6 +15243,12 @@ function closeInterior(){
 document.getElementById("int-leave").addEventListener("click", closeInterior);
 document.getElementById("int-courses").addEventListener("click", () => {
   closeInterior();
+  /* The ledger lives in the page, and walk mode has taken the page off
+     the screen — body overflow is hidden and the wing is fixed over
+     it, so both scrolls below are no-ops and the button read as dead:
+     the panel closed and you were left standing on the quad, no ledger
+     anywhere. Asking for the ledger is asking to leave the quad. */
+  if (walker.on) exitWalk();
   const ws = document.getElementById("workspace");
   ws.scrollTo({ top: 0, behavior: "smooth" });
   ws.scrollIntoView({ behavior: "smooth" });
