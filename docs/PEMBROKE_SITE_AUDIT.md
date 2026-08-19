@@ -457,12 +457,37 @@ The adaptive response is better than most commercial WebGL work: a 5-rung shed l
 
 ### Recommended degradation — *without* flattening Pembroke
 
-Keep the world; reduce its *ambition* on weak devices. `RECOMMENDED`
-1. Ship Draco/Meshopt-compressed GLBs and KTX2/Basis textures — realistically **60–70 % off 29.4 MB with no visual change**. This is the single highest value-per-effort item in the entire audit.
-2. Gate the two interior mega-assets behind an explicit, labelled opt-in ("Step inside — 24 MB").
+> **Corrected after re-measurement (19 Aug).** An earlier draft of this section recommended "Draco/Meshopt + KTX2, 60–70% off". That is **wrong for the cast and the flora** — they are already `EXT_meshopt_compression` + `KHR_mesh_quantization` + `EXT_texture_webp`, at 14–18 bytes/tri, with textures only 7–18% of file size. Recompressing them gains nothing. The real lever is triangle count.
+
+**The finding:** every character body is *exactly* 200,000 triangles — the absolute target in `tools/optimize-assets.sh`, hit precisely.
+
+```
+stu_char11.glb   3.35MB   tris=199,999   verts=144,203   bones=24   18 bytes/tri
+stu_char17.glb   3.13MB   tris=200,000   verts=119,483   bones=24   16 bytes/tri
+stu_char2.glb    2.64MB   tris=200,000   verts=114,818   bones=23   14 bytes/tri
+```
+
+200k is a *hero* budget (AAA protagonists run 30–80k) spent on background figures seen at 30–100 m on a phone. Fourteen of them is **2.8 M triangles of people**, which accounts for essentially all of the measured 2.58 M tris on mobile. Because the files are already optimally packed, **file size is linear in triangle count** — halving triangles halves the download.
+
+Two assets genuinely never received the pass:
+
+```
+drosdick_hall.glb   23.15MB   tris=300,000   extensions: []   81 bytes/tri   7.7MB JPEG (33%)
+cathedral.glb       12.23MB   tris=354,887   no meshopt       36 bytes/tri
+```
+
+81 bytes/tri against the cast's 14–18 is a 5× gap.
+
+Revised plan, highest value first: `RECOMMENDED`
+1. **Re-decimate the cast to a crowd budget** — 200k → ~20k near / ~8k mid, with an imposter tier beyond. ~3.3 MB → ~0.4 MB per body, and ~2.5 M triangles off the frame. `tools/decimate.py` and `tools/thin-character.mjs` already exist; this is a budget change, not new tooling. It is also what makes §10's crowd problem affordable.
+2. **Run the existing meshopt + WebP pass over `drosdick_hall.glb` and `cathedral.glb`** — the only two assets that never got it. ~24 MB combined, zero code change. (`cathedral.glb` loads eagerly, observed at 92 s.)
 3. Merge/instance static architecture to cut draw calls toward ~300.
 4. Add a real LOD tier for the far ring and outer world.
-5. Raise DPR back toward 1.5 once the arrival preset lifts and the ladder is stable — the current 1× on a 2.75× screen is over-conservative for a *settled* scene.
+5. Raise DPR back toward 1.5 once the arrival preset lifts and the ladder is stable — 1× on a 2.75× screen is over-conservative for a *settled* scene.
+
+### Note on `claude/interiors-panels` (PR #64)
+
+Measured after the audit. It takes `assets/` from **120.1 → 86.7 MB** and deletes the Spark and three-mesh-bvh dependencies — real work. But the interiors were **already lazy** (`drosdick_hall.glb` never loaded in 150 s of first-visit measurement), so it targets the *interior* path. The outdoor scene is byte-identical: **809 draw calls, 2,580,398 triangles, 13,351 px document** on mobile, before and after. The first-visit weight was never the buildings.
 
 ---
 
@@ -495,7 +520,16 @@ Keep the world; reduce its *ambition* on weak devices. `RECOMMENDED`
 
 The single 16,176-line `index.html` is a deliberate choice (no build step, no toolchain, deploys as a static file) and it has clearly not prevented high-quality work — the code is exceptionally well commented, and comments routinely record *why* including field reports and review catches. But it is now the main constraint on contribution: no module boundaries, no tree-shaking, no per-subsystem testing, and every reader must hold the whole thing.
 
-`RECOMMENDED`: split into ES modules along the seams the file *already* documents (① world, ② academics, ⑤ journey, ⑥ characters/AI) with a 20-line build step. This preserves the static-hosting property while making the codebase contributable.
+`RECOMMENDED` (**narrowed after further reading — 19 Aug**): do **not** attempt a four-way split. The single-file design is working — zero console errors, zero failed requests, hostile-storage-resistant — and the commentary is an asset a big-bang refactor would put at risk.
+
+The cost of the monolith is not readability; it is that **no invariant can be tested without booting a browser and tens of MB of models**. That is why all 20 `check-*.mjs` probes drive the full page, and it is exactly how BUG-8 happened — a grader duplicated into two silently divergent copies, under a comment asserting the opposite.
+
+So extract only the two subsystems that carry real invariants and no rendering dependency — roughly 800 of 16,176 lines:
+
+- **`governor.mjs`** — `AI_POLICY`, `aiGovern`, `aiParse`, `deanDoor`, taking the lifecycle actions as injected callbacks rather than closing over `jAdvising`/`convoClose`. The full attack matrix in §8 becomes a millisecond unit test instead of a six-minute browser probe.
+- **`grading.mjs`** — `stGradeKC`, the practice checker, `studyLog`, `studySignals`, `psetCleared`. One grader, both views, as the existing comment already claims. Directly closes BUG-8.
+
+Plain ES modules alongside the import map the page already ships. **No build step, no bundler, no deployment change.** Leave the world, crowd, lifecycle UI and asset pipeline where they are.
 
 **Security & trust — strong.**
 
@@ -604,11 +638,11 @@ The campus becomes the pedagogy — the frontier lecture's visualization exists 
 |---|---|---|---|---|---|---|---|---|
 | 1 | **Mobile label declutter + HUD reflow**: screen-space collision resolution with priority/fade for CSS2D tags; legend/hints stack below 640 px | ★★★★★ | M | Low | — | Fixes the worst defect | +++ | It is the first thing anyone sees and it is broken |
 | 2 | **Walk mode goes fullscreen + scroll lock** (reuse the `convo-open` pattern verbatim) | ★★★★★ | **S** | Low | — | Transformative | +++++ | Highest ratio in the audit: ~15 lines of CSS + a class toggle promotes the best asset to the whole screen |
-| 3 | **Compress assets** (Draco/Meshopt + KTX2): 29.4 MB → ~10–12 MB | ★★★★★ | M | Low | tooling | Decisive | neutral | Unblocks every low-end device; no visual cost |
+| 3 | **Re-decimate the cast** (200k → ~20k tris/body) + run the existing meshopt pass on `drosdick_hall`/`cathedral` | ★★★★★ | M | Low | existing tooling | Decisive | +++ (unblocks the crowd) | The cast *is* the byte weight and the triangle count; compression is already done, the budget is not |
 | 4 | **Fix BUG-2/BUG-3** (guard unanswered submissions) | ★★★★☆ | **S** | None | — | — | + | Data integrity: it corrupts the record that drives the AI |
 | 5 | **Make the objective honest**: prefer teachable courses; a real path for the other 11 (even "syllabus only — lectures arriving") | ★★★★☆ | S–M | Low | — | + | ++ | The one permanent instruction currently dead-ends |
 | 6 | **A real acceptance beat**: submit → "under review" → a letter that arrives | ★★★★☆ | M | Low | — | + | ++++ | Recovers the single most emotional moment, cheaply |
-| 7 | **Populate the quad** (raise `CROWD_MAX`; instanced/imposter distant figures) | ★★★★☆ | L | Med | #3 | Needs #3 | +++++ | "Living campus" is the core claim and the ceiling is 10 |
+| 7 | **Populate the quad** (budget-driven target replacing the low-biased random; instanced/imposter distant figures) | ★★★★☆ | L | Med | #3 | Needs #3 | +++++ | "Living campus" is the core claim and the ceiling is 10 — and #3 makes 60 cost what 10 costs today |
 | 8 | **Accessibility pass**: focus rings, keyboard path into halls/characters, live `aria-label` | ★★★★☆ | M | Low | — | + | + | Jury-scored, currently disqualifying |
 | 9 | **AI output-side character check** (assistant-voice + false-action-claim filter) | ★★★☆☆ | **S** | Low | — | — | +++ | The one hole in an otherwise airtight AI architecture |
 | 10 | **Retire the emoji icon set; redesign the minimap** | ★★★☆☆ | S–M | Low | — | ++ | ++ | Cheap, and it is what makes careful work read as unfinished |
@@ -675,7 +709,7 @@ The campus becomes the pedagogy — the frontier lecture's visualization exists 
 **Impact:** the largest single jump in perceived quality available.
 
 ### Phase 2 — Weight & Reach *(~2–3 weeks)*
-**Deliverables:** Draco/Meshopt + KTX2 across all models; interiors behind a labelled opt-in; static architecture merged/instanced; far-ring LOD; DPR restored to ~1.5 after the preset lifts; full accessibility pass (focus rings, keyboard entry to halls and characters).
+**Deliverables:** cast re-decimated to a crowd budget with near/mid/imposter tiers; the existing meshopt+WebP pass run over `drosdick_hall.glb` and `cathedral.glb`; static architecture merged/instanced; far-ring LOD; DPR restored to ~1.5 after the preset lifts; full accessibility pass (focus rings, keyboard entry to halls and characters).
 **Acceptance:** first-visit transfer < 12 MB; draw calls < 400; a complete journey achievable by keyboard alone; no jank on a mid-range Android.
 **Impact:** Pembroke becomes usable on the devices most people own.
 
@@ -702,7 +736,7 @@ Term progression with consequence · lectures that happen at a time · multi-vis
 
 **KEEP (untouched):** the governor + `AI_POLICY` + `deanDoor()` · three-tier AI with canned fallback · the Worker's trust model · MATH 201's content and mastery model · the arrival screen · the quality ladder and arrival preset · the service worker's version split · procedural stone architecture · walk mode · the writing voice · the probe suite.
 
-**REFINE:** CSS2D labels (declutter/priority) · walk mode (fullscreen) · HUD layout (responsive) · asset pipeline (compress) · crowd (populate) · grading guards · accessibility · `aiSystemPrompt` faculty line · canned conversation state.
+**REFINE:** CSS2D labels (declutter/priority) · walk mode (fullscreen) · HUD layout (responsive) · cast triangle budget · crowd (populate) · grading guards · accessibility · `aiSystemPrompt` faculty line · canned conversation state.
 
 **REPLACE:** emoji icon set → the existing SVG language · minimap → a designed institutional artifact · advising modal → an in-world conversation with the Dean · instantaneous acceptance → a decision with a wait.
 
