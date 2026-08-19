@@ -237,7 +237,16 @@ try {
     await new Promise(r => setTimeout(r, 250));
     const real = { logged: logged().length, revealed: revealed(), marked: marked(),
                    clean: logged().every(e => e.ok === 0 || e.ok === 1) };
-    return { ready: true, blank, real };
+
+    /* PUT THE PAGE BACK. jOpen focuses the first control inside the
+       modal, so leaving it open traps the keyboard: the `f` that
+       enters walk mode never reaches the window handler, and every
+       check after this one fails for a reason that has nothing to do
+       with what it is testing. Seven of them did, once. */
+    document.querySelector("[data-jclose]")?.click();
+    await new Promise(r => setTimeout(r, 200));
+    const shut = !document.querySelector(".jmodal.open, #jmodal.open");
+    return { ready: true, blank, real, shut };
   });
   step("the knowledge check opens", kc.ready);
   step("an unanswered check records nothing", kc.ready && kc.blank.logged === 0,
@@ -250,6 +259,9 @@ try {
        kc.ready ? kc.real.marked + " marked, " + kc.real.revealed + " revealed, " +
                   kc.real.logged + " logged" : "");
   step("every record entry says right or wrong, nothing else", kc.ready && kc.real.clean);
+  /* asserted, not assumed: a check that quietly leaves a modal over
+     the page is worse than no check, because it fails the NEXT one */
+  step("the lecture panel is closed again", kc.ready && kc.shut);
 
   /* THE AERIAL STANDOFF, READ BEFORE ANY OF THIS TOUCHES THE VIEW.
      It has to be taken here, in the aerial view at the suite's own
