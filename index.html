@@ -3314,7 +3314,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v128";
+const BUILD = "pembroke-v129";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -4036,6 +4036,55 @@ function walkway(pts, width = 26, y = GROUND.walk){
   m.userData.way = true;              /* so a test can check where ways run */
   world.add(m);
   return m;
+}
+
+/* ── nothing stands in the ways ───────────────────────────────────────
+   "remove trees and bushes in the roads and sidewalks", then later a
+   lamp post photographed standing in the middle of a sidewalk with the
+   paving running out from under it on both sides.
+
+   Both were fixed the same way both times: find the offending entry in
+   a coordinate list and delete it by hand. That is a rule enforced by
+   remembering, and the comments around the planting lists show it
+   being remembered over and over — "the bush at 810,424 stood in the
+   widened Drosdick approach", "a lamp 7 units clear of its edge with a
+   3-unit base flare read as a post standing in it". Every one of those
+   notes is the same rule being re-derived after it was broken again,
+   and the next time a walk moves they all quietly stop being true.
+
+   So it is a function now. The walkways and the drives already publish
+   their own polylines and widths as audit hooks — the same ones the
+   suite uses to ask whether a road runs into a building — so the ways
+   can simply be asked where they are.
+
+   Approximated on the control polyline rather than the drawn
+   Catmull-Rom, which bulges outside it on a curve; the clearance each
+   caller passes covers the difference and the object's own footing. */
+function segDist(px, py, ax, ay, bx, by){
+  const dx = bx - ax, dy = by - ay;
+  const l2 = dx * dx + dy * dy;
+  const t = l2 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2)) : 0;
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+function inTheWays(x, y, clear = 0){
+  const ways = (window.__walks || []).concat(window.__drives || []);
+  for (const w of ways){
+    const half = w.width / 2 + clear;
+    const pts = w.pts;
+    for (let i = 1; i < pts.length; i++)
+      if (segDist(x, y, pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]) < half)
+        return true;
+  }
+  return false;
+}
+/* Filters a planting list, and SAYS what it dropped. A silent filter
+   would make a missing lamp look like a lamp somebody forgot to place,
+   which is the one thing worse than the lamp being in the way. */
+function offTheWays(list, clear, what){
+  const keep = list.filter(p => !inTheWays(p[0], p[1], clear));
+  const lost = list.length - keep.length;
+  if (lost) console.info(`ways: ${lost} of ${list.length} ${what} stood in a walk or a drive — not placed`);
+  return keep;
 }
 
 let fountainWater = null;
@@ -5661,12 +5710,21 @@ function plantSpecies(root, prefix, list, targetH, shadows, dropMat, keepAlpha){
      the roads and sidewalks" */
   /* the bush at 810,424 stood in the widened Drosdick approach — gone,
      same rule as ever: nothing grows in the ways */
-  const BUSHA = [[302,322,0.9],[922,424,0.95],
+  /* The clearance is the BUSH's own spread, not a margin of taste. A
+     centre point two feet off the kerb still puts half the shrub over
+     the paving, which is what a phone photographed and called a bush
+     in the sidewalk. Measured from the kerb, this planting ran 0, 1,
+     2, 3 and 4 units clear in six places and 20 to 70 everywhere else
+     — so the ones that go are the ones that were overhanging, and the
+     planting that frames a walk from a proper verge all stays. */
+  const BUSHA = offTheWays([[302,322,0.9],[922,424,0.95],
                  [196,812,1],[794,830,0.95],
-                 [100,246,0.9],[178,248,1],[222,300,0.9],[222,372,1],[100,416,0.95],[178,414,0.9]];
-  const BUSHB = [[440,398,1],[560,398,0.9],[440,602,0.95],[560,602,1.05],[420,905,1]];
-  const BUSHC = [[457,330,1],[541,330,0.9],[457,668,1],[541,668,0.9],
-                 [668,457,0.95]];
+                 [100,246,0.9],[178,248,1],[222,300,0.9],[222,372,1],[100,416,0.95],[178,414,0.9]],
+                 5, "bushes");
+  const BUSHB = offTheWays([[440,398,1],[560,398,0.9],[440,602,0.95],[560,602,1.05],[420,905,1]],
+                 5, "bushes");
+  const BUSHC = offTheWays([[457,330,1],[541,330,0.9],[457,668,1],[541,668,0.9],
+                 [668,457,0.95]], 5, "flowering bushes");
   /* Daffodils and lavender used to be scattered ACROSS the lawn
      crossings — sixteen clumps between the ring and the fountain, on
      the diagonals people actually walk. The lawn plantings are gone;
@@ -5819,6 +5877,13 @@ for (let k = 0; k < 4; k++){
   const a = (45 + 90 * k) * Math.PI / 180;
   LAMPS.push([500 + 152 * Math.cos(a), -180 + 152 * Math.sin(a)]);
 }
+/* The rule stated once, for every lamp on the campus — the hand-picked
+   six, the great oval's eight, and the North Quad's four. A lamp has a
+   base flare about three units across and a post somebody can walk
+   into, so it wants a little more room than a bush does. */
+const LAMPS_CLEAR = offTheWays(LAMPS, 4, "lamp posts");
+LAMPS.length = 0;
+LAMPS.push(...LAMPS_CLEAR);
 const lampGlowMats = [];
 /* college pennants hung from every lamp post */
 const bannerTex = canvasTex(64, (x) => {
