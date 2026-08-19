@@ -17,8 +17,6 @@ close a visitor gets to it — from 60,000 triangles for horizon scenery up to
 cropped to a region, re-materialed, or re-lit. None is the artist's file as
 published; anyone wanting the original should go to the source links here.
 
-- **"Cathedral"** — by **tabitown** (https://sketchfab.com/tabitown), **CC-BY-4.0**. Adapted:
-  meshopt + WebP 2K; serves as both the campus cathedral exterior and its walk-in nave. `cathedral2.glb`
 - **Sugar maple tree** — supplied via the project owner (original source/author to be
   confirmed for attribution). Adapted: base plot removed, leaf texture chroma-keyed to
   alpha, meshopt + WebP 1K. `maple.glb`
@@ -35,7 +33,7 @@ published; anyone wanting the original should go to the source links here.
   building pipeline. LOD1: 120,000 triangles, one material, 1024x1024 base colour,
   metallic/roughness and normal, meshopt + WebP. `reshall.glb`
 - **The Pembroke Chapel** — supplied via the project owner, generated from their own
-  building pipeline: full exterior and walk-in nave, 355,000 triangles, palette-packed
+  building pipeline: full exterior, 355,000 triangles, palette-packed
   textures (16.8MB decoded). Stained glass converted from KHR transmission to emissive
   alpha at load, for the transmission pass's sake. `cathedral.glb`
   (It replaced the procedural stoneBox chapel, which replaced the Sketchfab
@@ -43,20 +41,24 @@ published; anyone wanting the original should go to the source links here.
   (It replaced "New Colgate University Dorm" from Sketchfab, which is no longer
   distributed here — a different building, not a re-export of the same one.)
 - **"Baseball stadium 3d drone survey - Pix4d"** — by **KCraw** (https://sketchfab.com/goldenhornet),
-  **CC-BY-4.0**. Adapted: meshopt + WebP 2K; Pembroke Field, southwest athletics district. `ballpark.glb`- **The Drosdick Hall Grand Atrium** — supplied via the project owner: a World Labs
-  Marble Gaussian-splat reconstruction of the Grand Atrium Learning Commons,
-  1,920,000 splats, SH degree 0. Serves unmodified as the walk-in interior of
-  Drosdick Hall (the engineering sector), rendered through the vendored Spark
-  library; a companion 85,351-triangle collision mesh (never rendered) supplies
-  floors, stairs and walls. `drosdick_atrium.spz`, `drosdick_collider.glb`
-- **Spark** (https://sparkjs.dev) — Gaussian-splat renderer for three.js, **MIT**,
-  vendored unmodified. `assets/vendor/spark/`
-- **three-mesh-bvh** (https://github.com/gkjohnson/three-mesh-bvh) — BVH-accelerated
-  raycasting, **MIT**, vendored unmodified. `assets/vendor/three-mesh-bvh/`
-- **Drosdick Hall (exterior)** — supplied via the project owner, generated from their
+  **CC-BY-4.0**. Adapted: meshopt + WebP 2K; Pembroke Field, southwest athletics district. `ballpark.glb`- **Drosdick Hall (exterior)** — supplied via the project owner, generated from their
   own building pipeline: collegiate gothic hall with crowned tower and baked site
   apron (plaza and trees), 300,000 triangles, one material, three JPEG textures.
-  Stands as the engineering hall at the campus's east quarter; its walk-in interior
-  is the Marble Grand Atrium above. `drosdick_hall.glb`
+  Stands as the engineering hall at the campus's east quarter. `drosdick_hall.glb`
   (It replaced the procedural engineering hall, tower and pinnacles; the terracotta
   refectory and the east dormitory range, which stood inside its site, were removed.)
+
+## Interior photographs
+
+The halls are entered as a record over a photograph rather than as a
+second 3D scene. The images live in `assets/interiors/`.
+
+- **The Pembroke Chapel, interior** — supplied via the project owner (original
+  source/author to be confirmed for attribution). Adapted: resized to 1600px
+  and re-encoded as WebP q72. `interiors/cathedral.webp`
+- **Aldergate Administration Hall, lobby** — supplied via the project owner
+  (original source/author to be confirmed for attribution). Adapted: resized
+  to 1536px, re-encoded as WebP q72, and one edit to the image itself — the
+  cut-stone band above the far doors carried another university's tagline,
+  painted out with stone sampled from the course below it.
+  `interiors/administration.webp`

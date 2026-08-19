@@ -268,12 +268,18 @@ try {
        await page.evaluate(() =>
          !!document.getElementById("doorprompt")?.classList.contains("show")));
 
-  /* step inside the nave, then back out */
+  /* step inside, then back out. The door opens a PANEL now — the
+     hall's record over a photograph of the room — so this also
+     checks that the record was actually built, not just that a class
+     landed on an empty overlay. */
   const inside = await pressUntil("e", () => !!document.querySelector(".interior-open"));
-  step("cathedral interior opens", inside);
+  step("cathedral panel opens", inside);
+  step("the panel carries the hall's record",
+       await page.evaluate(() =>
+         (document.getElementById("int-body")?.textContent || "").trim().length > 80));
   await shoot("smoke-interior.png");
 
-  step("interior closes",
+  step("panel closes",
        await pressUntil("Escape", () => !document.querySelector(".interior-open"), 60_000));
 
   /* The clock cycles day → golden → night → auto; press until night
