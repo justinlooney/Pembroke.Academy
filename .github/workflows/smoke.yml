@@ -13,6 +13,12 @@ concurrency:
   group: smoke-${{ github.ref }}
   cancel-in-progress: true
 
+# Named once. It keys the browser cache as well as pinning the install,
+# and a cache key that could drift from the version it describes would
+# hand back the wrong browser without saying so.
+env:
+  PW_VERSION: '1.56.1'
+
 jobs:
   # Changing a model without bumping the worker's VERSION strands every
   # returning visitor on the old one, and it is invisible to whoever made
@@ -52,10 +58,45 @@ jobs:
         with:
           node-version: '22'
 
+      # THE BROWSER IS CACHED AND THE STEPS ARE TIMED, and both halves
+      # of that matter.
+      #
+      # `npx playwright install` wedged four times in one afternoon —
+      # across both jobs, on unrelated pull requests. The process sits
+      # there, the job's whole budget drains behind it, and a fifty
+      # minute smoke job dies at fifty minutes having run no checks at
+      # all. GitHub reports that as "cancelled", which reads exactly
+      # like somebody pushed over it. Roughly 150 minutes of CI went to
+      # producing no signal whatsoever.
+      #
+      # The cache means the usual path never asks the CDN for a browser.
+      # The timeouts mean that when it does ask and the answer never
+      # comes, it costs minutes and fails as itself — a named step, not
+      # a mystery cancellation an hour later.
+      - name: Cache the browser
+        id: browser
+        timeout-minutes: 5
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ env.PW_VERSION }}
+
       - name: Install Playwright
-        run: |
-          npm install --no-save --no-audit --no-fund playwright@1.56.1
-          npx playwright install --with-deps chromium
+        timeout-minutes: 6
+        run: npm install --no-save --no-audit --no-fund playwright@${{ env.PW_VERSION }}
+
+      # Only on a miss. --with-deps also installs the system libraries
+      # the browser needs, which are apt packages rather than cached
+      # files — so a cache HIT still has to do that half, below.
+      - name: Fetch the browser
+        if: steps.browser.outputs.cache-hit != 'true'
+        timeout-minutes: 8
+        run: npx playwright install --with-deps chromium
+
+      - name: System libraries for the cached browser
+        if: steps.browser.outputs.cache-hit == 'true'
+        timeout-minutes: 6
+        run: npx playwright install-deps chromium
 
       # A minute, against a twenty-minute suite, for the one failure the
       # suite cannot see. An animation track addresses a node by name; if
@@ -114,10 +155,45 @@ jobs:
         with:
           node-version: '22'
 
+      # THE BROWSER IS CACHED AND THE STEPS ARE TIMED, and both halves
+      # of that matter.
+      #
+      # `npx playwright install` wedged four times in one afternoon —
+      # across both jobs, on unrelated pull requests. The process sits
+      # there, the job's whole budget drains behind it, and a fifty
+      # minute smoke job dies at fifty minutes having run no checks at
+      # all. GitHub reports that as "cancelled", which reads exactly
+      # like somebody pushed over it. Roughly 150 minutes of CI went to
+      # producing no signal whatsoever.
+      #
+      # The cache means the usual path never asks the CDN for a browser.
+      # The timeouts mean that when it does ask and the answer never
+      # comes, it costs minutes and fails as itself — a named step, not
+      # a mystery cancellation an hour later.
+      - name: Cache the browser
+        id: browser
+        timeout-minutes: 5
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ env.PW_VERSION }}
+
       - name: Install Playwright
-        run: |
-          npm install --no-save --no-audit --no-fund playwright@1.56.1
-          npx playwright install --with-deps chromium
+        timeout-minutes: 6
+        run: npm install --no-save --no-audit --no-fund playwright@${{ env.PW_VERSION }}
+
+      # Only on a miss. --with-deps also installs the system libraries
+      # the browser needs, which are apt packages rather than cached
+      # files — so a cache HIT still has to do that half, below.
+      - name: Fetch the browser
+        if: steps.browser.outputs.cache-hit != 'true'
+        timeout-minutes: 8
+        run: npx playwright install --with-deps chromium
+
+      - name: System libraries for the cached browser
+        if: steps.browser.outputs.cache-hit == 'true'
+        timeout-minutes: 6
+        run: npx playwright install-deps chromium
 
       # Students with no idle clip stand by holding one frame of their
       # walk, with breathe() adding a rise and a sway on top. That offset
