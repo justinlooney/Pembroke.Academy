@@ -39,7 +39,10 @@
  * engine and the stylesheet are re-precached by every install with
  * cache:"reload", so they track releases despite living in the depot.
  */
-const VERSION = "pembroke-v127";
+const VERSION = "pembroke-v128";
+/* v3 stays: this release ships no asset, so the model depot must not be
+   re-versioned and the 39MB every returning visitor already holds must
+   not be thrown away for a change that is entirely code. */
 const ASSETS_V = "pembroke-assets-v3";
 const SHELL = VERSION + "-shell";
 const DEPOT = ASSETS_V + "-depot";
