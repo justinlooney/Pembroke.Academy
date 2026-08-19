@@ -3314,7 +3314,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v127";
+const BUILD = "pembroke-v128";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -3490,16 +3490,134 @@ const LADDER = [
             .forEach(m => m.needsUpdate = true); }); },
   () => { composer.removePass(bloom); renderer.setPixelRatio(0.75); },
 ];
+/* ── the arrival preset ───────────────────────────────────────────────
+   The flicker, and why the ladder could never have fixed it.
+
+   Reported from a phone: the screen flashes black in and out for about
+   two minutes twenty during load, then corrects itself. The panel from
+   that device says what was running while it happened — ssao, bloom,
+   smaa, pixel ratio 2, shadow maps at 3072, 1289 draws, 7.13M
+   triangles. Full quality, on an Adreno, with 25 character bodies
+   still being parsed on the main thread.
+
+   The ladder exists precisely to turn that down, and it is switched off
+   for exactly that window — deliberately, and for a good reason: a GLB
+   parse is a main-thread stall the frame counter misreads as a slow
+   GPU, and a ladder that measured during arrival would strip a fast
+   phone to nothing in its first minute. That guard is right. What was
+   missing is that "we must not MEASURE now" was taken to mean "we can
+   do nothing now", when it actually means the opposite: this is the
+   one period whose cost is known in advance without measuring at all.
+   Decoding is expensive, and it is expensive on every device.
+
+   So the campus arrives cheap and puts its good clothes on afterwards,
+   rather than starting at full dress and being undressed by a governor
+   that is not allowed to look. The same condition drives both: while
+   assetLog has anything outstanding, the preset is on.
+
+   Reversible levers only. The ladder's rungs dispose what they remove
+   and are one-way by design, which is right for giving up and useless
+   for lending. These three give the pixels and the passes back:
+
+     pixel ratio 1     dpr 2 is four times the pixels of dpr 1, and is
+                       the single largest number on that panel
+     ssao and bloom    .enabled, not removePass — a flag, not a teardown
+     frozen shadows    shadowMap.autoUpdate off after one render, so the
+                       shadow pass stops running per frame without
+                       recompiling a single material. Toggling
+                       shadowMap.enabled would have cost two full
+                       material invalidations, one of them mid-load,
+                       which is the fault wearing a different hat. */
+/* One way. The preset is an ARRIVAL phase, not a running policy: it
+   starts on, it ends once, and it does not come back.
+ *
+   Driven purely by "is anything outstanding" it would re-engage every
+   time the site fetched something later — an interior, the atrium —
+   and each transition costs a resize, so a rule meant to stop the
+   screen flickering would have become a slower flicker of its own,
+   spread across the whole visit. After the arrival, changing quality
+   is the ladder's job and it has a measurement to do it on. */
+let loadPreset = false, presetDpr = 0, presetDone = false;
+function setLoadPreset(on){
+  if (on === loadPreset || (on && presetDone)) return;
+  if (!on) presetDone = true;
+  loadPreset = on;
+  if (on){
+    presetDpr = renderer.getPixelRatio();
+    if (presetDpr > 1) renderer.setPixelRatio(1);
+    if (ssao) ssao.enabled = false;
+    bloom.enabled = false;
+    renderer.shadowMap.needsUpdate = true;   /* one good map, then hold it */
+    renderer.shadowMap.autoUpdate = false;
+  } else {
+    /* Handed back to the ladder, not forced back to full: a rung given
+       up while the preset was on stays given up, because the ladder
+       shed it on a measurement that was already honest. */
+    if (presetDpr > 1 && rung < 2) renderer.setPixelRatio(presetDpr);
+    if (ssao) ssao.enabled = true;
+    if (composer.passes.includes(bloom)) bloom.enabled = true;
+    renderer.shadowMap.autoUpdate = true;
+    renderer.shadowMap.needsUpdate = true;
+  }
+  resize();
+  console.info("campus: arrival preset " + (on ? "on — cheap while the cast decodes" : "off — full quality restored"));
+}
+window.__preset = () => ({ on: loadPreset, dpr: renderer.getPixelRatio(),
+                           ssao: !!(ssao && ssao.enabled), bloom: bloom.enabled,
+                           shadowsLive: renderer.shadowMap.autoUpdate });
 const NO_LADDER = q.has("noladder");
+/* WHY the ladder is not shedding, in words, for the frame after this
+   one to report. The panel could always say which rung the campus was
+   on and never why it was still on it — and "why" is the whole question
+   during a load, when the ladder is deliberately silent and a visitor
+   is watching a black screen wondering whether the site is broken. */
+let LADDER_WHY = "starting up";
+/* ── one reading of the arrival, once a frame ─────────────────────────
+   Both the preset and the ladder need the same two facts — is anything
+   still decoding, and when did the last thing land — and both used to
+   work them out for themselves with `assetLog.map()` and a spread.
+
+   Two things wrong with that in a function called every frame. The map
+   allocates an array per caller per frame, which is garbage generated
+   in the render loop by a release whose entire subject is frames that
+   take too long; and spreading an append-only log as arguments is a
+   RangeError waiting for a long enough session. It is forty entries
+   today, which is why it has never bitten, and "has not bitten yet" is
+   not a design.
+
+   One loop, no allocation, and the two callers can no longer drift
+   apart on what "arriving" means. */
+const ARRIVAL = { pending: 0, lastIn: 0, arriving: true, at: -1 };
+function arrivalState(now){
+  if (ARRIVAL.at === now) return ARRIVAL;      /* once a frame, not once a caller */
+  ARRIVAL.at = now;
+  let pending = 0, lastIn = 0;
+  for (const rec of assetLog){
+    if (rec.ms == null) pending++;
+    const done = rec.t0 + (rec.ms || 0);
+    if (done > lastIn) lastIn = done;
+  }
+  ARRIVAL.pending = pending;
+  ARRIVAL.lastIn = lastIn;
+  ARRIVAL.arriving = !assetLog.length || pending > 0 || now - lastIn < 4000;
+  return ARRIVAL;
+}
 function stepQuality(now, fpsNow){
-  if (NO_LADDER || rung >= LADDER.length) return;
+  /* The preset first, and from the SAME facts the ladder holds on, so
+     the two can never disagree about whether the campus is still
+     arriving. Outstanding parses, or the settling window after the last
+     one — that is the flicker's whole duration, and it is the preset's
+     whole duration too. */
+  const arr = arrivalState(now);
+  if (!NO_LADDER) setLoadPreset(arr.arriving);
+  if (NO_LADDER || rung >= LADDER.length){ LADDER_WHY = rung >= LADDER.length ? "nothing left to give up" : "disabled"; return; }
   /* Not on a software rasterizer. Its frame rate is a fact about a CPU
      drawing pixels one at a time and says nothing about any GPU, so
      every headless run would shed the whole ladder within fifteen
      seconds and then measure a campus no visitor is ever shown — the
      harness would be reporting on a build that does not exist. softGL
      already has its own reduced chain, decided at load. */
-  if (softGL) return;
+  if (softGL){ LADDER_WHY = "software rasterizer — the ladder does not measure one"; return; }
   /* Not while ANYTHING is arriving — the late wave included, which the
      first version excluded because the crowd's guard excludes it, and
      the two guards are answering different questions. The crowd must
@@ -3511,18 +3629,25 @@ function stepQuality(now, fpsNow){
      panel — an Adreno that never dropped a frame once the cast was in,
      stripped to no shadows at 0.75 pixel ratio in its first minute,
      permanently, by the cost of its own arrival. */
-  if (!assetLog.length || assetLog.some(a => a.ms == null)) return;
+  if (!assetLog.length){ LADDER_WHY = "holding: nothing has started arriving yet"; return; }
+  if (arr.pending){
+    LADDER_WHY = "holding: " + arr.pending + " asset(s) still decoding";
+    return;
+  }
   /* ...and not in the wash of one either. The stall lands BEFORE the
      arrival is recorded — ms is stamped when the parse finishes — and
      the smoothed average needs a moment to climb back out. Bodies also
      keep arriving for as long as the site is open (the cast comes and
      goes through buildings), so this is a recurring hold, not a
      startup phase. */
-  const lastIn = Math.max(0, ...assetLog.map(a => a.t0 + (a.ms || 0)));
-  if (now - lastIn < 4000){ rungAt = 0; return; }
-  if (fpsNow >= FPS_SHED){ rungAt = 0; return; }
-  if (!rungAt){ rungAt = now + RUNG_MS; return; }   /* sustained, not a stutter */
-  if (now < rungAt) return;
+  if (now - arr.lastIn < 4000){
+    rungAt = 0;
+    LADDER_WHY = "holding: " + Math.round(4000 - (now - arr.lastIn)) + "ms of settling left after the last arrival";
+    return;
+  }
+  if (fpsNow >= FPS_SHED){ rungAt = 0; LADDER_WHY = "measuring " + fpsNow.toFixed(1) + "fps — nothing to give up"; return; }
+  if (!rungAt){ rungAt = now + RUNG_MS; LADDER_WHY = "below " + FPS_SHED + "fps — waiting to see if it is sustained"; return; }
+  if (now < rungAt){ LADDER_WHY = "below " + FPS_SHED + "fps for " + Math.round(rungAt - now) + "ms more before shedding"; return; }
   LADDER[rung++]();
   rungAt = now + RUNG_MS;
   resize();                        /* the pixel ratio rungs change the buffers */
@@ -4198,6 +4323,65 @@ const gltf = new GLTFLoader();
 gltf.setMeshoptDecoder(MeshoptDecoder);
 /* every glb load is timed, so ?debug can report what cost what */
 const assetLog = [];
+/* ── the load trace ───────────────────────────────────────────────────
+   Reported from a phone: "the black screen flashes and flickers in and
+   out while rendering during screen load — approximately 2 minutes 20
+   seconds, then it corrects itself."
+
+   Nothing in the panel could answer that. It showed fps 59.9 and a
+   slowest frame of 948ms on the same line, which is two meters
+   disagreeing rather than an explanation, and it showed which quality
+   rung the campus was on without ever saying why it was still on it.
+
+   So this records the frames the visitor actually loses. A frame that
+   takes a quarter of a second is not a slow frame, it is a quarter of
+   a second in which the screen does not change — which is exactly what
+   a flicker is made of — and the interesting question is never how
+   long it was but what the main thread was doing instead. Every GLB is
+   parsed on the main thread, and assetLog already knows which ones had
+   started and not finished, so a stalled frame can name its own
+   suspects.
+
+   Always on, because the fault is in the first two minutes of a first
+   visit and nobody can be asked to reproduce that with a flag set. It
+   costs one comparison a frame and at most 120 records. */
+const STALL_MS = 250;              /* below this the screen still moves */
+const trace = { stalls: [], lost: 0, worst: 0, frames: 0, t0: performance.now() };
+function traceFrame(now, rawSec){
+  trace.frames++;
+  const ms = rawSec * 1000;
+  if (ms < STALL_MS) return;
+  trace.lost += ms;
+  trace.worst = Math.max(trace.worst, ms);
+  if (trace.stalls.length >= 120) return;   /* the shape is long since clear */
+  trace.stalls.push({
+    at: Math.round(now - trace.t0),
+    ms: Math.round(ms),
+    /* Who was mid-parse. `late` marks the bodies fetched for the crowd,
+       which arrive long after the campus is walkable and are the ones
+       a visitor is looking at the campus THROUGH. */
+    decoding: assetLog.filter(a => a.ms == null).map(a => a.name + (a.late ? " (late)" : "")),
+    rung, dpr: renderer.getPixelRatio(),
+    why: LADDER_WHY,
+  });
+}
+/* test/debug hook: the whole trace, and a summary a person can read on
+   the phone that produced it. */
+window.__trace = () => trace;
+window.__traceSay = () => {
+  const s = trace.stalls;
+  if (!s.length) return "no stalled frames — nothing was lost";
+  const byAsset = {};
+  for (const r of s) for (const d of r.decoding) byAsset[d] = (byAsset[d] || 0) + r.ms;
+  const worst = Object.entries(byAsset).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  return [
+    `${s.length} stalled frame(s) over ${(trace.lost / 1000).toFixed(1)}s lost, worst ${Math.round(trace.worst)}ms`,
+    `first at ${(s[0].at / 1000).toFixed(1)}s, last at ${(s[s.length - 1].at / 1000).toFixed(1)}s`,
+    "blamed on what was decoding at the time:",
+    ...worst.map(([k, v]) => `  ${(v / 1000).toFixed(1)}s  ${k}`),
+    "ladder said: " + LADDER_WHY,
+  ].join("\n");
+};
 window.__assets = assetLog;   /* test/debug hook */
 {
   const rawLoad = gltf.load.bind(gltf);
@@ -11950,6 +12134,19 @@ function dbgUpdate(now, dt, raw){
       (renderer.shadowMap.enabled ? "  shadows " + sun.shadow.mapSize.x : "  no shadows") +
       (rung ? "\n       quality rung " + rung + "/" + LADDER.length +
               " — given up to hold " + FPS_WANT + "fps" : "") + "\n" +
+    /* Why the ladder is where it is, and what the screen lost getting
+       there. Both lines are about the same two minutes: the ladder is
+       holding BECAUSE assets are decoding, and the assets decoding are
+       what the stalls are made of. Reading them together is the whole
+       diagnosis. */
+    "ladder " + (loadPreset ? "arrival preset on — " : "") + LADDER_WHY + "\n" +
+    (trace.stalls.length
+      ? "stalls " + trace.stalls.length + " frame(s), " + (trace.lost / 1000).toFixed(1) +
+        "s lost, worst " + Math.round(trace.worst) + "ms\n" +
+        "       last at " + (trace.stalls[trace.stalls.length - 1].at / 1000).toFixed(1) + "s" +
+        (trace.stalls[trace.stalls.length - 1].decoding.length
+          ? " during " + trace.stalls[trace.stalls.length - 1].decoding[0] : "") + "\n"
+      : "") +
     "draws  " + inf.render.calls + "   tris " + (inf.render.triangles / 1e6).toFixed(2) + "M\n" +
     "tex    " + inf.memory.textures + "   geo " + inf.memory.geometries + "\n" +
     "view   " + (interiorView ? "interior" : walker.on ? "walk" : "aerial") +
@@ -12012,6 +12209,9 @@ renderer.setAnimationLoop(() => {
      time down to 10fps and only then starts to slow. */
   const dt = Math.min(0.1, raw);
   lastT = now;
+  /* Before the early return below: a frame lost inside a conversation
+     is still a frame the visitor did not see. */
+  traceFrame(now, raw);
   /* Everything below this line is the campus. In a conversation none of
      it is on screen, so none of it runs — not the crowd ramp, not the
      walk graph, not the day cycle, not the detail pass, not the
