@@ -3314,7 +3314,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v126";
+const BUILD = "pembroke-v128";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -3490,6 +3490,81 @@ const LADDER = [
             .forEach(m => m.needsUpdate = true); }); },
   () => { composer.removePass(bloom); renderer.setPixelRatio(0.75); },
 ];
+/* ── the arrival preset ───────────────────────────────────────────────
+   The flicker, and why the ladder could never have fixed it.
+
+   Reported from a phone: the screen flashes black in and out for about
+   two minutes twenty during load, then corrects itself. The panel from
+   that device says what was running while it happened — ssao, bloom,
+   smaa, pixel ratio 2, shadow maps at 3072, 1289 draws, 7.13M
+   triangles. Full quality, on an Adreno, with 25 character bodies
+   still being parsed on the main thread.
+
+   The ladder exists precisely to turn that down, and it is switched off
+   for exactly that window — deliberately, and for a good reason: a GLB
+   parse is a main-thread stall the frame counter misreads as a slow
+   GPU, and a ladder that measured during arrival would strip a fast
+   phone to nothing in its first minute. That guard is right. What was
+   missing is that "we must not MEASURE now" was taken to mean "we can
+   do nothing now", when it actually means the opposite: this is the
+   one period whose cost is known in advance without measuring at all.
+   Decoding is expensive, and it is expensive on every device.
+
+   So the campus arrives cheap and puts its good clothes on afterwards,
+   rather than starting at full dress and being undressed by a governor
+   that is not allowed to look. The same condition drives both: while
+   assetLog has anything outstanding, the preset is on.
+
+   Reversible levers only. The ladder's rungs dispose what they remove
+   and are one-way by design, which is right for giving up and useless
+   for lending. These three give the pixels and the passes back:
+
+     pixel ratio 1     dpr 2 is four times the pixels of dpr 1, and is
+                       the single largest number on that panel
+     ssao and bloom    .enabled, not removePass — a flag, not a teardown
+     frozen shadows    shadowMap.autoUpdate off after one render, so the
+                       shadow pass stops running per frame without
+                       recompiling a single material. Toggling
+                       shadowMap.enabled would have cost two full
+                       material invalidations, one of them mid-load,
+                       which is the fault wearing a different hat. */
+/* One way. The preset is an ARRIVAL phase, not a running policy: it
+   starts on, it ends once, and it does not come back.
+ *
+   Driven purely by "is anything outstanding" it would re-engage every
+   time the site fetched something later — an interior, the atrium —
+   and each transition costs a resize, so a rule meant to stop the
+   screen flickering would have become a slower flicker of its own,
+   spread across the whole visit. After the arrival, changing quality
+   is the ladder's job and it has a measurement to do it on. */
+let loadPreset = false, presetDpr = 0, presetDone = false;
+function setLoadPreset(on){
+  if (on === loadPreset || (on && presetDone)) return;
+  if (!on) presetDone = true;
+  loadPreset = on;
+  if (on){
+    presetDpr = renderer.getPixelRatio();
+    if (presetDpr > 1) renderer.setPixelRatio(1);
+    if (ssao) ssao.enabled = false;
+    bloom.enabled = false;
+    renderer.shadowMap.needsUpdate = true;   /* one good map, then hold it */
+    renderer.shadowMap.autoUpdate = false;
+  } else {
+    /* Handed back to the ladder, not forced back to full: a rung given
+       up while the preset was on stays given up, because the ladder
+       shed it on a measurement that was already honest. */
+    if (presetDpr > 1 && rung < 2) renderer.setPixelRatio(presetDpr);
+    if (ssao) ssao.enabled = true;
+    if (composer.passes.includes(bloom)) bloom.enabled = true;
+    renderer.shadowMap.autoUpdate = true;
+    renderer.shadowMap.needsUpdate = true;
+  }
+  resize();
+  console.info("campus: arrival preset " + (on ? "on — cheap while the cast decodes" : "off — full quality restored"));
+}
+window.__preset = () => ({ on: loadPreset, dpr: renderer.getPixelRatio(),
+                           ssao: !!(ssao && ssao.enabled), bloom: bloom.enabled,
+                           shadowsLive: renderer.shadowMap.autoUpdate });
 const NO_LADDER = q.has("noladder");
 /* WHY the ladder is not shedding, in words, for the frame after this
    one to report. The panel could always say which rung the campus was
@@ -3498,6 +3573,14 @@ const NO_LADDER = q.has("noladder");
    is watching a black screen wondering whether the site is broken. */
 let LADDER_WHY = "starting up";
 function stepQuality(now, fpsNow){
+  /* The preset first, and from the SAME facts the ladder holds on, so
+     the two can never disagree about whether the campus is still
+     arriving. Outstanding parses, or the settling window after the last
+     one — that is the flicker's whole duration, and it is the preset's
+     whole duration too. */
+  const arriving = !assetLog.length || assetLog.some(a => a.ms == null) ||
+                   now - Math.max(0, ...assetLog.map(a => a.t0 + (a.ms || 0))) < 4000;
+  if (!NO_LADDER) setLoadPreset(arriving);
   if (NO_LADDER || rung >= LADDER.length){ LADDER_WHY = rung >= LADDER.length ? "nothing left to give up" : "disabled"; return; }
   /* Not on a software rasterizer. Its frame rate is a fact about a CPU
      drawing pixels one at a time and says nothing about any GPU, so
@@ -11965,7 +12048,7 @@ function dbgUpdate(now, dt, raw){
        holding BECAUSE assets are decoding, and the assets decoding are
        what the stalls are made of. Reading them together is the whole
        diagnosis. */
-    "ladder " + LADDER_WHY + "\n" +
+    "ladder " + (loadPreset ? "arrival preset on — " : "") + LADDER_WHY + "\n" +
     (trace.stalls.length
       ? "stalls " + trace.stalls.length + " frame(s), " + (trace.lost / 1000).toFixed(1) +
         "s lost, worst " + Math.round(trace.worst) + "ms\n" +
