@@ -201,6 +201,56 @@ try {
   step("all twelve courses render", shelf.courses === 12, shelf.courses + " cards");
   step("registrar ledger reports", /\d/.test(shelf.total), JSON.stringify(shelf.total));
 
+  /* An unanswered knowledge check is not a wrong one. Submitting with
+     nothing selected used to mark every question wrong, reveal every
+     answer permanently, and write a miss per question into the study
+     record — and studySignals() hands those misses to Prof. Merion as
+     the stumbles to teach to, so one stray submit had him working on
+     a struggle that never happened.
+
+     Both halves are asserted. A guard that refused everything would
+     pass the first half on its own, and would be a worse bug than the
+     one it replaced. */
+  const kc = await page.evaluate(async () => {
+    const st = window.__study.state();
+    for (const k of Object.keys(st)) delete st[k];
+    window.__study.save();
+    window.__study.openSection("MATH201", "1.1");
+    await new Promise(r => setTimeout(r, 400));
+    const submit = () => document.querySelector("#st-quiz button[type=submit]").click();
+    const revealed = () => [...document.querySelectorAll("#st-quiz .st-why")]
+      .filter(e => !e.hidden && e.textContent.trim()).length;
+    const marked = () => document.querySelectorAll("#st-quiz .st-q.wrong, #st-quiz .st-q.right").length;
+    const logged = () => ((window.__study.state().MATH201 || {}).log || []);
+
+    if (!document.getElementById("st-quiz")) return { ready: false };
+    submit();                                     /* nothing selected */
+    await new Promise(r => setTimeout(r, 250));
+    const blank = { logged: logged().length, revealed: revealed(), marked: marked(),
+                    named: document.getElementById("kc-nag")?.hidden === false };
+
+    document.querySelectorAll("#st-quiz [data-q]").forEach(fs => {
+      const r = fs.querySelector("input[type=radio]");
+      if (r){ r.checked = true; r.dispatchEvent(new Event("change", { bubbles: true })); }
+    });
+    submit();                                     /* a real attempt */
+    await new Promise(r => setTimeout(r, 250));
+    const real = { logged: logged().length, revealed: revealed(), marked: marked(),
+                   clean: logged().every(e => e.ok === 0 || e.ok === 1) };
+    return { ready: true, blank, real };
+  });
+  step("the knowledge check opens", kc.ready);
+  step("an unanswered check records nothing", kc.ready && kc.blank.logged === 0,
+       kc.ready ? kc.blank.logged + " entr(ies) written" : "");
+  step("an unanswered check reveals nothing", kc.ready && kc.blank.revealed === 0 && kc.blank.marked === 0,
+       kc.ready ? kc.blank.revealed + " revealed, " + kc.blank.marked + " marked" : "");
+  step("and says which questions are missing", kc.ready && kc.blank.named);
+  step("a real attempt is still graded and recorded",
+       kc.ready && kc.real.marked >= 2 && kc.real.revealed >= 2 && kc.real.logged >= 2,
+       kc.ready ? kc.real.marked + " marked, " + kc.real.revealed + " revealed, " +
+                  kc.real.logged + " logged" : "");
+  step("every record entry says right or wrong, nothing else", kc.ready && kc.real.clean);
+
   /* THE AERIAL STANDOFF, READ BEFORE ANY OF THIS TOUCHES THE VIEW.
      It has to be taken here, in the aerial view at the suite's own
      viewport, where the stage is the 52% column and reads WIDE so the
