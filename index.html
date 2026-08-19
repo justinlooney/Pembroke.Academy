@@ -3572,15 +3572,44 @@ const NO_LADDER = q.has("noladder");
    during a load, when the ladder is deliberately silent and a visitor
    is watching a black screen wondering whether the site is broken. */
 let LADDER_WHY = "starting up";
+/* ── one reading of the arrival, once a frame ─────────────────────────
+   Both the preset and the ladder need the same two facts — is anything
+   still decoding, and when did the last thing land — and both used to
+   work them out for themselves with `assetLog.map()` and a spread.
+
+   Two things wrong with that in a function called every frame. The map
+   allocates an array per caller per frame, which is garbage generated
+   in the render loop by a release whose entire subject is frames that
+   take too long; and spreading an append-only log as arguments is a
+   RangeError waiting for a long enough session. It is forty entries
+   today, which is why it has never bitten, and "has not bitten yet" is
+   not a design.
+
+   One loop, no allocation, and the two callers can no longer drift
+   apart on what "arriving" means. */
+const ARRIVAL = { pending: 0, lastIn: 0, arriving: true, at: -1 };
+function arrivalState(now){
+  if (ARRIVAL.at === now) return ARRIVAL;      /* once a frame, not once a caller */
+  ARRIVAL.at = now;
+  let pending = 0, lastIn = 0;
+  for (const rec of assetLog){
+    if (rec.ms == null) pending++;
+    const done = rec.t0 + (rec.ms || 0);
+    if (done > lastIn) lastIn = done;
+  }
+  ARRIVAL.pending = pending;
+  ARRIVAL.lastIn = lastIn;
+  ARRIVAL.arriving = !assetLog.length || pending > 0 || now - lastIn < 4000;
+  return ARRIVAL;
+}
 function stepQuality(now, fpsNow){
   /* The preset first, and from the SAME facts the ladder holds on, so
      the two can never disagree about whether the campus is still
      arriving. Outstanding parses, or the settling window after the last
      one — that is the flicker's whole duration, and it is the preset's
      whole duration too. */
-  const arriving = !assetLog.length || assetLog.some(a => a.ms == null) ||
-                   now - Math.max(0, ...assetLog.map(a => a.t0 + (a.ms || 0))) < 4000;
-  if (!NO_LADDER) setLoadPreset(arriving);
+  const arr = arrivalState(now);
+  if (!NO_LADDER) setLoadPreset(arr.arriving);
   if (NO_LADDER || rung >= LADDER.length){ LADDER_WHY = rung >= LADDER.length ? "nothing left to give up" : "disabled"; return; }
   /* Not on a software rasterizer. Its frame rate is a fact about a CPU
      drawing pixels one at a time and says nothing about any GPU, so
@@ -3600,8 +3629,9 @@ function stepQuality(now, fpsNow){
      panel — an Adreno that never dropped a frame once the cast was in,
      stripped to no shadows at 0.75 pixel ratio in its first minute,
      permanently, by the cost of its own arrival. */
-  if (!assetLog.length || assetLog.some(a => a.ms == null)){
-    LADDER_WHY = "holding: " + (assetLog.filter(a => a.ms == null).length || "?") + " asset(s) still decoding";
+  if (!assetLog.length){ LADDER_WHY = "holding: nothing has started arriving yet"; return; }
+  if (arr.pending){
+    LADDER_WHY = "holding: " + arr.pending + " asset(s) still decoding";
     return;
   }
   /* ...and not in the wash of one either. The stall lands BEFORE the
@@ -3610,10 +3640,9 @@ function stepQuality(now, fpsNow){
      keep arriving for as long as the site is open (the cast comes and
      goes through buildings), so this is a recurring hold, not a
      startup phase. */
-  const lastIn = Math.max(0, ...assetLog.map(a => a.t0 + (a.ms || 0)));
-  if (now - lastIn < 4000){
+  if (now - arr.lastIn < 4000){
     rungAt = 0;
-    LADDER_WHY = "holding: " + Math.round(4000 - (now - lastIn)) + "ms of settling left after the last arrival";
+    LADDER_WHY = "holding: " + Math.round(4000 - (now - arr.lastIn)) + "ms of settling left after the last arrival";
     return;
   }
   if (fpsNow >= FPS_SHED){ rungAt = 0; LADDER_WHY = "measuring " + fpsNow.toFixed(1) + "fps — nothing to give up"; return; }
