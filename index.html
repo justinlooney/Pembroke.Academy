@@ -8980,10 +8980,6 @@ window.__crowdFill = () => {
    goes indoors, which is the moment room appears: the ceiling caps who
    is ON SCREEN, so the cast rotates through the buildings rather than
    the campus being whoever won the first draw. */
-/* When a named face stepped indoors, and so how long their slot is
-   still being held for them. A moment, not a visit — see the note in
-   topUpCrowd. */
-let TOPUP_HOLD = 0;
 function topUpCrowd(now = performance.now()){
   if (!crowdReady || crowdN >= CROWD_TARGET) return;
   /* The next opening belongs to whoever is already waiting for it.
@@ -8999,23 +8995,24 @@ function topUpCrowd(now = performance.now()){
      misses the opening by an accident of array position, and the
      stranger takes it before their next tick.
 
-     So: reserved, but on a DEADLINE. A stamped readyAt alone is not
-     enough — it survives for as long as the wait does, and a wait can
-     last a whole visit, which turns a one-frame courtesy into a
-     standing ban on ever dealing another body. Pairing it with a room
-     test was the second attempt and it was the same bug wearing a
-     disguise: room is exactly the condition under which the veto bites,
-     so the two together still held a slot open for as long as somebody
-     stayed queued. CI photographed the result — "2 bodies drawn, 32MB
-     of 48MB", with eleven loaded bodies that would have fitted.
+     And then: not reserved at all.
 
-     A reservation is worth about a frame. If the person it is being
-     held for has not taken it by then, they are not coming this tick
-     and an empty slot on the quad costs more than their seniority is
-     worth. */
-  if (now < TOPUP_HOLD &&
-      students.some(o => o.data && o.inside && o.readyAt !== undefined &&
-                         roomOnScreen(o.g?.userData?.figure))) return;
+     Three versions of that reservation shipped and all three punched
+     the same hole. Keyed on readyAt it lasted a whole visit. Paired
+     with a room test it was the identical bug in a disguise, because
+     room is exactly the condition under which a veto bites. Given a
+     deadline it went from a coin toss to one sample in sixty — better,
+     and still a hole, because withholding a fill is the one thing a
+     reservation can do and an unfilled slot IS the fault.
+
+     The premise was wrong. Protecting a returning face does not
+     require leaving their slot empty, because makeRoomFor already
+     protects them the other way round: when somebody with a name needs
+     a body and the ceiling is full, a stranger gives one up. So the
+     crowd fills the opening immediately, and if it turns out to have
+     belonged to somebody queueing indoors, they take it back a moment
+     later through a path this release has already tested hard. A swap
+     costs one body change; a veto costs a campus with a hole in it. */
   if (addExtra(crowdN)) crowdN++;
 }
 /* Crossfade rather than cut. A student who reaches a door and snaps from
@@ -9785,10 +9782,6 @@ function stepStudents(dt, now){
              moved and the queue has had its turn. Priority and no hole,
              in one frame. */
           TOPUP_AT = 0;
-          /* and hold their slot for a moment, so a stranger processed
-             later in this same pass does not take it out from under
-             somebody who has only just gone in */
-          if (s.data) TOPUP_HOLD = now + 1200;
           s.until = now + INSIDE_MS[0] + Math.random() * (INSIDE_MS[1] - INSIDE_MS[0]);
           s.g.visible = false;
           continue;
@@ -10358,7 +10351,7 @@ function stepFacultyStroll(s, now, dt){
          people the journey points at, so their door only swallows
          them briefly — outside roughly as much as in */
       s.until = now + 20000 + Math.random() * 15000;
-      TOPUP_HOLD = now + 1200;        /* the faculty get the courtesy too */
+      TOPUP_AT = 0;                   /* fill it at the end of this pass */
       topUpCrowd(now);
       return;
     }
