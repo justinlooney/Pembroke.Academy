@@ -130,7 +130,6 @@ if ("serviceWorker" in navigator){
   --lawn1:#17331e; --lawn2:#112618; --lawn3:#0c1d10;
   --lawnEdge:rgba(168,180,140,.30);
   --walk1:rgba(216,206,178,.17); --walk2:rgba(216,206,178,.09);
-  --isky1:#0d1428; --isky2:#2a4677;
   --terra1:#6b3527; --terra2:#4a231a; --terra3:#381a13;
 }
 body.day{
@@ -139,7 +138,6 @@ body.day{
   --lawn1:#83ad6c; --lawn2:#74a05d; --lawn3:#639252;
   --lawnEdge:rgba(235,230,210,.5);
   --walk1:rgba(238,232,214,.92); --walk2:rgba(214,205,182,.88);
-  --isky1:#8fc3ee; --isky2:#d6e9f8;
   --terra1:#c26243; --terra2:#9c4a32; --terra3:#7e3a27;
 }
 /* canvas color lives on html only — body must stay transparent or its
@@ -14981,10 +14979,11 @@ window.__interior = { open: (k) => openInterior(k), close: () => closeInterior()
    ══════════════════════════════════════════════════════════════════ */
 
 /* One photograph per hall, sized for a phone and cached by the worker
-   like any other asset. A hall with no photograph yet falls back to
-   its own sector colour, which is why nothing below assumes an image
-   landed — including the case where the fetch simply fails. */
-/* The second value is the focus. `cover` crops a landscape photograph
+   like any other asset. A hall with no photograph falls back to its
+   own sector colour, which is why nothing below assumes an image
+   landed — including the case where the fetch simply fails.
+
+   The second value is the focus. `cover` crops a landscape photograph
    hard in a column this tall — sideways on a desktop, downward on a
    phone — so each photo names the part worth keeping rather than
    trusting the centre: the administration lobby's centre is its empty
@@ -15001,6 +15000,8 @@ function setPlate(key){
     `radial-gradient(120% 90% at 22% 0%, ${S.soft}0.28), transparent 62%), ` +
     `linear-gradient(160deg, #0d1220 0%, #070a12 60%, #04060c 100%)`);
   plate.style.backgroundImage = "";
+  plate.style.backgroundPosition = "";   /* or the last hall's framing
+                                            would offset this one's plate */
   const shot = HALL_PHOTO[key];
   if (!shot) return;
   const [src, focus] = shot;
@@ -15024,7 +15025,9 @@ function courseStanding(c, reg){
   if (reg.includes(c.id))  return { cls: "open",   label: "registered" };
   const p = STUDY[c.id] ? studyProgress(c.id) : null;
   if (p && p.mastered)     return { cls: "open",   label: p.mastered + "/" + p.total + " mastered" };
-  return { cls: "wait", label: c.prereqs.length ? "needs " + c.prereqs.join(" · ") : "open to all" };
+  return { cls: "wait", label: c.prereqs.length
+    ? "needs " + c.prereqs.map(id => byId[id]?.code || id).join(" · ")
+    : "open to all" };
 }
 
 function facultyCard(f){
