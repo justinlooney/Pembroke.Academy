@@ -8980,7 +8980,11 @@ window.__crowdFill = () => {
    goes indoors, which is the moment room appears: the ceiling caps who
    is ON SCREEN, so the cast rotates through the buildings rather than
    the campus being whoever won the first draw. */
-function topUpCrowd(){
+/* When a named face stepped indoors, and so how long their slot is
+   still being held for them. A moment, not a visit — see the note in
+   topUpCrowd. */
+let TOPUP_HOLD = 0;
+function topUpCrowd(now = performance.now()){
   if (!crowdReady || crowdN >= CROWD_TARGET) return;
   /* The next opening belongs to whoever is already waiting for it.
      Somebody indoors whose time is up is queueing for a body slot, and
@@ -8995,17 +8999,22 @@ function topUpCrowd(){
      misses the opening by an accident of array position, and the
      stranger takes it before their next tick.
 
-     So: reserved, but only for somebody who has actually served their
-     time inside AND could step into the opening this instant. A stamped
-     readyAt alone is not enough — it survives for as long as the wait
-     does, and a wait can last the whole visit, which turns a one-frame
-     reservation into a standing ban on ever dealing another body. CI
-     read that back as a campus of three: "2 different people in four
-     minutes; 12 bodies were loaded". The room test is what bounds it.
-     Room and a queue means hold the slot, they take it next tick; no
-     room means the veto would be refusing something that could not
-     have happened anyway. */
-  if (students.some(o => o.data && o.inside && o.readyAt !== undefined &&
+     So: reserved, but on a DEADLINE. A stamped readyAt alone is not
+     enough — it survives for as long as the wait does, and a wait can
+     last a whole visit, which turns a one-frame courtesy into a
+     standing ban on ever dealing another body. Pairing it with a room
+     test was the second attempt and it was the same bug wearing a
+     disguise: room is exactly the condition under which the veto bites,
+     so the two together still held a slot open for as long as somebody
+     stayed queued. CI photographed the result — "2 bodies drawn, 32MB
+     of 48MB", with eleven loaded bodies that would have fitted.
+
+     A reservation is worth about a frame. If the person it is being
+     held for has not taken it by then, they are not coming this tick
+     and an empty slot on the quad costs more than their seniority is
+     worth. */
+  if (now < TOPUP_HOLD &&
+      students.some(o => o.data && o.inside && o.readyAt !== undefined &&
                          roomOnScreen(o.g?.userData?.figure))) return;
   if (addExtra(crowdN)) crowdN++;
 }
@@ -9582,6 +9591,11 @@ function sweepRetired(){
     students.splice(i, 1);
     if (crowdN > 0) crowdN--;         /* their place in the crowd is open */
     crowdDone = false;                /* and the ramp has somewhere to go */
+    /* Fill it at the end of THIS pass. Without this the slot a retired
+       stranger frees waits on the one-second heartbeat, and a second is
+       a whole frame or more on the hardware the crowd governor exists
+       to protect — a quad visibly a body short, for no reason. */
+    TOPUP_AT = 0;
   }
 }
 function mayLeaveQuad(s){
@@ -9771,6 +9785,10 @@ function stepStudents(dt, now){
              moved and the queue has had its turn. Priority and no hole,
              in one frame. */
           TOPUP_AT = 0;
+          /* and hold their slot for a moment, so a stranger processed
+             later in this same pass does not take it out from under
+             somebody who has only just gone in */
+          if (s.data) TOPUP_HOLD = now + 1200;
           s.until = now + INSIDE_MS[0] + Math.random() * (INSIDE_MS[1] - INSIDE_MS[0]);
           s.g.visible = false;
           continue;
@@ -10213,7 +10231,13 @@ function stepStudents(dt, now){
      have priority WITHOUT leaving the quad short — a rotation has
      instants where an entrance and a re-emergence miss each other, and
      a campus a body under its ceiling is what the smoke test sees. */
-  if (now - TOPUP_AT > 1000){ TOPUP_AT = now; topUpCrowd(); }
+  /* The world's clock, not the wall's. __sim steps the crowd on a clock
+     that runs AHEAD of performance.now(), so a topUpCrowd() left to its
+     own default would compare a synthetic `now` against a hold stamped
+     from the same synthetic clock and read every reservation as live —
+     the rotation CI measures, frozen by a courtesy meant to last a
+     frame. */
+  if (now - TOPUP_AT > 1000){ TOPUP_AT = now; topUpCrowd(now); }
 }
 /* ── the faculty stroll ───────────────────────────────────────────────
    The Dean and the professor are statics: always findable at their
@@ -10334,7 +10358,8 @@ function stepFacultyStroll(s, now, dt){
          people the journey points at, so their door only swallows
          them briefly — outside roughly as much as in */
       s.until = now + 20000 + Math.random() * 15000;
-      topUpCrowd();
+      TOPUP_HOLD = now + 1200;        /* the faculty get the courtesy too */
+      topUpCrowd(now);
       return;
     }
     s.strollTo = null;                    /* arrived: settle back into the wait */
