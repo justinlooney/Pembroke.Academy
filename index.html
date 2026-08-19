@@ -3491,15 +3491,21 @@ const LADDER = [
   () => { composer.removePass(bloom); renderer.setPixelRatio(0.75); },
 ];
 const NO_LADDER = q.has("noladder");
+/* WHY the ladder is not shedding, in words, for the frame after this
+   one to report. The panel could always say which rung the campus was
+   on and never why it was still on it — and "why" is the whole question
+   during a load, when the ladder is deliberately silent and a visitor
+   is watching a black screen wondering whether the site is broken. */
+let LADDER_WHY = "starting up";
 function stepQuality(now, fpsNow){
-  if (NO_LADDER || rung >= LADDER.length) return;
+  if (NO_LADDER || rung >= LADDER.length){ LADDER_WHY = rung >= LADDER.length ? "nothing left to give up" : "disabled"; return; }
   /* Not on a software rasterizer. Its frame rate is a fact about a CPU
      drawing pixels one at a time and says nothing about any GPU, so
      every headless run would shed the whole ladder within fifteen
      seconds and then measure a campus no visitor is ever shown — the
      harness would be reporting on a build that does not exist. softGL
      already has its own reduced chain, decided at load. */
-  if (softGL) return;
+  if (softGL){ LADDER_WHY = "software rasterizer — the ladder does not measure one"; return; }
   /* Not while ANYTHING is arriving — the late wave included, which the
      first version excluded because the crowd's guard excludes it, and
      the two guards are answering different questions. The crowd must
@@ -3511,7 +3517,10 @@ function stepQuality(now, fpsNow){
      panel — an Adreno that never dropped a frame once the cast was in,
      stripped to no shadows at 0.75 pixel ratio in its first minute,
      permanently, by the cost of its own arrival. */
-  if (!assetLog.length || assetLog.some(a => a.ms == null)) return;
+  if (!assetLog.length || assetLog.some(a => a.ms == null)){
+    LADDER_WHY = "holding: " + (assetLog.filter(a => a.ms == null).length || "?") + " asset(s) still decoding";
+    return;
+  }
   /* ...and not in the wash of one either. The stall lands BEFORE the
      arrival is recorded — ms is stamped when the parse finishes — and
      the smoothed average needs a moment to climb back out. Bodies also
@@ -3519,10 +3528,14 @@ function stepQuality(now, fpsNow){
      goes through buildings), so this is a recurring hold, not a
      startup phase. */
   const lastIn = Math.max(0, ...assetLog.map(a => a.t0 + (a.ms || 0)));
-  if (now - lastIn < 4000){ rungAt = 0; return; }
-  if (fpsNow >= FPS_SHED){ rungAt = 0; return; }
-  if (!rungAt){ rungAt = now + RUNG_MS; return; }   /* sustained, not a stutter */
-  if (now < rungAt) return;
+  if (now - lastIn < 4000){
+    rungAt = 0;
+    LADDER_WHY = "holding: " + Math.round(4000 - (now - lastIn)) + "ms of settling left after the last arrival";
+    return;
+  }
+  if (fpsNow >= FPS_SHED){ rungAt = 0; LADDER_WHY = "measuring " + fpsNow.toFixed(1) + "fps — nothing to give up"; return; }
+  if (!rungAt){ rungAt = now + RUNG_MS; LADDER_WHY = "below " + FPS_SHED + "fps — waiting to see if it is sustained"; return; }
+  if (now < rungAt){ LADDER_WHY = "below " + FPS_SHED + "fps for " + Math.round(rungAt - now) + "ms more before shedding"; return; }
   LADDER[rung++]();
   rungAt = now + RUNG_MS;
   resize();                        /* the pixel ratio rungs change the buffers */
@@ -4198,6 +4211,65 @@ const gltf = new GLTFLoader();
 gltf.setMeshoptDecoder(MeshoptDecoder);
 /* every glb load is timed, so ?debug can report what cost what */
 const assetLog = [];
+/* ── the load trace ───────────────────────────────────────────────────
+   Reported from a phone: "the black screen flashes and flickers in and
+   out while rendering during screen load — approximately 2 minutes 20
+   seconds, then it corrects itself."
+
+   Nothing in the panel could answer that. It showed fps 59.9 and a
+   slowest frame of 948ms on the same line, which is two meters
+   disagreeing rather than an explanation, and it showed which quality
+   rung the campus was on without ever saying why it was still on it.
+
+   So this records the frames the visitor actually loses. A frame that
+   takes a quarter of a second is not a slow frame, it is a quarter of
+   a second in which the screen does not change — which is exactly what
+   a flicker is made of — and the interesting question is never how
+   long it was but what the main thread was doing instead. Every GLB is
+   parsed on the main thread, and assetLog already knows which ones had
+   started and not finished, so a stalled frame can name its own
+   suspects.
+
+   Always on, because the fault is in the first two minutes of a first
+   visit and nobody can be asked to reproduce that with a flag set. It
+   costs one comparison a frame and at most 120 records. */
+const STALL_MS = 250;              /* below this the screen still moves */
+const trace = { stalls: [], lost: 0, worst: 0, frames: 0, t0: performance.now() };
+function traceFrame(now, rawSec){
+  trace.frames++;
+  const ms = rawSec * 1000;
+  if (ms < STALL_MS) return;
+  trace.lost += ms;
+  trace.worst = Math.max(trace.worst, ms);
+  if (trace.stalls.length >= 120) return;   /* the shape is long since clear */
+  trace.stalls.push({
+    at: Math.round(now - trace.t0),
+    ms: Math.round(ms),
+    /* Who was mid-parse. `late` marks the bodies fetched for the crowd,
+       which arrive long after the campus is walkable and are the ones
+       a visitor is looking at the campus THROUGH. */
+    decoding: assetLog.filter(a => a.ms == null).map(a => a.name + (a.late ? " (late)" : "")),
+    rung, dpr: renderer.getPixelRatio(),
+    why: LADDER_WHY,
+  });
+}
+/* test/debug hook: the whole trace, and a summary a person can read on
+   the phone that produced it. */
+window.__trace = () => trace;
+window.__traceSay = () => {
+  const s = trace.stalls;
+  if (!s.length) return "no stalled frames — nothing was lost";
+  const byAsset = {};
+  for (const r of s) for (const d of r.decoding) byAsset[d] = (byAsset[d] || 0) + r.ms;
+  const worst = Object.entries(byAsset).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  return [
+    `${s.length} stalled frame(s) over ${(trace.lost / 1000).toFixed(1)}s lost, worst ${Math.round(trace.worst)}ms`,
+    `first at ${(s[0].at / 1000).toFixed(1)}s, last at ${(s[s.length - 1].at / 1000).toFixed(1)}s`,
+    "blamed on what was decoding at the time:",
+    ...worst.map(([k, v]) => `  ${(v / 1000).toFixed(1)}s  ${k}`),
+    "ladder said: " + LADDER_WHY,
+  ].join("\n");
+};
 window.__assets = assetLog;   /* test/debug hook */
 {
   const rawLoad = gltf.load.bind(gltf);
@@ -11888,6 +11960,19 @@ function dbgUpdate(now, dt, raw){
       (renderer.shadowMap.enabled ? "  shadows " + sun.shadow.mapSize.x : "  no shadows") +
       (rung ? "\n       quality rung " + rung + "/" + LADDER.length +
               " — given up to hold " + FPS_WANT + "fps" : "") + "\n" +
+    /* Why the ladder is where it is, and what the screen lost getting
+       there. Both lines are about the same two minutes: the ladder is
+       holding BECAUSE assets are decoding, and the assets decoding are
+       what the stalls are made of. Reading them together is the whole
+       diagnosis. */
+    "ladder " + LADDER_WHY + "\n" +
+    (trace.stalls.length
+      ? "stalls " + trace.stalls.length + " frame(s), " + (trace.lost / 1000).toFixed(1) +
+        "s lost, worst " + Math.round(trace.worst) + "ms\n" +
+        "       last at " + (trace.stalls[trace.stalls.length - 1].at / 1000).toFixed(1) + "s" +
+        (trace.stalls[trace.stalls.length - 1].decoding.length
+          ? " during " + trace.stalls[trace.stalls.length - 1].decoding[0] : "") + "\n"
+      : "") +
     "draws  " + inf.render.calls + "   tris " + (inf.render.triangles / 1e6).toFixed(2) + "M\n" +
     "tex    " + inf.memory.textures + "   geo " + inf.memory.geometries + "\n" +
     "view   " + (interiorView ? "interior" : walker.on ? "walk" : "aerial") +
@@ -11950,6 +12035,9 @@ renderer.setAnimationLoop(() => {
      time down to 10fps and only then starts to slow. */
   const dt = Math.min(0.1, raw);
   lastT = now;
+  /* Before the early return below: a frame lost inside a conversation
+     is still a frame the visitor did not see. */
+  traceFrame(now, raw);
   /* Everything below this line is the campus. In a conversation none of
      it is on screen, so none of it runs — not the crowd ramp, not the
      walk graph, not the day cycle, not the detail pass, not the
