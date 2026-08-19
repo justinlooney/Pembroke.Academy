@@ -201,8 +201,92 @@ try {
   step("all twelve courses render", shelf.courses === 12, shelf.courses + " cards");
   step("registrar ledger reports", /\d/.test(shelf.total), JSON.stringify(shelf.total));
 
+  /* THE AERIAL STANDOFF, READ BEFORE ANY OF THIS TOUCHES THE VIEW.
+     It has to be taken here, in the aerial view at the suite's own
+     viewport, where the stage is the 52% column and reads WIDE so the
+     standback multiplier is 1. Read it any later — inside walk mode,
+     say — and it measures the fullscreen stage and the walker's own
+     camera, which is a different quantity entirely and makes the
+     comparison below pass against anything. */
+  const wide = await page.evaluate(() => {
+    const p = window.__app.camera.position, st = document.getElementById("stage");
+    return { far: Math.hypot(p.x, p.y, p.z), ratio: st.clientWidth / st.clientHeight };
+  });
+  step("the aerial standoff is read from a wide stage",
+       wide.ratio >= 0.85 && wide.far > 100,
+       "stage ratio " + wide.ratio.toFixed(2) + " · standoff " + Math.round(wide.far));
+
   /* walk mode: stand at the cathedral doors and expect the prompt */
   step("walk mode engages", await pressUntil("f", () => window.__walker.on === true));
+
+  /* Walk mode takes the whole window and gives it back. Everything
+     below this point drives the campus through page.evaluate, which
+     never touches layout — so the full-bleed behaviour had no check at
+     all until a review pointed out that CI could not see it.
+
+     The exit framing is the assertion that earns its place. standBack()
+     reads the STAGE's aspect to decide whether a narrow view needs the
+     camera pulled back by PORTRAIT_K, so framing the aerial view while
+     the wing was still fullscreen measured the window instead of the
+     column the camera was about to live in — and nothing recomputes it
+     afterwards. Asserted as a value, not a class: the camera either
+     ends up where a fresh aerial view would put it, or it does not. */
+  const bleed = await page.evaluate(() => ({
+    wing: (() => { const r = document.getElementById("campus-wing").getBoundingClientRect();
+                   return { w: Math.round(r.width), h: Math.round(r.height),
+                            x: Math.round(r.x), y: Math.round(r.y) }; })(),
+    vw: window.innerWidth, vh: window.innerHeight,
+    locked: getComputedStyle(document.body).overflow === "hidden",
+    masthead: getComputedStyle(document.getElementById("topbar")).visibility,
+  }));
+  step("walking takes the whole window",
+       bleed.wing.x === 0 && bleed.wing.y === 0 &&
+       bleed.wing.w === bleed.vw && bleed.wing.h === bleed.vh,
+       `wing ${bleed.wing.w}x${bleed.wing.h} at ${bleed.wing.x},${bleed.wing.y} · viewport ${bleed.vw}x${bleed.vh}`);
+  step("the page is locked while walking", bleed.locked);
+  step("the masthead does not paint through the sky", bleed.masthead === "hidden",
+       "visibility " + bleed.masthead);
+
+  /* AT 1024x768 ON PURPOSE. The suite runs at 1280x800, where the
+     window (1.6) and the restored 52% column (0.92) both read WIDE, so
+     standBack() returns 1 either way and this bug cannot be seen — the
+     first version of this check sat at the suite's own viewport and
+     passed against the unfixed code. At 1024x768 the window reads wide
+     (1.33) while the column reads narrow (0.77), so the two disagree
+     about PORTRAIT_K and the mis-measurement shows.
+
+     Calibrated against this page rather than against copied constants:
+     `wide` is the standoff the suite's own viewport produces, where
+     the stage reads wide and the multiplier is 1. A narrow stage must
+     then stand meaningfully FURTHER back. Framing off the window
+     instead of the stage returns the wide standoff — which is the
+     failure, and is what the >1.2x test catches. Resizing alone never
+     re-frames the camera, so a baseline read after the resize would be
+     the OLD viewport's position; that mistake is what this comment
+     exists to stop the next person repeating. */
+  await page.evaluate(() => document.getElementById("walkbtn").click());   /* out of walk */
+  await page.waitForTimeout(400);
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.waitForTimeout(600);
+  await page.evaluate(() => document.getElementById("walkbtn").click());   /* in  */
+  await page.waitForTimeout(500);
+  await page.evaluate(() => document.getElementById("walkbtn").click());   /* and out */
+  await page.waitForTimeout(700);
+  const framing = await page.evaluate(() => {
+    const p = window.__app.camera.position, st = document.getElementById("stage");
+    return { on: window.__walker.on, far: Math.hypot(p.x, p.y, p.z),
+             ratio: st.clientWidth / st.clientHeight,
+             stage: [st.clientWidth, st.clientHeight] };
+  });
+  step("leaving walk mode frames the aerial view for the stage, not the window",
+       !framing.on && framing.ratio < 0.85 && framing.far > wide.far * 1.2,
+       `stage ${framing.stage.join("x")} ratio ${framing.ratio.toFixed(2)} · standoff ` +
+       `${Math.round(framing.far)}, wide standoff ${Math.round(wide.far)}` +
+       (framing.far <= wide.far * 1.2 ? "  (framed off the window, not the stage)" : ""));
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.waitForTimeout(600);
+
+  step("walk mode engages again", await pressUntil("f", () => window.__walker.on === true));
 
   /* The drop point, tested against every wall. v94 shipped with the
      walk-in point at 500,802 INSIDE a building that had been moved
