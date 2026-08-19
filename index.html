@@ -845,6 +845,45 @@ body.day .hall-tag{background:linear-gradient(180deg, rgba(24,30,44,.86), rgba(2
    utility classes on the element; the renderer is resized to match. */
 body.convo-open{overflow:hidden;}
 body.convo-open #stage{position:fixed;inset:0;z-index:31;}
+
+/* Walk mode does the same thing, one level up.
+   The same argument applies with more force: standing on the quad IS
+   the product, and it was running in a 560px band of a 13,000px
+   scrolling document — scroll down and the walker keeps walking
+   somewhere off screen while you read the course ledger.
+
+   The wing goes fixed, not #stage. Every part of the walking HUD —
+   the touchpad, the door prompt, the minimap, the quest chip, the
+   zoom readout — is a SIBLING of #stage inside the wing, so moving
+   the stage alone would peel the world off the controls and leave
+   them behind in the document. Moving their common parent takes the
+   whole instrument panel with it and needs no per-element rules.
+
+   inset:0 also overrides the section's own h-[560px] and lg:w-[52%]
+   without touching them, so leaving walk mode restores the layout by
+   dropping one class. */
+body.walkmode{overflow:hidden;}
+/* z-index 31 matches a conversation: over the page, under the toasts
+   at z-90 — "Boots on the quad" is how a first-time walker learns the
+   controls, and a mode that covered its own instructions would be a
+   poor trade. */
+body.walkmode #campus-wing{position:fixed;inset:0;width:auto;height:auto;z-index:31;}
+/* The masthead has to stop PAINTING, not merely lose the z-index race
+   — which it already loses. The canvas is transparent above the
+   horizon (the CSS .sky gradient behind it is the backdrop, by
+   design), so anything painted earlier shows straight through that
+   hole no matter what covers it in stacking order. Sticky at z-50, it
+   put a bar of ledger chrome across the top third of a phone's sky.
+   visibility, not display: the header keeps its box, so the document
+   does not shorten under a reader we are about to scroll back. */
+body.walkmode #topbar{visibility:hidden;}
+/* The arrival's "Begin — your Campus Visit" lives in the stage for its
+   first thirty seconds, and full-bleed it lands squarely on the phone
+   touchpad's ▶ — an unreachable button over the control it covers.
+   Its own code already says the world is the pitch and lets it bow out
+   when somebody starts exploring; walking IS that, so it bows out
+   here too rather than fighting the thumb pad for the same pixels. */
+.walkmode #arr-cta{display:none;}
 .convo-card{position:absolute;left:0;right:0;bottom:0;
   padding:1.1rem 1.4rem 1.3rem;
   background:linear-gradient(0deg, rgba(6,8,14,.94) 55%, rgba(6,8,14,.72) 80%, transparent);
@@ -3383,7 +3422,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v132";
+const BUILD = "pembroke-v133";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -11305,6 +11344,7 @@ addEventListener("keydown", (e) => {
    FIRST-PERSON WALK MODE — WebGL edition
    ══════════════════════════════════════════════════════════════════ */
 const wing = wingEl;
+let walkScrollY = 0;   /* where the page was when the quad took the screen */
 const DOORS = [
   { sector:"lib", x:260, y:326 }, { sector:"eng", x:865, y:412 },
   { sector:"sci", x:240, y:822 }, { sector:"adm", x:735, y:832 },
@@ -11373,7 +11413,17 @@ function enterWalk(){
   applyWalkZoom();
   applyFog();                           /* ground-level horizon, not the aerial one */
   wing.classList.add("walkmode");
+  /* Where the reader was before the quad took the screen. Locking the
+     body with overflow:hidden does not itself scroll the page, but a
+     fixed wing removes the tallest thing in the document, so the
+     browser clamps scrollY to the shorter page that remains — and
+     leaving walk mode would drop you somewhere you never were. */
+  walkScrollY = window.scrollY;
   document.body.classList.add("walkmode");  /* overlays outside the wing (orientation card) style off this */
+  /* the wing has just left the document and covers the window: the
+     renderer, the composer and the label layer all need the new shape,
+     same as a conversation does */
+  resize();
   /* from the ground the aerial anchors are deep in the sky — drop every
      nameplate to just over its roofline so the name captions the building */
   hallTags.forEach(t => t.position.y = t.userData.hover.walk);
@@ -11395,6 +11445,8 @@ function exitWalk(){
   applyFog();
   wing.classList.remove("walkmode");
   document.body.classList.remove("walkmode");
+  resize();                        /* and back into the page it goes */
+  window.scrollTo(0, walkScrollY); /* to the paragraph you left, not the top */
   hallTags.forEach(t => t.position.y = t.userData.hover.aerial);
   document.getElementById("walkbtn").textContent = "🎮";
   document.getElementById("doorprompt").classList.remove("show");
