@@ -9620,17 +9620,23 @@ function mayLeaveQuad(s){
      leaves. CI: "2 different people in four minutes; 12 bodies were
      loaded and 1 trip(s) indoors happened."
 
-     So the rule is about the HANDOVER rather than the census. Leave
-     freely while a classmate stays out here. Leave as the last student
-     on the quad only when another one has served their time inside and
-     is standing at the door waiting on a body — the slot goes student
-     to student, and the quad is never without one for longer than the
-     walk between them. */
+     The second attempt let the LAST student go on a handover: leave if
+     a classmate has served their time inside and is waiting on a body,
+     since the slot then passes student to student. That traded a
+     certainty for a promise, and the promise is not the same thing —
+     "waiting on a body" is a state somebody can sit in for a while, so
+     the quad kept its census on paper and emptied of students in fact.
+     CI: "nobody could be tapped at all — Dean Aldergate off screen;
+     Prof. Merion indoors; Elowen indoors; Priya indoors."
+
+     So: a student leaves only while another student is actually out
+     here. What made that unworkable before was strangers holding the
+     slots a returning classmate needed, and that is now makeRoomFor's
+     job — a stranger gives a body up when somebody with a name wants
+     one. The census is affordable again because the thing that starved
+     it has been fixed at its source. */
   if ((s.data.tier ?? 2) <= 1) return namedOnQuad() >= 2;
-  if (outHere().filter(o => (o.data.tier ?? 2) > 1).length >= 2) return true;
-  return namedOnQuad() >= 2 &&
-         students.some(o => o !== s && o.data && (o.data.tier ?? 2) > 1 &&
-                            o.inside && o.readyAt !== undefined);
+  return outHere().filter(o => (o.data.tier ?? 2) > 1).length >= 2;
 }
 function nearestDoor(s, force){
   /* `force` is the rotation talking: a student whose outside life has
