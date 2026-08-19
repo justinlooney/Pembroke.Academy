@@ -4081,7 +4081,14 @@ function inTheWays(x, y, clear = 0){
    would make a missing lamp look like a lamp somebody forgot to place,
    which is the one thing worse than the lamp being in the way. */
 function offTheWays(list, clear, what){
-  const keep = list.filter(p => !inTheWays(p[0], p[1], clear));
+  /* Scaled by the planting's OWN scale, which is the third number in
+     every one of these tuples and is what plantSpecies multiplies the
+     target height by. A flat clearance measures a bush that does not
+     exist: the same entry at 0.9 and at 1.05 are different sizes of
+     shrub, and the bigger one reaches further over the kerb from the
+     same centre point. The clearance is the object's spread, so it has
+     to be the spread of the object actually planted. */
+  const keep = list.filter(p => !inTheWays(p[0], p[1], clear * (p[2] || 1)));
   const lost = list.length - keep.length;
   if (lost) console.info(`ways: ${lost} of ${list.length} ${what} stood in a walk or a drive — not placed`);
   return keep;
