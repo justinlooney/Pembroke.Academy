@@ -8523,7 +8523,6 @@ function buildOf(seed){
    same population — and whoever is missing today is the reason it looks
    different tomorrow. */
 function attendance(){
-  const n = STUDENT_ROSTER.length;
   /* ?crowd means "show me the campus at its fullest" — for a review on
      real hardware, and for the test that counts heads. A random
      attendance would make that flag mean something different every run,
@@ -8538,11 +8537,24 @@ function attendance(){
   /* tier 0 (lifecycle) and tier 1 (faculty) never miss a day;
      the students (tier 2, the default) draw the attendance roll */
   let who = STUDENT_ROSTER.map(st => (st.tier ?? 2) <= 1 || Math.random() < 0.55);
-  let out = who.filter(Boolean).length;
-  /* two is the floor: below that the campus reads as closed rather than
-     quiet, and the tagged students are the ones you came to meet */
-  while (out < 2){
-    const i = Math.floor(Math.random() * n);
+  /* Two STUDENTS is the floor, and it used to be two people. The
+     faculty never miss a day, so they filled the quota on their own
+     and the loop below could not fire however the roll went: a visit
+     could open with the Dean, the professor and nobody else at all.
+     That is the campus reading as closed rather than quiet, and it is
+     also the state in which there is nobody a visitor can be taught
+     anything by — the two people who ARE here answer for the journey,
+     not for the place.
+
+     Two, because everything downstream is written in twos: a student
+     may leave the quad while another student is on it, and a visitor
+     who walks up to somebody blocked from view needs a second face to
+     try. */
+  const isStudent = (i) => (STUDENT_ROSTER[i].tier ?? 2) > 1;
+  const idx = STUDENT_ROSTER.map((_, i) => i).filter(isStudent);
+  let out = idx.filter(i => who[i]).length;
+  while (out < Math.min(2, idx.length)){
+    const i = idx[Math.floor(Math.random() * idx.length)];
     if (!who[i]){ who[i] = true; out++; }
   }
   return who;
@@ -8596,7 +8608,15 @@ function buildCast(){
        students that two can be out and a third is always coming. */
     const roomNow = roomOnScreen(plan.k === "any" ? null : plan.k);
     const built = students.filter(o => o.data && (o.data.tier ?? 2) > 1).length;
-    const spare = !roomNow && (st.tier ?? 2) > 1 && built < NAMED_STUDENTS;
+    /* Roamers only. A student the plan PARKS somewhere — at a door, on
+       a bench, lapping the oval — returns from this loop before the
+       line that would hide them, so a spare body dealt to one of those
+       is built over the ceiling and then drawn anyway: measured as
+       four bodies against a ceiling of three the moment two students
+       were guaranteed to attend. Arriving into a lecture is a thing
+       only somebody who walks can do. */
+    const spare = !roomNow && (st.tier ?? 2) > 1 && !plan.at && !plan.orbit &&
+                  built < NAMED_STUDENTS;
     const k = bodyFor(plan.k, st.looks, plan.needs, spare);
     if (!k) return;                      /* nothing loaded YET — the
        second pass will build them once the late wave lands, which is
