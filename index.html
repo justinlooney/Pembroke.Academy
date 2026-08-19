@@ -3314,7 +3314,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v126";
+const BUILD = "pembroke-v127";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -6078,11 +6078,16 @@ const STUDENT_ROSTER = [
           "It made me notice things. Once you've written a planner that weights every edge, you start seeing the campus as a graph: the paving is edges, the doors are nodes, and the lawn is a shortcut everyone takes and nobody admits to."],
          ["Drosdick's tower?",
           "Stand on the quad ring at golden hour and look east — the stone goes honey-colored for about four minutes. I noticed it in first week and now I schedule my commute around it. That's the whole story, I'm afraid — I did warn you it was a small thing."]] },
-  /* Tier 1: the MATH 201 professor. She stands by her own hall's door
+  /* Tier 1: the MATH 201 professor. He stands by his own hall's door
      and teaches to the student's actual frontier in the course — the
      mastery data says what to affirm and what to revisit. */
-  { name:"Prof. Merion", ai:{ cls:"professor", year:"professor of mathematics", traits:["exacting but kind","allergic to hand-waving","believes every formula is a picture first"], style:"a lecturer's clarity at conversation volume; asks what you SEE before what you compute" },
-    looks:"f", c:0x34d399, at:"lib", major:"Professor of Mathematics · MATH 201", tier:1,
+  { name:"Prof. Merion", ai:{ cls:"professor", year:"professor of mathematics", pron:"he/him", traits:["exacting but kind","allergic to hand-waving","believes every formula is a picture first"], style:"a lecturer's clarity at conversation volume; asks what you SEE before what you compute" },
+    /* looks follows the body, for the same reason it does on the Dean:
+       it is read only to pick a stand-in in the seconds before the
+       pinned body lands, and a stale value there puts the wrong person
+       on the Library apron — which is the swapping-faculty fault this
+       campus has already been reported for once. */
+    looks:"m", c:0x34d399, at:"lib", major:"Professor of Mathematics · MATH 201", tier:1,
     says:["The tangent line is the whole course, really.","Office hours are wherever the chalk is.","Ask me why, not just how."],
     ask:[["What do you teach?",
           "MATH 201 — applied calculus, twenty-eight lectures, functions to the Fundamental Theorem. The course lives in the Great Library's course of study; my job is the part a page can't do: noticing where YOU are stuck."],
@@ -6252,6 +6257,7 @@ const CAST_FILES = {
   char15:  "assets/stu_char15.glb",     /* 200k tris, 0.59 verts a tri   */
   char16:  "assets/stu_char16.glb",     /* 200k tris, the fifth man      */
   char17:  "assets/stu_char17.glb",     /* 200k tris, the Dean herself   */
+  char18:  "assets/stu_char18.glb",     /* 200k tris, the professor      */
 };
 /* ── who has to be here before the doors open ─────────────────────────
    Twelve rigged files is 31MB, all of it decoded on the main thread
@@ -6360,7 +6366,7 @@ const CAST_MB = {
                   char2: 2.77, char4: 2.67, char5: 2.81, char6: 2.55,
                   char7: 2.62, char8: 2.73, char9: 2.58, char10: 2.77,
                   char11: 3.51, char14: 2.88, char15: 3.13, char16: 2.67,
-                  char17: 3.28 };
+                  char17: 3.28, char18: 2.96 };
 /* Measured, not guessed: these are the six bodies with a shirt mesh the
    wardrobe can find. See the note above about the ten that have none. */
 /* Nobody. The last dressable body was walker and he is retired, so the
@@ -6440,14 +6446,24 @@ const BODY_VRAM_MB = 16.0;
    before the campus drew anything. Two different questions: how much
    comes down the wire before a visitor sees the place, and how much the
    GPU holds while they are looking at it. */
-/* 8.0 until the Dean was given a body of her own. The two faculty board
-   first, and at char9 + char17 they spend 5.86MB of it — which left
-   2.14 for the third, and the cheapest body on the campus is 2.55. The
-   opening wave would have come out at two figures on a quad whose
-   ceiling draws three, so the first thing a visitor sees would be a
-   campus with a hole in it until the late wave landed. Raised by the
-   half megabyte that keeps three: 2.58 + 3.28 + 2.55 = 8.41. */
-const FIRST_WAVE_MB = 8.5;
+/* 8.0 when both faculty were stand-ins chosen for being cheap, 8.5 when
+   the Dean was given a body of her own, 8.8 now that the professor has
+   one too. The two of them board first and the third figure has to fit
+   behind them, or the opening wave is two people on a quad whose
+   ceiling draws three — a campus with a hole in it for as long as the
+   late wave takes, and it is the first thing a visitor sees.
+
+     Dean  char17   3.28
+     Prof  char18   2.96
+     third  cheapest 2.55   (char6, back in the student pool)
+                     ————
+                     8.79
+
+   This is a download budget on the critical path, so it is worth saying
+   plainly what the drift bought: two of the three opening figures are
+   now the people the journey actually points the visitor at, instead of
+   whichever bodies happened to be lightest. */
+const FIRST_WAVE_MB = 8.8;
 /* Which bodies are being drawn RIGHT NOW, and what they weigh together.
    Distinct bodies, not figures: a body is downloaded and decoded once
    and every figure wearing it shares that, so two students in the same
@@ -6553,7 +6569,7 @@ const CAST_HEIGHT = {
                       char2: 41, char4: 41, char5: 43,
                       char6: 42, char7: 43, char8: 40, char9: 41,
                       char10: 41, char11: 41, char14: 43, char15: 40,
-                      char16: 42, char17: 42 };
+                      char16: 42, char17: 42, char18: 43 };
 /* Which bodies can be given a waypoint and told to walk it, and which
    are only good for standing about. Ten that walk against a crowd
    that caps at ten: the round robin runs out of new people only on the
@@ -6561,19 +6577,23 @@ const CAST_HEIGHT = {
    waypoints. */
 const ROAMING = ["char2", "char4", "char5", "char6", "char7", "char8",
                  "char9", "char10", "char11", "char14", "char15", "char16",
-                 "char17"];
-/* The two bodies the faculty wear, every visit: Merion in char9, the
-   Dean in char17 — a body authored for her and worn by nobody else.
+                 "char17", "char18"];
+/* The two bodies the faculty wear, every visit: Merion in char18, the
+   Dean in char17 — each a body authored for the part and worn by
+   nobody else.
  *
- * The Dean was char6, which is the lightest body on the campus and was
- * chosen for exactly that: identity had to ride the first wave without
- * sinking it. char17 costs 3.28MB against char6's 2.55, and the trade
- * is the point — the Dean now looks like the Dean rather than like the
- * cheapest man available, and char6 goes back to the student pool it
- * was drawn from, where it is still the lightest body the crowd can
- * deal. FIRST_WAVE_MB is raised by the difference so the opening quad
- * still holds three; see the note there. */
-const FACULTY_BODIES = ["char9", "char17"];
+ * Both were stand-ins until now, and both were chosen the same way: by
+ * weight. The Dean had char6 and the professor char9, the two lightest
+ * bodies on the campus, because identity had to ride the opening
+ * download without sinking it. That is a reason to pick a body when
+ * none has been authored for the part, and it stops being a reason the
+ * moment one is. char6 and char9 both go back to the student pool,
+ * where they are still the two cheapest things the crowd can deal.
+ *
+ * The pair now costs 6.24MB against the old 5.13. FIRST_WAVE_MB is
+ * raised to keep three figures in the opening wave; see the note
+ * there. */
+const FACULTY_BODIES = ["char18", "char17"];
 /* Drawn here rather than beside drawFirstWave, because it reads ROAMING
    and a const cannot be read before it is declared — putting the call
    next to the function threw on load, which is a blank campus. */
@@ -6647,13 +6667,23 @@ const CAST_PLAN = [
   /* The faculty are PINNED to their bodies. "loiter" dealt them
      whichever body was free — and on an early wave that fell across
      gender lines: a phone reported "prof. merion changed into a
-     different character", and tapping the young man she was wearing
-     opened her calculus conversation, which reads as a haunting.
+     different character", and tapping the stranger the professor was
+     wearing that visit opened the calculus conversation, which reads
+     as a haunting. (The professor was a woman when that was reported.
+     The pronouns here are deliberately none: the fault was that the
+     body was whoever the deal produced, which is the part worth
+     remembering.)
      A student can be anyone this visit; the Dean and the professor
      must be the same person every visit, because finding THEM is what
      the journey asks the visitor to do. */
-  { k: "char9", at: [248, 356], face: 0.7, live: true, pose: 0 }, /* Prof. Merion —
-     on the Library's door apron, chalk-distance from her own lectures. */
+  { k: "char18", at: [248, 356], face: 0.7, live: true, pose: 0 }, /* Prof. Merion —
+     on the Library's door apron, chalk-distance from his own lectures.
+     char18 is his alone, on the same terms as the Dean's char17: in
+     neither AUTHORED_F nor AUTHORED_M, so no student can upgrade into
+     the professor's face, and wornFigures counts every student rather
+     than only the drawn ones, so the crowd cannot be dealt it while he
+     is indoors either. He wore char9 until this build, and it is back
+     in the student pool now. */
   { k: "char17", at: [702, 848], face: -0.5, live: true, pose: 0 }, /* Dean Aldergate —
      on the Administration apron, where "meet with your advisor" points.
      char17 is hers and nobody else's: it is in neither AUTHORED_F nor
@@ -10306,9 +10336,9 @@ function stepFacultyStroll(s, now, dt){
   /* ── the class bell, read from ANY state ─────────────────────────
      This lived inside "not currently strolling", and that nesting was
      the whole of the professor's bug: a figure who is always part-way
-     through a stroll never reaches the check at all. Measured, she
-     walked her apron for a hundred and fifty seconds with her duty
-     clock seventy seconds overdue and never once looked at it. Duty
+     through a stroll never reaches the check at all. Measured, the
+     professor walked the apron for a hundred and fifty seconds with a
+     duty clock seventy seconds overdue and never once looked at it. Duty
      outranks a stroll — when the bell goes, the stroll is abandoned
      for the door. */
   if (!s.facGoing && now >= (s.facDutyAt ??
