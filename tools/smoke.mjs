@@ -201,6 +201,21 @@ try {
   step("all twelve courses render", shelf.courses === 12, shelf.courses + " cards");
   step("registrar ledger reports", /\d/.test(shelf.total), JSON.stringify(shelf.total));
 
+  /* THE AERIAL STANDOFF, READ BEFORE ANY OF THIS TOUCHES THE VIEW.
+     It has to be taken here, in the aerial view at the suite's own
+     viewport, where the stage is the 52% column and reads WIDE so the
+     standback multiplier is 1. Read it any later — inside walk mode,
+     say — and it measures the fullscreen stage and the walker's own
+     camera, which is a different quantity entirely and makes the
+     comparison below pass against anything. */
+  const wide = await page.evaluate(() => {
+    const p = window.__app.camera.position, st = document.getElementById("stage");
+    return { far: Math.hypot(p.x, p.y, p.z), ratio: st.clientWidth / st.clientHeight };
+  });
+  step("the aerial standoff is read from a wide stage",
+       wide.ratio >= 0.85 && wide.far > 100,
+       "stage ratio " + wide.ratio.toFixed(2) + " · standoff " + Math.round(wide.far));
+
   /* walk mode: stand at the cathedral doors and expect the prompt */
   step("walk mode engages", await pressUntil("f", () => window.__walker.on === true));
 
@@ -249,13 +264,6 @@ try {
      re-frames the camera, so a baseline read after the resize would be
      the OLD viewport's position; that mistake is what this comment
      exists to stop the next person repeating. */
-  const wide = await page.evaluate(() => {
-    const p = window.__app.camera.position, st = document.getElementById("stage");
-    return { far: Math.hypot(p.x, p.y, p.z), ratio: st.clientWidth / st.clientHeight };
-  });
-  step("the suite's own viewport frames a wide stage", wide.ratio >= 0.85,
-       "stage ratio " + wide.ratio.toFixed(2) + " · standoff " + Math.round(wide.far));
-
   await page.evaluate(() => document.getElementById("walkbtn").click());   /* out of walk */
   await page.waitForTimeout(400);
   await page.setViewportSize({ width: 1024, height: 768 });
