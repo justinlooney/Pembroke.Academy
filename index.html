@@ -3314,7 +3314,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v129";
+const BUILD = "pembroke-v130";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -7369,6 +7369,51 @@ function prepFigure(k, height, live, clipIx = 0){
   }
   return g2;
 }
+/* ── a figure built before it was taught ──────────────────────────────
+   prepFigure captures a body's clips at the moment it builds the
+   figure: the actions map, the nominal speeds and the roles are all
+   read once from castLib[k].animations. That is right for a body that
+   already has its clips, and silently wrong for one that does not yet.
+
+   Every authored body on this campus ships with NO animation at all —
+   they are lent everything — so "does not yet" is a real state with a
+   real duration, and a figure built inside it holds an empty actions
+   map for ever. Nothing to play, so holdStance finds neither a Talking
+   clip nor a gait and gives up, and the figure stands in the pose the
+   file was authored in: arms straight out. Reported from a phone as
+   "the professor is holding a t pose", and photographed as exactly
+   that.
+
+   It was a race rather than a rule, which is why it took the faculty
+   and not the students: instrumented over two runs, it took the
+   professor in one and the professor AND the Dean in the other. The
+   students are built later and had always been taught by then.
+
+   So a body that is taught something tells the figures already wearing
+   it. Actions the figure lacks are added to its own mixer, the roles
+   are recomputed, and anybody who was left standing in their bind pose
+   is given the stance they should have had. */
+function refreshClips(k){
+  const src = castLib[k];
+  if (!src) return;
+  for (const s of students){
+    const g = s.g;
+    if (!g || g.userData.figure !== k || !g.userData.anim) continue;
+    const a = g.userData.anim;
+    const h = g.userData.height || CAST_HEIGHT[k];
+    for (const c of src.animations){
+      if (a.actions[c.name]) continue;
+      a.actions[c.name] = a.mixer.clipAction(c);
+      a.nominal[c.name] = (c.userData.cycles || 1) * (0.68 * h) / Math.max(0.05, c.duration);
+    }
+    a.roles = rolesOf(k, src);
+    s.roles = a.roles;
+    /* Standing in the bind pose because there was nothing to stand in.
+       Only for the parked cast: a roamer picks its own clip on its next
+       step, and interrupting one mid-stride would be a visible snap. */
+    if (s.static && !a.current) s.held = holdStance(g);
+  }
+}
 /* ── lending a clip to somebody else's skeleton ───────────────────────
    Nobody on this campus could sit down onto anything. Walker's only
    clip that changes height is "Standing Up", and it begins at 0.01 of
@@ -8314,6 +8359,7 @@ function lendable(){
 }
 function lendSitDown(){
   const log = [];
+  const touched = new Set();
   for (const job of lendable()){
     if (!job.clip || !job.from) continue;
     const got = [], no = [];
@@ -8375,12 +8421,14 @@ function lendSitDown(){
          one of them is what anybody asked for. See seatRoles. */
       lent.userData.role = job.role || null;
       delete ROLE_CACHE[k];                     /* what this body can do just changed */
+      touched.add(k);
       got.push(k);
     }
     if (got.length || no.length)
       log.push(job.name + " -> " + (got.join(", ") || "nobody") +
                (no.length ? "; declined by " + no.join(", ") : ""));
   }
+  for (const k of touched) refreshClips(k);
   if (log.length) console.info("cast: lent " + log.join("  |  "));
 }
 
