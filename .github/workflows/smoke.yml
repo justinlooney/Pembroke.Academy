@@ -360,3 +360,51 @@ jobs:
 
       - name: Can this campus be used without a mouse?
         run: node tools/check-a11y.mjs
+
+  # ── who owns the keyboard, and whose turn is it? ────────────────────
+  # One question asked twice. Input and async continuations both act on
+  # the campus, and neither used to check who currently holds it: four
+  # global key listeners each knew its own mode and none knew the
+  # overlay stack, and a finished AI turn wrote its line, gesture, call
+  # to action, speech and focus to a surface it never re-checked it
+  # still owned.
+  #
+  # The second half never misbehaved in practice, because convoClose()
+  # aborts and the abort beat the continuation every time — safety
+  # resting on an ordering nothing enforced. The probe installs a
+  # provider that IGNORES abort, which is the case that ordering does
+  # not cover and the one a real provider cannot be asked to perform.
+  owner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Cache the browser
+        id: browser
+        timeout-minutes: 5
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ env.PW_VERSION }}
+
+      - name: Install Playwright
+        timeout-minutes: 6
+        run: npm install --no-save --no-audit --no-fund playwright@${{ env.PW_VERSION }}
+
+      - name: Fetch the browser
+        if: steps.browser.outputs.cache-hit != 'true'
+        timeout-minutes: 8
+        run: npx playwright install --with-deps chromium
+
+      - name: System libraries for the cached browser
+        if: steps.browser.outputs.cache-hit == 'true'
+        timeout-minutes: 6
+        run: npx playwright install-deps chromium
+
+      - name: Does anything act on the campus without owning it?
+        run: node tools/check-owner.mjs

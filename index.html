@@ -3592,7 +3592,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v142";
+const BUILD = "pembroke-v143";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -11927,8 +11927,33 @@ function walkUpdate(dt){
   dp.classList.toggle("show", !!walker.door);
   if (walker.door) document.getElementById("doorprompt-name").textContent = "Enter " + SECTORS[walker.door].hall;
 }
+/* ── who owns the keyboard ───────────────────────────────────────────
+   Four global listeners each knew its own mode and none knew the
+   overlay stack. With the application dialog open and focus on a
+   <select>, pressing 2, f, n changed the sector and entered
+   first-person walk mode BEHIND a dialog that stayed open — the
+   editable-target test covered input and textarea, a <select> is
+   neither, and no handler asked whether anything was open.
+
+   The accessibility work made this look solved without solving it:
+   the background is genuinely inert now, so a keyboard cannot REACH
+   the campus behind a dialog. inert does nothing about a listener
+   bound to window, which receives the key wherever it was pressed.
+   A surface that looks sealed and is not is worse than one that
+   looks open.
+
+   An interior is not an owner: it is a campus view, and switching
+   sector from inside a hall closes it on the way, which is coherent
+   and worth keeping. A dialog and a conversation are owners. */
+const EDITABLE = "input,textarea,select,[contenteditable]:not([contenteditable='false'])";
+function campusHasKeyboard(e){
+  if (e.target?.matches?.(EDITABLE)) return false;
+  if (jmodal.classList.contains("open")) return false;
+  if (convoView) return false;
+  return true;
+}
 window.addEventListener("keydown", e => {
-  if (e.target.matches("input,textarea")) return;
+  if (!campusHasKeyboard(e)) return;
   if (e.key === "f" || e.key === "F"){ walker.on ? exitWalk() : enterWalk(); return; }
   if (!walker.on) return;
   walker.keys[e.code] = true;
@@ -14130,12 +14155,18 @@ function selectSector(key, fromCampus){
 
 /* keyboard wayfinding: 1–4 quads, 0 full syllabus, P people and places */
 window.addEventListener("keydown", (e) => {
-  if (e.target.matches("input,textarea")) return;
+  /* Escape belongs to the innermost thing that is open: a conversation
+     closes itself, a dialog closes itself, and only when neither owns
+     the keyboard does Escape mean "leave this hall". The first draft
+     of this let Escape through while a dialog was up, which would have
+     closed the hall BEHIND the dialog — the exact bug one line above
+     it was fixing. */
+  if (!campusHasKeyboard(e)) return;
+  if (e.key === "Escape"){ closeInterior(); return; }
   const map = { "1":"lib", "2":"eng", "3":"sci", "4":"adm", "0":"all" };
   if (map[e.key]) selectSector(map[e.key], true);
   if (e.key === "n" || e.key === "N") document.getElementById("daynight").click();
   if (e.key === "p" || e.key === "P") nearbyToggle();
-  if (e.key === "Escape") closeInterior();
 });
 
 /* ── the keyboard's way in ───────────────────────────────────────────
@@ -14421,6 +14452,13 @@ const interiorEl = document.getElementById("interior");
    filter and no second pass. It costs one texture and it means you are
    still visibly standing on the quad instead of in a void. */
 let convoView = null;                  /* the student record, or null */
+/* Bumped on every open and every close. A turn takes its value when it
+   starts and checks it after every await: the safety here used to rest
+   entirely on convoClose()'s abort beating the continuation, so any
+   provider that ignores abort, any close that does not abort, or a slow
+   enough resolution would put one student's words, gesture, call to
+   action, history and focus into the next student's conversation. */
+let convoGen = 0;
 let convoLook = null;                  /* the head bone and its neutral, or null */
 let convoScene = null, convoCam = null, convoRT = null, convoHome = null, convoBase = null;
 let convoHomeCull = [];
@@ -14777,7 +14815,7 @@ function convoOpen(s){
   convoCam.position.set(convoBase.x, eye, dist);
   convoCam.lookAt(0, convoBase.lookY, 0);
 
-  convoView = s;
+  convoView = s; convoGen++;
   convoSay(s, null);
   convoEl.classList.add("open");
   convoEl.setAttribute("aria-hidden", "false");
@@ -14822,7 +14860,7 @@ function convoClose(){
      has gone back to the lawn would keep correcting a head nobody is
      looking at, and keep the body alive after it should be collectable. */
   convoLook = null;
-  convoView = null; convoHome = null;
+  convoView = null; convoHome = null; convoGen++;
   convoEl.classList.remove("open");
   /* inert alongside aria-hidden, always: aria-hidden alone told the
      screen reader the panel was gone while leaving its input, send,
@@ -14925,6 +14963,11 @@ function aiWireConvo(s){
     const text = input.value.trim();
     if (!text) return;
     if (AIQueue.busy){ input.value = text; return; }   /* still talking — keep the words */
+    /* Taken before the first await and checked after every one. Both
+       halves matter: the generation catches a close-and-reopen of the
+       SAME student, which convoView === s alone would wave through. */
+    const gen = convoGen;
+    const mine = () => gen === convoGen && convoView === s;
     input.value = "";
     document.getElementById("convo-said").textContent = "…";
     think.hidden = false; row.hidden = true;
@@ -14934,6 +14977,7 @@ function aiWireConvo(s){
     const saidLive = document.getElementById("convo-said");
     try {
       out = await aiGenerate(s, text, s.aiHist, d => {
+        if (!mine()) return;        /* tokens arriving for a conversation that has ended */
         think.hidden = true;                 /* words beat the spinner */
         saidLive.textContent = d;
       });
@@ -14946,6 +14990,13 @@ function aiWireConvo(s){
          " (the AI service is unreachable — canned dialogue still works below)"),
         emotion: "distracted", intent: { type: "none" }, fallback: true };
     }
+    /* Everything below writes to the ONE conversation surface, so if
+       this turn is no longer the open one, it writes nothing at all —
+       not the line, not the gesture, not the call to action, not the
+       history, not the speech, not the focus. The surface it would
+       have written to already belongs to somebody else, and
+       aiGenerate's finally has already released the queue. */
+    if (!mine()) return;
     think.hidden = true; row.hidden = false;
     const saidEl = document.getElementById("convo-said");
     saidEl.textContent = out.dialogue || "…";
@@ -15564,7 +15615,12 @@ function aiExtractMemories(name, transcript){
       NPCStore.remember(name, `The visitor said: "${x.slice(0, 140)}"`, Math.min(0.9, 0.4 + x.length / 300));
   }
 }
-window.__ai = { AI, NPCStore, AIQueue, aiParse, aiGovern, aiCourseFacts, aiSystemPrompt, aiHostedHealth: (...a) => aiHostedHealth(...a) };   /* test/debug hook */
+/* test/debug hook. AIProviders is here so a probe can install a
+   provider that IGNORES abort — the ordering the old code was relying
+   on without saying so, and the one thing a real provider cannot be
+   asked to do on demand. */
+window.__ai = { AI, NPCStore, AIQueue, AIProviders, aiParse, aiGovern, aiCourseFacts, aiSystemPrompt,
+                aiHostedHealth: (...a) => aiHostedHealth(...a), gen: () => convoGen };   /* test/debug hook */
 window.__talkTo = (name) => {          /* test/debug hook: pull a named persona into conversation */
   const s = students.find(s => s.data?.name === name && s.pos);
   if (s) convoOpen(s);
