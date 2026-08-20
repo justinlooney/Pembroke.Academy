@@ -317,6 +317,55 @@ try {
      the page is worse than no check, because it fails the NEXT one */
   step("the lecture panel is closed again", kc.ready && kc.shut);
 
+  /* AND THE SAME THING IN THE PRACTICE ROOMS, where it is worse:
+     practice has a HINT TIER. Pressing check on an empty field spent
+     the first miss, so the hint a real first attempt would have earned
+     was already gone and the student went straight to the worked
+     solution — parseFloat("") is NaN, not finite, and the grader read
+     that as a wrong number rather than as no number. The hint is the
+     half a log entry cannot show, so it is what this asserts. */
+  const turn = await page.evaluate(async () => {
+    const st = window.__study.state();
+    for (const k of Object.keys(st)) delete st[k];
+    window.__study.save();
+    window.__study.openSection("MATH201", "1.1");
+    await new Promise(r => setTimeout(r, 400));
+    const host = document.querySelector('[data-turn="0"]');
+    const check = host && host.querySelector("[data-check]");
+    const why = host && host.querySelector(".st-why");
+    const nag = host && host.querySelector(".st-nag");
+    /* every control, not just the host: a throw in here aborts the
+       whole run with a stack trace instead of reporting one failed
+       check, which is a worse way to learn the markup moved */
+    if (!host || !check || !why) return { ready: false };
+    const log = () => ((window.__study.state().MATH201 || {}).log || []);
+
+    check.click();                                     /* empty */
+    await new Promise(r => setTimeout(r, 200));
+    const blank = { logged: log().length,
+                    why: why.hidden ? "" : why.textContent.trim(),
+                    nagged: !!nag && !nag.hidden,
+                    marked: /\b(right|wrong)\b/.test(host.className) };
+
+    const inp = host.querySelector(".st-num");         /* a real, wrong try */
+    if (inp){ inp.value = "-99999"; inp.dispatchEvent(new Event("input", { bubbles: true })); }
+    else { const o = host.querySelectorAll('input[type="radio"]'); o[o.length - 1].checked = true; }
+    check.click();
+    await new Promise(r => setTimeout(r, 200));
+    const first = { logged: log().length, why: why.hidden ? "" : why.textContent.trim() };
+    document.querySelector("[data-jclose]")?.click();
+    await new Promise(r => setTimeout(r, 200));
+    return { ready: true, blank, first };
+  });
+  step("an empty practice press records nothing", turn.ready && turn.blank.logged === 0,
+       turn.ready ? turn.blank.logged + " entr(ies)" : "no practice question found");
+  step("an empty practice press marks and reveals nothing",
+       turn.ready && !turn.blank.why && !turn.blank.marked && turn.blank.nagged,
+       turn.ready ? JSON.stringify(turn.blank.why) + (turn.blank.marked ? " · marked" : "") : "");
+  step("and the hint survives for a real first attempt",
+       turn.ready && /^Hint:/.test(turn.first.why) && turn.first.logged === 1,
+       turn.ready ? JSON.stringify(turn.first.why.slice(0, 40)) + " · " + turn.first.logged + " logged" : "");
+
   /* THE AERIAL STANDOFF, READ BEFORE ANY OF THIS TOUCHES THE VIEW.
      It has to be taken here, in the aerial view at the suite's own
      viewport, where the stage is the 52% column and reads WIDE so the

@@ -3431,7 +3431,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v135";
+const BUILD = "pembroke-v136";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -12675,6 +12675,7 @@ function jLessonFull(courseId, n){
           ? q.opts.map((o, oi) => `<label class="st-opt"><input type="radio" name="t${qi}" value="${oi}"><span>${o}</span></label>`).join("")
           : `<input class="st-num" type="text" inputmode="decimal" aria-label="your answer" placeholder="your answer">`}
         <button type="button" class="jlink" data-check="${qi}">check</button>
+        <div class="st-nag" hidden role="status"></div>
         <div class="st-why" hidden></div>
       </div>`).join("")}
     <div class="st-unit">Knowledge check ${kcDone ? "— passed ✓" : ""}</div>
@@ -12714,10 +12715,14 @@ function jLessonFull(courseId, n){
     const why = host.querySelector(".st-why");
     let miss = 0;
     host.querySelector(`[data-check="${qi}"]`).addEventListener("click", () => {
+      /* nothing attempted: no grade, no record, and above all no hint
+         spent — the tier exists to meet a real first try */
+      if (!practiceAnswered(host, q.type, `t${qi}`)){ practiceNag(host, true); return; }
+      practiceNag(host, false);
       let good;
       if (q.type === "mc"){
         const pick = host.querySelector(`input[name="t${qi}"]:checked`);
-        good = pick && +pick.value === q.a;
+        good = !!pick && +pick.value === q.a;
       } else {
         const v = parseFloat(host.querySelector(".st-num").value.replace(",", "."));
         good = Number.isFinite(v) && Math.abs(v - q.ans) <= (q.tol || 0) + 1e-9;
@@ -12751,6 +12756,51 @@ function jLessonFull(courseId, n){
    lite one carry separate graders (they diverge in what they record
    and what they seal, which is its own issue), and a guard that only
    one of them called would leave the reveal live in the other. */
+/* ── and neither is an unattempted practice question ──────────────
+   The same defect as the knowledge check, in the rooms where the
+   learning actually happens, and worse there for a reason the check
+   does not share: practice HAS a hint tier. Pressing check on an
+   empty field spent the first miss, so the hint a genuine first
+   attempt would have earned was already gone and the student went
+   straight to the worked solution. It also wrote the miss into the
+   record Prof. Merion teaches from.
+
+   `parseFloat("")` is NaN, which is not finite, which the grader read
+   as a wrong number — but "" is not a wrong answer, it is no answer.
+   The multiple-choice branch had the identical hole: nothing selected
+   yields a falsy pick, and falsy was graded as wrong.
+
+   Shared by all four practice surfaces — Your turn in both lesson
+   views, the problem set, and homework — because a guard on one of
+   them is a guard on none of the others, which is exactly how the
+   knowledge check came to have this bug in two places. */
+function practiceAnswered(host, type, radioName){
+  /* A missing host means the markup and the question list disagree,
+     which is a bug worth hearing about — but not one worth throwing
+     out of a submit handler, where it would take homework grading
+     down with it and tell the student nothing. Same bargain studyLog
+     strikes with a non-boolean: refuse, and say so where a developer
+     will see it. Treated as unanswered, which is the safe reading:
+     nothing is recorded and nothing is marked. */
+  if (!host){
+    console.error("practice: no host element for " + (radioName || type) +
+                  " — the markup and the question list have gone out of step");
+    return false;
+  }
+  if (type === "mc") return !!host.querySelector(`input[name="${radioName}"]:checked`);
+  const el = host.querySelector(".st-num");
+  return !!el && el.value.trim() !== "";
+}
+/* Said in its own element, never in .st-why — that is where hints and
+   worked solutions live, and a prompt to answer must not sit in the
+   place the answer appears. */
+function practiceNag(host, on){
+  const nag = host && host.querySelector(".st-nag");
+  if (!nag) return;
+  nag.hidden = !on;
+  nag.textContent = on ? "Nothing entered yet — have a go before checking." : "";
+}
+
 function kcUnanswered(sec){
   const blanks = [];
   sec.qs.forEach((q, qi) => {
@@ -12835,6 +12885,7 @@ function jHomework(courseId, n){
         <div class="st-q" data-hwq="${qi}">
           <div class="st-ask">${qi + 1}. ${q.q}</div>
           <input class="st-num" type="text" inputmode="decimal" aria-label="answer ${qi + 1}">
+          <div class="st-nag" hidden role="status"></div>
           <div class="st-why" hidden></div>
         </div>`).join("")}
       <div class="flex items-center gap-3 mt-2">
@@ -12846,6 +12897,17 @@ function jHomework(courseId, n){
   jbody.querySelector("[data-back]").addEventListener("click", () => jStudySection(courseId, n));
   jbody.querySelector("#st-hw").addEventListener("submit", e => {
     e.preventDefault();
+    /* Homework is scored out of N and the best attempt is kept, so a
+       blank cannot simply be skipped the way a single practice
+       question can — a score of 3/4 earned by leaving one empty is
+       not the same claim as 3/4 attempted. Guarded like the knowledge
+       check instead: nothing is graded until every box has something
+       in it. */
+    const blank = qs.map((q, qi) => qi)
+      .filter(qi => !practiceAnswered(jbody.querySelector(`[data-hwq="${qi}"]`), "num"));
+    qs.forEach((q, qi) =>
+      practiceNag(jbody.querySelector(`[data-hwq="${qi}"]`), blank.includes(qi)));
+    if (blank.length) return;
     let score = 0;
     qs.forEach((q, qi) => {
       const host = jbody.querySelector(`[data-hwq="${qi}"]`);
@@ -13338,6 +13400,7 @@ function jPractice(courseId, n){
           : `<input class="st-num" type="text" inputmode="decimal" aria-label="your answer" placeholder="your answer">`}
         <button type="button" class="jlink" data-go>check</button>
         <button type="button" class="jlink" data-hint>hint</button>
+        <div class="st-nag" hidden role="status"></div>
         <div class="st-why" ${got ? "" : "hidden"}>${got ? "✓ earned" : ""}</div>
       </div>`;
   };
@@ -13417,10 +13480,14 @@ function jPractice(courseId, n){
     const why = host.querySelector(".st-why");
     let hintsUsed = 0;
     host.querySelector("[data-go]").addEventListener("click", () => {
+      /* the set is where a problem is earned; an empty box earns and
+         forfeits nothing */
+      if (!practiceAnswered(host, it.type, `ps${key}`)){ practiceNag(host, true); return; }
+      practiceNag(host, false);
       let good;
       if (it.type === "mc"){
         const pick = host.querySelector(`input[name="ps${key}"]:checked`);
-        good = pick && +pick.value === it.a;
+        good = !!pick && +pick.value === it.a;
       } else {
         const v = parseFloat(host.querySelector(".st-num").value.replace(",", "."));
         good = Number.isFinite(v) && Math.abs(v - it.ans) <= (it.tol || 0) + 1e-9;
