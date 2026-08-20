@@ -490,6 +490,80 @@ try {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.waitForTimeout(600);
 
+  /* THE NAMEPLATES, AT A PHONE. Eight world-space anchors project into
+     whatever screen the visitor brought, and in portrait standBack()
+     pulls the camera 1.5x out to fit the campus at all — which lands
+     all eight inside a band a phone's width across. Measured on main
+     at 393x851: five hall plates in SEVEN overlapping pairs.
+
+     393x851 on purpose. At the suite's own 1280x800 the halls are
+     spread across the width and the pile never forms, so a check
+     sitting at the default viewport passes against the unfixed code —
+     the same trap the framing check above documents.
+
+     Three things are asserted, and the third is the one that keeps the
+     other two honest: "nothing overlaps" is trivially true of a blank
+     screen, so the count of plates still standing is asserted too. A
+     fix that cleared the pile by hiding the campus would fail here. */
+  await page.setViewportSize({ width: 393, height: 851 });
+  await page.waitForTimeout(1200);          /* a resize, a settle, a sweep */
+  const plates = await page.evaluate(() => {
+    /* crowded-out by class, not by opacity. A plate the sweep has just
+       stood down spends 220ms fading, and reading its opacity mid-fade
+       counts it as on screen — which is how the first version of this
+       check reported two overlapping pairs that were one plate on its
+       way out. The class is the sweep's own verdict and does not
+       depend on catching the right moment. */
+    const shown = el => {
+      const cs = getComputedStyle(el);
+      return el.style.display !== "none" && cs.visibility !== "hidden" &&
+             +cs.opacity > 0.05 && !el.classList.contains("crowded-out");
+    };
+    const box = el => { const r = el.getBoundingClientRect();
+                        return { x: r.left, y: r.top, w: r.width, h: r.height }; };
+    const hit = (a, b) => !(a.x + a.w <= b.x || b.x + b.w <= a.x ||
+                            a.y + a.h <= b.y || b.y + b.h <= a.y);
+    const tags = [...document.querySelectorAll(".hall-tag, .stu-tag")].filter(shown);
+    const rects = tags.map(box);
+    let pairs = 0;
+    for (let i = 0; i < rects.length; i++)
+      for (let j = i + 1; j < rects.length; j++) if (hit(rects[i], rects[j])) pairs++;
+
+    let onHud = 0;
+    ["campus-wing-intro","campus-legend","campus-hints","quest",
+     "minimap","daynight","walkbtn","arr-cta"].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el || !shown(el)) return;
+      const h = box(el);
+      if (h.w && h.h) rects.forEach(r => { if (hit(r, h)) onHud++; });
+    });
+
+    /* and the hall the objective names must not be the one stood down
+       — only asked when it is on screen at all to be stood down */
+    const want = window.__quest().sector;
+    const target = want && document.querySelector(`.hall-tag[data-sector="${want}"]`);
+    const targetOn = !target || target.style.display === "none" ? null : shown(target);
+
+    const legend = document.getElementById("campus-legend");
+    const hints  = document.getElementById("campus-hints");
+    const clash = legend && hints && shown(legend) && shown(hints)
+                  ? hit(box(legend), box(hints)) : false;
+    return { visible: tags.length, pairs, onHud, want, targetOn, clash,
+             lean: document.body.classList.contains("plates-lean") };
+  });
+  step("nameplates do not print over each other on a phone",
+       plates.lean && plates.visible >= 2 && plates.pairs === 0,
+       `${plates.visible} plate(s) standing · ${plates.pairs} overlapping pair(s)` +
+       (plates.lean ? "" : "  (the portrait collapse never engaged)"));
+  step("nor over the interface they float above", plates.onHud === 0,
+       plates.onHud + " plate(s) on the HUD");
+  step("and the hall the objective names keeps its name",
+       plates.targetOn !== false,
+       plates.targetOn === null ? `${plates.want} is off screen` : `${plates.want} still reads`);
+  step("the sector legend and the control hints keep apart", !plates.clash);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.waitForTimeout(600);
+
   step("walk mode engages again", await pressUntil("f", () => window.__walker.on === true));
 
   /* The drop point, tested against every wall. v94 shipped with the
