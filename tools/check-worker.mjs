@@ -276,6 +276,26 @@ step("every character the Worker voices exists on the campus", missing.length ==
 step("the two halves agree what class each character is", misclassed.length === 0,
      misclassed.join(" | "));
 
+/* Who exists and what they may propose was already checked; how each
+   side DESCRIBES them was not, and that is where the drift actually
+   happened. The Worker names a role per character. The browser built
+   one sentence for everybody — "a ${year} at Pembroke Academy studying
+   ${major}" — which is right for a sophomore and wrong for everyone
+   who teaches, so the Dean was studying Academic Advising and the
+   professor was studying Applied Calculus. Anyone the Worker does not
+   call a student must not be called one here either. */
+const TEACHES = Object.entries(CHARACTERS).filter(([, c]) => c.cls !== "social" && c.cls !== "academic");
+const studied = TEACHES.filter(([id]) => {
+  const name = Object.entries(CHARACTERS).find(([k]) => k === id)[1].name;
+  const rec = page.match(new RegExp(`\\{\\s*name:\\s*"${name.replace(/[.*+?^$(){}|[\]\\]/g, "\\$&")}",\\s*ai:\\s*\\{[\\s\\S]{0,600}?\\}`));
+  return !rec || !/\brole:\s*"/.test(rec[0]);
+}).map(([id]) => id);
+step("nobody the Worker calls faculty is called a student on the campus",
+     TEACHES.length > 0 && studied.length === 0,
+     TEACHES.length === 0 ? "the Worker lists no faculty — this check proved nothing"
+       : studied.length ? `${studied.join(", ")} — no role: on the campus record, so the student sentence is used`
+       : `${TEACHES.map(([id]) => id).join(", ")} each carry their own role`);
+
 const policy = page.match(/const AI_POLICY = \{([\s\S]*?)\n\};/);
 const clientIntents = new Set([...(policy?.[1] || "").matchAll(/"([a-z_]+)"/g)].map(m => m[1]));
 const docIntents = new Set([...WORKER_SRC

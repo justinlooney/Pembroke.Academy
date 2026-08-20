@@ -3592,7 +3592,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v142";
+const BUILD = "pembroke-v144";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -6767,7 +6767,8 @@ const STUDENT_ROSTER = [
   /* Tier 1: the MATH 201 professor. He stands by his own hall's door
      and teaches to the student's actual frontier in the course — the
      mastery data says what to affirm and what to revisit. */
-  { name:"Prof. Merion", ai:{ cls:"professor", year:"professor of mathematics", pron:"he/him", traits:["exacting but kind","allergic to hand-waving","believes every formula is a picture first"], style:"a lecturer's clarity at conversation volume; asks what you SEE before what you compute" },
+  { name:"Prof. Merion", ai:{ cls:"professor", year:"professor of mathematics", pron:"he/him",
+      role:"the MATH 201 (Applied Calculus) professor at Pembroke Academy", traits:["exacting but kind","allergic to hand-waving","believes every formula is a picture first"], style:"a lecturer's clarity at conversation volume; asks what you SEE before what you compute" },
     /* looks follows the body, for the same reason it does on the Dean:
        it is read only to pick a stand-in in the seconds before the
        pinned body lands, and a stale value there puts the wrong person
@@ -6788,7 +6789,8 @@ const STUDENT_ROSTER = [
      wrong basis, on a campus where a visitor may be told about the Dean
      by somebody else. Optional: a character without it simply has
      nothing said about theirs. */
-  { name:"Dean Aldergate", ai:{ cls:"advisor", year:"dean of students", pron:"she/her", traits:["courtly","attentive","quietly funny","remembers everyone"], style:"warm and unhurried, an old-fashioned advisor's cadence; asks one good question at a time" },
+  { name:"Dean Aldergate", ai:{ cls:"advisor", year:"dean of students", pron:"she/her",
+      role:"the Dean of Students and academic advisor at Pembroke Academy", traits:["courtly","attentive","quietly funny","remembers everyone"], style:"warm and unhurried, an old-fashioned advisor's cadence; asks one good question at a time" },
     /* looks follows the body. It is read only to pick a stand-in if the
        pinned one has not arrived, so a stale "m" here would put a man on
        the Administration apron in the seconds before char17 lands — the
@@ -11927,8 +11929,33 @@ function walkUpdate(dt){
   dp.classList.toggle("show", !!walker.door);
   if (walker.door) document.getElementById("doorprompt-name").textContent = "Enter " + SECTORS[walker.door].hall;
 }
+/* ── who owns the keyboard ───────────────────────────────────────────
+   Four global listeners each knew its own mode and none knew the
+   overlay stack. With the application dialog open and focus on a
+   <select>, pressing 2, f, n changed the sector and entered
+   first-person walk mode BEHIND a dialog that stayed open — the
+   editable-target test covered input and textarea, a <select> is
+   neither, and no handler asked whether anything was open.
+
+   The accessibility work made this look solved without solving it:
+   the background is genuinely inert now, so a keyboard cannot REACH
+   the campus behind a dialog. inert does nothing about a listener
+   bound to window, which receives the key wherever it was pressed.
+   A surface that looks sealed and is not is worse than one that
+   looks open.
+
+   An interior is not an owner: it is a campus view, and switching
+   sector from inside a hall closes it on the way, which is coherent
+   and worth keeping. A dialog and a conversation are owners. */
+const EDITABLE = "input,textarea,select,[contenteditable]:not([contenteditable='false'])";
+function campusHasKeyboard(e){
+  if (e.target?.matches?.(EDITABLE)) return false;
+  if (jmodal.classList.contains("open")) return false;
+  if (convoView) return false;
+  return true;
+}
 window.addEventListener("keydown", e => {
-  if (e.target.matches("input,textarea")) return;
+  if (!campusHasKeyboard(e)) return;
   if (e.key === "f" || e.key === "F"){ walker.on ? exitWalk() : enterWalk(); return; }
   if (!walker.on) return;
   walker.keys[e.code] = true;
@@ -14130,12 +14157,18 @@ function selectSector(key, fromCampus){
 
 /* keyboard wayfinding: 1–4 quads, 0 full syllabus, P people and places */
 window.addEventListener("keydown", (e) => {
-  if (e.target.matches("input,textarea")) return;
+  /* Escape belongs to the innermost thing that is open: a conversation
+     closes itself, a dialog closes itself, and only when neither owns
+     the keyboard does Escape mean "leave this hall". The first draft
+     of this let Escape through while a dialog was up, which would have
+     closed the hall BEHIND the dialog — the exact bug one line above
+     it was fixing. */
+  if (!campusHasKeyboard(e)) return;
+  if (e.key === "Escape"){ closeInterior(); return; }
   const map = { "1":"lib", "2":"eng", "3":"sci", "4":"adm", "0":"all" };
   if (map[e.key]) selectSector(map[e.key], true);
   if (e.key === "n" || e.key === "N") document.getElementById("daynight").click();
   if (e.key === "p" || e.key === "P") nearbyToggle();
-  if (e.key === "Escape") closeInterior();
 });
 
 /* ── the keyboard's way in ───────────────────────────────────────────
@@ -14421,6 +14454,13 @@ const interiorEl = document.getElementById("interior");
    filter and no second pass. It costs one texture and it means you are
    still visibly standing on the quad instead of in a void. */
 let convoView = null;                  /* the student record, or null */
+/* Bumped on every open and every close. A turn takes its value when it
+   starts and checks it after every await: the safety here used to rest
+   entirely on convoClose()'s abort beating the continuation, so any
+   provider that ignores abort, any close that does not abort, or a slow
+   enough resolution would put one student's words, gesture, call to
+   action, history and focus into the next student's conversation. */
+let convoGen = 0;
 let convoLook = null;                  /* the head bone and its neutral, or null */
 let convoScene = null, convoCam = null, convoRT = null, convoHome = null, convoBase = null;
 let convoHomeCull = [];
@@ -14777,7 +14817,7 @@ function convoOpen(s){
   convoCam.position.set(convoBase.x, eye, dist);
   convoCam.lookAt(0, convoBase.lookY, 0);
 
-  convoView = s;
+  convoView = s; convoGen++;
   convoSay(s, null);
   convoEl.classList.add("open");
   convoEl.setAttribute("aria-hidden", "false");
@@ -14822,7 +14862,7 @@ function convoClose(){
      has gone back to the lawn would keep correcting a head nobody is
      looking at, and keep the body alive after it should be collectable. */
   convoLook = null;
-  convoView = null; convoHome = null;
+  convoView = null; convoHome = null; convoGen++;
   convoEl.classList.remove("open");
   /* inert alongside aria-hidden, always: aria-hidden alone told the
      screen reader the panel was gone while leaving its input, send,
@@ -14925,6 +14965,11 @@ function aiWireConvo(s){
     const text = input.value.trim();
     if (!text) return;
     if (AIQueue.busy){ input.value = text; return; }   /* still talking — keep the words */
+    /* Taken before the first await and checked after every one. Both
+       halves matter: the generation catches a close-and-reopen of the
+       SAME student, which convoView === s alone would wave through. */
+    const gen = convoGen;
+    const mine = () => gen === convoGen && convoView === s;
     input.value = "";
     document.getElementById("convo-said").textContent = "…";
     think.hidden = false; row.hidden = true;
@@ -14934,6 +14979,7 @@ function aiWireConvo(s){
     const saidLive = document.getElementById("convo-said");
     try {
       out = await aiGenerate(s, text, s.aiHist, d => {
+        if (!mine()) return;        /* tokens arriving for a conversation that has ended */
         think.hidden = true;                 /* words beat the spinner */
         saidLive.textContent = d;
       });
@@ -14946,6 +14992,13 @@ function aiWireConvo(s){
          " (the AI service is unreachable — canned dialogue still works below)"),
         emotion: "distracted", intent: { type: "none" }, fallback: true };
     }
+    /* Everything below writes to the ONE conversation surface, so if
+       this turn is no longer the open one, it writes nothing at all —
+       not the line, not the gesture, not the call to action, not the
+       history, not the speech, not the focus. The surface it would
+       have written to already belongs to somebody else, and
+       aiGenerate's finally has already released the queue. */
+    if (!mine()) return;
     think.hidden = true; row.hidden = false;
     const saidEl = document.getElementById("convo-said");
     saidEl.textContent = out.dialogue || "…";
@@ -15191,7 +15244,15 @@ function aiSystemPrompt(s, userText){
     ].join(" ");
   })() : "";
   return [
-    `You are ${d.name}, a ${ai.year || "student"} at Pembroke Academy studying ${d.major}. You are a person in this world, never an assistant: no "how can I help you today", no mention of being an AI, no offers of general assistance. You are mid-walk on campus having a chat.`,
+    /* A role where the student sentence does not fit. "a ${year} at
+       Pembroke Academy studying ${major}" is right for a sophomore and
+       wrong for everyone who teaches: it produced "a dean of students
+       at Pembroke Academy studying Academic Advising" and "a professor
+       of mathematics ... studying Applied Calculus". The hosted Worker
+       never had this, because its registry carries a role string per
+       character — this is the browser's copy of that prompt catching
+       up, which is the same lag PE-16 was. */
+    `You are ${d.name}, ${ai.role || `a ${ai.year || "student"} at Pembroke Academy studying ${d.major}`}. You are a person in this world, never an assistant: no "how can I help you today", no mention of being an AI, no offers of general assistance. You are mid-walk on campus having a chat.`,
     `Personality: ${(ai.traits || []).join(", ")}.${ai.pron ? ` Your pronouns are ${ai.pron}.` : ""} Voice: ${ai.style}. Keep replies to 1-3 short sentences${ai.cls === "academic" ? ", except when actually teaching a concept — then up to 6, always concrete, image-first" : ""}. Contractions, hesitations, opinions welcome.`,
     `Knowledge boundaries: ${knowledge}`,
     `Where you are: ${aiPlaceOf(s.pos)}, ${aiClock()}. Your home hall is ${hall ? hall.hall : "the quad"}. You are currently ${s.inside ? "just out of a lecture" : s.mode === "todoor" || s.route ? "walking to a class" : "out on the paths"}.`,
@@ -15510,8 +15571,22 @@ function aiGovern(intent, s){
   const cls = s?.data?.ai?.cls || "social";
   /* authorization first, from the one table — an intent a role may not
      propose dies here regardless of how plausible it looks */
-  if (!(AI_POLICY[cls] || AI_POLICY.social).includes(intent.type)) return null;
-  if (intent.type === "point_to_location" && SECTORS[intent.target])
+  /* hasOwn on both, because a bracket lookup answers for the prototype
+     as well as the object. SECTORS["__proto__"] is truthy and its
+     .hall is undefined, so a model proposing point_to_location with
+     that target used to render "(points toward undefined)". And
+     AI_POLICY["__proto__"] is Object.prototype, which is truthy — so
+     the `|| AI_POLICY.social` fallback would NOT catch it and
+     .includes would throw instead. cls comes from the campus rather
+     than the model, so that second one is defence in depth; the rule
+     is easier to keep when it has no exceptions.
+
+     The same lookup on the same object was already corrected at the
+     sector restore (see LS_SECTOR) while this one was left, which is
+     what filing a bug and fixing its twin elsewhere looks like. */
+  const policy = Object.hasOwn(AI_POLICY, cls) ? AI_POLICY[cls] : AI_POLICY.social;
+  if (!policy.includes(intent.type)) return null;
+  if (intent.type === "point_to_location" && Object.hasOwn(SECTORS, intent.target ?? ""))
     return { caption: `(points toward ${SECTORS[intent.target].hall})` };
   if (intent.type === "end_conversation")
     return { caption: "(seems ready to get going)" };
@@ -15564,7 +15639,12 @@ function aiExtractMemories(name, transcript){
       NPCStore.remember(name, `The visitor said: "${x.slice(0, 140)}"`, Math.min(0.9, 0.4 + x.length / 300));
   }
 }
-window.__ai = { AI, NPCStore, AIQueue, aiParse, aiGovern, aiCourseFacts, aiSystemPrompt, aiHostedHealth: (...a) => aiHostedHealth(...a) };   /* test/debug hook */
+/* test/debug hook. AIProviders is here so a probe can install a
+   provider that IGNORES abort — the ordering the old code was relying
+   on without saying so, and the one thing a real provider cannot be
+   asked to do on demand. */
+window.__ai = { AI, NPCStore, AIQueue, AIProviders, aiParse, aiGovern, aiCourseFacts, aiSystemPrompt,
+                aiHostedHealth: (...a) => aiHostedHealth(...a), gen: () => convoGen };   /* test/debug hook */
 window.__talkTo = (name) => {          /* test/debug hook: pull a named persona into conversation */
   const s = students.find(s => s.data?.name === name && s.pos);
   if (s) convoOpen(s);
