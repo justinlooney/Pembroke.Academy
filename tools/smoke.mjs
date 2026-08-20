@@ -776,14 +776,20 @@ try {
      one run, 25 cached the next — so wait for the depot to actually hold
      what visit 1 fetched before judging it. */
   const settled = await page.waitForFunction(async (paths) => {
-    const key = (await caches.keys()).find(k => k.endsWith("-assets"));
+    /* "-depot", not "-assets": the depot was renamed when release and
+       asset versions were split, and this selector was not. It matched
+       nothing, so stillCached came back empty, and the assertion below
+       — "none of the models we still hold were refetched" — passed
+       having recognised none of them. A test that cannot fail is worse
+       than no test, because it is counted. */
+    const key = (await caches.keys()).find(k => k.endsWith("-depot"));
     if (!key) return null;
     const cache = await caches.open(key);
     for (const p of paths) if (!(await cache.match(p))) return null;
     return true;
   }, [...firstVisit], { timeout: 120_000 }).then(() => true, () => false);
   step("first visit finishes caching what it fetched", settled,
-       settled ? firstVisit.size + " model(s) in the cache"
+       settled ? firstVisit.size + " model(s) fetched and matched in the depot"
                : "gave up waiting — the next check will show what is missing");
 
   /* Deliberately NOT waiting for the outer world to finish first. Tried
@@ -808,15 +814,29 @@ try {
      happens. Failing on eviction would be blaming the worker for the
      browser's decision — so measure what is actually still cached, and
      judge only that. */
-  const stillCached = await page.evaluate(async (paths) => {
-    const key = (await caches.keys()).find(k => k.endsWith("-assets"));
-    if (!key) return [];
+  /* null means the depot is not there at all, which is a different
+     thing from an empty one and must not be reported as eviction. */
+  const held = await page.evaluate(async (paths) => {
+    const key = (await caches.keys()).find(k => k.endsWith("-depot"));
+    if (!key) return null;
     const cache = await caches.open(key);
     const out = [];
     for (const p of paths) if (await cache.match(p)) out.push(p);
     return out;
   }, [...firstVisit]).catch(() => [...firstVisit]);
 
+  /* The worker's contract is that a depot exists and anything still in
+     it is served from it. Eviction is the browser's decision and is
+     forgiven; a missing depot is not, and used to be indistinguishable
+     from it — this returned [] for both, so "none of the models we
+     still hold were refetched" passed having recognised none of them.
+     Report the two apart, and say the count that was actually measured
+     rather than the count that was served. */
+  step("the model depot survives a reload", held !== null,
+       held === null ? "no cache whose name ends in -depot — the worker cached nothing"
+                     : `${held.length} of ${firstVisit.size} first-visit model(s) still held`);
+
+  const stillCached = held ?? [];
   const evicted = firstVisit.size - stillCached.length;
   const cachedSet = new Set(stillCached);
   const refetched = servedModels.filter(p => cachedSet.has(p));
