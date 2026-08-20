@@ -22,8 +22,9 @@ The next largest risks are:
 1. The advertised 48 MB character VRAM ceiling counts only currently visible bodies. It does not release textures or geometry as bodies rotate indoors or are retired, while all 14 bodies are eventually loaded and retained.
 2. Persisted state has no schema/version boundary. Two malformed but validly stored values reproduced startup exceptions in critical UI paths.
 3. A completed AI request can mutate the singleton conversation UI after its conversation was closed or after a different NPC conversation opened.
-4. The primary 3D interaction has no keyboard or screen-reader equivalent, so the Campus Visit's required “talk” step is inaccessible.
-5. Hosted stream failures can be converted into a successful empty response, and the Worker's 30-second timeout ends before the response stream is consumed.
+4. The primary 3D interaction has no keyboard or screen-reader equivalent, so NPC dialogue and the Campus Visit's normal “talk” step are inaccessible without skipping.
+5. The smoke suite looks for an obsolete cache suffix, so its returning-visit checks can pass without examining the production depot.
+6. Hosted stream failures can be converted into a successful empty response, and the Worker's 30-second timeout ends before the response stream is consumed.
 
 No P0 was confirmed. There are several P1 defects that should block a production-readiness claim.
 
@@ -33,6 +34,7 @@ No P0 was confirmed. There are several P1 defects that should block a production
 - The repository's packed Git history is approximately 1.14 GiB.
 - The latest completed `main` smoke workflow succeeded, but its browser drive took about 22 minutes 48 seconds and the full workflow about 23 minutes 26 seconds ([run evidence](https://github.com/justinlooney/Pembroke.Academy/actions/runs/32328062907)).
 - The same `main` run skipped `cache-version` because that job is restricted to pull requests.
+- The smoke suite searches for cache keys ending in `-assets`; the production depot is `pembroke-assets-v3-depot`.
 - A real browser reproduced:
   - invalid sector persistence: `TypeError` in `renderBanner()` at `index.html:12129`;
   - structurally invalid journey persistence: `TypeError` in `Journey.status()` at `index.html:15509`;
@@ -161,6 +163,18 @@ The split between `Journey`, `done`, and `study` is the most important non-AI au
 - **Root cause:** Cancellation stops transport but does not invalidate UI ownership.
 - **Recommended fix:** Assign each opened conversation/turn an immutable generation ID. After every await and token callback, verify the ID and `convoView === s`; otherwise discard the result. Abort and detach token callbacks on close.
 - **Regression test to add:** Delayed hosted response with close/reopen; assert no text, focus, CTA, history, relationship, or memory from A reaches B.
+
+### PE-04A — Global shortcuts mutate the campus through an open modal
+
+- **Severity:** P1
+- **Status:** Confirmed defect
+- **File + function/component:** `index.html:11347-11350`, `11627-11634`, `13727-13733`, `15617-15619` (independent global key handlers)
+- **What is wrong:** Campus shortcuts have no common overlay/modal guard. Their focus checks exclude only `input,textarea`, not `select`, buttons, contenteditable elements, or the fact that `#jmodal` is open.
+- **Why it matters:** While an application, advising, declaration, or registration modal is visible, `1`–`4` can change sector/open an interior behind it, `F` can enter walk mode, and `N` changes time of day. The visible form and hidden campus can diverge.
+- **Reproduction or evidence:** Open the application, focus a `<select>`, and press `2`, `F`, or `N`. The global handlers run because the target does not match `input,textarea`.
+- **Root cause:** Keyboard behavior is distributed across four listeners that know their local mode but not the global overlay stack.
+- **Recommended fix:** Route global shortcuts through one mode-aware dispatcher. When a modal/conversation owns input, allow only its documented keys; include `select,[contenteditable]` in editable-target checks.
+- **Regression test to add:** Open every journey modal and press sector, walk, day/night, and Escape shortcuts from each focusable control; assert no background state changes except the modal's own Escape close.
 
 ### PE-05 — Manual course seals bypass prerequisites and mastery
 
@@ -291,6 +305,18 @@ The split between `Journey`, `done`, and `study` is the most important non-AI au
 - **Recommended fix:** Implement a standards-complete SSE parser, process final carry in `flush`, propagate parse/provider errors, and require at least one valid token plus a terminal event before declaring success.
 - **Regression test to add:** Chunk boundaries at every byte, CRLF, multiline `data`, missing final separator, malformed JSON, provider error event, empty completion, and Ollama fallback after hosted semantic failure.
 
+### PE-13A — `open_practice` deterministically opens the wrong surface
+
+- **Severity:** P2
+- **Status:** Confirmed functional defect
+- **File + function/component:** `index.html:14990-15004` (`aiGovern`)
+- **What is wrong:** `open_practice` is grouped with `open_lecture` and `open_interactive`; all three CTAs call `jStudySection()`. The actual problem-set surface is `jPractice()`.
+- **Why it matters:** Prof. Merion can correctly propose an allowed practice intent, the governor accepts it, and Pembroke deterministically performs the wrong action. This does not weaken authority, but it breaks the promised AI-to-UI capability.
+- **Reproduction or evidence:** Govern `{type:"open_practice", target:"1.1"}` for a professor and invoke its CTA; it opens the lecture rather than Problem Set 1.1.
+- **Root cause:** Capability authorization and capability dispatch share a branch even though their destinations differ.
+- **Recommended fix:** Keep validation in `aiGovern()`, but dispatch `open_practice` to `jPractice("MATH201", target)` only when `psetOf()` confirms a set exists; otherwise return no CTA.
+- **Regression test to add:** Table-test every professor intent and assert its CTA invokes the matching deterministic surface and rejects unavailable targets.
+
 ### PE-14 — The Worker timeout protects only provider startup
 
 - **Severity:** P1
@@ -397,14 +423,14 @@ PE-02 and PE-07 are the major rendering findings. Additional observations:
 - Landmark loads are serialized and texture uploads are staged. Failure of one landmark resolves to `null` rather than blocking the queue.
 - Character loading degrades per body/donor rather than taking the cohort down. This is also a strength.
 
-### PE-21 — Retired figures leak cloned render resources
+### PE-21 — Replaced and retired figures leak cloned render resources
 
 - **Severity:** P2
 - **Status:** Confirmed defect; overlaps PE-02 but has a distinct lifecycle
-- **File + function/component:** `index.html:7366-7499` (`prepFigure`), `index.html:10124-10140` (`sweepRetired`)
-- **What is wrong:** Each figure is a skeleton clone with its own mixer and, for dressed roaming figures, cloned materials. Retirement removes it and its mixer but does not uncache mixer roots/actions or release clone-owned resources.
+- **File + function/component:** `index.html:7366-7499` (`prepFigure`), `index.html:8827-8866` (`upgradeBody`), `index.html:10124-10140` (`sweepRetired`)
+- **What is wrong:** Each figure is a skeleton clone with its own mixer and, for dressed roaming figures, cloned materials. Body upgrade and retirement remove old roots and mixer records but do not uncache mixer roots/actions or release clone-owned resources.
 - **Why it matters:** Crowd turnover grows retained animation bindings and render resources over a long session even when the visible population remains constant.
-- **Reproduction or evidence:** Force repeated `makeRoomFor(..., urgent=true)` retirement/top-up cycles and compare mixer/resource/heap counts. The code performs only array splices and `world.remove`.
+- **Reproduction or evidence:** Let the late wave upgrade named stand-ins, then force repeated `makeRoomFor(..., urgent=true)` retirement/top-up cycles and compare mixer/resource/heap counts. Both paths perform array splices and `world.remove` without destruction.
 - **Root cause:** Object lifecycle ends at scene membership rather than ownership cleanup.
 - **Recommended fix:** Add a figure destruction API that uncaches mixer actions/root, distinguishes shared from clone-owned resources, removes CSS2D nodes, and releases reference-counted resources.
 - **Regression test to add:** Thousands of retire/top-up cycles with heap snapshots and stable mixer, geometry, material, texture, and DOM node counts.
@@ -435,6 +461,18 @@ PE-02 and PE-07 are the major rendering findings. Additional observations:
 - **Recommended fix:** Catch rejection and show a non-destructive fallback/instruction.
 - **Regression test to add:** Mock resolved and rejected clipboard writes; assert correct button state and no unhandled rejection.
 
+### PE-23A — The install manifest references a missing icon
+
+- **Severity:** P2
+- **Status:** Confirmed defect
+- **File + function/component:** `manifest.webmanifest:11-15` (`icons`)
+- **What is wrong:** The manifest declares `assets/icon-maskable.png`, but that file does not exist.
+- **Why it matters:** PWA installation requests a missing asset and cannot provide the declared maskable icon, degrading installation and launcher presentation.
+- **Reproduction or evidence:** Resolve every manifest icon path against `assets/`; the 192 px and 512 px icons exist, while `icon-maskable.png` does not.
+- **Root cause:** Manifest and asset inventory have no integrity check.
+- **Recommended fix:** Add a correctly padded maskable icon or remove the declaration until one exists.
+- **Regression test to add:** Parse the manifest in CI and assert every declared icon exists and matches its advertised type/dimensions.
+
 ## 11. Test/CI Gaps
 
 ### PE-24 — The highest-risk cache behavior is tested against the wrong version
@@ -448,6 +486,18 @@ PE-02 and PE-07 are the major rendering findings. Additional observations:
 - **Root cause:** Tests retained assumptions from before the shell/depot version split.
 - **Recommended fix:** Replace textual version checks with a behavioral cache-upgrade test and run the lightweight guard on both PR and push.
 - **Regression test to add:** The PE-01 two-worker install/activate/request scenario in CI.
+
+### PE-24A — Returning-visit cache assertions select a cache that no longer exists
+
+- **Severity:** P1
+- **Status:** Confirmed false-green test
+- **File + function/component:** `tools/smoke.mjs:645-715` (returning-visit cache checks), `sw.js:64-65` (`DEPOT`)
+- **What is wrong:** Both smoke checks search `caches.keys()` for a name ending in `-assets`; the service worker now names the depot `pembroke-assets-v3-depot`.
+- **Why it matters:** The “first visit finishes caching” wait times out, then `stillCached` becomes an empty array. The later assertion checks that none of zero recognized cached models were refetched and can pass vacuously, hiding a broken core service-worker contract.
+- **Reproduction or evidence:** With cache keys `pembroke-v136-shell` and `pembroke-assets-v3-depot`, `find(k => k.endsWith("-assets"))` returns no key at lines 666 and 699.
+- **Root cause:** The depot rename that separated release and asset versions did not update the browser harness.
+- **Recommended fix:** Derive the depot name from one shared/generated source or, minimally, select the `-depot` cache and fail if no fetched model is observed in it.
+- **Regression test to add:** Assert at least one first-visit GLB is in the selected depot, and assert a reload causes zero network fetches for every entry still present.
 
 ### PE-25 — Hosted AI and policy contracts have no hermetic CI suite
 
@@ -484,6 +534,18 @@ PE-02 and PE-07 are the major rendering findings. Additional observations:
 - **Root cause:** The repository pins the browser smoke version but not the more consequential asset compiler toolchain.
 - **Recommended fix:** Add a locked tool manifest or container image and record Blender/Python/CLI versions in generated metadata. Continue taking security updates deliberately, with review.
 - **Regression test to add:** Rebuild a fixed fixture twice in clean environments and compare normalized output/hash and scene metrics.
+
+### PE-27A — The materials post-conversion validator cannot fail the workflow
+
+- **Severity:** P2
+- **Status:** Confirmed CI defect
+- **File + function/component:** `.github/workflows/materials.yml:41-70`
+- **What is wrong:** Both the expected pre-conversion diagnostic and the decisive post-conversion `check-materials.mjs` invocation end with `|| true`.
+- **Why it matters:** The workflow can finish green even if deprecated specular-glossiness materials remain after conversion or a file is skipped, allowing white/untextured characters to be committed.
+- **Reproduction or evidence:** Make the post-conversion checker exit 1; shell status is forced to success at line 70.
+- **Root cause:** A diagnostic exception intended for the pre-conversion scan was copied to the verification step.
+- **Recommended fix:** Keep the pre-check informational if desired, but let the post-check fail the job and prevent commit.
+- **Regression test to add:** Workflow fixture with one deliberately unconverted material; assert the post-conversion step and job fail.
 
 ## 12. Maintainability Findings
 
@@ -530,7 +592,7 @@ PE-02 and PE-07 are the major rendering findings. Additional observations:
 3. Add versioned schema decoders/migrations for all localStorage stores and recover safely from invalid state.
 4. Add conversation generation IDs so cancelled/stale AI work cannot mutate a later view.
 5. Define one authoritative academic completion model; remove the unchecked bridge from manual seals to prerequisites/graduation.
-6. Add a semantic keyboard/screen-reader surface for nearby people and places, plus correct modal/dialog focus management.
+6. Add a semantic keyboard/screen-reader surface for nearby people and places, correct modal/dialog focus management, and centralize global shortcuts.
 7. Make Worker streaming fail explicitly, drain final SSE carry, and enforce whole-stream deadlines.
 8. Suspend expensive rendering when the stage/document is not visible.
 9. Add hermetic Worker/policy/stream tests and a small mobile/accessibility CI job.
@@ -549,8 +611,9 @@ Scope:
    - new asset filename fetches normally without a depot flush;
    - changed existing asset path rotates the depot and returns new bytes;
    - retired paths are removed.
-4. Run the guard on both PR and push.
-5. Do not combine this with rendering, AI, or curriculum refactors.
+4. Fix the smoke harness to select the real depot and require a non-empty cache assertion.
+5. Run the guard on both PR and push.
+6. Do not combine this with rendering, AI, or curriculum refactors.
 
 This is the safest first change because the defect can make every later asset fix appear deployed while users continue running stale bytes.
 
