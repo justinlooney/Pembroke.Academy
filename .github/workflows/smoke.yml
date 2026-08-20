@@ -232,3 +232,50 @@ jobs:
       # plan seats them.
       - name: Is everybody parked somewhere standing like a person?
         run: node tools/check-stance.mjs
+
+  # ── the ledger, in its own job ──────────────────────────────────────
+  # Same argument as the figures above, learned the same way. These
+  # checks need four page loads of their own, and folded into the drive
+  # they took a 25-minute suite to 37 and timed out two checks that pass
+  # in twenty-four seconds on a quiet machine — a false red accusing a
+  # fix that works, which is the most expensive kind. Beside the drive
+  # they cost ninety seconds and answer for themselves.
+  #
+  # What they cover is what a screenshot cannot: a stored ledger with
+  # one bad field used to stop the campus igniting at all, and a seal
+  # taken out of order used to confer the degree without a lecture.
+  # Neither one looks like a fault from outside.
+  ledger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Cache the browser
+        id: browser
+        timeout-minutes: 5
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ env.PW_VERSION }}
+
+      - name: Install Playwright
+        timeout-minutes: 6
+        run: npm install --no-save --no-audit --no-fund playwright@${{ env.PW_VERSION }}
+
+      - name: Fetch the browser
+        if: steps.browser.outputs.cache-hit != 'true'
+        timeout-minutes: 8
+        run: npx playwright install --with-deps chromium
+
+      - name: System libraries for the cached browser
+        if: steps.browser.outputs.cache-hit == 'true'
+        timeout-minutes: 6
+        run: npx playwright install-deps chromium
+
+      - name: Does a bad ledger cost a field or the university?
+        run: node tools/check-ledger.mjs
