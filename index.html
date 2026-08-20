@@ -3123,12 +3123,20 @@ function loadStudy(){
 let study = loadStudy();
 function saveStudy(){ try{ localStorage.setItem(LS_STUDY, JSON.stringify(study)); }catch(_){} }
 function studySections(id){ return (STUDY[id]?.units || []).flatMap(u => u.sections); }
+/* THE HONEST PREDICATE FOR "THIS COURSE CAN BE STUDIED", and the only
+   one anything should use. A STUDY key is not the same claim: content
+   arrives course by course, so an entry can exist with its units still
+   empty, and every place that tested `STUDY[id]` for truthiness would
+   have called that teachable — putting the dead end straight back
+   without a single test noticing, because the tests asked the same
+   wrong question. Sections are what a student actually opens. */
+function hasLectures(id){ return studySections(id).length > 0; }
 function studyProgress(id){
   const all = studySections(id);
   const st = study[id] || {};
   return { total: all.length, mastered: all.filter(s => st[s.n] === 2).length };
 }
-window.__study = { STUDY, progress: studyProgress, state: () => study,
+window.__study = { STUDY, progress: studyProgress, state: () => study, hasLectures,
                    psetOf, psetState, psetGradedKeys, save: saveStudy,
                    /* open a lecture directly: the panel is otherwise
                       four clicks deep behind enrolment, and a check
@@ -3431,7 +3439,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v136";
+const BUILD = "pembroke-v137";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -11678,10 +11686,23 @@ function questInfo(){
      itself, that following instructions does not work.
      `taught` is the whole difference. */
   const open = c => !done.includes(c.id);
-  const taught = c => open(c) && !!STUDY[c.id];
-  const next = (regd && COURSES.find(c => regd.includes(c.id) && taught(c)))
-            || COURSES.find(taught)
-            || null;
+  const taught = c => open(c) && hasLectures(c.id);
+  const mine = regd && COURSES.find(c => regd.includes(c.id) && taught(c));
+  const anywhere = COURSES.find(taught) || null;
+  /* An ENROLLED student whose own schedule has nothing teachable on it
+     is a different case from a visitor with no schedule at all, and
+     saying "Attend MATH 201" to an engineering major is wrong twice
+     over: it is not their course, and they could not have registered
+     for it. The syllabus genuinely is open to anyone — Prof. Merion's
+     own brief says so — so the invitation is real. It is an
+     invitation, not an instruction, and it carries no sector: walking
+     into the Great Library for somebody else's lecture is not a class
+     attended. */
+  if (regd && !mine && anywhere)
+    return { id: anywhere.id,
+             text: `Your registered courses are syllabus only for now — ${anywhere.code} in ` +
+                   `${SECTORS[anywhere.sector].hall} is open to anyone who wants to sit it` };
+  const next = mine || anywhere;
   if (!next){
     /* Nothing teachable is left, which is a different thing from a
        finished degree and must not be dressed as one. Two honest
@@ -11698,12 +11719,18 @@ function questInfo(){
        into the hall the objective names, and there is no lecture to
        have attended here. The text still says where to go; the
        congratulation would be the lie. */
-    return { text: COURSES.some(c => STUDY[c.id])
+    return { text: COURSES.some(c => hasLectures(c.id))
                ? "Every lecture the Academy teaches is sealed — browse the catalogue, or find Prof. Merion by the Great Library"
                : "Browse the catalogue — every course here is syllabus and text for now" };
   }
   const S = SECTORS[next.sector];
-  return { sector: next.sector, text:`Attend ${next.code} · ${next.title} — walk to ${S.hall}` };
+  /* `id` so a check can assert on the course itself. The test used to
+     pull a code out of the sentence with a regex, which is a test of
+     the wording — and a reviewer's probe reading the same shape got
+     nine false passes out of it, comparing undefined to undefined and
+     ticking green. Data, not prose. */
+  return { id: next.id, sector: next.sector,
+           text:`Attend ${next.code} · ${next.title} — walk to ${S.hall}` };
 }
 function refreshQuest(){
   document.getElementById("quest-text").textContent = questInfo().text;
@@ -12210,7 +12237,7 @@ function courseCard(c){
       </div>
     </div>
 
-    ${STUDY[c.id] ? (() => {
+    ${hasLectures(c.id) ? (() => {
       const { total, mastered } = studyProgress(c.id);
       return `
     <button class="pg-toggle w-full mt-4 flex items-center justify-between rounded-xl px-4 py-2.5 text-left transition hover:brightness-125"
@@ -15268,7 +15295,7 @@ function setPlate(key){
 function courseStanding(c, reg){
   if (done.includes(c.id)) return { cls: "sealed", label: "sealed" };
   if (reg.includes(c.id))  return { cls: "open",   label: "registered" };
-  const p = STUDY[c.id] ? studyProgress(c.id) : null;
+  const p = hasLectures(c.id) ? studyProgress(c.id) : null;
   if (p && p.mastered)     return { cls: "open",   label: p.mastered + "/" + p.total + " mastered" };
   return { cls: "wait", label: c.prereqs.length
     ? "needs " + c.prereqs.map(id => byId[id]?.code || id).join(" · ")
@@ -15307,7 +15334,7 @@ function hallRecord(key){
           /* a hall that lists a course it cannot teach yet says so
              here too — the panel is the thing somebody walked across
              the campus to read */
-          STUDY[c.id] ? "" : `<br><i>Syllabus only — the lectures are not written yet.</i>`}</div>
+          hasLectures(c.id) ? "" : `<br><i>Syllabus only — the lectures are not written yet.</i>`}</div>
       </div>`;
     }).join("")}
     <div class="int-sec">Faculty · ${staff.length} in residence</div>
@@ -15397,7 +15424,7 @@ function openInterior(key){
   /* the panel is an access path into the course of study — the
      efficient path stays on the course card, this one is for the
      student who walked here */
-  const studyHere = COURSES.find(c => c.sector === key && STUDY[c.id]);
+  const studyHere = COURSES.find(c => c.sector === key && hasLectures(c.id));
   const sb = document.getElementById("int-study");
   sb.hidden = !studyHere;
   if (studyHere) sb.onclick = () => { closeInterior(); jStudy(studyHere.id); };
@@ -15973,7 +16000,7 @@ function renderJourney(){
           <span class="jtt-code" style="color:${S.color};border-color:${S.soft}.4)">${c.code}</span>
           <span class="jtt-body"><span class="jtt-t">${c.title}</span>
           <span class="jtt-where">meets in <button class="jlink" data-hall="${c.sector}">${S.hall} →</button>${
-            STUDY[id] ? ` · <button class="jlink" data-sty="${id}">course of study</button>`
+            hasLectures(id) ? ` · <button class="jlink" data-sty="${id}">course of study</button>`
                       : ` · <span class="text-slate-500 italic">syllabus only for now</span>`}</span></span>
         </div>`; }).join("")}` : ""}
     ${firstNow && ctas[firstNow[0]] ? `<button class="jcta" id="jgo">${ctas[firstNow[0]][0]}</button>` : ""}
@@ -16098,7 +16125,7 @@ if (Journey.get().onboarding.campusVisit.status === "active"){ orientOn = true; 
    FRAME actually cost that is not a guess reconstructed by walking
    the scene graph. */
 window.__app = { selectSector, openInterior, camera, controls, world, THREE,
-                 renderer };   /* test/debug hooks */
+                 renderer, COURSES };   /* test/debug hooks */
 aerialHome();          /* now that #stage has a real size, frame for it */
 applyMode();
 renderChips();
