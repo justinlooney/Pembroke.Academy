@@ -3431,7 +3431,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v134";
+const BUILD = "pembroke-v135";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -11668,9 +11668,40 @@ function questInfo(){
      stands. */
   const J = window.__journey && window.__journey.get();
   const regd = J && J.registration.completedAt ? J.registration.registeredCourseIds : null;
-  const next = (regd && COURSES.find(c => regd.includes(c.id) && !done.includes(c.id)))
-            || COURSES.find(c => !done.includes(c.id));
-  if (!next) return { text:"Degree complete — Summa Cum Laude. The campus is yours, laureate. 🎓" };
+  /* AND IT MUST NAME SOMETHING YOU CAN ACTUALLY DO. Eleven of the
+     twelve courses are catalogue entries — outcomes, a textbook, a
+     code snippet — with no lectures behind them, and this line used
+     to send people to a hall to attend one of them. It is the single
+     permanently visible instruction in the product, so a dead end
+     here is the most expensive dead end there is: a visitor who
+     follows it and finds nothing has been told, by the campus
+     itself, that following instructions does not work.
+     `taught` is the whole difference. */
+  const open = c => !done.includes(c.id);
+  const taught = c => open(c) && !!STUDY[c.id];
+  const next = (regd && COURSES.find(c => regd.includes(c.id) && taught(c)))
+            || COURSES.find(taught)
+            || null;
+  if (!next){
+    /* Nothing teachable is left, which is a different thing from a
+       finished degree and must not be dressed as one. Two honest
+       endings: every lecture cleared, or the catalogue is ahead of
+       the lecture hall. Both point somewhere real. */
+    if (!COURSES.some(open))
+      return { text:"Degree complete — Summa Cum Laude. The campus is yours, laureate. 🎓" };
+    /* Read from the catalogue rather than naming a course: the first
+       draft of this said "MATH 201 is teaching now" in the branch that
+       fires only when NOTHING is teaching, which would have been the
+       same kind of lie in smaller type. */
+    /* NO `sector` on this one. The only thing that reads it fires a
+       "Class attended — you made it to lecture" toast when you walk
+       into the hall the objective names, and there is no lecture to
+       have attended here. The text still says where to go; the
+       congratulation would be the lie. */
+    return { text: COURSES.some(c => STUDY[c.id])
+               ? "Every lecture the Academy teaches is sealed — browse the catalogue, or find Prof. Merion by the Great Library"
+               : "Browse the catalogue — every course here is syllabus and text for now" };
+  }
   const S = SECTORS[next.sector];
   return { sector: next.sector, text:`Attend ${next.code} · ${next.title} — walk to ${S.hall}` };
 }
@@ -11737,6 +11768,9 @@ function refreshQuest(){
      from outside the module */
   window.__refreshQuest = () => refreshQuest();
 }
+/* the objective itself, so a check can read what it NAMES rather than
+   scraping the sentence off the screen and hoping the wording holds */
+window.__quest = () => questInfo();   /* test/debug hook */
 const mm = document.getElementById("minimap");
 function drawMinimap(){
   const ctx = mm.getContext("2d");
@@ -12187,7 +12221,13 @@ function courseCard(c){
         <span class="font-mono-d text-[9.5px] px-1.5 py-0.5 rounded border" style="color:${S.color};border-color:${S.soft}.4)">${mastered}/${total} lectures</span>
       </span>
       <span class="chev text-slate-400 text-xs">›</span>
-    </button>`; })() : ""}
+    </button>`; })() : `
+    <div class="mt-4 flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-left"
+         style="background:rgba(148,163,184,.05);border:1px dashed rgba(148,163,184,.25)">
+      <span class="font-serif-d text-[15px] text-slate-500">§</span>
+      <span class="text-[11px] uppercase tracking-[.2em] text-slate-500">Syllabus only</span>
+      <span class="text-[11.5px] text-slate-500 italic">the outcomes and the text are set; the lectures are not written yet</span>
+    </div>`}
     <button class="pg-toggle w-full mt-4 flex items-center justify-between rounded-xl px-4 py-2.5 text-left transition hover:brightness-125"
             data-toggle="${c.id}" style="background:${S.soft}.08);border:1px solid ${S.soft}.25)">
       <span class="flex items-center gap-2.5">
@@ -15196,7 +15236,11 @@ function hallRecord(key){
           <span class="int-state ${st.cls}">${esc(st.label)}</span>
         </div>
         <div class="int-meta">${esc(c.level)} · ${c.credits} credits${
-          t ? ` · taught by <b>${esc(t.name)}</b>` : ""}</div>
+          t ? ` · taught by <b>${esc(t.name)}</b>` : ""}${
+          /* a hall that lists a course it cannot teach yet says so
+             here too — the panel is the thing somebody walked across
+             the campus to read */
+          STUDY[c.id] ? "" : `<br><i>Syllabus only — the lectures are not written yet.</i>`}</div>
       </div>`;
     }).join("")}
     <div class="int-sec">Faculty · ${staff.length} in residence</div>
@@ -15861,7 +15905,9 @@ function renderJourney(){
         return `<div class="jtt">
           <span class="jtt-code" style="color:${S.color};border-color:${S.soft}.4)">${c.code}</span>
           <span class="jtt-body"><span class="jtt-t">${c.title}</span>
-          <span class="jtt-where">meets in <button class="jlink" data-hall="${c.sector}">${S.hall} →</button>${STUDY[id] ? ` · <button class="jlink" data-sty="${id}">course of study</button>` : ""}</span></span>
+          <span class="jtt-where">meets in <button class="jlink" data-hall="${c.sector}">${S.hall} →</button>${
+            STUDY[id] ? ` · <button class="jlink" data-sty="${id}">course of study</button>`
+                      : ` · <span class="text-slate-500 italic">syllabus only for now</span>`}</span></span>
         </div>`; }).join("")}` : ""}
     ${firstNow && ctas[firstNow[0]] ? `<button class="jcta" id="jgo">${ctas[firstNow[0]][0]}</button>` : ""}
     <div class="mt-2 flex flex-wrap gap-x-4">

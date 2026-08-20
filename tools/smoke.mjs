@@ -201,6 +201,52 @@ try {
   step("all twelve courses render", shelf.courses === 12, shelf.courses + " cards");
   step("registrar ledger reports", /\d/.test(shelf.total), JSON.stringify(shelf.total));
 
+  /* THE ONE PERMANENTLY VISIBLE INSTRUCTION MUST NAME SOMETHING YOU
+     CAN DO. Eleven of the twelve courses are catalogue entries with no
+     lectures behind them, and the objective used to pick the first
+     uncompleted course with no check for that — so a fully enrolled
+     student was told to "Attend MATH 101 · College Algebra", walked to
+     the Great Library, and found nothing there. A dead end here is the
+     most expensive one in the product: it teaches the visitor that
+     following the campus's instructions does not work.
+
+     Every stage, because the objective renders at every stage and the
+     bug was present at all of them. Set directly rather than clicked
+     through — six stages of clicking would be testing the journey. */
+  const quest = await page.evaluate(() => {
+    const J = window.__journey, out = [];
+    const order = ["visitor","applicant","accepted","advised","declared","enrolled"];
+    for (const stage of order){
+      J.reset();
+      J.patch(j => {
+        const at = Date.now(), upto = order.indexOf(stage);
+        if (upto >= 1) j.admissions.applicationSubmittedAt = at;
+        if (upto >= 2) j.admissions.acceptedAt = at;
+        if (upto >= 3) j.advising.completedAt = at;
+        if (upto >= 4){ j.academics.declaredMajorId = "lib"; j.academics.declaredAt = at; }
+        if (upto >= 5){ j.registration.registeredCourseIds = ["MATH101","MATH120","MATH201"];
+                        j.registration.completedAt = at; }
+      });
+      const q = window.__quest();
+      const m = /\b([A-Z]{2,4})\s?(\d{3})\b/.exec(q.text || "");
+      const id = m ? m[1] + m[2] : null;
+      out.push({ stage, id, text: (q.text || "").slice(0, 60), sector: q.sector || null,
+                 teachable: !id || !!window.__study.STUDY[id] });
+    }
+    J.reset();
+    return out;
+  });
+  const dead = quest.filter(r => !r.teachable);
+  step("the objective always names something that can be done",
+       dead.length === 0,
+       dead.length ? dead.map(r => `${r.stage} → ${r.id} has no lessons`).join(" · ")
+                   : quest.map(r => r.stage + ":" + (r.id || "no course")).join(" "));
+  /* q.sector fires a "you made it to lecture" toast on entering that
+     hall — it must not be set for an objective with no lecture in it */
+  const congrats = quest.filter(r => r.sector && !(r.id && r.teachable));
+  step("no lecture is congratulated where none is taught", congrats.length === 0,
+       congrats.map(r => r.stage + " → sector " + r.sector).join(" · ") || "every sector earns its toast");
+
   /* An unanswered knowledge check is not a wrong one. Submitting with
      nothing selected used to mark every question wrong, reveal every
      answer permanently, and write a miss per question into the study
