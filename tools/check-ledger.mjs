@@ -145,6 +145,51 @@ try {
   step("the journey cannot be moved except through patch()",
        isolated.before === isolated.after,
        `status went ${isolated.before} → ${isolated.after} by assigning to get()`);
+  /* ── 4. stored fields are read as words, never as markup ─────────
+     jOpen() writes innerHTML, and the admissions views build that
+     string out of what the visitor typed. Storing a tag as a first
+     name used to fire four handlers and greet the reader "Dear ," —
+     the name consumed as markup rather than printed. Self-inflicted
+     while the only source is the local keyboard, and a stored XSS the
+     day it is not, so it is checked at the boundary rather than
+     argued about. */
+  const PAYLOAD = `<img src=x onerror="window.__xss=(window.__xss||0)+1">`;
+  await page.evaluate(v => localStorage.setItem("pembroke.registrar.journey", v),
+    JSON.stringify({
+      admissions: {
+        application: { first: PAYLOAD, last: PAYLOAD, pref: "", email: "a@b.co",
+                       interest: PAYLOAD, statement: PAYLOAD },
+        applicationSubmittedAt: 1, acceptedAt: 1, term: PAYLOAD,
+      },
+      registration: { term: PAYLOAD },
+    }));
+  await page.reload({ waitUntil: "domcontentloaded", timeout: 90_000 });
+  if (!await booted()) throw new Error("the page did not come back after storing an application");
+
+  const stored = await page.evaluate(async () => {
+    document.getElementById("jletter-open")?.click();
+    await new Promise(r => setTimeout(r, 200));
+    const body = document.getElementById("jmodal-body");
+    return {
+      fired: window.__xss || 0,
+      imgs: document.querySelectorAll("#jmodal-body img, #journey img").length,
+      opened: !!body && body.children.length > 0,
+      /* the name must SURVIVE as words — "Dear ," is the bug, and an
+         empty letter would satisfy a check that only counted tags */
+      greets: (body?.textContent || "").includes("onerror"),
+      greeting: ((body?.textContent || "").match(/Dear[^,]*,/) || ["(no greeting)"])[0],
+    };
+  });
+  step("a stored tag never becomes a tag", stored.fired === 0 && stored.imgs === 0,
+       `${stored.fired} handler(s) fired, ${stored.imgs} element(s) built from stored text`);
+  /* Report what was actually observed, not what a pass would have
+     meant: this printed "greeting carries the stored text verbatim"
+     while failing, which is the same kind of lie the cache check used
+     to tell about eviction. */
+  step("and the name still reaches the page as words", stored.opened && stored.greets,
+       !stored.opened ? "the letter did not open — the check above proved nothing"
+       : stored.greets ? "letter rendered, greeting carries the stored text verbatim"
+       : `letter rendered but the greeting lost it — reads "${stored.greeting}"`);
 } catch (e) {
   step("ledger check completed", false, e.message.split("\n")[0]);
 } finally {

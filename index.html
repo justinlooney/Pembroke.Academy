@@ -610,6 +610,39 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
   cursor:pointer;transition:transform .3s ease;
 }
 #walkbtn:hover{transform:scale(1.12);}
+#nearbybtn{
+  position:absolute;top:4.6rem;right:4.9rem;z-index:25;
+  width:46px;height:46px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:19px;
+  background:linear-gradient(160deg, rgba(20,28,46,.9), rgba(10,16,30,.9));
+  border:1.5px solid rgba(212,175,106,.55);
+  box-shadow:0 8px 24px -8px rgba(0,0,0,.8), 0 0 18px -6px rgba(212,175,106,.5);
+  cursor:pointer;transition:transform .3s ease;
+}
+#nearbybtn:hover{transform:scale(1.12);}
+#nearbybtn[aria-expanded="true"]{border-color:var(--brass);background:linear-gradient(160deg, rgba(60,48,24,.95), rgba(30,24,10,.95));}
+.nearby{
+  position:absolute;left:1.4rem;top:8rem;z-index:30;width:16.5rem;
+  max-height:min(56vh,26rem);overflow-y:auto;padding:.6rem;
+  border-radius:.85rem;border:1px solid rgba(212,175,106,.3);
+  background:rgba(8,12,22,.94);backdrop-filter:blur(8px);
+  box-shadow:0 18px 44px -18px rgba(0,0,0,.9);
+}
+.nearby[hidden]{display:none;}
+.nb-h{font-size:10px;text-transform:uppercase;letter-spacing:.18em;color:var(--brass-dim);
+  padding:.35rem .3rem .3rem;}
+.nb-row{display:block;width:100%;text-align:left;padding:.42rem .5rem;border-radius:.5rem;
+  border:1px solid transparent;color:#e2e8f0;cursor:pointer;background:none;}
+.nb-row:hover:not(:disabled){background:rgba(212,175,106,.12);border-color:rgba(212,175,106,.32);}
+.nb-row:disabled{opacity:.45;cursor:default;}
+.nb-name{display:block;font-size:12.5px;}
+.nb-meta{display:block;font-size:10.5px;color:#94a3b8;}
+.nb-where{display:block;font-size:10.5px;color:var(--brass-dim);}
+.nb-empty{padding:.4rem .5rem;font-size:11px;color:#94a3b8;}
+@media (max-width:640px){
+  #nearbybtn{top:3.9rem;right:3.9rem;width:40px;height:40px;font-size:16px;}
+  .nearby{left:1rem;right:1rem;width:auto;top:7rem;}
+}
 .walkmode #walkbtn{border-color:#38bdf8;background:linear-gradient(160deg, rgba(24,60,90,.95), rgba(10,30,50,.95));}
 #minimap{
   position:absolute;top:7.9rem;right:1.4rem;z-index:25;
@@ -683,7 +716,15 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
   width:56px;height:56px;border-radius:50%;font-size:20px;color:#e2e8f0;
   background:rgba(8,12,22,.7);border:1.5px solid rgba(148,163,184,.5);
 }
-@media (hover:none){ .walkmode #touchpad{display:flex;} }
+/* A hybrid laptop reports hover:hover while its owner is touching the
+   screen, and used to get fullscreen walk mode with no pad and no way
+   to move. What decides a PAD is whether a coarse pointer exists at
+   all — or, failing that, whether one has actually been used. What
+   decides whether to REMOVE a keyboard legend is a different question
+   with a different answer, and the (hover:none) blocks below keep it:
+   a device with a touchscreen and a keyboard needs both, not either. */
+@media (any-pointer: coarse){ .walkmode #touchpad{display:flex;} }
+body.touched.walkmode #touchpad{display:flex;}
 /* walk-mode scene overrides: JS owns the camera transform completely */
 #scene.walking{animation:none;transition:none;transform-origin:0 0;}
 #stage.walking{perspective:640px;perspective-origin:50% 50%;padding-top:0;}
@@ -910,7 +951,7 @@ body.walkmode #topbar{visibility:hidden;}
 #convo-input{flex:1;min-width:0;padding:.55rem .8rem;border-radius:.6rem;
   border:1px solid rgba(148,163,184,.4);background:rgba(8,12,22,.75);
   color:#f1f5f9;font-size:13.5px;}
-#convo-input:focus{outline:none;border-color:var(--brass);}
+#convo-input:focus{border-color:var(--brass);}
 .convo-thinking{font-size:12px;color:#94a3b8;font-style:italic;margin:.3rem 0 .5rem;
   display:flex;align-items:center;gap:.6rem;}
 .convo-thinking span::after{content:"";}
@@ -1119,7 +1160,7 @@ body.panel-open #toasts{bottom:5.5rem;}
 .st-num{display:block;width:12rem;max-width:100%;margin:.35rem 0;padding:.45rem .7rem;
   border-radius:.55rem;border:1px solid rgba(148,163,184,.4);background:rgba(8,12,22,.7);
   color:#f1f5f9;font-family:ui-monospace,monospace;font-size:13px;}
-.st-num:focus{outline:none;border-color:var(--brass);}
+.st-num:focus{border-color:var(--brass);}
 /* the gradebook rows */
 .st-grow{display:grid;grid-template-columns:1fr auto auto;gap:.15rem .8rem;align-items:baseline;
   padding:.5rem .3rem;border-bottom:1px solid rgba(148,163,184,.15);}
@@ -1140,10 +1181,14 @@ body.panel-open #toasts{bottom:5.5rem;}
 .orient .o-step .o-tick{flex:none;color:var(--brass);font-size:11px;width:1rem;}
 /* Walking on a phone, the full checklist sat squarely on the ◀ ▲ ▶ pads.
    Collapse it to the one step that matters and lift it clear of them. */
-@media (hover:none){
+/* this one is about the pad being in the way, so it asks the same
+   question the pad does */
+@media (any-pointer: coarse){
   body.walkmode .orient{bottom:11.6rem;}
   body.walkmode .orient .o-step:not(.now){display:none;}
 }
+body.touched.walkmode .orient{bottom:11.6rem;}
+body.touched.walkmode .orient .o-step:not(.now){display:none;}
 @media print{
   body.j-print > *:not(#jmodal){display:none !important;}
   body.j-print #jmodal,.j-print .jmodal-card{position:static !important;transform:none !important;
@@ -1151,8 +1196,27 @@ body.panel-open #toasts{bottom:5.5rem;}
   body.j-print .jmodal-scrim,.j-print .jmodal-x,.j-print .jletter-actions{display:none !important;}
   body.j-print .jletter{box-shadow:none !important;}
 }
-@media (prefers-reduced-motion: reduce){
-  .jcta{transition:none;}
+/* ── the focus ring ───────────────────────────────────────────────
+   There were four :focus rules in this stylesheet and one in
+   site.css, so almost everything a keyboard could reach showed
+   nothing at all when it got there. One rule, in the brass the
+   campus already wears.
+
+   :focus-visible, not :focus, so a mouse click on a button does not
+   paint a ring nobody asked for while a Tab does. Wrapped in :where()
+   so its specificity is zero and the four hand-tuned rules above and
+   below still win — the white ring on .jcta is deliberate, gold on
+   gold being no ring at all.
+
+   The dark halo is not decoration: this HUD floats over a daytime sky
+   and sunlit grass, where a thin brass line alone disappears. Same
+   reasoning as the text-shadow the overlays already carry. */
+:where(a[href],button,input,select,textarea,summary,pre,
+       [tabindex]:not([tabindex="-1"])):focus-visible{
+  outline:2px solid var(--brass);
+  outline-offset:2px;
+  border-radius:3px;
+  box-shadow:0 0 0 4px rgba(6,10,20,.8);
 }
 
 /* ═══════════════ ⑥ THE ARRIVAL ═══════════════ */
@@ -1180,8 +1244,32 @@ body.panel-open #toasts{bottom:5.5rem;}
 #arr-skip{position:absolute;right:1rem;bottom:1rem;z-index:210;background:none;border:0;
   color:#5f6c84;font-size:10.5px;text-transform:uppercase;letter-spacing:.2em;cursor:pointer;padding:.5rem;}
 #arr-skip:hover{color:#d4af6a;}
+/* ── reduced motion ───────────────────────────────────────────────
+   Three narrow blocks used to name a handful of elements each, while
+   the campus itself breathed, the clouds crossed the sky, the gsplats
+   drifted, the trees swayed and the fireflies rose — all of it
+   unguarded, and all of it large-area movement over the whole window,
+   which is exactly the kind this setting exists to stop.
+
+   Every ambient loop on this page is a CSS animation, so one rule
+   reaches all of them, including the ones added after this comment —
+   which is the argument for the blanket over another list to keep up
+   to date. Nothing here listens for animationend or transitionend, so
+   ending an animation immediately cannot strand any state; the
+   fill-mode "both" entrances simply arrive at their final frame.
+
+   Not silenced: the cohort. The rigged bodies walk through an
+   AnimationMixer rather than a keyframe, and a quad of people frozen
+   mid-stride is a broken campus rather than a calm one. The motion
+   this setting is about is the world moving under the visitor, and
+   that is the camera — which nothing moves here but the visitor. */
 @media (prefers-reduced-motion: reduce){
-  .arr-crest,.arr-name,.arr-motto,.arr-bar,.arr-note,#arr-cta{animation:none;}
+  *,*::before,*::after{
+    animation-duration:.001ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:.001ms !important;
+    scroll-behavior:auto !important;
+  }
 }
 </style>
 </head>
@@ -1269,7 +1357,23 @@ body.panel-open #toasts{bottom:5.5rem;}
     </div>
     <button id="daynight" title="Toggle day / night" aria-label="Toggle day or night">🌙</button>
     <button id="walkbtn" title="Walk the campus (F)" aria-label="Enter first-person walk mode">🎮</button>
+    <button id="nearbybtn" title="People and places (P)" aria-expanded="false"
+            aria-controls="nearby" aria-label="People and places nearby">👥</button>
     <canvas id="minimap" width="132" height="132" aria-label="Campus minimap"></canvas>
+
+    <!-- The keyboard's way in. Buildings were already reachable — keys
+         1-4 run selectSector(key, true), which opens the interior 520ms
+         later — but a PERSON was reachable only by pointing at them, so
+         the Campus Visit step "tap a student and say hello" had no
+         keyboard equivalent at all. These are the same convoOpen() and
+         openInterior() calls the raycast makes, given names and put in
+         the tab order. -->
+    <div id="nearby" class="nearby" aria-label="People and places" hidden>
+      <div class="nb-h">People on the quad</div>
+      <div id="nb-people"></div>
+      <div class="nb-h">Places</div>
+      <div id="nb-places"></div>
+    </div>
 
     <!-- quest banner: the current academic objective -->
     <div id="quest" role="button" tabindex="0" aria-expanded="true"
@@ -1292,7 +1396,7 @@ body.panel-open #toasts{bottom:5.5rem;}
 
     <div id="campus-wing-intro" class="absolute inset-x-0 top-0 pt-6 sm:pt-8 px-6 sm:px-10 z-10 pointer-events-none">
       <h1 class="font-serif-d text-3xl sm:text-4xl font-semibold text-[color:var(--parchment)] leading-tight drop-shadow-lg">The Gothic <span class="italic text-[color:var(--brass)]">Quadrangle</span></h1>
-      <p class="text-[13px] text-slate-400 mt-1.5 max-w-md">Four halls of hewn granite, glowing tracery, and slate spires. <span class="text-slate-300">Click a building</span> to step inside its lecture wing — or wander the lawn with the cohort.</p>
+      <p class="text-[13px] text-slate-300 mt-1.5 max-w-md">Four halls of hewn granite, glowing tracery, and slate spires. <span class="text-[color:var(--parchment)]">Click a building</span> to step inside its lecture wing — or wander the lawn with the cohort.</p>
     </div>
 
     <!-- the WebGL world (Three.js) + CSS2D label overlay mount here -->
@@ -1306,12 +1410,12 @@ body.panel-open #toasts{bottom:5.5rem;}
       <div class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-sm inline-block" style="background:var(--quad-adm);box-shadow:0 0 8px var(--quad-adm)"></i><span class="text-slate-300">Administration · AI Robotics &amp; Flight</span></div>
     </div>
     <div id="campus-hints" class="absolute right-5 sm:right-8 bottom-5 z-10 text-right pointer-events-none">
-      <div id="hint-keys" class="text-[10px] uppercase tracking-[.24em] text-slate-500">Keys 1–4 · quads · 0 · syllabus · N · day/night · F · walk mode</div>
-      <div class="text-[10px] uppercase tracking-[.24em] text-slate-600 mt-1">drag to orbit · scroll to zoom</div>
+      <div id="hint-keys" class="text-[10px] uppercase tracking-[.24em] text-slate-300">Keys 1–4 · quads · 0 · syllabus · N · day/night · F · walk mode</div>
+      <div class="text-[10px] uppercase tracking-[.24em] text-slate-300 mt-1">drag to orbit · scroll to zoom</div>
     </div>
 
     <!-- ═══════ CONVERSATION (the campus stops; one person remains) ═══════ -->
-    <div id="convo" aria-hidden="true">
+    <div id="convo" aria-hidden="true" inert>
       <div class="convo-card">
         <div class="convo-who">
           <div class="convo-name" id="convo-name"></div>
@@ -1338,7 +1442,7 @@ body.panel-open #toasts{bottom:5.5rem;}
          entering for what it TELLS you, so the door now opens the
          hall's own record over a photograph of the room. See
          openInterior(). -->
-    <div id="interior" aria-hidden="true">
+    <div id="interior" aria-hidden="true" inert>
       <div class="int-plate" id="int-plate"></div>
       <div class="int-sheet" id="int-sheet" tabindex="-1">
         <div class="int-head">
@@ -1379,11 +1483,11 @@ body.panel-open #toasts{bottom:5.5rem;}
       <div id="courses" class="space-y-6"></div>
 
       <!-- footer / ledger controls -->
-      <footer class="mt-10 mb-4 flex flex-wrap items-center justify-between gap-4 text-[11px] text-slate-500">
+      <footer class="mt-10 mb-4 flex flex-wrap items-center justify-between gap-4 text-[11px] text-slate-400">
         <div>
           <span class="font-serif-d italic text-[13px] text-slate-400">"Lux, Mathesis, Machina"</span> — Light, Learning, and the Machine.
           <div class="mt-1">Progress is inscribed to your browser's <code class="font-mono-d text-[10.5px]">localStorage</code> ledger — it survives every visit.</div>
-          <div class="mt-1 text-slate-600">3D, adapted, <a class="underline hover:text-slate-400" href="http://creativecommons.org/licenses/by/4.0/">CC-BY-4.0</a> unless noted: "<a class="underline hover:text-slate-400" href="https://sketchfab.com/tabitown">Cathedral</a>" by tabitown · "New Colgate University Dorm" · "Baseball stadium 3d drone survey" by KCraw · university campus aerial scan, sugar maple, residence hall, cathedral and the Drosdick Hall atrium capture (World&nbsp;Labs Marble) supplied by the project owner · flora by Miguel-Angel, PropShop™, EFX, Joanne Viertel &amp; Batuhan13. Full list in assets/CREDITS.md.</div>
+          <div class="mt-1 text-slate-400">3D, adapted, <a class="underline hover:text-[color:var(--parchment)]" href="http://creativecommons.org/licenses/by/4.0/">CC-BY-4.0</a> unless noted: "<a class="underline hover:text-[color:var(--parchment)]" href="https://sketchfab.com/tabitown">Cathedral</a>" by tabitown · "New Colgate University Dorm" · "Baseball stadium 3d drone survey" by KCraw · university campus aerial scan, sugar maple, residence hall, cathedral and the Drosdick Hall atrium capture (World&nbsp;Labs Marble) supplied by the project owner · flora by Miguel-Angel, PropShop™, EFX, Joanne Viertel &amp; Batuhan13. Full list in assets/CREDITS.md.</div>
         </div>
         <div class="flex gap-2 flex-wrap">
           <button id="ai-settings" class="chip rounded-full px-4 py-1.5 text-[11px] uppercase tracking-[.15em] text-slate-400 hover:text-[color:var(--brass)]">Local AI</button>
@@ -3488,7 +3592,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v140";
+const BUILD = "pembroke-v142";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -11856,6 +11960,14 @@ document.querySelectorAll("#touchpad button").forEach(b => {
   b.addEventListener("pointerdown", on); b.addEventListener("pointerup", off);
   b.addEventListener("pointerleave", off); b.addEventListener("pointercancel", off);
 });
+/* The media query asks whether a coarse pointer EXISTS; this asks
+   whether one has been used. Between them a hybrid laptop is covered
+   whichever way its owner is holding it, and neither one takes the
+   keyboard away — the class only adds affordances. Capture, so it
+   still fires for a pointerdown some other handler stops. */
+addEventListener("pointerdown", e => {
+  if (e.pointerType === "touch") document.body.classList.add("touched");
+}, { capture: true, passive: true });
 
 /* ── quest log + minimap ─────────────────────────────────────────── */
 function questInfo(){
@@ -12163,6 +12275,8 @@ function dbgUpdate(now, dt, raw){
         (AI.diag.fallback ? "  [" + AI.diag.fallback + "]" : "") +
         (AI.diag.ms ? "  " + (AI.diag.ttft ? (AI.diag.ttft / 1000).toFixed(1) + "s→" : "") + (AI.diag.ms / 1000).toFixed(1) + "s" : "") +
         (AI.diag.ptok ? "  " + AI.diag.ptok + "→" + AI.diag.ctok + " tok" : "") +
+        (AI.diag.cut ? "  cut:" + AI.diag.cut : "") +
+        (AI.diag.bad ? "  " + AI.diag.bad + " unreadable" : "") +
         (AI.diag.mems ? "  " + AI.diag.mems + " mem" : "") + "\n"
       : "") +
     (slow ? "slowest\n" + slow : "");
@@ -12272,7 +12386,19 @@ const chipsEl   = document.getElementById("chips");
 const bannerEl  = document.getElementById("sector-banner");
 const coursesEl = document.getElementById("courses");
 
-function esc(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+/* Two contexts, one core. esc() is for TEXT and for RCDATA — escaping
+   "<" is what stops a stored "</textarea>" from ending the element it
+   sits in. escA() adds the quotes an attribute value needs.
+   esc() deliberately does NOT escape quotes: the syntax highlighter
+   below runs on its output and matches string literals by their quote
+   characters, so widening it silently un-colours every code sample on
+   the campus. Attributes get escA(); nothing else needs the quotes.
+   Both coerce, because a stored ledger is JSON somebody else wrote and
+   admissions.application is a free-form slot — a name that arrives as
+   a number would otherwise throw on .replace and take the page with
+   it, which is the failure #99 was about. */
+function esc(s){ return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function escA(s){ return esc(s).replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
 
 /* minimal, safe syntax illumination: split each line at its comment,
    colorize keywords / numbers / strings only on the code half */
@@ -12471,10 +12597,10 @@ function courseCard(c){
     <div class="playground" data-panel="${c.id}">
       <div class="codebox rounded-xl mt-3 overflow-hidden" style="--c:${S.color}">
         <div class="flex items-center justify-between gap-3 px-4 py-2 border-b border-slate-700/50">
-          <span class="text-[10.5px] text-slate-500 italic truncate">${c.snippetNote}</span>
+          <span class="text-[10.5px] text-slate-400 italic truncate">${c.snippetNote}</span>
           <button class="copy-btn flex-none font-mono-d text-[10px] uppercase tracking-[.15em] hover:text-[color:var(--parchment)] transition" style="color:${S.color}" data-copy-course="${c.id}">copy ⧉</button>
         </div>
-        <pre class="p-4 overflow-x-auto text-slate-300"><code>${highlight(c.snippet, c.lang)}</code></pre>
+        <pre class="p-4 overflow-x-auto text-slate-300" tabindex="0"><code>${highlight(c.snippet, c.lang)}</code></pre>
       </div>
     </div>
   </article>`;
@@ -12493,9 +12619,9 @@ function renderCourses(){
         <div class="flex items-center gap-3 pt-3 first:pt-0">
           <span class="w-2.5 h-2.5 rounded-sm flex-none" style="background:${S.color};box-shadow:0 0 10px ${S.color}"></span>
           <h3 class="font-serif-d text-lg font-semibold text-slate-200 whitespace-nowrap">${S.hall}</h3>
-          <span class="text-[10px] uppercase tracking-[.18em] text-slate-500 truncate">${S.track}</span>
+          <span class="text-[10px] uppercase tracking-[.18em] text-slate-400 truncate">${S.track}</span>
           <span class="flex-1 h-px" style="background:linear-gradient(90deg, ${S.soft}.35), transparent)"></span>
-          <span class="font-mono-d text-[10.5px] text-slate-500 flex-none">${courseCountText(k)}</span>
+          <span class="font-mono-d text-[10.5px] text-slate-400 flex-none">${courseCountText(k)}</span>
         </div>
         ${group.map(courseCard).join("")}`;
     }).join("");
@@ -14002,14 +14128,116 @@ function selectSector(key, fromCampus){
   }, 240);
 }
 
-/* keyboard wayfinding: 1–4 quads, 0 full syllabus */
+/* keyboard wayfinding: 1–4 quads, 0 full syllabus, P people and places */
 window.addEventListener("keydown", (e) => {
   if (e.target.matches("input,textarea")) return;
   const map = { "1":"lib", "2":"eng", "3":"sci", "4":"adm", "0":"all" };
   if (map[e.key]) selectSector(map[e.key], true);
   if (e.key === "n" || e.key === "N") document.getElementById("daynight").click();
+  if (e.key === "p" || e.key === "P") nearbyToggle();
   if (e.key === "Escape") closeInterior();
 });
+
+/* ── the keyboard's way in ───────────────────────────────────────────
+   A building could always be reached from the keyboard: 1–4 run
+   selectSector(key, true), which opens the interior. A PERSON could
+   not. convoOpen() had exactly one user entry — a ray cast from a
+   pointer — so "tap a student and say hello", which is a step of the
+   Campus Visit the campus asks every visitor to complete, had no
+   keyboard equivalent and the orientation could only be skipped.
+
+   This calls the same convoOpen() and openInterior() the ray calls.
+   It is a list of the world, not a second way of doing things: if the
+   ray can reach it, this can, and neither knows about the other. The
+   cathedral is here because it is the one place with no number key. */
+const nearbyEl  = document.getElementById("nearby");
+const nearbyBtn = document.getElementById("nearbybtn");
+const NB_PLACES = [...SECTOR_ORDER, "cathedral"];
+let nearbyTimer = null;
+
+function nearbyRender(){
+  const from = camera.position, p = new THREE.Vector3();
+  const people = students
+    .filter(s => s.data?.name && s.g)
+    .map(s => { s.g.getWorldPosition(p); return { s, d: p.distanceTo(from), out: s.g.visible }; })
+    .sort((a, b) => a.d - b.d);
+  /* Where somebody is, in words. In walk mode the camera is the
+     visitor, so a distance means something and is worth saying; from
+     the air it is the height of the camera and means nothing, so it
+     is not said. Somebody indoors is listed and disabled rather than
+     hidden — "Prof. Merion is inside" is an answer, and a name that
+     vanishes from a list looks like a name that does not exist. */
+  const where = ({ d, out }) => !out ? "inside a building"
+    : !walker.on ? "on the quad"
+    : d < 120 ? "right here"
+    : d < 350 ? "a short walk away"
+    : "across the campus";
+  const peopleHtml = people.length
+    ? people.map(r => {
+        const ai = r.s.data.ai || {};
+        return `<button class="nb-row" data-talk="${escA(r.s.data.name)}"${r.out ? "" : " disabled"}>
+          <span class="nb-name">${esc(r.s.data.name)}</span>
+          <span class="nb-meta">${esc([ai.year, r.s.data.major].filter(Boolean).join(" · "))}</span>
+          <span class="nb-where">${esc(where(r))}</span></button>`;
+      }).join("")
+    : `<div class="nb-empty">Nobody is out on the quad just now.</div>`;
+  const placesHtml = NB_PLACES.map(k => {
+    const S = SECTORS[k]; if (!S) return "";
+    return `<button class="nb-row" data-enter="${escA(k)}">
+      <span class="nb-name">${esc(S.hall)}</span>
+      <span class="nb-meta">${esc(S.track)}</span>
+      <span class="nb-where">step inside</span></button>`;
+  }).join("");
+
+  /* Review caught this: the list refreshes every 1.5s because people
+     walk, and rewriting innerHTML destroys whatever the keyboard was
+     resting on — so the reader is thrown out of the panel every second
+     and a half. Against the very people this surface is for.
+
+     Two guards, and the first does most of the work: if the words have
+     not changed, do not touch the DOM at all. From the air nobody's
+     line ever changes, so the panel simply stops churning. When they
+     do change, the row the keyboard held is found again by its key —
+     the same name, wherever it has sorted to — and only then does it
+     fall back to the first row it can offer. */
+  const peopleEl = document.getElementById("nb-people");
+  const placesEl = document.getElementById("nb-places");
+  if (peopleEl.innerHTML === peopleHtml && placesEl.innerHTML === placesHtml) return;
+  const held = nearbyEl.contains(document.activeElement) ? document.activeElement : null;
+  const key = held && (held.dataset.talk ? `talk:${held.dataset.talk}`
+                     : held.dataset.enter ? `enter:${held.dataset.enter}` : null);
+  peopleEl.innerHTML = peopleHtml;
+  placesEl.innerHTML = placesHtml;
+  if (!key) return;
+  const [kind, val] = [key.slice(0, key.indexOf(":")), key.slice(key.indexOf(":") + 1)];
+  const again = nearbyEl.querySelector(`[data-${kind}="${CSS.escape(val)}"]:not([disabled])`);
+  (again || nearbyEl.querySelector(".nb-row:not([disabled])"))?.focus();
+}
+function nearbyToggle(force){
+  const open = force === undefined ? nearbyEl.hidden : !!force;
+  if (open && (convoView || interiorView || jmodal.classList.contains("open"))) return;
+  const held = nearbyEl.contains(document.activeElement);
+  nearbyEl.hidden = !open;
+  nearbyBtn.setAttribute("aria-expanded", String(open));
+  clearInterval(nearbyTimer); nearbyTimer = null;
+  if (open){
+    nearbyRender();
+    /* people walk while the list is up, so the list walks with them */
+    nearbyTimer = setInterval(nearbyRender, 1500);
+    nearbyEl.querySelector(".nb-row:not([disabled])")?.focus();
+  } else if (held) nearbyBtn.focus();   /* only if it was ours to give back */
+}
+nearbyBtn.addEventListener("click", () => nearbyToggle());
+nearbyEl.addEventListener("keydown", e => { if (e.key === "Escape") nearbyToggle(false); });
+nearbyEl.addEventListener("click", e => {
+  const t = e.target.closest("[data-talk],[data-enter]");
+  if (!t) return;
+  nearbyToggle(false);
+  if (t.dataset.enter){ openInterior(t.dataset.enter); return; }
+  const s = students.find(x => x.data?.name === t.dataset.talk);
+  if (s) convoOpen(s);
+});
+window.__nearby = { toggle: nearbyToggle, render: nearbyRender };   /* test/debug hook */
 
 /* ── AI health: one honest diagnosis of the local setup ────────────
    ready / model-missing / origin-blocked / unreachable / timeout.
@@ -14081,17 +14309,17 @@ function jAISettings(){
     <div id="ai-adv" ${c.mode === "ollama" ? "" : "hidden"}>
       <p class="text-[11.5px] text-slate-500 mb-2">Run <code class="font-mono-d text-[11px]">OLLAMA_ORIGINS=${location.origin} ollama serve</code> and pull the two models. Desktop only.</p>
       <label class="jfield"><span>Ollama URL</span>
-        <input name="ai-url" type="text" value="${c.url.replace(/"/g, "&quot;")}" autocomplete="off"></label>
+        <input name="ai-url" type="text" value="${escA(c.url)}" autocomplete="off"></label>
       <div class="jgrid2">
         <label class="jfield"><span>Social model</span>
-          <input name="ai-social" type="text" value="${c.social.replace(/"/g, "&quot;")}" autocomplete="off"></label>
+          <input name="ai-social" type="text" value="${escA(c.social)}" autocomplete="off"></label>
         <label class="jfield"><span>Academic model</span>
-          <input name="ai-academic" type="text" value="${c.academic.replace(/"/g, "&quot;")}" autocomplete="off"></label>
+          <input name="ai-academic" type="text" value="${escA(c.academic)}" autocomplete="off"></label>
       </div>
     </div>
     <details class="mb-2"><summary class="text-[11px] text-slate-500 cursor-pointer">Advanced</summary>
       <label class="jfield mt-2"><span>Gateway URL (hosted)</span>
-        <input name="ai-gateway" type="text" value="${(c.gateway || "").replace(/"/g, "&quot;")}" placeholder="deployed Worker URL" autocomplete="off"></label>
+        <input name="ai-gateway" type="text" value="${escA(c.gateway)}" placeholder="deployed Worker URL" autocomplete="off"></label>
       <label class="jfield"><span>Spoken replies (browser voices)</span>
         <select name="ai-voice"><option value="off" ${c.voice ? "" : "selected"}>Off</option>
           <option value="on" ${c.voice ? "selected" : ""}>On</option></select></label>
@@ -14553,6 +14781,7 @@ function convoOpen(s){
   convoSay(s, null);
   convoEl.classList.add("open");
   convoEl.setAttribute("aria-hidden", "false");
+  convoEl.removeAttribute("inert");
   document.body.classList.add("convo-open");
   /* the stage has just left the document and covers the window, so the
      renderer and both cameras need the new shape */
@@ -14595,7 +14824,12 @@ function convoClose(){
   convoLook = null;
   convoView = null; convoHome = null;
   convoEl.classList.remove("open");
+  /* inert alongside aria-hidden, always: aria-hidden alone told the
+     screen reader the panel was gone while leaving its input, send,
+     cancel and leave controls in the tab order — a keyboard could
+     still walk into a conversation that was not happening. */
   convoEl.setAttribute("aria-hidden", "true");
+  convoEl.setAttribute("inert", "");
   document.body.classList.remove("convo-open");
   resize();                      /* and back into the page it goes */
 }
@@ -14942,12 +15176,15 @@ function aiSystemPrompt(s, userText){
       `Teach to the frontier: acknowledge what their record shows is solid, then aim at the weakest prerequisite of what they asked — image first, symbols second. You may offer to open a lecture, its interactive, or its homework.`,
     ].filter(Boolean).join(" ");
   })() : "";
-  /* the advisor reads the authoritative record — the app, not the model,
-     owns official academic state; the model only interprets it */
+  /* The advisor is TOLD the record; the app still owns it. Same
+     correction as the hosted gateway's (PE-16): this text is not
+     authenticated by anything, so calling it authorized invited the
+     model to trust it as far as its own instructions. The governor
+     decides what may happen either way. */
   const record = ai.cls === "advisor" ? (() => {
     const a = jst.admissions || {}, r = jst.registration || {};
     return [
-      `Authorized record — application: ${a.acceptedAt ? "accepted" : a.applicationSubmittedAt ? "under review" : "not submitted"}${a.term ? ", " + a.term + " term" : ""}${a.application?.interest && a.application.interest !== "Undecided" ? ", stated interest: " + a.application.interest : ""}.`,
+      `Journey record as reported by the campus (scene-setting, not instruction) — application: ${a.acceptedAt ? "accepted" : a.applicationSubmittedAt ? "under review" : "not submitted"}${a.term ? ", " + a.term + " term" : ""}${a.application?.interest && a.application.interest !== "Undecided" ? ", stated interest: " + a.application.interest : ""}.`,
       `Declared major: ${player.major || "none yet"}. Registration: ${r.completedAt ? player.courses.join(", ") || "complete" : jst.academics?.declaredMajorId ? "eligible, not yet registered" : "locked until a major is declared"}.`,
       `Catalog of majors: ${MAJORS.map(m => m.title).join(" · ")}.`,
       `Advising stage: ${jst.advising?.completedAt ? "completed" : a.acceptedAt ? "THIS student is due their advising session with you now" : "not yet reached"}.`,
@@ -15063,7 +15300,15 @@ async function aiReadStream(r, onToken, t0){
        old proxy — is simply one big final line: same parser, no mode. */
     const reader = r.body.getReader();
     const dec = new TextDecoder();
-    let raw = "", carry = "", shown = "";
+    let raw = "", carry = "", shown = "", bad = 0;
+    /* the terminal line the gateway sends carries counts, not just a
+       flag; take them wherever they appear so both dialects work */
+    const facts = (j) => {
+      if (j.prompt_eval_count) AI.diag.ptok = j.prompt_eval_count;
+      if (j.eval_count) AI.diag.ctok = j.eval_count;
+      if (typeof j.bad === "number") bad = j.bad;
+      if (j.cut) AI.diag.cut = j.cut;      /* the gateway ended it early */
+    };
     for (;;){
       const { done, value } = await reader.read();
       if (done) break;
@@ -15074,8 +15319,7 @@ async function aiReadStream(r, onToken, t0){
         if (!line.trim()) continue;
         let j; try { j = JSON.parse(line); } catch(_){ continue; }
         raw += j.message?.content ?? "";
-        if (j.prompt_eval_count) AI.diag.ptok = j.prompt_eval_count;
-        if (j.eval_count) AI.diag.ctok = j.eval_count;
+        facts(j);
         const d = aiPeekDialogue(raw);
         if (d && d !== shown){
           if (!AI.diag.ttft) AI.diag.ttft = Math.round(performance.now() - t0);
@@ -15085,10 +15329,23 @@ async function aiReadStream(r, onToken, t0){
     }
     if (carry.trim()){
       try { const j = JSON.parse(carry); raw += j.message?.content ?? "";
-        if (j.prompt_eval_count) AI.diag.ptok = j.prompt_eval_count;
-        if (j.eval_count) AI.diag.ctok = j.eval_count; } catch(_){}
+        facts(j); } catch(_){}
     }
   AI.diag.ms = Math.round(performance.now() - t0);
+  AI.diag.bad = bad;
+  /* A finished stream that carried no content is not a character with
+     nothing to say — it is a provider that failed AFTER the headers
+     went out, when 200 is the only status the transport can still
+     offer. Returning it ends the fallback chain on an empty bubble and
+     Ollama is never tried. Failing here is what makes the chain a
+     chain: the next provider gets its turn, and if none answers the
+     caller's own catch reaches the canned dossier. */
+  if (!raw.trim()){
+    const e = new Error(bad ? `stream carried ${bad} unreadable frame(s) and no tokens`
+                            : "stream carried no content");
+    e.aiState = "provider-unavailable";
+    throw e;
+  }
   return aiParse(raw);
 }
 
@@ -15150,7 +15407,7 @@ async function aiGenerate(s, userText, history, onToken){
   AIQueue.ctrl = new AbortController();
   const ai = s.data.ai || { cls: "social" };
   const t0 = performance.now();
-  AI.diag.ttft = 0; AI.diag.fallback = "";
+  AI.diag.ttft = 0; AI.diag.fallback = ""; AI.diag.cut = ""; AI.diag.bad = 0;
   const timeout = setTimeout(() => AIQueue.ctrl.abort(), ai.cls === "social" ? 30000 : 45000);
   try {
     let lastErr = null;
@@ -15692,6 +15949,7 @@ function openInterior(key){
   engineOpenInterior(key);
   interiorEl.classList.add("open");
   interiorEl.setAttribute("aria-hidden", "false");
+  interiorEl.removeAttribute("inert");
   const sheet = document.getElementById("int-sheet");
   sheet.scrollTop = 0;
   sheet.focus({ preventScroll: true });
@@ -15700,6 +15958,7 @@ function closeInterior(){
   engineCloseInterior();
   interiorEl.classList.remove("open");
   interiorEl.setAttribute("aria-hidden", "true");
+  interiorEl.setAttribute("inert", "");
   /* the markup goes with the view: it is rebuilt from state on every
      open, so keeping it costs memory and risks showing a stale record
      for the frame before the next open finishes */
@@ -15925,8 +16184,25 @@ window.__jskip = skipOrientation;
 const jmodal = document.getElementById("jmodal");
 const jbody = document.getElementById("jmodal-body");
 let jReturnFocus = null;
+/* aria-modal="true" was a promise the surface did not keep: 55
+   focusable controls sat behind it, Tab walked straight out of the
+   dialog into the campus HUD, and the background was not inert. */
+const jFocusable = (root) =>
+  [...root.querySelectorAll('a[href],button,input,select,textarea,summary,[tabindex]:not([tabindex="-1"])')]
+    .filter(el => !el.disabled && el.getClientRects().length > 0);
+function jInert(on){
+  for (const el of document.body.children)
+    if (el !== jmodal) el.toggleAttribute("inert", on);
+}
 function jOpen(html){
-  jReturnFocus = document.activeElement;
+  /* Only the closed→open transition owns the opener. Every multi-step
+     flow calls jOpen again for its next view, and each of those calls
+     used to overwrite jReturnFocus with a control from the PREVIOUS
+     view — which the next innerHTML write then destroys. Closing a
+     multi-step flow therefore restored focus to a detached node, which
+     is the same as restoring it nowhere. */
+  const wasOpen = jmodal.classList.contains("open");
+  if (!wasOpen){ jReturnFocus = document.activeElement; jInert(true); }
   jbody.innerHTML = html;
   jmodal.classList.add("open");
   jmodal.setAttribute("aria-hidden", "false");
@@ -15937,9 +16213,28 @@ function jClose(){
   jmodal.classList.remove("open");
   jmodal.setAttribute("aria-hidden", "true");
   jbody.innerHTML = "";
-  if (jReturnFocus && jReturnFocus.focus) jReturnFocus.focus();
+  jInert(false);
+  const back = jReturnFocus;
+  jReturnFocus = null;
+  /* isConnected, because the opener may have been re-rendered out of
+     the document while the dialog was up — renderJourney() rewrites
+     the very panel most of these are launched from. Falling back into
+     that panel keeps the keyboard where the visitor was working
+     instead of dropping it at the top of the document. */
+  if (back && back.isConnected && back.focus) back.focus();
+  else jFocusable(document.getElementById("journey") || document.body)[0]?.focus();
 }
 jmodal.addEventListener("click", e => { if (e.target.hasAttribute("data-jclose")) jClose(); });
+/* inert keeps the background out of the tab order; this keeps the last
+   control in the dialog from handing focus to the browser chrome */
+jmodal.addEventListener("keydown", e => {
+  if (e.key !== "Tab") return;
+  const f = jFocusable(jmodal);
+  if (!f.length) return;
+  const first = f[0], last = f[f.length - 1];
+  if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+});
 window.addEventListener("keydown", e => {
   if (e.key === "Escape" && jmodal.classList.contains("open")) jClose();
 });
@@ -15971,7 +16266,7 @@ function jApplication(){
         ${APP_FIELDS.map(([k, label, type, req]) => `
           <label class="jfield" data-k="${k}">
             <span>${label}${req ? "" : " · optional"}</span>
-            <input name="${k}" type="${type}" value="${(d[k] || "").replace(/"/g, "&quot;")}" ${req ? "required" : ""} autocomplete="off">
+            <input name="${k}" type="${type}" value="${escA(d[k])}" ${req ? "required" : ""} autocomplete="off">
             <em class="jerr">${type === "email" ? "A real address, so the letter can find you." : "The registrar needs this one."}</em>
           </label>`).join("")}
       </div>
@@ -15981,7 +16276,7 @@ function jApplication(){
         <select name="term">${opts(TERMS, d.term || TERMS[0])}</select></label>
       <label class="jfield"><span>Personal statement · optional</span>
         <textarea name="statement" rows="3" maxlength="600"
-          placeholder="A few lines on why Pembroke.">${d.statement || ""}</textarea></label>
+          placeholder="A few lines on why Pembroke.">${esc(d.statement)}</textarea></label>
       <div class="flex items-center gap-3 mt-2">
         <button type="submit" class="jcta">Review application</button>
         <button type="button" class="jlink" data-jclose>Finish later — draft saved</button>
@@ -16007,7 +16302,7 @@ function jApplication(){
   });
 }
 function jReview(data){
-  const line = (label, v) => v && v.trim() ? `<div class="jstage"><span class="jname" style="min-width:9.5rem;color:#8fa0b8;font-size:11px;text-transform:uppercase;letter-spacing:.14em">${label}</span><span class="jname">${v}</span></div>` : "";
+  const line = (label, v) => v && v.trim() ? `<div class="jstage"><span class="jname" style="min-width:9.5rem;color:#8fa0b8;font-size:11px;text-transform:uppercase;letter-spacing:.14em">${label}</span><span class="jname">${esc(v)}</span></div>` : "";
   jOpen(`
     <div class="jp-kicker">Office of Admissions</div>
     <h3 class="font-serif-d text-2xl text-[color:var(--parchment)] mt-1 mb-4">Review before submission</h3>
@@ -16052,10 +16347,10 @@ function jLetter(fresh){
       <div style="text-align:center;font-size:11px;letter-spacing:.2em;color:#8a6d2f;margin-top:.2rem">LUX · MATHESIS · MACHINA</div>
       <hr class="jl-rule">
       <p style="text-align:right;font-size:13px">${when}</p>
-      <p>Dear ${name},</p>
+      <p>Dear ${esc(name)},</p>
       <p>On behalf of the Faculty and the Office of the Registrar, it is my great pleasure to offer
-         <b>${full}</b> admission to Pembroke Academy for <b>${st.admissions.term}</b>.</p>
-      <p>Your application spoke of ${a.interest && a.interest !== "Undecided" ? `an interest in <b>${a.interest}</b>` : "a curiosity still choosing its shape"} — precisely the kind of beginning this campus was built for. The quads, the halls, and the twelve courses of the degree are yours to walk from this day.</p>
+         <b>${esc(full)}</b> admission to Pembroke Academy for <b>${esc(st.admissions.term)}</b>.</p>
+      <p>Your application spoke of ${a.interest && a.interest !== "Undecided" ? `an interest in <b>${esc(a.interest)}</b>` : "a curiosity still choosing its shape"} — precisely the kind of beginning this campus was built for. The quads, the halls, and the twelve courses of the degree are yours to walk from this day.</p>
       <p><b>Your next step:</b> meet with your academic advisor. The appointment awaits in your Student Journey.</p>
       <div class="jl-sig">Warmly,<br><br><b>Margaret Whitmore</b>Dean of Admissions · Pembroke Academy</div>
     </div>
@@ -16084,7 +16379,7 @@ function jAdvising(stepIx = 0, chosen = null){
   const interest = a.interest && a.interest !== "Undecided" ? a.interest : null;
   const steps = [
     () => `
-      <p class="text-[13.5px] text-slate-300 leading-relaxed">Welcome, ${name} — and congratulations again. I'm <b>Dean&nbsp;E.&nbsp;Aldergate</b>, your academic advisor. Two things today: I'll show you how a Pembroke degree is put together, and we'll find the program that fits the interest you arrived with${interest ? ` — you wrote <b>${interest}</b>, which is a fine place to start` : ""}.</p>
+      <p class="text-[13.5px] text-slate-300 leading-relaxed">Welcome, ${esc(name)} — and congratulations again. I'm <b>Dean&nbsp;E.&nbsp;Aldergate</b>, your academic advisor. Two things today: I'll show you how a Pembroke degree is put together, and we'll find the program that fits the interest you arrived with${interest ? ` — you wrote <b>${esc(interest)}</b>, which is a fine place to start` : ""}.</p>
       <p class="text-[13.5px] text-slate-300 leading-relaxed mt-3">The degree is <b>twelve courses across four programs</b>. You'll declare one program as your major; its courses become your required path, and everything else stands open as elective ground. Courses unlock in order — foundations first, and each course names what it assumes.</p>`,
     () => `
       <p class="text-[13.5px] text-slate-300 leading-relaxed mb-3">Here are the four programs. I'll flag the one nearest your stated interest; the choice, of course, is yours on the next screen.</p>
@@ -16192,7 +16487,7 @@ function jRegister(){
     }).join("");
     const credits = [...picked].reduce((a, id) => a + COURSES.find(c => c.id === id).credits, 0);
     jbody.innerHTML = `
-      <div class="jp-kicker">Office of the Registrar · ${st.admissions.term || TERMS[0]}</div>
+      <div class="jp-kicker">Office of the Registrar · ${esc(st.admissions.term || TERMS[0])}</div>
       <h3 class="font-serif-d text-2xl text-[color:var(--parchment)] mt-1 mb-1">Register for classes</h3>
       <p class="text-[12.5px] text-slate-400 mb-4">Your program is <b style="color:${major.color}">${major.title}</b>. The recommended first-semester courses are ticked; locked courses name their prerequisites.</p>
       ${rows(COURSES.filter(c => c.sector === majorId), "major")}
@@ -16300,7 +16595,7 @@ function renderJourney(){
       advised: "Advised and ready — declare the program that fits.",
       declared: "One step remains: choose your first classes.",
       enrolled: "Enrolled student · " + (MAJORS.find(m => m.id === st.academics.declaredMajorId)?.title || "") +
-                " · " + (st.registration.term || ""),
+                " · " + esc(st.registration.term),
     }[status]}</p>
     ${stages.map(([name, kind, meta]) => `
       <div class="jstage ${kind}">

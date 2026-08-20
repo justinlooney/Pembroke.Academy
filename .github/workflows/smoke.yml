@@ -34,6 +34,32 @@ jobs:
       - name: Assets changed without a cache bump?
         run: bash tools/check-sw-version.sh "origin/${{ github.base_ref }}"
 
+  # ── the gateway, in its own job ─────────────────────────────────────
+  # No browser, no network, no bindings: a fake env.AI hands back the
+  # bytes a provider would, and the whole suite is over in a second. It
+  # is first in the file because it is the only job that can tell you
+  # you are wrong before the coffee finishes.
+  #
+  # The Worker is the one thing this repository deploys that had no
+  # test at all — check-gateway.mjs talks to production, costs real
+  # inference, and cannot be pointed at a branch. Everything that is
+  # pure logic lives here instead: the schema wall, the origin wall,
+  # burst control, prompt boundaries, the streaming transform and its
+  # deadlines, and whether the browser and the Worker still agree about
+  # who exists and what they may ask for.
+  gateway:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Does the gateway still hold without spending a token?
+        run: node tools/check-worker.mjs
+
   smoke:
     runs-on: ubuntu-latest
     # The campus has grown a cohort: eleven rigged bodies, 19MB of them,
@@ -279,3 +305,58 @@ jobs:
 
       - name: Does a bad ledger cost a field or the university?
         run: node tools/check-ledger.mjs
+
+  # ── can this campus be used without a mouse? ────────────────────────
+  # The drive runs at one desktop viewport with a pointer, so the two
+  # classes of defect that have hurt this repository most — the
+  # mobile-only ones (#66, #67) and the accessibility-only ones (#71) —
+  # are precisely the two it cannot see. This job is the gate that was
+  # missing while both of them shipped.
+  #
+  # Three browsers, because the interesting cases are media queries: a
+  # desktop, a Pixel 5, and a visitor who has asked the system to stop
+  # moving things. axe-core runs over the campus, the journey dialog
+  # and the phone; the rest are questions axe cannot ask — whether the
+  # focus ring is the campus's own or the browser's, whether the modal
+  # is as modal as it claims, and whether a person can be reached
+  # without pointing at them.
+  #
+  # Beside the drive, not inside it, for the reason this file has now
+  # written down three times: it needs five page loads of its own and
+  # the drive already takes twenty-five minutes. This one is 2m36.
+  a11y:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Cache the browser
+        id: browser
+        timeout-minutes: 5
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ env.PW_VERSION }}
+
+      # both in one npm install: installing them in two calls prunes the
+      # package the first one added, because nothing here is saved
+      - name: Install Playwright and axe-core
+        timeout-minutes: 6
+        run: npm install --no-save --no-audit --no-fund playwright@${{ env.PW_VERSION }} axe-core
+
+      - name: Fetch the browser
+        if: steps.browser.outputs.cache-hit != 'true'
+        timeout-minutes: 8
+        run: npx playwright install --with-deps chromium
+
+      - name: System libraries for the cached browser
+        if: steps.browser.outputs.cache-hit == 'true'
+        timeout-minutes: 6
+        run: npx playwright install-deps chromium
+
+      - name: Can this campus be used without a mouse?
+        run: node tools/check-a11y.mjs
