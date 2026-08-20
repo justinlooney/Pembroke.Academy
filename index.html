@@ -610,6 +610,39 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
   cursor:pointer;transition:transform .3s ease;
 }
 #walkbtn:hover{transform:scale(1.12);}
+#nearbybtn{
+  position:absolute;top:4.6rem;right:4.9rem;z-index:25;
+  width:46px;height:46px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:19px;
+  background:linear-gradient(160deg, rgba(20,28,46,.9), rgba(10,16,30,.9));
+  border:1.5px solid rgba(212,175,106,.55);
+  box-shadow:0 8px 24px -8px rgba(0,0,0,.8), 0 0 18px -6px rgba(212,175,106,.5);
+  cursor:pointer;transition:transform .3s ease;
+}
+#nearbybtn:hover{transform:scale(1.12);}
+#nearbybtn[aria-expanded="true"]{border-color:var(--brass);background:linear-gradient(160deg, rgba(60,48,24,.95), rgba(30,24,10,.95));}
+.nearby{
+  position:absolute;left:1.4rem;top:8rem;z-index:30;width:16.5rem;
+  max-height:min(56vh,26rem);overflow-y:auto;padding:.6rem;
+  border-radius:.85rem;border:1px solid rgba(212,175,106,.3);
+  background:rgba(8,12,22,.94);backdrop-filter:blur(8px);
+  box-shadow:0 18px 44px -18px rgba(0,0,0,.9);
+}
+.nearby[hidden]{display:none;}
+.nb-h{font-size:10px;text-transform:uppercase;letter-spacing:.18em;color:var(--brass-dim);
+  padding:.35rem .3rem .3rem;}
+.nb-row{display:block;width:100%;text-align:left;padding:.42rem .5rem;border-radius:.5rem;
+  border:1px solid transparent;color:#e2e8f0;cursor:pointer;background:none;}
+.nb-row:hover:not(:disabled){background:rgba(212,175,106,.12);border-color:rgba(212,175,106,.32);}
+.nb-row:disabled{opacity:.45;cursor:default;}
+.nb-name{display:block;font-size:12.5px;}
+.nb-meta{display:block;font-size:10.5px;color:#94a3b8;}
+.nb-where{display:block;font-size:10.5px;color:var(--brass-dim);}
+.nb-empty{padding:.4rem .5rem;font-size:11px;color:#94a3b8;}
+@media (max-width:640px){
+  #nearbybtn{top:3.9rem;right:3.9rem;width:40px;height:40px;font-size:16px;}
+  .nearby{left:1rem;right:1rem;width:auto;top:7rem;}
+}
 .walkmode #walkbtn{border-color:#38bdf8;background:linear-gradient(160deg, rgba(24,60,90,.95), rgba(10,30,50,.95));}
 #minimap{
   position:absolute;top:7.9rem;right:1.4rem;z-index:25;
@@ -1324,7 +1357,23 @@ body.touched.walkmode .orient .o-step:not(.now){display:none;}
     </div>
     <button id="daynight" title="Toggle day / night" aria-label="Toggle day or night">🌙</button>
     <button id="walkbtn" title="Walk the campus (F)" aria-label="Enter first-person walk mode">🎮</button>
+    <button id="nearbybtn" title="People and places (P)" aria-expanded="false"
+            aria-controls="nearby" aria-label="People and places nearby">👥</button>
     <canvas id="minimap" width="132" height="132" aria-label="Campus minimap"></canvas>
+
+    <!-- The keyboard's way in. Buildings were already reachable — keys
+         1-4 run selectSector(key, true), which opens the interior 520ms
+         later — but a PERSON was reachable only by pointing at them, so
+         the Campus Visit step "tap a student and say hello" had no
+         keyboard equivalent at all. These are the same convoOpen() and
+         openInterior() calls the raycast makes, given names and put in
+         the tab order. -->
+    <div id="nearby" class="nearby" aria-label="People and places" hidden>
+      <div class="nb-h">People on the quad</div>
+      <div id="nb-people"></div>
+      <div class="nb-h">Places</div>
+      <div id="nb-places"></div>
+    </div>
 
     <!-- quest banner: the current academic objective -->
     <div id="quest" role="button" tabindex="0" aria-expanded="true"
@@ -14079,14 +14128,92 @@ function selectSector(key, fromCampus){
   }, 240);
 }
 
-/* keyboard wayfinding: 1–4 quads, 0 full syllabus */
+/* keyboard wayfinding: 1–4 quads, 0 full syllabus, P people and places */
 window.addEventListener("keydown", (e) => {
   if (e.target.matches("input,textarea")) return;
   const map = { "1":"lib", "2":"eng", "3":"sci", "4":"adm", "0":"all" };
   if (map[e.key]) selectSector(map[e.key], true);
   if (e.key === "n" || e.key === "N") document.getElementById("daynight").click();
+  if (e.key === "p" || e.key === "P") nearbyToggle();
   if (e.key === "Escape") closeInterior();
 });
+
+/* ── the keyboard's way in ───────────────────────────────────────────
+   A building could always be reached from the keyboard: 1–4 run
+   selectSector(key, true), which opens the interior. A PERSON could
+   not. convoOpen() had exactly one user entry — a ray cast from a
+   pointer — so "tap a student and say hello", which is a step of the
+   Campus Visit the campus asks every visitor to complete, had no
+   keyboard equivalent and the orientation could only be skipped.
+
+   This calls the same convoOpen() and openInterior() the ray calls.
+   It is a list of the world, not a second way of doing things: if the
+   ray can reach it, this can, and neither knows about the other. The
+   cathedral is here because it is the one place with no number key. */
+const nearbyEl  = document.getElementById("nearby");
+const nearbyBtn = document.getElementById("nearbybtn");
+const NB_PLACES = [...SECTOR_ORDER, "cathedral"];
+let nearbyTimer = null;
+
+function nearbyRender(){
+  const from = camera.position, p = new THREE.Vector3();
+  const people = students
+    .filter(s => s.data?.name && s.g)
+    .map(s => { s.g.getWorldPosition(p); return { s, d: p.distanceTo(from), out: s.g.visible }; })
+    .sort((a, b) => a.d - b.d);
+  /* Where somebody is, in words. In walk mode the camera is the
+     visitor, so a distance means something and is worth saying; from
+     the air it is the height of the camera and means nothing, so it
+     is not said. Somebody indoors is listed and disabled rather than
+     hidden — "Prof. Merion is inside" is an answer, and a name that
+     vanishes from a list looks like a name that does not exist. */
+  const where = ({ d, out }) => !out ? "inside a building"
+    : !walker.on ? "on the quad"
+    : d < 120 ? "right here"
+    : d < 350 ? "a short walk away"
+    : "across the campus";
+  document.getElementById("nb-people").innerHTML = people.length
+    ? people.map(r => {
+        const ai = r.s.data.ai || {};
+        return `<button class="nb-row" data-talk="${escA(r.s.data.name)}"${r.out ? "" : " disabled"}>
+          <span class="nb-name">${esc(r.s.data.name)}</span>
+          <span class="nb-meta">${esc([ai.year, r.s.data.major].filter(Boolean).join(" · "))}</span>
+          <span class="nb-where">${esc(where(r))}</span></button>`;
+      }).join("")
+    : `<div class="nb-empty">Nobody is out on the quad just now.</div>`;
+  document.getElementById("nb-places").innerHTML = NB_PLACES.map(k => {
+    const S = SECTORS[k]; if (!S) return "";
+    return `<button class="nb-row" data-enter="${escA(k)}">
+      <span class="nb-name">${esc(S.hall)}</span>
+      <span class="nb-meta">${esc(S.track)}</span>
+      <span class="nb-where">step inside</span></button>`;
+  }).join("");
+}
+function nearbyToggle(force){
+  const open = force === undefined ? nearbyEl.hidden : !!force;
+  if (open && (convoView || interiorView || jmodal.classList.contains("open"))) return;
+  const held = nearbyEl.contains(document.activeElement);
+  nearbyEl.hidden = !open;
+  nearbyBtn.setAttribute("aria-expanded", String(open));
+  clearInterval(nearbyTimer); nearbyTimer = null;
+  if (open){
+    nearbyRender();
+    /* people walk while the list is up, so the list walks with them */
+    nearbyTimer = setInterval(nearbyRender, 1500);
+    nearbyEl.querySelector(".nb-row:not([disabled])")?.focus();
+  } else if (held) nearbyBtn.focus();   /* only if it was ours to give back */
+}
+nearbyBtn.addEventListener("click", () => nearbyToggle());
+nearbyEl.addEventListener("keydown", e => { if (e.key === "Escape") nearbyToggle(false); });
+nearbyEl.addEventListener("click", e => {
+  const t = e.target.closest("[data-talk],[data-enter]");
+  if (!t) return;
+  nearbyToggle(false);
+  if (t.dataset.enter){ openInterior(t.dataset.enter); return; }
+  const s = students.find(x => x.data?.name === t.dataset.talk);
+  if (s) convoOpen(s);
+});
+window.__nearby = { toggle: nearbyToggle, render: nearbyRender };   /* test/debug hook */
 
 /* ── AI health: one honest diagnosis of the local setup ────────────
    ready / model-missing / origin-blocked / unreachable / timeout.

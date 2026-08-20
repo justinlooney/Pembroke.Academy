@@ -265,6 +265,64 @@ try {
     .map(el => getComputedStyle(el))
     .filter(cs => cs.animationName !== "none" && (parseFloat(cs.animationDuration) || 0) > 0.01)
     .length;
+  /* ── 5. the world can be reached without a pointer ──────────────
+     Buildings always could be: 1-4 run selectSector(key, true), which
+     opens the interior. A person could not — convoOpen() had one user
+     entry and it was a ray cast from a pointer, so a step of the
+     Campus Visit had no keyboard equivalent. These press real keys and
+     click real controls; nothing here calls convoOpen directly, which
+     is the only way to know the surface is wired to the same path. */
+  await page.keyboard.press("Escape");
+  await page.evaluate(() => document.body.focus?.());
+  await page.keyboard.press("p");
+  const panel = await page.evaluate(() => {
+    const el = document.getElementById("nearby");
+    return { up: !el.hidden,
+             expanded: document.getElementById("nearbybtn").getAttribute("aria-expanded"),
+             people: el.querySelectorAll("#nb-people .nb-row").length,
+             reachable: el.querySelectorAll("#nb-people .nb-row:not([disabled])").length,
+             places: el.querySelectorAll("#nb-places .nb-row").length,
+             focusInside: el.contains(document.activeElement) };
+  });
+  step("one key opens a list of who and what is out there",
+       panel.up && panel.expanded === "true" && panel.people > 0 && panel.places >= 5,
+       `${panel.people} people (${panel.reachable} on the quad), ${panel.places} places`);
+  step("and the keyboard lands in it", panel.focusInside);
+
+  /* every named person the ray could reach must have a control here */
+  const covered = await page.evaluate(() => {
+    const named = window.__students.filter(s => s.data?.name && s.g?.visible).map(s => s.data.name);
+    const listed = [...document.querySelectorAll("#nb-people .nb-row:not([disabled]) .nb-name")]
+      .map(e => e.textContent);
+    return { missing: named.filter(n => !listed.includes(n)), named: named.length };
+  });
+  step("everyone the pointer could reach has a control too",
+       covered.named > 0 && covered.missing.length === 0,
+       covered.named === 0 ? "nobody was out on the quad — this proved nothing"
+         : `${covered.named} on the quad` +
+           (covered.missing.length ? ` · no control for ${covered.missing.join(", ")}` : ""));
+
+  const talked = await page.evaluate(async () => {
+    document.querySelector("#nb-people .nb-row:not([disabled])").click();
+    await new Promise(r => setTimeout(r, 600));
+    const on = document.body.classList.contains("convo-open");
+    if (on) document.getElementById("convo-cancel")?.click();
+    return on;
+  });
+  step("choosing a person opens the same conversation the pointer opens", talked,
+       talked ? "body.convo-open" : "the row fired but no conversation began");
+
+  await page.keyboard.press("Escape");
+  const entered = await page.evaluate(async () => {
+    document.getElementById("nearbybtn").click();
+    await new Promise(r => setTimeout(r, 200));
+    document.querySelector("#nb-places .nb-row").click();
+    await new Promise(r => setTimeout(r, 900));
+    return !!document.querySelector(".interior-open");
+  });
+  step("and choosing a place steps inside it", entered,
+       entered ? "the wing opened" : "the row fired but no interior opened");
+
   const busy = await page.evaluate(census);
   await first.ctx.close();          /* see the note on open() */
   const calm = await open({ reducedMotion: "reduce" });
