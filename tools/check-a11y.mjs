@@ -327,6 +327,25 @@ try {
          : `${covered.named} on the quad` +
            (covered.missing.length ? ` · no control for ${covered.missing.join(", ")}` : ""));
 
+  /* Review caught what these checks did not: the list refreshes on an
+     interval because people walk, and rewriting it used to destroy the
+     row the keyboard was resting on. Every check above clicked
+     immediately, so none of them ever waited long enough to be thrown
+     out. This one waits through two refreshes on purpose. */
+  const kept = await page.evaluate(async () => {
+    const rows = [...document.querySelectorAll("#nb-people .nb-row:not([disabled])")];
+    const target = rows[rows.length - 1] || rows[0];
+    if (!target) return { ok: false, why: "no reachable row to stand on" };
+    target.focus();
+    const was = target.dataset.talk;
+    await new Promise(r => setTimeout(r, 3400));       /* two refreshes */
+    const now = document.activeElement;
+    return { ok: !!now && now.dataset?.talk === was && document.getElementById("nearby").contains(now),
+             was, now: now?.dataset?.talk ?? now?.tagName?.toLowerCase() ?? "nothing" };
+  });
+  step("the list refreshing does not throw the keyboard out of it", kept.ok,
+       kept.why || `stood on ${JSON.stringify(kept.was)}, ended on ${JSON.stringify(kept.now)}`);
+
   const talked = await page.evaluate(async () => {
     document.querySelector("#nb-people .nb-row:not([disabled])").click();
     await new Promise(r => setTimeout(r, 600));

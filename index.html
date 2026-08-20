@@ -14172,7 +14172,7 @@ function nearbyRender(){
     : d < 120 ? "right here"
     : d < 350 ? "a short walk away"
     : "across the campus";
-  document.getElementById("nb-people").innerHTML = people.length
+  const peopleHtml = people.length
     ? people.map(r => {
         const ai = r.s.data.ai || {};
         return `<button class="nb-row" data-talk="${escA(r.s.data.name)}"${r.out ? "" : " disabled"}>
@@ -14181,13 +14181,37 @@ function nearbyRender(){
           <span class="nb-where">${esc(where(r))}</span></button>`;
       }).join("")
     : `<div class="nb-empty">Nobody is out on the quad just now.</div>`;
-  document.getElementById("nb-places").innerHTML = NB_PLACES.map(k => {
+  const placesHtml = NB_PLACES.map(k => {
     const S = SECTORS[k]; if (!S) return "";
     return `<button class="nb-row" data-enter="${escA(k)}">
       <span class="nb-name">${esc(S.hall)}</span>
       <span class="nb-meta">${esc(S.track)}</span>
       <span class="nb-where">step inside</span></button>`;
   }).join("");
+
+  /* Review caught this: the list refreshes every 1.5s because people
+     walk, and rewriting innerHTML destroys whatever the keyboard was
+     resting on — so the reader is thrown out of the panel every second
+     and a half. Against the very people this surface is for.
+
+     Two guards, and the first does most of the work: if the words have
+     not changed, do not touch the DOM at all. From the air nobody's
+     line ever changes, so the panel simply stops churning. When they
+     do change, the row the keyboard held is found again by its key —
+     the same name, wherever it has sorted to — and only then does it
+     fall back to the first row it can offer. */
+  const peopleEl = document.getElementById("nb-people");
+  const placesEl = document.getElementById("nb-places");
+  if (peopleEl.innerHTML === peopleHtml && placesEl.innerHTML === placesHtml) return;
+  const held = nearbyEl.contains(document.activeElement) ? document.activeElement : null;
+  const key = held && (held.dataset.talk ? `talk:${held.dataset.talk}`
+                     : held.dataset.enter ? `enter:${held.dataset.enter}` : null);
+  peopleEl.innerHTML = peopleHtml;
+  placesEl.innerHTML = placesHtml;
+  if (!key) return;
+  const [kind, val] = [key.slice(0, key.indexOf(":")), key.slice(key.indexOf(":") + 1)];
+  const again = nearbyEl.querySelector(`[data-${kind}="${CSS.escape(val)}"]:not([disabled])`);
+  (again || nearbyEl.querySelector(".nb-row:not([disabled])"))?.focus();
 }
 function nearbyToggle(force){
   const open = force === undefined ? nearbyEl.hidden : !!force;
