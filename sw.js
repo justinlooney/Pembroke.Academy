@@ -1,7 +1,7 @@
 /*
  * Pembroke Academy — service worker.
  *
- * The campus is ~39MB of models. Downloading it once is reasonable;
+ * The campus is ~85MB of models. Downloading it once is reasonable;
  * downloading it on every visit is not. This keeps the models in the
  * Cache API so a returning student walks onto the quad immediately,
  * and the campus survives its host going down.
@@ -13,7 +13,7 @@
  * rather than unstyled — which was the standing caveat here for as
  * long as Tailwind came from a CDN.
  *
- * Deliberately NOT a precache: pulling 39MB during install would make
+ * Deliberately NOT a precache: pulling all of it during install would make
  * a first visit worse to make later ones better, and most of that
  * weight is scenery the visitor may never walk to. Models are cached
  * as they are actually fetched, so the cost follows the use.
@@ -31,7 +31,7 @@
  *
  * VERSION tracks the RELEASE and versions only the shell. It used to
  * prefix the model depot too, which meant every release — however
- * text-only — flushed ~39MB of cached models and made a returning
+ * text-only — flushed the whole model cache and made a returning
  * phone download the campus again to read a lecture edit. Review
  * caught it. The depot now carries its own version, ASSETS_V, bumped
  * ONLY when a file under assets/ changes in place — new files under
@@ -39,11 +39,28 @@
  * engine and the stylesheet are re-precached by every install with
  * cache:"reload", so they track releases despite living in the depot.
  */
-const VERSION = "pembroke-v129";
-/* v3 stays: this release ships no asset, so the model depot must not be
-   re-versioned and the 39MB every returning visitor already holds must
-   not be thrown away for a change that is entirely code. */
+const VERSION = "pembroke-v138";
+/* v3 stays even though this release removes assets. Re-versioning the
+   depot is a blunt instrument: it throws away every model a returning
+   visitor holds — all ~85MB of a campus they already walked — to
+   reclaim the ~34MB this release stops using. RETIRED does it
+   precisely instead; see the activate handler. */
 const ASSETS_V = "pembroke-assets-v3";
+
+/* Files that were in the depot and are not coming back. Deleting an
+   asset from the repository does not un-cache it: cacheFirst simply
+   never asks for it again, so a phone that once walked into Drosdick
+   Hall would carry 27MB of splats for a room that no longer exists,
+   forever. Named removal costs one pass over one cache on activate
+   and reclaims all of it. An entry may leave this list once no
+   plausible visitor still holds the file. */
+const RETIRED = [
+  "./assets/drosdick_atrium.spz",
+  "./assets/drosdick_collider.glb",
+  "./assets/cathedral2.glb",
+  "./assets/vendor/spark/spark.module.min.js",
+  "./assets/vendor/three-mesh-bvh/index.module.js",
+];
 const SHELL = VERSION + "-shell";
 const DEPOT = ASSETS_V + "-depot";
 
@@ -91,7 +108,8 @@ self.addEventListener("install", (e) => {
     for (const url of SHELL_FILES) await keep(shell, url);
 
     /* The engine is precached, unlike the models. It is 1.7MB against
-       39MB, it is needed before anything can be drawn, and it is fetched
+       the depot's tens, it is needed before anything can be drawn, and
+       it is fetched
        by the module loader the instant the page parses — long before a
        worker on a first visit has installed and claimed. Left to the
        runtime path it would never be cached on the visit that fetches
@@ -125,18 +143,34 @@ self.addEventListener("activate", (e) => {
   /* keep exactly the current shell and the current depot: old
      per-release shells go, and so do the old per-release depots from
      the era when VERSION prefixed both — one last flush, never again */
-  e.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(
-        keys.filter((k) => k !== SHELL && k !== DEPOT).map((k) => caches.delete(k))))
-      .then(() => self.clients.claim())
-  );
+  e.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter((k) => k !== SHELL && k !== DEPOT)
+                          .map((k) => caches.delete(k)));
+    /* and inside the depot we keep, drop the files that were retired.
+
+       ignoreVary because a stored response carries whatever Vary the
+       host sent — GitHub Pages varies on Accept-Encoding — and a
+       delete built from a bare URL string has none of those headers
+       to match against. Without it the delete can quietly match
+       nothing, which is the one failure this whole mechanism exists
+       to avoid: 34MB left on a phone with no symptom anybody sees.
+
+       Failing here costs disk, not correctness, so it must never take
+       the activation down with it. */
+    try {
+      const depot = await caches.open(DEPOT);
+      await Promise.all(RETIRED.map((u) => depot.delete(u, { ignoreVary: true })));
+    } catch (_) {}
+    await self.clients.claim();
+  })());
 });
 
 /* .js is in here for assets/vendor/three — the engine is served from our
-   own origin now, so it caches on the same terms as the models. */
-/* .spz is the Marble splat interior — 28MB that must download exactly
-   once, on the same cache-first terms as the models */
+   own origin now, so it caches on the same terms as the models.
+   .spz is gone with the Marble interior; the pattern keeps it so a
+   worker installed before this release still answers for the file it
+   is about to delete, rather than going to the network for it. */
 const isArt = (url) => /\/assets\/.+\.(glb|spz|png|jpe?g|webp|svg|js|css|woff2)$/i.test(url.pathname);
 
 async function cacheFirst(req, cacheName){

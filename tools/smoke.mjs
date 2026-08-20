@@ -201,8 +201,370 @@ try {
   step("all twelve courses render", shelf.courses === 12, shelf.courses + " cards");
   step("registrar ledger reports", /\d/.test(shelf.total), JSON.stringify(shelf.total));
 
+  /* THE ONE PERMANENTLY VISIBLE INSTRUCTION MUST NAME SOMETHING YOU
+     CAN DO. Eleven of the twelve courses are catalogue entries with no
+     lectures behind them, and the objective used to pick the first
+     uncompleted course with no check for that — so a fully enrolled
+     student was told to "Attend MATH 101 · College Algebra", walked to
+     the Great Library, and found nothing there. A dead end here is the
+     most expensive one in the product: it teaches the visitor that
+     following the campus's instructions does not work.
+
+     Every stage, because the objective renders at every stage and the
+     bug was present at all of them. Set directly rather than clicked
+     through — six stages of clicking would be testing the journey. */
+  const quest = await page.evaluate(() => {
+    const J = window.__journey, out = [];
+    const order = ["visitor","applicant","accepted","advised","declared","enrolled"];
+    /* every declarable major, not just the mathematics one: an enrolled
+       engineering student's schedule holds no course with lectures, and
+       naming the Great Library's calculus as their objective is wrong
+       twice — not their course, and not one they could have registered
+       for. Only the enrolled rows can show it, which is why the major
+       is varied here and not at every stage. */
+    for (const stage of order){
+      for (const major of ["lib", "eng", "sci", "adm"]){
+        if (stage !== "enrolled" && major !== "lib") continue;
+        J.reset();
+        J.patch(j => {
+          const at = Date.now(), upto = order.indexOf(stage);
+          if (upto >= 1) j.admissions.applicationSubmittedAt = at;
+          if (upto >= 2) j.admissions.acceptedAt = at;
+          if (upto >= 3) j.advising.completedAt = at;
+          if (upto >= 4){ j.academics.declaredMajorId = major; j.academics.declaredAt = at; }
+          if (upto >= 5){
+            j.registration.registeredCourseIds =
+              window.__app.COURSES.filter(c => c.sector === major).map(c => c.id);
+            j.registration.completedAt = at;
+          }
+        });
+        const q = window.__quest();
+        out.push({ stage, major, id: q.id || null, sector: q.sector || null,
+                   text: (q.text || "").slice(0, 64),
+                   /* the honest predicate the product itself uses — a
+                      STUDY key is not the same claim as a lecture */
+                   teachable: !q.id || window.__study.hasLectures(q.id) });
+      }
+    }
+    J.reset();
+    return out;
+  });
+  const dead = quest.filter(r => !r.teachable);
+  step("the objective always names something that can be done",
+       dead.length === 0,
+       dead.length ? dead.map(r => `${r.stage}/${r.major} → ${r.id} has no lectures`).join(" · ")
+                   : quest.map(r => r.stage + "/" + r.major + ":" + (r.id || "—")).join(" "));
+  /* q.sector fires a "you made it to lecture" toast on entering that
+     hall. It may only be set when the objective names a course that is
+     both teachable AND the student's own — an enrolled engineer sent
+     to the calculus lecture has not attended their class. */
+  const congrats = quest.filter(r => r.sector && !(r.id && r.teachable));
+  step("no lecture is congratulated where none is taught", congrats.length === 0,
+       congrats.map(r => r.stage + "/" + r.major + " → sector " + r.sector).join(" · ")
+         || "every sector earns its toast");
+
+  /* AND THE STUB, which is the shape this bug comes back in. Content
+     lands course by course, so a course gets its STUDY entry before
+     its lectures are written — and every test of `STUDY[id]` for
+     truthiness calls that teachable. Caught in review: the fix passed
+     its own test while a one-line stub put the dead end straight back.
+     Injected here because the product cannot reach the state on its
+     own yet, and the day it can is the day this must already hold. */
+  const stub = await page.evaluate(() => {
+    window.__study.STUDY.MATH101 = { units: [] };          /* keyed, no lectures */
+    window.__journey.reset();
+    const q = window.__quest();
+    const r = { keyed: !!window.__study.STUDY.MATH101,
+                lectures: window.__study.hasLectures("MATH101"),
+                id: q.id || null, sector: q.sector || null };
+    delete window.__study.STUDY.MATH101;
+    return r;
+  });
+  step("a course keyed with no lectures is not called teachable",
+       stub.keyed && !stub.lectures, `keyed ${stub.keyed} · hasLectures ${stub.lectures}`);
+  step("and the objective will not send anybody to one",
+       stub.id !== "MATH101" && !(stub.sector && stub.id === "MATH101"),
+       "names " + stub.id + " · sector " + stub.sector);
+
+  /* An unanswered knowledge check is not a wrong one. Submitting with
+     nothing selected used to mark every question wrong, reveal every
+     answer permanently, and write a miss per question into the study
+     record — and studySignals() hands those misses to Prof. Merion as
+     the stumbles to teach to, so one stray submit had him working on
+     a struggle that never happened.
+
+     Both halves are asserted. A guard that refused everything would
+     pass the first half on its own, and would be a worse bug than the
+     one it replaced. */
+  const kc = await page.evaluate(async () => {
+    const st = window.__study.state();
+    for (const k of Object.keys(st)) delete st[k];
+    window.__study.save();
+    window.__study.openSection("MATH201", "1.1");
+    await new Promise(r => setTimeout(r, 400));
+    const submit = () => document.querySelector("#st-quiz button[type=submit]").click();
+    const revealed = () => [...document.querySelectorAll("#st-quiz .st-why")]
+      .filter(e => !e.hidden && e.textContent.trim()).length;
+    const marked = () => document.querySelectorAll("#st-quiz .st-q.wrong, #st-quiz .st-q.right").length;
+    const logged = () => ((window.__study.state().MATH201 || {}).log || []);
+
+    if (!document.getElementById("st-quiz")) return { ready: false };
+    submit();                                     /* nothing selected */
+    await new Promise(r => setTimeout(r, 250));
+    const nag = document.getElementById("kc-nag");
+    const blank = { logged: logged().length, revealed: revealed(), marked: marked(),
+                    /* the TEXT, not merely the element's visibility — a
+                       step called "says which questions are missing"
+                       that only checks a hidden attribute is claiming
+                       more than it looked at */
+                    named: nag?.hidden === false ? (nag.textContent || "").trim() : "",
+                    flagged: document.querySelectorAll("#st-quiz .st-q.blank").length };
+
+    document.querySelectorAll("#st-quiz [data-q]").forEach(fs => {
+      const r = fs.querySelector("input[type=radio]");
+      if (r){ r.checked = true; r.dispatchEvent(new Event("change", { bubbles: true })); }
+    });
+    submit();                                     /* a real attempt */
+    await new Promise(r => setTimeout(r, 250));
+    const real = { logged: logged().length, revealed: revealed(), marked: marked(),
+                   clean: logged().every(e => e.ok === 0 || e.ok === 1) };
+
+    /* PUT THE PAGE BACK. jOpen focuses the first control inside the
+       modal, so leaving it open traps the keyboard: the `f` that
+       enters walk mode never reaches the window handler, and every
+       check after this one fails for a reason that has nothing to do
+       with what it is testing. Seven of them did, once. */
+    document.querySelector("[data-jclose]")?.click();
+    await new Promise(r => setTimeout(r, 200));
+    const shut = !document.querySelector(".jmodal.open, #jmodal.open");
+    return { ready: true, blank, real, shut };
+  });
+  step("the knowledge check opens", kc.ready);
+  step("an unanswered check records nothing", kc.ready && kc.blank.logged === 0,
+       kc.ready ? kc.blank.logged + " entr(ies) written" : "");
+  step("an unanswered check reveals nothing", kc.ready && kc.blank.revealed === 0 && kc.blank.marked === 0,
+       kc.ready ? kc.blank.revealed + " revealed, " + kc.blank.marked + " marked" : "");
+  step("and says which questions are missing",
+       kc.ready && /answer/i.test(kc.blank.named) && kc.blank.flagged >= 2,
+       kc.ready ? JSON.stringify(kc.blank.named) + " · " + kc.blank.flagged + " flagged" : "");
+  step("a real attempt is still graded and recorded",
+       kc.ready && kc.real.marked >= 2 && kc.real.revealed >= 2 && kc.real.logged >= 2,
+       kc.ready ? kc.real.marked + " marked, " + kc.real.revealed + " revealed, " +
+                  kc.real.logged + " logged" : "");
+  step("every record entry says right or wrong, nothing else", kc.ready && kc.real.clean);
+  /* asserted, not assumed: a check that quietly leaves a modal over
+     the page is worse than no check, because it fails the NEXT one */
+  step("the lecture panel is closed again", kc.ready && kc.shut);
+
+  /* AND THE SAME THING IN THE PRACTICE ROOMS, where it is worse:
+     practice has a HINT TIER. Pressing check on an empty field spent
+     the first miss, so the hint a real first attempt would have earned
+     was already gone and the student went straight to the worked
+     solution — parseFloat("") is NaN, not finite, and the grader read
+     that as a wrong number rather than as no number. The hint is the
+     half a log entry cannot show, so it is what this asserts. */
+  const turn = await page.evaluate(async () => {
+    const st = window.__study.state();
+    for (const k of Object.keys(st)) delete st[k];
+    window.__study.save();
+    window.__study.openSection("MATH201", "1.1");
+    await new Promise(r => setTimeout(r, 400));
+    const host = document.querySelector('[data-turn="0"]');
+    const check = host && host.querySelector("[data-check]");
+    const why = host && host.querySelector(".st-why");
+    const nag = host && host.querySelector(".st-nag");
+    /* every control, not just the host: a throw in here aborts the
+       whole run with a stack trace instead of reporting one failed
+       check, which is a worse way to learn the markup moved */
+    if (!host || !check || !why) return { ready: false };
+    const log = () => ((window.__study.state().MATH201 || {}).log || []);
+
+    check.click();                                     /* empty */
+    await new Promise(r => setTimeout(r, 200));
+    const blank = { logged: log().length,
+                    why: why.hidden ? "" : why.textContent.trim(),
+                    nagged: !!nag && !nag.hidden,
+                    marked: /\b(right|wrong)\b/.test(host.className) };
+
+    const inp = host.querySelector(".st-num");         /* a real, wrong try */
+    if (inp){ inp.value = "-99999"; inp.dispatchEvent(new Event("input", { bubbles: true })); }
+    else { const o = host.querySelectorAll('input[type="radio"]'); o[o.length - 1].checked = true; }
+    check.click();
+    await new Promise(r => setTimeout(r, 200));
+    const first = { logged: log().length, why: why.hidden ? "" : why.textContent.trim() };
+    document.querySelector("[data-jclose]")?.click();
+    await new Promise(r => setTimeout(r, 200));
+    return { ready: true, blank, first };
+  });
+  step("an empty practice press records nothing", turn.ready && turn.blank.logged === 0,
+       turn.ready ? turn.blank.logged + " entr(ies)" : "no practice question found");
+  step("an empty practice press marks and reveals nothing",
+       turn.ready && !turn.blank.why && !turn.blank.marked && turn.blank.nagged,
+       turn.ready ? JSON.stringify(turn.blank.why) + (turn.blank.marked ? " · marked" : "") : "");
+  step("and the hint survives for a real first attempt",
+       turn.ready && /^Hint:/.test(turn.first.why) && turn.first.logged === 1,
+       turn.ready ? JSON.stringify(turn.first.why.slice(0, 40)) + " · " + turn.first.logged + " logged" : "");
+
+  /* THE AERIAL STANDOFF, READ BEFORE ANY OF THIS TOUCHES THE VIEW.
+     It has to be taken here, in the aerial view at the suite's own
+     viewport, where the stage is the 52% column and reads WIDE so the
+     standback multiplier is 1. Read it any later — inside walk mode,
+     say — and it measures the fullscreen stage and the walker's own
+     camera, which is a different quantity entirely and makes the
+     comparison below pass against anything. */
+  const wide = await page.evaluate(() => {
+    const p = window.__app.camera.position, st = document.getElementById("stage");
+    return { far: Math.hypot(p.x, p.y, p.z), ratio: st.clientWidth / st.clientHeight };
+  });
+  step("the aerial standoff is read from a wide stage",
+       wide.ratio >= 0.85 && wide.far > 100,
+       "stage ratio " + wide.ratio.toFixed(2) + " · standoff " + Math.round(wide.far));
+
   /* walk mode: stand at the cathedral doors and expect the prompt */
   step("walk mode engages", await pressUntil("f", () => window.__walker.on === true));
+
+  /* Walk mode takes the whole window and gives it back. Everything
+     below this point drives the campus through page.evaluate, which
+     never touches layout — so the full-bleed behaviour had no check at
+     all until a review pointed out that CI could not see it.
+
+     The exit framing is the assertion that earns its place. standBack()
+     reads the STAGE's aspect to decide whether a narrow view needs the
+     camera pulled back by PORTRAIT_K, so framing the aerial view while
+     the wing was still fullscreen measured the window instead of the
+     column the camera was about to live in — and nothing recomputes it
+     afterwards. Asserted as a value, not a class: the camera either
+     ends up where a fresh aerial view would put it, or it does not. */
+  const bleed = await page.evaluate(() => ({
+    wing: (() => { const r = document.getElementById("campus-wing").getBoundingClientRect();
+                   return { w: Math.round(r.width), h: Math.round(r.height),
+                            x: Math.round(r.x), y: Math.round(r.y) }; })(),
+    vw: window.innerWidth, vh: window.innerHeight,
+    locked: getComputedStyle(document.body).overflow === "hidden",
+    masthead: getComputedStyle(document.getElementById("topbar")).visibility,
+  }));
+  step("walking takes the whole window",
+       bleed.wing.x === 0 && bleed.wing.y === 0 &&
+       bleed.wing.w === bleed.vw && bleed.wing.h === bleed.vh,
+       `wing ${bleed.wing.w}x${bleed.wing.h} at ${bleed.wing.x},${bleed.wing.y} · viewport ${bleed.vw}x${bleed.vh}`);
+  step("the page is locked while walking", bleed.locked);
+  step("the masthead does not paint through the sky", bleed.masthead === "hidden",
+       "visibility " + bleed.masthead);
+
+  /* AT 1024x768 ON PURPOSE. The suite runs at 1280x800, where the
+     window (1.6) and the restored 52% column (0.92) both read WIDE, so
+     standBack() returns 1 either way and this bug cannot be seen — the
+     first version of this check sat at the suite's own viewport and
+     passed against the unfixed code. At 1024x768 the window reads wide
+     (1.33) while the column reads narrow (0.77), so the two disagree
+     about PORTRAIT_K and the mis-measurement shows.
+
+     Calibrated against this page rather than against copied constants:
+     `wide` is the standoff the suite's own viewport produces, where
+     the stage reads wide and the multiplier is 1. A narrow stage must
+     then stand meaningfully FURTHER back. Framing off the window
+     instead of the stage returns the wide standoff — which is the
+     failure, and is what the >1.2x test catches. Resizing alone never
+     re-frames the camera, so a baseline read after the resize would be
+     the OLD viewport's position; that mistake is what this comment
+     exists to stop the next person repeating. */
+  await page.evaluate(() => document.getElementById("walkbtn").click());   /* out of walk */
+  await page.waitForTimeout(400);
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.waitForTimeout(600);
+  await page.evaluate(() => document.getElementById("walkbtn").click());   /* in  */
+  await page.waitForTimeout(500);
+  await page.evaluate(() => document.getElementById("walkbtn").click());   /* and out */
+  await page.waitForTimeout(700);
+  const framing = await page.evaluate(() => {
+    const p = window.__app.camera.position, st = document.getElementById("stage");
+    return { on: window.__walker.on, far: Math.hypot(p.x, p.y, p.z),
+             ratio: st.clientWidth / st.clientHeight,
+             stage: [st.clientWidth, st.clientHeight] };
+  });
+  step("leaving walk mode frames the aerial view for the stage, not the window",
+       !framing.on && framing.ratio < 0.85 && framing.far > wide.far * 1.2,
+       `stage ${framing.stage.join("x")} ratio ${framing.ratio.toFixed(2)} · standoff ` +
+       `${Math.round(framing.far)}, wide standoff ${Math.round(wide.far)}` +
+       (framing.far <= wide.far * 1.2 ? "  (framed off the window, not the stage)" : ""));
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.waitForTimeout(600);
+
+  /* THE NAMEPLATES, AT A PHONE. Eight world-space anchors project into
+     whatever screen the visitor brought, and in portrait standBack()
+     pulls the camera 1.5x out to fit the campus at all — which lands
+     all eight inside a band a phone's width across. Measured on main
+     at 393x851: five hall plates in SEVEN overlapping pairs.
+
+     393x851 on purpose. At the suite's own 1280x800 the halls are
+     spread across the width and the pile never forms, so a check
+     sitting at the default viewport passes against the unfixed code —
+     the same trap the framing check above documents.
+
+     Three things are asserted, and the third is the one that keeps the
+     other two honest: "nothing overlaps" is trivially true of a blank
+     screen, so the count of plates still standing is asserted too. A
+     fix that cleared the pile by hiding the campus would fail here. */
+  await page.setViewportSize({ width: 393, height: 851 });
+  await page.waitForTimeout(1200);          /* a resize, a settle, a sweep */
+  const plates = await page.evaluate(() => {
+    /* crowded-out by class, not by opacity. A plate the sweep has just
+       stood down spends 220ms fading, and reading its opacity mid-fade
+       counts it as on screen — which is how the first version of this
+       check reported two overlapping pairs that were one plate on its
+       way out. The class is the sweep's own verdict and does not
+       depend on catching the right moment. */
+    const shown = el => {
+      const cs = getComputedStyle(el);
+      return el.style.display !== "none" && cs.visibility !== "hidden" &&
+             +cs.opacity > 0.05 && !el.classList.contains("crowded-out");
+    };
+    const box = el => { const r = el.getBoundingClientRect();
+                        return { x: r.left, y: r.top, w: r.width, h: r.height }; };
+    const hit = (a, b) => !(a.x + a.w <= b.x || b.x + b.w <= a.x ||
+                            a.y + a.h <= b.y || b.y + b.h <= a.y);
+    const tags = [...document.querySelectorAll(".hall-tag, .stu-tag")].filter(shown);
+    const rects = tags.map(box);
+    let pairs = 0;
+    for (let i = 0; i < rects.length; i++)
+      for (let j = i + 1; j < rects.length; j++) if (hit(rects[i], rects[j])) pairs++;
+
+    let onHud = 0;
+    ["campus-wing-intro","campus-legend","campus-hints","quest",
+     "minimap","daynight","walkbtn","arr-cta"].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el || !shown(el)) return;
+      const h = box(el);
+      if (h.w && h.h) rects.forEach(r => { if (hit(r, h)) onHud++; });
+    });
+
+    /* and the hall the objective names must not be the one stood down
+       — only asked when it is on screen at all to be stood down */
+    const want = window.__quest().sector;
+    const target = want && document.querySelector(`.hall-tag[data-sector="${want}"]`);
+    const targetOn = !target || target.style.display === "none" ? null : shown(target);
+
+    const legend = document.getElementById("campus-legend");
+    const hints  = document.getElementById("campus-hints");
+    const clash = legend && hints && shown(legend) && shown(hints)
+                  ? hit(box(legend), box(hints)) : false;
+    return { visible: tags.length, pairs, onHud, want, targetOn, clash,
+             lean: document.body.classList.contains("plates-lean") };
+  });
+  step("nameplates do not print over each other on a phone",
+       plates.lean && plates.visible >= 2 && plates.pairs === 0,
+       `${plates.visible} plate(s) standing · ${plates.pairs} overlapping pair(s)` +
+       (plates.lean ? "" : "  (the portrait collapse never engaged)"));
+  step("nor over the interface they float above", plates.onHud === 0,
+       plates.onHud + " plate(s) on the HUD");
+  step("and the hall the objective names keeps its name",
+       plates.targetOn !== false,
+       plates.targetOn === null ? `${plates.want} is off screen` : `${plates.want} still reads`);
+  step("the sector legend and the control hints keep apart", !plates.clash);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.waitForTimeout(600);
+
+  step("walk mode engages again", await pressUntil("f", () => window.__walker.on === true));
 
   /* The drop point, tested against every wall. v94 shipped with the
      walk-in point at 500,802 INSIDE a building that had been moved
@@ -268,12 +630,18 @@ try {
        await page.evaluate(() =>
          !!document.getElementById("doorprompt")?.classList.contains("show")));
 
-  /* step inside the nave, then back out */
+  /* step inside, then back out. The door opens a PANEL now — the
+     hall's record over a photograph of the room — so this also
+     checks that the record was actually built, not just that a class
+     landed on an empty overlay. */
   const inside = await pressUntil("e", () => !!document.querySelector(".interior-open"));
-  step("cathedral interior opens", inside);
+  step("cathedral panel opens", inside);
+  step("the panel carries the hall's record",
+       await page.evaluate(() =>
+         (document.getElementById("int-body")?.textContent || "").trim().length > 80));
   await shoot("smoke-interior.png");
 
-  step("interior closes",
+  step("panel closes",
        await pressUntil("Escape", () => !document.querySelector(".interior-open"), 60_000));
 
   /* The clock cycles day → golden → night → auto; press until night
