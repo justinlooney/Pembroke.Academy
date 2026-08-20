@@ -683,7 +683,15 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
   width:56px;height:56px;border-radius:50%;font-size:20px;color:#e2e8f0;
   background:rgba(8,12,22,.7);border:1.5px solid rgba(148,163,184,.5);
 }
-@media (hover:none){ .walkmode #touchpad{display:flex;} }
+/* A hybrid laptop reports hover:hover while its owner is touching the
+   screen, and used to get fullscreen walk mode with no pad and no way
+   to move. What decides a PAD is whether a coarse pointer exists at
+   all — or, failing that, whether one has actually been used. What
+   decides whether to REMOVE a keyboard legend is a different question
+   with a different answer, and the (hover:none) blocks below keep it:
+   a device with a touchscreen and a keyboard needs both, not either. */
+@media (any-pointer: coarse){ .walkmode #touchpad{display:flex;} }
+body.touched.walkmode #touchpad{display:flex;}
 /* walk-mode scene overrides: JS owns the camera transform completely */
 #scene.walking{animation:none;transition:none;transform-origin:0 0;}
 #stage.walking{perspective:640px;perspective-origin:50% 50%;padding-top:0;}
@@ -910,7 +918,7 @@ body.walkmode #topbar{visibility:hidden;}
 #convo-input{flex:1;min-width:0;padding:.55rem .8rem;border-radius:.6rem;
   border:1px solid rgba(148,163,184,.4);background:rgba(8,12,22,.75);
   color:#f1f5f9;font-size:13.5px;}
-#convo-input:focus{outline:none;border-color:var(--brass);}
+#convo-input:focus{border-color:var(--brass);}
 .convo-thinking{font-size:12px;color:#94a3b8;font-style:italic;margin:.3rem 0 .5rem;
   display:flex;align-items:center;gap:.6rem;}
 .convo-thinking span::after{content:"";}
@@ -1119,7 +1127,7 @@ body.panel-open #toasts{bottom:5.5rem;}
 .st-num{display:block;width:12rem;max-width:100%;margin:.35rem 0;padding:.45rem .7rem;
   border-radius:.55rem;border:1px solid rgba(148,163,184,.4);background:rgba(8,12,22,.7);
   color:#f1f5f9;font-family:ui-monospace,monospace;font-size:13px;}
-.st-num:focus{outline:none;border-color:var(--brass);}
+.st-num:focus{border-color:var(--brass);}
 /* the gradebook rows */
 .st-grow{display:grid;grid-template-columns:1fr auto auto;gap:.15rem .8rem;align-items:baseline;
   padding:.5rem .3rem;border-bottom:1px solid rgba(148,163,184,.15);}
@@ -1140,10 +1148,14 @@ body.panel-open #toasts{bottom:5.5rem;}
 .orient .o-step .o-tick{flex:none;color:var(--brass);font-size:11px;width:1rem;}
 /* Walking on a phone, the full checklist sat squarely on the ◀ ▲ ▶ pads.
    Collapse it to the one step that matters and lift it clear of them. */
-@media (hover:none){
+/* this one is about the pad being in the way, so it asks the same
+   question the pad does */
+@media (any-pointer: coarse){
   body.walkmode .orient{bottom:11.6rem;}
   body.walkmode .orient .o-step:not(.now){display:none;}
 }
+body.touched.walkmode .orient{bottom:11.6rem;}
+body.touched.walkmode .orient .o-step:not(.now){display:none;}
 @media print{
   body.j-print > *:not(#jmodal){display:none !important;}
   body.j-print #jmodal,.j-print .jmodal-card{position:static !important;transform:none !important;
@@ -1151,8 +1163,27 @@ body.panel-open #toasts{bottom:5.5rem;}
   body.j-print .jmodal-scrim,.j-print .jmodal-x,.j-print .jletter-actions{display:none !important;}
   body.j-print .jletter{box-shadow:none !important;}
 }
-@media (prefers-reduced-motion: reduce){
-  .jcta{transition:none;}
+/* ── the focus ring ───────────────────────────────────────────────
+   There were four :focus rules in this stylesheet and one in
+   site.css, so almost everything a keyboard could reach showed
+   nothing at all when it got there. One rule, in the brass the
+   campus already wears.
+
+   :focus-visible, not :focus, so a mouse click on a button does not
+   paint a ring nobody asked for while a Tab does. Wrapped in :where()
+   so its specificity is zero and the four hand-tuned rules above and
+   below still win — the white ring on .jcta is deliberate, gold on
+   gold being no ring at all.
+
+   The dark halo is not decoration: this HUD floats over a daytime sky
+   and sunlit grass, where a thin brass line alone disappears. Same
+   reasoning as the text-shadow the overlays already carry. */
+:where(a[href],button,input,select,textarea,summary,pre,
+       [tabindex]:not([tabindex="-1"])):focus-visible{
+  outline:2px solid var(--brass);
+  outline-offset:2px;
+  border-radius:3px;
+  box-shadow:0 0 0 4px rgba(6,10,20,.8);
 }
 
 /* ═══════════════ ⑥ THE ARRIVAL ═══════════════ */
@@ -1180,8 +1211,32 @@ body.panel-open #toasts{bottom:5.5rem;}
 #arr-skip{position:absolute;right:1rem;bottom:1rem;z-index:210;background:none;border:0;
   color:#5f6c84;font-size:10.5px;text-transform:uppercase;letter-spacing:.2em;cursor:pointer;padding:.5rem;}
 #arr-skip:hover{color:#d4af6a;}
+/* ── reduced motion ───────────────────────────────────────────────
+   Three narrow blocks used to name a handful of elements each, while
+   the campus itself breathed, the clouds crossed the sky, the gsplats
+   drifted, the trees swayed and the fireflies rose — all of it
+   unguarded, and all of it large-area movement over the whole window,
+   which is exactly the kind this setting exists to stop.
+
+   Every ambient loop on this page is a CSS animation, so one rule
+   reaches all of them, including the ones added after this comment —
+   which is the argument for the blanket over another list to keep up
+   to date. Nothing here listens for animationend or transitionend, so
+   ending an animation immediately cannot strand any state; the
+   fill-mode "both" entrances simply arrive at their final frame.
+
+   Not silenced: the cohort. The rigged bodies walk through an
+   AnimationMixer rather than a keyframe, and a quad of people frozen
+   mid-stride is a broken campus rather than a calm one. The motion
+   this setting is about is the world moving under the visitor, and
+   that is the camera — which nothing moves here but the visitor. */
 @media (prefers-reduced-motion: reduce){
-  .arr-crest,.arr-name,.arr-motto,.arr-bar,.arr-note,#arr-cta{animation:none;}
+  *,*::before,*::after{
+    animation-duration:.001ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:.001ms !important;
+    scroll-behavior:auto !important;
+  }
 }
 </style>
 </head>
@@ -1292,7 +1347,7 @@ body.panel-open #toasts{bottom:5.5rem;}
 
     <div id="campus-wing-intro" class="absolute inset-x-0 top-0 pt-6 sm:pt-8 px-6 sm:px-10 z-10 pointer-events-none">
       <h1 class="font-serif-d text-3xl sm:text-4xl font-semibold text-[color:var(--parchment)] leading-tight drop-shadow-lg">The Gothic <span class="italic text-[color:var(--brass)]">Quadrangle</span></h1>
-      <p class="text-[13px] text-slate-400 mt-1.5 max-w-md">Four halls of hewn granite, glowing tracery, and slate spires. <span class="text-slate-300">Click a building</span> to step inside its lecture wing — or wander the lawn with the cohort.</p>
+      <p class="text-[13px] text-slate-300 mt-1.5 max-w-md">Four halls of hewn granite, glowing tracery, and slate spires. <span class="text-[color:var(--parchment)]">Click a building</span> to step inside its lecture wing — or wander the lawn with the cohort.</p>
     </div>
 
     <!-- the WebGL world (Three.js) + CSS2D label overlay mount here -->
@@ -1306,8 +1361,8 @@ body.panel-open #toasts{bottom:5.5rem;}
       <div class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-sm inline-block" style="background:var(--quad-adm);box-shadow:0 0 8px var(--quad-adm)"></i><span class="text-slate-300">Administration · AI Robotics &amp; Flight</span></div>
     </div>
     <div id="campus-hints" class="absolute right-5 sm:right-8 bottom-5 z-10 text-right pointer-events-none">
-      <div id="hint-keys" class="text-[10px] uppercase tracking-[.24em] text-slate-500">Keys 1–4 · quads · 0 · syllabus · N · day/night · F · walk mode</div>
-      <div class="text-[10px] uppercase tracking-[.24em] text-slate-600 mt-1">drag to orbit · scroll to zoom</div>
+      <div id="hint-keys" class="text-[10px] uppercase tracking-[.24em] text-slate-300">Keys 1–4 · quads · 0 · syllabus · N · day/night · F · walk mode</div>
+      <div class="text-[10px] uppercase tracking-[.24em] text-slate-300 mt-1">drag to orbit · scroll to zoom</div>
     </div>
 
     <!-- ═══════ CONVERSATION (the campus stops; one person remains) ═══════ -->
@@ -11856,6 +11911,14 @@ document.querySelectorAll("#touchpad button").forEach(b => {
   b.addEventListener("pointerdown", on); b.addEventListener("pointerup", off);
   b.addEventListener("pointerleave", off); b.addEventListener("pointercancel", off);
 });
+/* The media query asks whether a coarse pointer EXISTS; this asks
+   whether one has been used. Between them a hybrid laptop is covered
+   whichever way its owner is holding it, and neither one takes the
+   keyboard away — the class only adds affordances. Capture, so it
+   still fires for a pointerdown some other handler stops. */
+addEventListener("pointerdown", e => {
+  if (e.pointerType === "touch") document.body.classList.add("touched");
+}, { capture: true, passive: true });
 
 /* ── quest log + minimap ─────────────────────────────────────────── */
 function questInfo(){
@@ -15962,8 +16025,25 @@ window.__jskip = skipOrientation;
 const jmodal = document.getElementById("jmodal");
 const jbody = document.getElementById("jmodal-body");
 let jReturnFocus = null;
+/* aria-modal="true" was a promise the surface did not keep: 55
+   focusable controls sat behind it, Tab walked straight out of the
+   dialog into the campus HUD, and the background was not inert. */
+const jFocusable = (root) =>
+  [...root.querySelectorAll('a[href],button,input,select,textarea,summary,[tabindex]:not([tabindex="-1"])')]
+    .filter(el => !el.disabled && el.getClientRects().length > 0);
+function jInert(on){
+  for (const el of document.body.children)
+    if (el !== jmodal) el.toggleAttribute("inert", on);
+}
 function jOpen(html){
-  jReturnFocus = document.activeElement;
+  /* Only the closed→open transition owns the opener. Every multi-step
+     flow calls jOpen again for its next view, and each of those calls
+     used to overwrite jReturnFocus with a control from the PREVIOUS
+     view — which the next innerHTML write then destroys. Closing a
+     multi-step flow therefore restored focus to a detached node, which
+     is the same as restoring it nowhere. */
+  const wasOpen = jmodal.classList.contains("open");
+  if (!wasOpen){ jReturnFocus = document.activeElement; jInert(true); }
   jbody.innerHTML = html;
   jmodal.classList.add("open");
   jmodal.setAttribute("aria-hidden", "false");
@@ -15974,9 +16054,28 @@ function jClose(){
   jmodal.classList.remove("open");
   jmodal.setAttribute("aria-hidden", "true");
   jbody.innerHTML = "";
-  if (jReturnFocus && jReturnFocus.focus) jReturnFocus.focus();
+  jInert(false);
+  const back = jReturnFocus;
+  jReturnFocus = null;
+  /* isConnected, because the opener may have been re-rendered out of
+     the document while the dialog was up — renderJourney() rewrites
+     the very panel most of these are launched from. Falling back into
+     that panel keeps the keyboard where the visitor was working
+     instead of dropping it at the top of the document. */
+  if (back && back.isConnected && back.focus) back.focus();
+  else jFocusable(document.getElementById("journey") || document.body)[0]?.focus();
 }
 jmodal.addEventListener("click", e => { if (e.target.hasAttribute("data-jclose")) jClose(); });
+/* inert keeps the background out of the tab order; this keeps the last
+   control in the dialog from handing focus to the browser chrome */
+jmodal.addEventListener("keydown", e => {
+  if (e.key !== "Tab") return;
+  const f = jFocusable(jmodal);
+  if (!f.length) return;
+  const first = f[0], last = f[f.length - 1];
+  if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+});
 window.addEventListener("keydown", e => {
   if (e.key === "Escape" && jmodal.classList.contains("open")) jClose();
 });
