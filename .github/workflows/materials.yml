@@ -67,7 +67,12 @@ jobs:
           done
 
       - name: And now?
-        run: node tools/check-materials.mjs || true
+        # NOT `|| true`. The pre-conversion scan above is a diagnostic and
+        # is allowed to be noisy; this one is the verification, and forcing
+        # it to succeed let the job go green with deprecated spec-gloss
+        # materials still in place — which reaches the campus as white,
+        # untextured characters and is committed by this workflow itself.
+        run: node tools/check-materials.mjs
 
       - name: Did any model actually change?
         id: diff

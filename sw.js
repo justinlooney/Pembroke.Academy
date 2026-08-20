@@ -29,6 +29,12 @@
  * redirect cannot legally be returned from a worker, and CDNs redirect.
  * A script that dies that way takes the whole page with it.
  *
+ * Three things can happen to an asset and they need three different
+ * answers, which is why there are three lists rather than one version:
+ * a NEW file needs nothing (cacheFirst simply fetches it once), a
+ * DELETED file needs RETIRED, and a file CHANGED IN PLACE needs
+ * REFRESHED. Only a mass change is worth re-versioning ASSETS_V.
+ *
  * VERSION tracks the RELEASE and versions only the shell. It used to
  * prefix the model depot too, which meant every release — however
  * text-only — flushed the whole model cache and made a returning
@@ -60,6 +66,26 @@ const RETIRED = [
   "./assets/cathedral2.glb",
   "./assets/vendor/spark/spark.module.min.js",
   "./assets/vendor/three-mesh-bvh/index.module.js",
+];
+/* Files whose BYTES changed at a URL the depot already holds. This is
+   the one case neither VERSION nor RETIRED covers, and it is the one
+   with no symptom: cacheFirst matches the stored copy and never asks
+   again, so a corrected model, a re-exported texture or a fixed splat
+   reaches every new visitor and no returning one — forever, and it
+   looks right on the machine of whoever made the change, because their
+   own browser fetched it fresh.
+
+   Bumping ASSETS_V would also fix it and is the wrong trade for one
+   file: it throws away the whole ~85MB depot a returning visitor
+   already holds. Named refresh drops exactly the changed entries on
+   activate and lets cacheFirst re-fetch them, which is what RETIRED
+   does for deletion and for the same reason.
+
+   An entry may leave this list once no plausible visitor still holds
+   the old bytes. tools/check-sw-version.sh fails the build when an
+   asset is modified in place and named in neither this list nor a
+   fresh ASSETS_V. */
+const REFRESHED = [
 ];
 const SHELL = VERSION + "-shell";
 const DEPOT = ASSETS_V + "-depot";
@@ -160,7 +186,8 @@ self.addEventListener("activate", (e) => {
        the activation down with it. */
     try {
       const depot = await caches.open(DEPOT);
-      await Promise.all(RETIRED.map((u) => depot.delete(u, { ignoreVary: true })));
+      await Promise.all([...RETIRED, ...REFRESHED]
+        .map((u) => depot.delete(u, { ignoreVary: true })));
     } catch (_) {}
     await self.clients.claim();
   })());

@@ -2,13 +2,26 @@
 #
 # Pembroke Academy — guard against shipping stale models.
 #
-# The service worker caches everything under assets/ cache-first, keyed
-# by VERSION in sw.js. Change a model without bumping VERSION and every
-# returning visitor keeps the old one indefinitely, with no symptom you
-# would ever notice locally: your own browser holds the new files, so
-# the site looks correct to you and is broken for everybody else.
+# The service worker caches everything under assets/ cache-first, in a
+# depot keyed by ASSETS_V — NOT by VERSION. This guard used to demand a
+# VERSION bump for any asset change, which was right when VERSION
+# prefixed the depot too and has been wrong since it stopped: the
+# release workflows dutifully bump VERSION, the guard passes, the depot
+# name never moves, and cacheFirst keeps handing back the old bytes.
 #
-# That is a silent, sticky, user-facing failure, so it is worth a check.
+# Three things can happen to an asset and only one of them is a
+# problem:
+#
+#   added    a URL the depot has never held — cacheFirst fetches it
+#            once. Nothing to do.
+#   deleted  cacheFirst simply stops asking, so the bytes sit on the
+#            visitor's disk forever. sw.js RETIRED names them.
+#   changed  the depot holds that URL already and will never ask again.
+#            sw.js REFRESHED names them, or ASSETS_V moves.
+#
+# The last one has no symptom whatsoever: your own browser fetched the
+# new file, so the site looks correct to you and is stale for everybody
+# who was here before. That is what this guard is for.
 #
 #   bash tools/check-sw-version.sh <base-ref>
 #
@@ -45,35 +58,57 @@ if [ "$build" != "$version" ]; then
 fi
 echo "BUILD and VERSION agree at $build"
 
-changed_assets="$(git diff --name-only "$base"...HEAD -- assets/ | grep -viE '\.md$' || true)"
-if [ -z "$changed_assets" ]; then
-  echo "no asset changes — VERSION bump not required"
+# --diff-filter=M: modified in place. Added (A) files are safe by
+# construction and deleted (D) ones are RETIRED's business, so neither
+# belongs in the check that follows.
+modified="$(git diff --name-only --diff-filter=M "$base"...HEAD -- assets/ | grep -viE '\.md$' || true)"
+if [ -z "$modified" ]; then
+  echo "no asset changed in place — the depot still describes what it holds"
   exit 0
 fi
 
-old="$(git show "$base:sw.js" 2>/dev/null | sed -n 's/^const VERSION = "\(.*\)";$/\1/p')"
-new="$(sed -n 's/^const VERSION = "\(.*\)";$/\1/p' sw.js)"
-
-if [ -z "$new" ]; then
-  echo "could not read VERSION from sw.js — the guard cannot vouch for this change"
+old_av="$(git show "$base:sw.js" 2>/dev/null | sed -n 's/^const ASSETS_V = "\(.*\)";$/\1/p')"
+new_av="$(sed -n 's/^const ASSETS_V = "\(.*\)";$/\1/p' sw.js)"
+if [ -z "$new_av" ]; then
+  echo "could not read ASSETS_V from sw.js — the guard cannot vouch for this change"
   exit 1
 fi
 
-# sw.js is new on this branch: nothing cached under an older key, so fine.
-if [ -z "$old" ]; then
-  echo "sw.js is new here — no previous cache to invalidate"
+# A moved ASSETS_V renames the whole depot, so every stale entry goes
+# with it. Blunt, but it is a legitimate answer for a mass change.
+if [ -n "$old_av" ] && [ "$old_av" != "$new_av" ]; then
+  echo "assets changed in place and ASSETS_V moved $old_av -> $new_av (whole depot re-keyed)"
   exit 0
 fi
 
-if [ "$old" = "$new" ]; then
+# Otherwise each modified file must be named in REFRESHED. Read the
+# list as the literal block it is, so a path mentioned in a comment
+# somewhere else in sw.js cannot vouch for a file.
+refreshed="$(sed -n '/^const REFRESHED = \[/,/^\];/p' sw.js)"
+unnamed=""
+while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  case "$refreshed" in
+    *"\"./$f\""*) ;;
+    *) unnamed="$unnamed$f
+" ;;
+  esac
+done <<< "$modified"
+
+if [ -n "$unnamed" ]; then
   echo
-  echo "assets changed but sw.js VERSION is still '$new'."
+  echo "these assets changed in place but are named in neither REFRESHED nor a new ASSETS_V:"
   echo
-  echo "$changed_assets" | sed 's/^/    /'
+  printf '%s' "$unnamed" | sed 's/^/    /'
   echo
-  echo "Returning visitors would keep the old files forever. Bump VERSION"
-  echo "in sw.js (e.g. pembroke-v2) so the worker drops its old caches."
+  echo "The depot already holds those URLs and cacheFirst never asks again,"
+  echo "so every returning visitor keeps the old bytes indefinitely — and it"
+  echo "looks correct on your machine, because your browser fetched the new"
+  echo "ones. Add them to REFRESHED in sw.js (activate drops exactly those"
+  echo "entries and the next fetch re-fills them), or bump ASSETS_V if the"
+  echo "change is broad enough to be worth re-keying the whole depot."
   exit 1
 fi
 
-echo "assets changed and VERSION moved $old -> $new"
+echo "assets changed in place and every one is named in REFRESHED"
+exit 0
