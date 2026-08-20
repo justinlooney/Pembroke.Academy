@@ -216,22 +216,35 @@ try {
   const quest = await page.evaluate(() => {
     const J = window.__journey, out = [];
     const order = ["visitor","applicant","accepted","advised","declared","enrolled"];
+    /* every declarable major, not just the mathematics one: an enrolled
+       engineering student's schedule holds no course with lectures, and
+       naming the Great Library's calculus as their objective is wrong
+       twice — not their course, and not one they could have registered
+       for. Only the enrolled rows can show it, which is why the major
+       is varied here and not at every stage. */
     for (const stage of order){
-      J.reset();
-      J.patch(j => {
-        const at = Date.now(), upto = order.indexOf(stage);
-        if (upto >= 1) j.admissions.applicationSubmittedAt = at;
-        if (upto >= 2) j.admissions.acceptedAt = at;
-        if (upto >= 3) j.advising.completedAt = at;
-        if (upto >= 4){ j.academics.declaredMajorId = "lib"; j.academics.declaredAt = at; }
-        if (upto >= 5){ j.registration.registeredCourseIds = ["MATH101","MATH120","MATH201"];
-                        j.registration.completedAt = at; }
-      });
-      const q = window.__quest();
-      const m = /\b([A-Z]{2,4})\s?(\d{3})\b/.exec(q.text || "");
-      const id = m ? m[1] + m[2] : null;
-      out.push({ stage, id, text: (q.text || "").slice(0, 60), sector: q.sector || null,
-                 teachable: !id || !!window.__study.STUDY[id] });
+      for (const major of ["lib", "eng", "sci", "adm"]){
+        if (stage !== "enrolled" && major !== "lib") continue;
+        J.reset();
+        J.patch(j => {
+          const at = Date.now(), upto = order.indexOf(stage);
+          if (upto >= 1) j.admissions.applicationSubmittedAt = at;
+          if (upto >= 2) j.admissions.acceptedAt = at;
+          if (upto >= 3) j.advising.completedAt = at;
+          if (upto >= 4){ j.academics.declaredMajorId = major; j.academics.declaredAt = at; }
+          if (upto >= 5){
+            j.registration.registeredCourseIds =
+              window.__app.COURSES.filter(c => c.sector === major).map(c => c.id);
+            j.registration.completedAt = at;
+          }
+        });
+        const q = window.__quest();
+        out.push({ stage, major, id: q.id || null, sector: q.sector || null,
+                   text: (q.text || "").slice(0, 64),
+                   /* the honest predicate the product itself uses — a
+                      STUDY key is not the same claim as a lecture */
+                   teachable: !q.id || window.__study.hasLectures(q.id) });
+      }
     }
     J.reset();
     return out;
@@ -239,13 +252,39 @@ try {
   const dead = quest.filter(r => !r.teachable);
   step("the objective always names something that can be done",
        dead.length === 0,
-       dead.length ? dead.map(r => `${r.stage} → ${r.id} has no lessons`).join(" · ")
-                   : quest.map(r => r.stage + ":" + (r.id || "no course")).join(" "));
+       dead.length ? dead.map(r => `${r.stage}/${r.major} → ${r.id} has no lectures`).join(" · ")
+                   : quest.map(r => r.stage + "/" + r.major + ":" + (r.id || "—")).join(" "));
   /* q.sector fires a "you made it to lecture" toast on entering that
-     hall — it must not be set for an objective with no lecture in it */
+     hall. It may only be set when the objective names a course that is
+     both teachable AND the student's own — an enrolled engineer sent
+     to the calculus lecture has not attended their class. */
   const congrats = quest.filter(r => r.sector && !(r.id && r.teachable));
   step("no lecture is congratulated where none is taught", congrats.length === 0,
-       congrats.map(r => r.stage + " → sector " + r.sector).join(" · ") || "every sector earns its toast");
+       congrats.map(r => r.stage + "/" + r.major + " → sector " + r.sector).join(" · ")
+         || "every sector earns its toast");
+
+  /* AND THE STUB, which is the shape this bug comes back in. Content
+     lands course by course, so a course gets its STUDY entry before
+     its lectures are written — and every test of `STUDY[id]` for
+     truthiness calls that teachable. Caught in review: the fix passed
+     its own test while a one-line stub put the dead end straight back.
+     Injected here because the product cannot reach the state on its
+     own yet, and the day it can is the day this must already hold. */
+  const stub = await page.evaluate(() => {
+    window.__study.STUDY.MATH101 = { units: [] };          /* keyed, no lectures */
+    window.__journey.reset();
+    const q = window.__quest();
+    const r = { keyed: !!window.__study.STUDY.MATH101,
+                lectures: window.__study.hasLectures("MATH101"),
+                id: q.id || null, sector: q.sector || null };
+    delete window.__study.STUDY.MATH101;
+    return r;
+  });
+  step("a course keyed with no lectures is not called teachable",
+       stub.keyed && !stub.lectures, `keyed ${stub.keyed} · hasLectures ${stub.lectures}`);
+  step("and the objective will not send anybody to one",
+       stub.id !== "MATH101" && !(stub.sector && stub.id === "MATH101"),
+       "names " + stub.id + " · sector " + stub.sector);
 
   /* An unanswered knowledge check is not a wrong one. Submitting with
      nothing selected used to mark every question wrong, reveal every
