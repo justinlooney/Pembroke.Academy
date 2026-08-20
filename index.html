@@ -3179,7 +3179,20 @@ window.__study = { STUDY, progress: studyProgress, state: () => study, hasLectur
                       that has to enrol first is testing enrolment */
                    openSection: (id, n) => jStudySection(id, n) };   /* test/debug hook */
 let done = loadDone();
-let currentSector = localStorage.getItem(LS_SECTOR) || "all";
+/* The stored sector is a key into SECTORS, and every renderer that
+   reads it — the banner, the chips, the hall highlight — dereferences
+   the result without checking. A value that is merely a string is not
+   a value that names a hall: one stale migration or a hand-edited
+   ledger and renderBanner() throws on S.soft, after ignition, with the
+   workspace half-drawn. Parseable is not the same as valid.
+
+   Object.hasOwn, not SECTORS[k]: a plain lookup walks the prototype
+   chain, so "__proto__" and "constructor" both answer truthy and sail
+   through as hall keys — the same fault already filed against the
+   governor's point_to_location target. */
+const storedSector = localStorage.getItem(LS_SECTOR);
+let currentSector = (storedSector === "all" || Object.hasOwn(SECTORS, storedSector || ""))
+  ? storedSector : "all";
 const byId = Object.fromEntries(COURSES.map(c => [c.id, c]));
 
 function wallURI(orient, natW, natH, o, mode){
@@ -15710,10 +15723,46 @@ const Journey = (() => {
     academics:  { declaredMajorId: null, declaredAt: null },
     registration: { term: null, registeredCourseIds: [], completedAt: null },
   });
+  /* ── restoring: the shape is the schema ───────────────────────────
+     Object.assign is a ONE-level copy, and every field of this state
+     is read as if the shape were guaranteed. A top-level string or
+     array fails safe — there is nothing in it the merge will keep —
+     which is what made the first pass at this look robust. A nested
+     null does not: `{"registration":null}` replaces the record whole,
+     status() then reads completedAt off null, and the campus never
+     ignites at all. No error screen, no recovery, every reload; the
+     only way out is a ledger reset the visitor cannot reach because
+     nothing rendered.
+
+     So restore against blank() as the schema. A stored value is kept
+     only where its shape matches the default's — objects into objects,
+     arrays into arrays, primitives into their own type — and anything
+     else silently loses to the default. Free-form maps (campusVisit's
+     `steps`) and nullable slots (`application`, timestamps) keep
+     whatever they hold, because there the default's type IS "any".
+     Bad data now costs a field instead of the university. */
+  const restore = (def, raw) => {
+    if (Array.isArray(def)) return Array.isArray(raw) ? raw : def;
+    if (def && typeof def === "object"){
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) return def;
+      const out = {};
+      for (const k of Object.keys(def)) out[k] = restore(def[k], raw[k]);
+      /* Keys the schema does not name are free-form (campusVisit's
+         `steps`) and are kept — except "__proto__", which JSON.parse
+         hands back as a genuine own key and plain assignment would
+         hand to the prototype setter. Restoring a ledger must not be
+         able to reshape Object. */
+      for (const k of Object.keys(raw))
+        if (!(k in def) && k !== "__proto__") out[k] = raw[k];
+      return out;
+    }
+    if (def === null) return raw === undefined ? null : raw;   /* nullable: any shape */
+    return typeof raw === typeof def ? raw : def;
+  };
   let state;
   try {
     const raw = JSON.parse(localStorage.getItem(LS_JOURNEY) || "null");
-    state = raw && typeof raw === "object" ? Object.assign(blank(), raw) : blank();
+    state = restore(blank(), raw);
   } catch (_) { state = blank(); }
   const subs = [];
   const save = () => { try { localStorage.setItem(LS_JOURNEY, JSON.stringify(state)); } catch (_) {} };
