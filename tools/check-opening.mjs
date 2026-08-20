@@ -101,17 +101,31 @@ try {
   step("a first visit ends on the quad, not above it", landed,
        landed ? "body.walkmode" : "never entered walk mode — the arrival still lands in the aerial");
 
+  /* Wait for the RECORDER to have seen the reveal, not for the page to
+     be in that state. The first draft waited on the page and then read
+     the log, which is a race the log loses: the reveal had happened and
+     the next 200ms sample had not been written, so the check reported
+     "the interface never returned" about an interface that had. */
   const settled = await until(first.page, () =>
-    !document.body.classList.contains("opening") && window.__app?.camera.position.y < 60);
+    window.__tl?.some(r => !r.opening && r.walk && r.camY !== null && r.camY < 60));
   const tl = await first.page.evaluate(() => window.__tl);
   const at = (pred) => tl.findIndex(pred);
   const iOpen = at(r => r.opening), iDark = at(r => r.chrome === 0),
         iWalk = at(r => r.walk),   iBack = at(r => r.opening === false && r.walk);
 
-  step("the chrome is gone before the campus is",
-       iOpen >= 0 && iDark >= 0 && iDark < iWalk,
+  /* iDark <= iWalk, not <. These are two events sampled every 200ms,
+     and on a fast enough machine the fade finishing and the walker
+     landing fall inside one sample — which is indistinguishable from
+     "at the same moment" and is not a fault. Demanding a strictly
+     earlier sample asserts something about the sampler rather than
+     about the page, and it went red on a runner QUICKER than the one
+     it was written on. */
+  step("the chrome is gone by the time the campus is",
+       iOpen >= 0 && iDark >= 0 && iWalk >= 0 && iDark <= iWalk,
        iOpen < 0 ? "body.opening never applied"
-         : `opening at ${tl[iOpen].t}ms · chrome dark at ${tl[iDark]?.t}ms · standing at ${tl[iWalk]?.t}ms`);
+         : iDark < 0 ? "the interface never faded out"
+         : iWalk < 0 ? "it never reached the ground"
+         : `opening at ${tl[iOpen].t}ms · chrome dark at ${tl[iDark].t}ms · standing at ${tl[iWalk].t}ms`);
 
   /* An absent opening makes this slice empty and .every vacuously
      true, so the reason has to be reported separately from the verdict
@@ -124,14 +138,15 @@ try {
        : dark ? `${dark} frame(s) went dark mid-descent — the opening is showing their clock, not the postcard`
        : "daylight held from the first frame of the flight to the ground");
 
-  const pose = settled ? tl[tl.length - 1] : null;
+  const pose = settled ? tl.filter(r => r.walk && !r.opening && r.camY !== null).pop() : null;
   step("it lands at eye height with the cathedral on axis",
        !!pose && pose.camY < 60 && Math.abs(pose.yaw) < 0.05,
        pose ? `camera y=${pose.camY} z=${pose.camZ} yaw=${pose.yaw} — yaw 0 looks down −Z, which is the cathedral`
             : "the camera never settled");
 
-  step("and the chrome comes back afterwards", iBack > iWalk,
-       iBack > iWalk ? `revealed at ${tl[iBack].t}ms` : "the interface never returned");
+  step("and the chrome comes back afterwards", iBack >= 0 && iBack >= iWalk,
+       iBack < 0 ? "the interface never returned"
+                 : `revealed at ${tl[iBack].t}ms, ${tl[iBack].t - tl[iWalk].t}ms after landing`);
 
   const sky = await first.page.evaluate(() => ({
     mode: localStorage.getItem("pembroke.registrar.mode"),
