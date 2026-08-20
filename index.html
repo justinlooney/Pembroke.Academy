@@ -13761,8 +13761,14 @@ function jGrades(courseId){
   const secs = studySections(courseId), st = study[courseId] || {}, x = st.x || {};
   const withFull = secs.filter(s => s.full);
   const comp = {
-    quizzes: { have: secs.length > 0, pct: 100 * secs.filter(s => st[s.n] === 2).length / secs.length,
-               note: `${secs.filter(s => st[s.n] === 2).length} of ${secs.length} knowledge checks passed` },
+    /* x[n].kc, not st[n] === 2. Level 2 is MASTERY, and for a section
+       with a problem set mastery needs the set cleared as well — so a
+       student who passed every knowledge check and left the sets alone
+       read 0%, under a heading that says knowledge checks. Each
+       component is scored from its own evidence; mastery is a separate
+       idea and keeps its own bar. */
+    quizzes: { have: secs.length > 0, pct: 100 * secs.filter(s => x[s.n]?.kc).length / secs.length,
+               note: `${secs.filter(s => x[s.n]?.kc).length} of ${secs.length} knowledge checks passed` },
     labs:    { have: withFull.length > 0, pct: withFull.length ? 100 * withFull.filter(s => x[s.n]?.lab).length / withFull.length : 0,
                note: `${withFull.filter(s => x[s.n]?.lab).length} of ${withFull.length} interactive labs touched` },
     homework:{ have: withFull.some(s => x[s.n]?.hw), pct: (() => {
@@ -13894,10 +13900,51 @@ function refreshProgress(){
   });
 }
 
+/* ── the one rule a seal has to obey ───────────────────────────────
+   A seal is a self-reported claim — eleven of the twelve courses have
+   no lectures behind them yet, so it has to be — but it is also the
+   ledger that registration prerequisites and the degree both read. So
+   the claim is allowed; the ORDER is not negotiable. Sealing a course
+   whose prerequisites are unsealed was letting a visitor tick the
+   capstone first, use it to satisfy everything downstream, and take
+   the degree without opening a lecture.
+
+   Unsealing cascades for the same reason: leaving MATH 120 sealed
+   after MATH 101 comes off would put the ledger in a state its own
+   rules forbid, and every reader downstream trusts that it cannot be.
+   Say what happened — silently deleting somebody's progress is worse
+   than refusing to. */
+function sealDependents(id){
+  const out = [];
+  let grew = true;
+  while (grew){
+    grew = false;
+    for (const c of COURSES)
+      if (done.includes(c.id) && c.prereqs.some(p => p === id || out.includes(p)) && !out.includes(c.id)){
+        out.push(c.id); grew = true;
+      }
+  }
+  return out;
+}
 function toggleDone(id){
   const was = done.includes(id);
-  done = was ? done.filter(x => x !== id) : [...done, id];
+  const course = byId[id];
+  if (!was){
+    const missing = (course?.prereqs || []).filter(p => !done.includes(p));
+    if (missing.length){
+      toast("Not yet", `${course.code} assumes ${missing.map(p => byId[p].code).join(" and ")}. ` +
+        `Seal ${missing.length === 1 ? "it" : "those"} first — the registrar reads this ledger.`,
+        "#d4af6a", 6000);
+      return;
+    }
+  }
+  const cascade = was ? sealDependents(id) : [];
+  done = was ? done.filter(x => x !== id && !cascade.includes(x)) : [...done, id];
   saveDone(done);
+  if (cascade.length)
+    toast("Unsealed with it", `${cascade.map(x => byId[x].code).join(", ")} ` +
+      `assume${cascade.length === 1 ? "s" : ""} ${course.code}, so ${cascade.length === 1 ? "it has" : "they have"} come off too.`,
+      "#d4af6a", 7000);
   const card = coursesEl.querySelector(`[data-course="${id}"]`);
   if (card){
     card.classList.toggle("done", !was);
@@ -13909,7 +13956,8 @@ function toggleDone(id){
   }
   renderChips();
   refreshProgress();
-  if (currentSector === "all") { /* keep group counters honest */ renderCourses(); }
+  if (cascade.length) renderCourses();          /* other cards just changed */
+  else if (currentSector === "all") { /* keep group counters honest */ renderCourses(); }
   else {
     /* prerequisite pills elsewhere may reference this course */
     coursesEl.querySelectorAll("[data-course]").forEach(el => {
@@ -15768,7 +15816,14 @@ const Journey = (() => {
   const save = () => { try { localStorage.setItem(LS_JOURNEY, JSON.stringify(state)); } catch (_) {} };
   const emit = () => subs.forEach(f => { try { f(state); } catch (_) {} });
   return {
-    get: () => state,
+    /* A COPY. `get: () => state` handed every caller the authoritative
+       object, so `Journey.get().registration.completedAt = Date.now()`
+       moved a visitor to "enrolled" with nothing saved, nothing
+       rendered and no subscriber told — authority changing by accident
+       and leaving no trace. Reads are cheap and rare here (fourteen
+       call sites, none in the render loop); patch() still mutates the
+       real thing, which is the only door that should exist. */
+    get: () => structuredClone(state),
     patch(fn){ fn(state); save(); emit(); },
     subscribe(fn){ subs.push(fn); },
     /* the six words the whole journey reduces to */
@@ -16128,7 +16183,7 @@ function jRegister(){
           <div class="jc-title">${c.title}</div>
           <div class="jc-sub">${lock ? "Requires " + c.prereqs.map(p => COURSES.find(x => x.id === p).code).join(", ") + " sealed first" : c.level}</div>
         </div>
-        ${lock ? "" : `<button class="jlink" data-c="${c.id}" aria-pressed="${on}">${on ? "remove" : "add"}</button>`}
+        ${lock && !on ? "" : `<button class="jlink" data-c="${c.id}" aria-pressed="${on}">${on ? "remove" : "add"}</button>`}
       </div>`;
     }).join("");
     const credits = [...picked].reduce((a, id) => a + COURSES.find(c => c.id === id).credits, 0);
@@ -16165,15 +16220,32 @@ function jRegister(){
         </div>`;
       document.getElementById("jregback").onclick = render;
       document.getElementById("jconfirm").onclick = () => {
+        /* Revalidate at the gate, not only at the click that added it.
+           A course is picked while its prerequisite is sealed and the
+           prerequisite can be unsealed afterwards — validation that
+           only runs on new UI actions never sees that, and the term
+           gets confirmed with a schedule the registrar's own rules
+           forbid. Anything no longer addable is dropped here and said
+           out loud, rather than silently enrolled. */
+        const legal = list.filter(id => addable(byId[id]));
+        const dropped = list.filter(id => !legal.includes(id));
+        if (dropped.length){
+          picked.clear(); legal.forEach(id => picked.add(id));
+          toast("Schedule adjusted", dropped.map(id => byId[id].code).join(", ") +
+            " no longer meets its prerequisites and has been removed. Everything else is unchanged.",
+            "#d4af6a", 8000);
+          render();
+          return;
+        }
         Journey.patch(x => {
           x.registration.term = st.admissions.term || TERMS[0];
-          x.registration.registeredCourseIds = list;
+          x.registration.registeredCourseIds = legal;
           x.registration.completedAt = Date.now();
         });
         jClose();
         refreshQuest();
         /* say WHERE, immediately: the halls the new timetable meets in */
-        const halls = [...new Set(list.map(id => byId[id]?.sector).filter(Boolean))]
+        const halls = [...new Set(legal.map(id => byId[id]?.sector).filter(Boolean))]
           .map(k => SECTORS[k].hall).join(" and ");
         toast("🎓 Enrolled", `Welcome to Pembroke Academy, officially. Your classes meet in ${halls || "the halls"} — your timetable on the Student Journey panel shows the way, and the quest log walks you to your first class.`, "#d4af6a", 9000);
         renderJourney();
