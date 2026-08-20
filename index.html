@@ -3488,7 +3488,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v138";
+const BUILD = "pembroke-v139";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -15796,12 +15796,16 @@ const Journey = (() => {
       const out = {};
       for (const k of Object.keys(def)) out[k] = restore(def[k], raw[k]);
       /* Keys the schema does not name are free-form (campusVisit's
-         `steps`) and are kept — except "__proto__", which JSON.parse
-         hands back as a genuine own key and plain assignment would
-         hand to the prototype setter. Restoring a ledger must not be
-         able to reshape Object. */
+         `steps`) and are kept — with two guards. Object.hasOwn, not
+         `k in def`: `in` walks the prototype chain, so a stored key
+         called toString or constructor would test as "the schema
+         names this" and be dropped. And "__proto__" is excluded by
+         name, because JSON.parse hands it back as a genuine own key
+         that hasOwn(def) will not match and plain assignment would
+         give to the prototype setter. Restoring a ledger must neither
+         lose a field nor reshape Object. */
       for (const k of Object.keys(raw))
-        if (!(k in def) && k !== "__proto__") out[k] = raw[k];
+        if (!Object.hasOwn(def, k) && k !== "__proto__") out[k] = raw[k];
       return out;
     }
     if (def === null) return raw === undefined ? null : raw;   /* nullable: any shape */
