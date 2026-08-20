@@ -12775,6 +12775,18 @@ function jLessonFull(courseId, n){
    them is a guard on none of the others, which is exactly how the
    knowledge check came to have this bug in two places. */
 function practiceAnswered(host, type, radioName){
+  /* A missing host means the markup and the question list disagree,
+     which is a bug worth hearing about — but not one worth throwing
+     out of a submit handler, where it would take homework grading
+     down with it and tell the student nothing. Same bargain studyLog
+     strikes with a non-boolean: refuse, and say so where a developer
+     will see it. Treated as unanswered, which is the safe reading:
+     nothing is recorded and nothing is marked. */
+  if (!host){
+    console.error("practice: no host element for " + (radioName || type) +
+                  " — the markup and the question list have gone out of step");
+    return false;
+  }
   if (type === "mc") return !!host.querySelector(`input[name="${radioName}"]:checked`);
   const el = host.querySelector(".st-num");
   return !!el && el.value.trim() !== "";
@@ -12783,7 +12795,7 @@ function practiceAnswered(host, type, radioName){
    worked solutions live, and a prompt to answer must not sit in the
    place the answer appears. */
 function practiceNag(host, on){
-  const nag = host.querySelector(".st-nag");
+  const nag = host && host.querySelector(".st-nag");
   if (!nag) return;
   nag.hidden = !on;
   nag.textContent = on ? "Nothing entered yet — have a go before checking." : "";

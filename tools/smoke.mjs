@@ -331,9 +331,13 @@ try {
     window.__study.openSection("MATH201", "1.1");
     await new Promise(r => setTimeout(r, 400));
     const host = document.querySelector('[data-turn="0"]');
-    if (!host) return { ready: false };
-    const check = host.querySelector("[data-check]");
-    const why = host.querySelector(".st-why"), nag = host.querySelector(".st-nag");
+    const check = host && host.querySelector("[data-check]");
+    const why = host && host.querySelector(".st-why");
+    const nag = host && host.querySelector(".st-nag");
+    /* every control, not just the host: a throw in here aborts the
+       whole run with a stack trace instead of reporting one failed
+       check, which is a worse way to learn the markup moved */
+    if (!host || !check || !why) return { ready: false };
     const log = () => ((window.__study.state().MATH201 || {}).log || []);
 
     check.click();                                     /* empty */
