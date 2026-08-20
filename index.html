@@ -753,6 +753,18 @@ body.diagnosing #campus-wing-intro{opacity:0;pointer-events:none;}
 body.day .hall-tag{background:linear-gradient(180deg, rgba(24,30,44,.86), rgba(24,30,44,.7));}
 .stu-tag{font-size:9px;letter-spacing:.08em;color:#f1f5f9;text-shadow:0 1px 3px rgba(0,0,0,.9);white-space:nowrap;}
 .walkmode .hall-tag .t2,.walkmode .hall-tag .t3{display:none;}
+/* Same collapse, for the same reason, one storey up: a portrait screen
+   makes standBack() pull the camera 1.5x out to fit the campus at all,
+   and every plate lands in a band a phone's width across. Three lines
+   apiece is three times the area to collide with — and the track line
+   sets at 7.5px, which is not type anybody reads at that scale. The
+   name and the sector flag survive; they are what the plate is for. */
+.plates-lean .hall-tag .t2,.plates-lean .hall-tag .t3{display:none;}
+/* Stood down by the declutter pass: another plate got these pixels
+   first. Not display:none — the pass re-measures every plate on the
+   next settle, and a plate with no box can never win its place back. */
+.hall-tag,.stu-tag{transition:opacity .22s ease;}
+.hall-tag.crowded-out,.stu-tag.crowded-out{opacity:0;}
 
 /* ── the hall panel ────────────────────────────────────────────── */
 #interior{
@@ -943,6 +955,30 @@ body.panel-open #toasts{bottom:5.5rem;}
   #scene{--zoom:.32;}
   #stage{padding-top:8.5rem;}
 }
+
+/* The bottom of the campus window holds three separately-anchored
+   boxes — the quest chip, the sector legend, the control hints — each
+   placed against a corner and none of them aware of the others. On a
+   laptop the width keeps them apart. On a phone it does not: measured
+   at 393px, "Administration · AI Robotics & Flight" printed straight
+   through "DRAG TO ORBIT · SCROLL TO ZOOM", and the objective chip sat
+   on the legend's first row.
+   Below 640px they stop being corners and become a stack up the left
+   edge: hints at the floor, legend above it, chip above that.
+   The offsets are MEASURED, and the first set was not. Estimating the
+   hints at "one or two 10px rows" put the legend 15px into a block
+   that renders 49px tall on a pointer that has hover — which is every
+   desktop, and the CI browser. Hints 8..57 from the floor, legend
+   68..152, chip from 168. */
+@media (max-width:640px){
+  #campus-hints{ left:1.25rem; right:auto; text-align:left; bottom:.5rem; }
+  #campus-legend{ bottom:4.25rem; }
+  #quest{ bottom:10.5rem; }
+}
+/* "drag to orbit · scroll to zoom" describes a mouse, and the keyboard
+   line above it is already gone here — so on a touch screen the whole
+   box is instructions for hardware the visitor does not have. */
+@media (hover:none){ #campus-hints{ display:none; } }
 
 /* ═══════════════ ⑤ THE STUDENT JOURNEY ═══════════════ */
 .jpanel{border:1px solid rgba(212,175,106,.28);border-radius:1rem;
@@ -3439,7 +3475,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v137";
+const BUILD = "pembroke-v138";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -3816,6 +3852,138 @@ window.__shedRung = () => {
   return { rung, done: rung >= LADDER.length };
 };
 
+/* ── the plates give way to each other ──────────────────────────────
+   Eight nameplates hang off eight fixed points in the world. Nothing
+   about them is wrong; what was wrong is that nothing downstream ever
+   reacted to the camera. On a laptop the halls are spread across
+   1280px and the question never comes up. In portrait standBack()
+   pulls the camera 1.5x further out to fit the campus in frame at all,
+   and those same eight anchors land inside a band 138px tall: measured
+   at 393x851, five hall plates in seven overlapping pairs, the Library
+   printing through Drosdick Hall, the Chapel buried under both.
+
+   So: after the camera settles, walk the plates nearest-first and let
+   each one take the pixels it needs, standing down any that would
+   print over a plate already placed. Nearest-first because the
+   renderer has already sorted every plate by distance and written the
+   answer into zIndex — the priority order costs nothing to obtain —
+   and because the near thing is the thing being looked at.
+
+   Deliberately not per frame. Reading a rect forces a layout flush,
+   and the campus is a static camera over a moving crowd: PLATE_SETTLE
+   after anything moves the camera, PLATE_DRIFT otherwise, because
+   people walk out from under their own names. That is ~6Hz at its
+   busiest against 60, and 1Hz at rest. */
+const PLATE_GAP = 3;        /* plates that merely touch still read as a pile */
+/* Everything else that is drawn on the glass over the campus. A plate
+   may not print on any of it. Absent or hidden entries are skipped, so
+   this can name things that only exist in some modes. */
+const HUD_BOXES = ["#campus-wing-intro", "#campus-legend", "#campus-hints",
+                   "#quest", "#minimap", "#daynight", "#walkbtn", "#arr-cta",
+                   "#walkhud", "#doorprompt"];
+const PLATE_SETTLE = 160;   /* after the camera moves: soon, but not per frame */
+const PLATE_DRIFT = 900;    /* with the camera still: often enough for walkers */
+let plateSweepDue = true, plateSweptAt = -1e9;
+/* the sector the objective is currently sending people to, kept fresh
+   by refreshQuest() — see the sort below */
+let questPlate = null;
+function crowdingChanged(){ plateSweepDue = true; }
+
+function sweepPlates(now){
+  plateSweptAt = now;
+  plateSweepDue = false;
+  const host = labelRenderer.domElement;
+  /* A hidden label layer measures every plate as a zero-sized box at
+     the origin, which reads as one enormous pile and would stand all
+     but one of them down — then leave them that way until the next
+     sweep. Nothing to judge here; come back when there is. */
+  if (!host || !host.clientWidth) return;
+  const plates = [];
+  host.querySelectorAll(".hall-tag, .stu-tag").forEach(el => {
+    /* the renderer parks anything off screen or behind the camera at
+       display:none — no box, so it can neither crowd nor be crowded */
+    if (el.style.display === "none") return;
+    plates.push(el);
+  });
+  if (plates.length < 2){
+    plates.forEach(el => {
+      el.classList.remove("crowded-out");
+      el.style.marginTop = "";          /* and put back any nudge it is carrying */
+      el.dataset.dy = 0;
+    });
+    return;
+  }
+  /* Nearest first, with one plate ahead of the whole field: the hall
+     the objective names. Without that exception the first version of
+     this stood the Great Library down at 393px — the campus telling
+     the visitor to walk to a building whose name it had just hidden,
+     which is a worse fault than the pile it was clearing. */
+  const rank = el => (questPlate && el.dataset.sector === questPlate) ? 0 : 1;
+  plates.sort((a, b) => rank(a) - rank(b) ||
+                        (+b.style.zIndex || 0) - (+a.style.zIndex || 0));
+  /* EVERY READ BEFORE EVERY WRITE. Interleaving them makes each write
+     invalidate the layout the next read needs, which turns one flush
+     per sweep into one per plate — the cost this whole design exists
+     to avoid. So: measure the lot, decide arithmetically, then write.
+     Rects come back including whatever nudge the last sweep left on
+     the element, so the offset is taken back off to get the anchor. */
+  const boxes = plates.map(el => {
+    const r = el.getBoundingClientRect();
+    const was = +el.dataset.dy || 0;
+    return { el, x: r.left, y: r.top - was, w: r.width, h: r.height };
+  });
+  /* SEEDED WITH THE INTERFACE, which is not a plate but is certainly in
+     the way. Judging plates only against each other passed a screenshot
+     with "Drosdick Hall" sitting on the words "Click a building to step
+     inside its lecture wing" — no two plates overlapping, and the page
+     still unreadable. Anything already on the glass claims its pixels
+     first; the plates arrange themselves in what is left. */
+  const kept = [];
+  HUD_BOXES.forEach(sel => {
+    const el = document.querySelector(sel);
+    if (!el) return;
+    const cs = getComputedStyle(el);
+    if (cs.display === "none" || cs.visibility === "hidden" || +cs.opacity < 0.05) return;
+    const r = el.getBoundingClientRect();
+    if (r.width && r.height) kept.push({ x: r.left, r: r.right, y: r.top, b: r.bottom });
+  });
+  const free = (x, y, w, h) => !kept.some(k =>
+    x < k.r + PLATE_GAP && k.x - PLATE_GAP < x + w &&
+    y < k.b + PLATE_GAP && k.y - PLATE_GAP < y + h);
+  /* Hiding a plate is the last resort, not the first. A name that
+     cannot sit exactly over its roof can usually sit a little above or
+     below it and still read as that building's name — these anchors
+     already float well clear of the architecture. Standing plates down
+     without trying showed two halls of five on a phone; letting them
+     step aside shows all five.
+     DOWNWARD FIRST, because down is where the building is. Preferring
+     up walked the plates off the sky and onto the masthead copy, which
+     is further from the roof they name and on top of something someone
+     is reading. */
+  const NUDGE = [0, 34, -34, 68, -68, 102, -102];
+  /* A PERSON'S NAME IS NOT A HALL PLATE. A nameplate hangs off a
+     building that fills a good part of the screen, so moving it 100px
+     still reads as that building's name. A student's name hangs over
+     one student's head in a crowd of them, and moved that far it reads
+     as the name of whoever it lands on. Measured: the sweep had pushed
+     "Theo" 102px off Theo. So people get one small step and then stand
+     down — an absent name is honest, a misattributed one is not. */
+  const NUDGE_STU = [0, 16, -16];
+  const plan = boxes.map(b => {
+    for (const dy of (b.el.classList.contains("stu-tag") ? NUDGE_STU : NUDGE))
+      if (free(b.x, b.y + dy, b.w, b.h)){
+        kept.push({ x: b.x, r: b.x + b.w, y: b.y + dy, b: b.y + dy + b.h });
+        return { el: b.el, dy };
+      }
+    return { el: b.el, dy: null };
+  });
+  for (const p of plan){
+    p.el.dataset.dy = p.dy || 0;
+    p.el.style.marginTop = p.dy ? p.dy + "px" : "";
+    p.el.classList.toggle("crowded-out", p.dy === null);
+  }
+}
+
 function resize(){
   const w = stageEl.clientWidth || 800, h = stageEl.clientHeight || 600;
   renderer.setSize(w, h);
@@ -3828,6 +3996,12 @@ function resize(){
   if (!window.__walker?.on) camera.fov = fovFor(camera.aspect);
   camera.updateProjectionMatrix();
   applyFog();                             /* rotating the phone changes the standoff */
+  /* standBack() is a camera decision with a typographic consequence:
+     the further out it stands, the closer together the plates land.
+     This is the only place that knows the aspect changed, so it is
+     where the plates are told. */
+  document.body.classList.toggle("plates-lean", standBack() > 1);
+  crowdingChanged();                      /* and the whole layout must be re-judged */
 }
 window.addEventListener("resize", resize);
 
@@ -5008,6 +5182,7 @@ BUILDINGS.forEach(spec => {
   /* CSS2D nameplate */
   const el = document.createElement("div");
   el.className = "hall-tag";
+  el.dataset.sector = spec.sector;        /* the declutter pass asks which hall this is */
   el.style.setProperty("--glow", S.color);
   el.innerHTML = `<div class="t1"><span class="flag"></span>${S.hall}</div>
     <div class="t2">${S.track}</div>
@@ -5072,6 +5247,7 @@ BUILDINGS.forEach(spec => {
     /* nameplate, in the chapel's gold */
     const el = document.createElement("div");
     el.className = "hall-tag";
+    el.dataset.sector = "cathedral";       /* the declutter pass asks which hall this is */
     el.style.setProperty("--glow", S.color);
     el.innerHTML = `<div class="t1"><span class="flag"></span>${S.hall}</div>
       <div class="t2">${S.track}</div>`;
@@ -11217,6 +11393,8 @@ function engineSetMode(m){
 /* ── aerial orbit controls + hall picking ────────────────────────── */
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.addEventListener("change", () => jOrient("look"));   /* orientation: any look counts */
+/* every orbit and every zoom lands the plates somewhere new */
+controls.addEventListener("change", crowdingChanged);
 controls.target.set(0, 30, 0);
 controls.enableDamping = true;
 controls.dampingFactor = 0.06;
@@ -11733,7 +11911,15 @@ function questInfo(){
            text:`Attend ${next.code} · ${next.title} — walk to ${S.hall}` };
 }
 function refreshQuest(){
-  document.getElementById("quest-text").textContent = questInfo().text;
+  const q = questInfo();
+  document.getElementById("quest-text").textContent = q.text;
+  /* The hall the objective names keeps its nameplate whatever else is
+     crowding the screen — see sweepPlates. Cached here rather than
+     asked for in the sweep: questInfo() walks the catalogue and reads
+     the Journey out of storage, which is nothing once a quest changes
+     and real several times a second. */
+  questPlate = q.sector || null;
+  crowdingChanged();
 }
 
 /* Folding the objective away. It is one sentence that rarely changes, so
@@ -12055,6 +12241,11 @@ renderer.setAnimationLoop(() => {
      out onto has moved on rather than been paused. */
   if (!interiorView){
     labelRenderer.render(world, camera);
+    /* after the render, never before: the sweep judges where the
+       plates actually landed this frame, and the renderer is what puts
+       them there */
+    if (now - plateSweptAt >= (plateSweepDue ? PLATE_SETTLE : PLATE_DRIFT))
+      sweepPlates(now);
     composer.render();
   }
   dbgUpdate(now, dt, raw);
