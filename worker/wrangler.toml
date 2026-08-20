@@ -17,6 +17,13 @@ ALLOWED_ORIGIN = "https://justinlooney.github.io"
 # dashboard) and every request answers 503 while the campus falls back
 # to canned dialogue. No redeploy of the site needed.
 AI_ENABLED = "1"
+# The stream's two clocks, in milliseconds — how long a live stream may
+# go silent, and how long it may run at all. Optional: the code carries
+# the same defaults, and these exist so an operator can tighten them
+# from the dashboard without a deploy. They are what guarantees a
+# response ends; the 30s handler timeout only guards startup.
+# AI_IDLE_MS  = "15000"
+# AI_TOTAL_MS = "120000"
 
 # Per-IP rate limit: 8 requests per minute burst protection.
 [[unsafe.bindings]]

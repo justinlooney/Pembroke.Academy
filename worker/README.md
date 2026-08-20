@@ -54,6 +54,10 @@ in the same dialect the local-Ollama path already speaks.
 - **Models**: the `MODELS` table in `src/index.mjs` — swap Workers AI
   model ids per character class; the `provider` object is the adapter
   seam if you ever leave Workers AI entirely.
+- **Stream deadlines**: `AI_IDLE_MS` (default 15s of silence) and
+  `AI_TOTAL_MS` (default 120s in total). Either one ends the stream
+  with a terminal line saying which, and cancels the inference behind
+  it. Set them like the kill switch, no redeploy.
 
 ## What the Worker enforces
 
@@ -61,5 +65,25 @@ POST `/chat` only · origin allowlist · strict schema · known character
 ids only · no client model/system fields · body ≤8KB, message ≤400
 chars, history ≤8 turns, memories ≤5 · completion budgets 140 (social)
 / 300 (academic) tokens · 8 req/min/IP (platform binding, with an
-in-Worker fallback limiter when the binding is absent) · 30s provider
-timeout · kill switch · zero secrets anywhere.
+in-Worker fallback limiter when the binding is absent) · 30s to open a
+stream, then 15s idle / 120s total to finish one · kill switch · zero
+secrets anywhere.
+
+The body cap is enforced before the body is read: an oversized
+`Content-Length` is refused unread, and a chunked upload stops being
+read the byte after it crosses 8KB. No inference is bought either way.
+
+## What guards it
+
+`node tools/check-worker.mjs` — 33 checks, about a second, no browser
+and no network. A fake `AI` binding hands back the bytes a provider
+would, so the schema walls, the origin wall, burst control, the
+streaming transform and its two clocks are all exercised against a
+branch rather than against production. Its last section lifts the
+PAGE's own stream reader out of `index.html` and runs it on this
+Worker's output, so the two halves of the wire contract are checked
+against each other. It runs on every push as the `gateway` job.
+
+`node tools/check-gateway.mjs` is the complement and stays manual: it
+proves the *deployment* is alive, and it spends real inference to do
+it.

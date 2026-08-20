@@ -34,6 +34,32 @@ jobs:
       - name: Assets changed without a cache bump?
         run: bash tools/check-sw-version.sh "origin/${{ github.base_ref }}"
 
+  # ── the gateway, in its own job ─────────────────────────────────────
+  # No browser, no network, no bindings: a fake env.AI hands back the
+  # bytes a provider would, and the whole suite is over in a second. It
+  # is first in the file because it is the only job that can tell you
+  # you are wrong before the coffee finishes.
+  #
+  # The Worker is the one thing this repository deploys that had no
+  # test at all — check-gateway.mjs talks to production, costs real
+  # inference, and cannot be pointed at a branch. Everything that is
+  # pure logic lives here instead: the schema wall, the origin wall,
+  # burst control, prompt boundaries, the streaming transform and its
+  # deadlines, and whether the browser and the Worker still agree about
+  # who exists and what they may ask for.
+  gateway:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Does the gateway still hold without spending a token?
+        run: node tools/check-worker.mjs
+
   smoke:
     runs-on: ubuntu-latest
     # The campus has grown a cohort: eleven rigged bodies, 19MB of them,

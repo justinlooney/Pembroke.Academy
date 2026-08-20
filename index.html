@@ -3488,7 +3488,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v140";
+const BUILD = "pembroke-v141";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -12163,6 +12163,8 @@ function dbgUpdate(now, dt, raw){
         (AI.diag.fallback ? "  [" + AI.diag.fallback + "]" : "") +
         (AI.diag.ms ? "  " + (AI.diag.ttft ? (AI.diag.ttft / 1000).toFixed(1) + "s→" : "") + (AI.diag.ms / 1000).toFixed(1) + "s" : "") +
         (AI.diag.ptok ? "  " + AI.diag.ptok + "→" + AI.diag.ctok + " tok" : "") +
+        (AI.diag.cut ? "  cut:" + AI.diag.cut : "") +
+        (AI.diag.bad ? "  " + AI.diag.bad + " unreadable" : "") +
         (AI.diag.mems ? "  " + AI.diag.mems + " mem" : "") + "\n"
       : "") +
     (slow ? "slowest\n" + slow : "");
@@ -15063,7 +15065,15 @@ async function aiReadStream(r, onToken, t0){
        old proxy — is simply one big final line: same parser, no mode. */
     const reader = r.body.getReader();
     const dec = new TextDecoder();
-    let raw = "", carry = "", shown = "";
+    let raw = "", carry = "", shown = "", bad = 0;
+    /* the terminal line the gateway sends carries counts, not just a
+       flag; take them wherever they appear so both dialects work */
+    const facts = (j) => {
+      if (j.prompt_eval_count) AI.diag.ptok = j.prompt_eval_count;
+      if (j.eval_count) AI.diag.ctok = j.eval_count;
+      if (typeof j.bad === "number") bad = j.bad;
+      if (j.cut) AI.diag.cut = j.cut;      /* the gateway ended it early */
+    };
     for (;;){
       const { done, value } = await reader.read();
       if (done) break;
@@ -15074,8 +15084,7 @@ async function aiReadStream(r, onToken, t0){
         if (!line.trim()) continue;
         let j; try { j = JSON.parse(line); } catch(_){ continue; }
         raw += j.message?.content ?? "";
-        if (j.prompt_eval_count) AI.diag.ptok = j.prompt_eval_count;
-        if (j.eval_count) AI.diag.ctok = j.eval_count;
+        facts(j);
         const d = aiPeekDialogue(raw);
         if (d && d !== shown){
           if (!AI.diag.ttft) AI.diag.ttft = Math.round(performance.now() - t0);
@@ -15085,10 +15094,23 @@ async function aiReadStream(r, onToken, t0){
     }
     if (carry.trim()){
       try { const j = JSON.parse(carry); raw += j.message?.content ?? "";
-        if (j.prompt_eval_count) AI.diag.ptok = j.prompt_eval_count;
-        if (j.eval_count) AI.diag.ctok = j.eval_count; } catch(_){}
+        facts(j); } catch(_){}
     }
   AI.diag.ms = Math.round(performance.now() - t0);
+  AI.diag.bad = bad;
+  /* A finished stream that carried no content is not a character with
+     nothing to say — it is a provider that failed AFTER the headers
+     went out, when 200 is the only status the transport can still
+     offer. Returning it ends the fallback chain on an empty bubble and
+     Ollama is never tried. Failing here is what makes the chain a
+     chain: the next provider gets its turn, and if none answers the
+     caller's own catch reaches the canned dossier. */
+  if (!raw.trim()){
+    const e = new Error(bad ? `stream carried ${bad} unreadable frame(s) and no tokens`
+                            : "stream carried no content");
+    e.aiState = "provider-unavailable";
+    throw e;
+  }
   return aiParse(raw);
 }
 
@@ -15150,7 +15172,7 @@ async function aiGenerate(s, userText, history, onToken){
   AIQueue.ctrl = new AbortController();
   const ai = s.data.ai || { cls: "social" };
   const t0 = performance.now();
-  AI.diag.ttft = 0; AI.diag.fallback = "";
+  AI.diag.ttft = 0; AI.diag.fallback = ""; AI.diag.cut = ""; AI.diag.bad = 0;
   const timeout = setTimeout(() => AIQueue.ctrl.abort(), ai.cls === "social" ? 30000 : 45000);
   try {
     let lastErr = null;
