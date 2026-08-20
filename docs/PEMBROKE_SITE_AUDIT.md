@@ -58,7 +58,7 @@ These are the differentiators. Changing them would make Pembroke worse.
 5. **Ground-level walk mode.** `OBSERVED` (shot `52-desktop-walk`): gothic facades at eye height, lamp posts, benches, the fountain on axis with the cathedral, a student standing by the water in warm dusk light. This is the product.
 6. **The adaptive quality ladder and arrival preset** (`index.html:3479–3600`). The campus deliberately "arrives cheap and dresses afterwards" because a GLB parse is a main-thread stall the frame counter misreads as a slow GPU. The code comments document a real field report (an Adreno phone flashing black for 2m20s at 7.13 M triangles) and the fix. This is unusually honest, unusually correct engineering.
 7. **The service worker's version split.** `VERSION` (shell) vs `ASSETS_V` (depot), so a text-only release doesn't make a returning phone re-download 39 MB. A reviewer caught the original bug; the fix is documented in the file.
-8. **All model output reaches the DOM via `textContent`** (`index.html:14607, 14695`). No XSS surface from model or storage. `CONFIRMED`.
+8. **All model output reaches the DOM via `textContent`** (`index.html:14607, 14695`) — the conversation path has no injection surface. `CONFIRMED`. ⚠️ **This does not extend to storage:** see the correction under §5.
 9. **Writing voice throughout.** "The registrar needs this one." / "A real address, so the letter can find you." / "Progress is inscribed to your browser's localStorage ledger." The institution has a voice and keeps it.
 
 ---
@@ -238,12 +238,53 @@ Each entry: severity · location · repro · root cause · impact · fix · regr
 
 ---
 
+**BUG-9 — Stored self-XSS: application fields are interpolated into `innerHTML`**
+`CONFIRMED` · **Severity: P2** (P0 the day any import/share/sync path is added)
+
+> Found by an independent review (Cursor, PE-17), **not by me** — and it contradicts a claim in §3 of this document. I verified the AI conversation path used `textContent`, then generalised that to "no XSS surface from model **or storage**." The forms path was never checked.
+
+- **Location:** `jOpen()` sets `jbody.innerHTML = html` (`index.html:15629`); the application, review, letter and advising views concatenate stored fields into that template.
+- **Repro:** store `<img src=x onerror="window.__xss=(window.__xss||0)+1">` as the applicant's first name, last name and statement, then open the acceptance letter.
+
+```
+__xss after render of journey panel : 0
+__xss after opening the letter      : 4
+<img> tags inside #jmodal-body      : 4
+letter text                         : "Dear ,"   ← the name was consumed as markup
+```
+
+- **Impact:** self-inflicted today — the data can only come from the visitor's own form, and there is no sharing path. The sink is a full stored XSS the moment application data can arrive from anywhere else.
+- **Fix:** one context-correct escaping helper at every interpolation of user data, or render those fields as text nodes. A restrictive CSP would be the belt-and-braces, though the inline scripts/styles make that awkward until the module extraction (BUG-8 / §13).
+- **Regression test:** payload matrix across every application field, asserted literally in review, letter, advising, journey and print views.
+
+---
+
+**BUG-10 — Nested nulls in persisted journey state prevent the campus from igniting**
+`CONFIRMED` · **Severity: P1**
+
+> Also from the same independent review (PE-03). My own hostile-storage test covered only top-level type violations and concluded "Robust." That conclusion did not survive a better test.
+
+- **Repro / measured:**
+
+```
+pembroke.registrar.journey = {"registration":null}  → __app NEVER published · "Cannot read properties of null (reading 'completedAt')"
+pembroke.registrar.journey = {"admissions":null}    → __app NEVER published · "Cannot read properties of null (reading 'acceptedAt')"
+pembroke.registrar.sector  = "bogus"                → boots, then throws in renderBanner reading 'soft'
+```
+
+- **Root cause:** `Object.assign(blank(), raw)` is a shallow merge, so a nested `null` replaces the default record wholesale and is then dereferenced as if it were the schema. Parseability is being treated as validity.
+- **Impact:** the first two cases are a dead campus on every reload with no recovery path — worse than the string/array cases I did test, which fail safe.
+- **Fix:** deep-fill defaults and validate nested shape; quarantine invalid stores rather than merging them; offer a non-destructive reset.
+- **Regression test:** table-driven boot over malformed JSON, nested nulls, unknown sector/mode ids and missing fields — every case must boot.
+
+---
+
 ### Non-bugs I ruled out (recorded so they are not re-investigated)
 
 - **Course catalogue coherence.** An early extraction appeared to show CS/EE courses titled as calculus texts. That was my parsing error — `book.title` polluted the match. The real catalogue is coherent: a 12-course BS in Autonomous Systems Engineering, algebra → Calculus III, Python → systems programming → digital logic → microprocessors → robotics capstone, with a sensible prerequisite DAG. **No bug.**
 - **Correct answers graded wrong.** An early run logged correct answers as misses. That was my selector hitting the visualization's range slider rather than `.st-num`. Re-tested precisely: `-6` for `h(3)` yields class `st-q right`, `✓`, and `ok:1`. **Grading is correct.**
-- **XSS from model output.** All dialogue is set via `textContent`. **No vector.**
-- **Hostile `localStorage`.** Seeded `pembroke.registrar.journey` as a string, an array, and `pembroke.study` as `null`; the page booted cleanly and reset to `visitor`. **Robust.**
+- **XSS from model output.** All dialogue is set via `textContent`. **No vector** on that path — but see BUG-9: I generalised this to "or storage" and was wrong.
+- **Hostile `localStorage`.** Seeded `pembroke.registrar.journey` as a string, an array, and `pembroke.study` as `null`; the page booted cleanly and reset to `visitor`. ⚠️ **This conclusion was overstated** — those are top-level type violations, which `Object.assign(blank(), raw)` absorbs. Nested nulls do not survive: see BUG-10.
 
 ---
 
@@ -587,15 +628,15 @@ Scored against an *industry-leading* target, not against average work. Not infla
 | Mobile | 3.0 | 9 | 6.0 | `CONFIRMED` illegible label pile, 13,351 px document, walk mode unlocked, 29.4 MB |
 | Performance | 4.5 | 9 | 4.5 | `MEASURED` 1,235 draws / 3.82 M tris / 29.4 MB / 110 MB heap; excellent ladder mitigating a too-heavy scene |
 | Accessibility | 3.0 | 9 | 6.0 | 5 focus rules total; campus unreachable by keyboard; stale `aria-label` |
-| Reliability | 8.0 | 9 | 1.0 | **0 console errors, 0 failed requests**; hostile storage survived; graceful AI degradation |
+| Reliability | 7.0 | 9 | 2.0 | **0 console errors, 0 failed requests**; graceful AI degradation — but nested-null persisted state prevents ignition entirely (BUG-10) |
 | Architecture | 7.0 | 9 | 2.0 | Governor/SW/ladder excellent; 16k-line monolith is the constraint |
-| Security & Trust | 8.5 | 9 | 0.5 | `textContent`, no secrets, hardened Worker, governor holds |
+| Security & Trust | 7.0 | 9 | 2.0 | Governor holds under attack, no secrets, hardened Worker — but a confirmed stored self-XSS (BUG-9) and no schema boundary on persisted state (BUG-10) |
 | Content | 7.0 | 9 | 2.0 | MATH 201 + writing outstanding; 11 empty courses |
 | Polish | 5.5 | 9 | 3.5 | Clipped HUD, truncated topbar, overlapping legend, emoji |
 | Emotional Impact | 5.0 | 9 | 4.0 | Walk mode moves you; instantaneous acceptance wastes the best beat |
 | Originality | 8.5 | 9 | 0.5 | Nothing else does this combination |
 
-### **Overall: 6.0 / 10**
+### **Overall: 5.9 / 10**
 
 ---
 
@@ -666,6 +707,7 @@ The campus becomes the pedagogy — the frontier lecture's visualization exists 
 - 11 of 12 courses have no content
 - Accessibility: focus states, keyboard path into the world, stale `aria-label` (BUG-4)
 - 29.4 MB entry fee; 800–1,235 draw calls
+- BUG-10 nested-null persisted state prevents the campus from igniting
 - Crowd ceiling of 10
 - No AI output-side character check
 
@@ -679,6 +721,7 @@ The campus becomes the pedagogy — the frontier lecture's visualization exists 
 - Duplicated progress reporting across four surfaces
 
 **P3 — polish**
+- BUG-9 stored self-XSS via application fields in `innerHTML` (P2 now, P0 with any share path)
 - BUG-7 uncapped dialogue length on the clean parse path
 - BUG-8 duplicated, divergent knowledge-check grader in the brief lesson view (latent)
 - Contrast of intro/hint copy over sky
@@ -767,7 +810,7 @@ Every item is independent, none requires the asset pipeline, and together they a
 
 ## 22. Final Verdict
 
-**Overall score: 6.0 / 10**
+**Overall score: 5.9 / 10**
 
 - **Strongest aspect:** the character-AI governor. *AI proposes → Governor validates → Pembroke performs* is not marketing — it is a single authoritative policy table from which the prompt's own documentation is generated, and it rejected every role-escalation, malformed, prototype-pollution and unauthorized-action attempt I could construct, including a professor-class character explicitly claiming to have registered the student for every course and granted their degree. State did not move. This is better than most shipped AI-education products.
 - **Weakest aspect:** mobile. Not "needs work" — currently broken at first paint, and mobile is the primary judging and visiting surface.
