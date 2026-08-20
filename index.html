@@ -937,6 +937,34 @@ body.walkmode #topbar{visibility:hidden;}
    when somebody starts exploring; walking IS that, so it bows out
    here too rather than fighting the thumb pad for the same pixels. */
 .walkmode #arr-cta{display:none;}
+
+/* ── the opening beat ─────────────────────────────────────────────
+   A juror gives a site one to three minutes. Measured on a Pixel 5,
+   the old arrival ended at 26.9s in an aerial view — at night, behind
+   four label chips, a legend, three lines of intro copy and a progress
+   ledger, with the campus itself in the bottom third of a document.
+   That is the frame this product was being judged on.
+
+   So for the length of the flight and a beat after it lands: the
+   campus, and nothing else. Everything here is chrome that exists to
+   introduce the world, and none of it introduces the world as well as
+   the world does. It fades back in afterwards — the transition is on
+   the way IN, which is why it is two seconds and not four hundred
+   milliseconds. First input of any kind ends this early; nobody is
+   trapped in a cinematic. */
+body.opening #topbar{visibility:hidden;}
+body.opening #campus-wing-intro, body.opening #campus-legend,
+body.opening #campus-hints, body.opening #quest, body.opening #minimap,
+body.opening #daynight, body.opening #walkbtn, body.opening #nearbybtn,
+body.opening #journey, body.opening #toasts, body.opening .b-label,
+body.opening #arr-cta{
+  opacity:0 !important; pointer-events:none !important;
+}
+#campus-wing-intro, #campus-legend, #campus-hints, #quest, #minimap,
+#daynight, #walkbtn, #nearbybtn, #journey, #toasts, .b-label{
+  transition:opacity 2s ease;
+}
+#arr-skip{transition:opacity .3s ease;}
 .convo-card{position:absolute;left:0;right:0;bottom:0;
   padding:1.1rem 1.4rem 1.3rem;
   background:linear-gradient(0deg, rgba(6,8,14,.94) 55%, rgba(6,8,14,.72) 80%, transparent);
@@ -3592,7 +3620,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v144";
+const BUILD = "pembroke-v145";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -16768,12 +16796,17 @@ if (Journey.get().onboarding.campusVisit.status === "active"){ orientOn = true; 
     else setTimeout(tick, 200);
   };
   const finishSweep = () => {
-    controls.enabled = true;
+    /* not in walk mode: enterWalk turned the orbit controls off on
+       purpose, and handing them back would fight the walker */
+    controls.enabled = !walker.on;
     const skip = document.getElementById("arr-skip");
     if (skip) skip.remove();
-    /* the entrance ends where the journey begins */
+    /* the entrance ends where the journey begins — except when the
+       entrance has already put them ON the quad, where the campus is
+       the pitch and this button would only be a button. The journey
+       panel still offers Start Campus Visit whenever they surface. */
     const cv = Journey.get().onboarding.campusVisit;
-    if (Journey.status() === "visitor" && cv.status === "new"){
+    if (!walker.on && Journey.status() === "visitor" && cv.status === "new"){
       const b = document.createElement("button");
       b.id = "arr-cta"; b.className = "jcta";
       b.textContent = "Begin — your Campus Visit";
@@ -16790,21 +16823,64 @@ if (Journey.get().onboarding.campusVisit.status === "active"){ orientOn = true; 
     el.classList.add("gone");
     setTimeout(() => el.remove(), 900);
     if (plain || !firstVisitEver || walker.on){ finishSweep(); return; }
-    /* the descent: high above the North Quad, the cathedral below,
-       sweeping down and around to the standard aerial framing */
+
+    /* The descent used to end at AERIAL — a view of the campus beside
+       a checklist. It ends ON the campus now, because the single most
+       award-caliber thing here is standing on the quad at eye height
+       with the cathedral on axis, and it used to be three minutes and
+       five decisions away: aerial, journey panel, Start Campus Visit,
+       orientation, find the 🎮 chip.
+
+       Nothing below is new scenery. The walk-in point, its heading and
+       the golden preset all already existed; enterWalk() has always
+       started at (500, 802) facing h=0, and h=0 is straight down the
+       axis the fountain and the cathedral already share. This only
+       changes where the camera stops. */
     controls.enabled = false;
+    document.body.classList.add("opening");
+    /* Their sky is "live" by default — the hour they are actually
+       standing in — which is a good default and the wrong postcard:
+       a first visit at ten at night opens on a dark quad. Golden for
+       the opening, their own preference back the moment it ends. */
+    engineSetMode("golden");
     camera.position.set(120, 1500, -2300);
     controls.target.set(0, 60, -420);
-    flyTo(new THREE.Vector3(0, 30, 0), aerialPos(), finishSweep, 5200);
+    /* land exactly where walk mode will put the camera, so the
+       handover has no cut in it: eye height at the walk-in point,
+       looking north at the cathedral */
+    const EYE = walker.eye;
+    flyTo(new THREE.Vector3(W(500), EYE, W(-300)),
+          new THREE.Vector3(W(500), EYE, W(802)), () => land(true), 5200);
+
+    let landed = false;
+    /* One way out, whether it arrives as a click on skip, a keypress,
+       a touch or a scroll. `soft` is the flight finishing on its own,
+       which earns the beat; anything else is somebody asking for the
+       controls and gets them now. */
+    function land(soft){
+      if (landed) return;
+      landed = true;
+      for (const [t, f] of takeovers) window.removeEventListener(t, f);
+      window.__flightAbort && window.__flightAbort();
+      enterWalk();
+      const reveal = () => {
+        document.body.classList.remove("opening");
+        applyMode();                    /* the sky they actually chose */
+        finishSweep();
+      };
+      if (soft) setTimeout(reveal, 2400); else reveal();
+    }
+    const takeovers = [];
+    for (const t of ["keydown", "pointerdown", "wheel", "touchstart"]){
+      const f = () => land(false);
+      takeovers.push([t, f]);
+      window.addEventListener(t, f, { once: true, passive: true });
+    }
     const skip = document.createElement("button");
     skip.id = "arr-skip"; skip.textContent = "skip";
-    skip.onclick = () => {
-      controls.target.set(0, 30, 0);
-      aerialHome();
-      window.__flightAbort && window.__flightAbort();
-      finishSweep();
-    };
+    skip.onclick = () => land(false);
     document.body.appendChild(skip);
+    window.__opening = { land };   /* test/debug hook */
   };
   window.__flightAbort = () => { if (typeof flight !== "undefined") flight = null; };
   window.__arrival = { arrive, tick };   /* test/debug hook */

@@ -408,3 +408,49 @@ jobs:
 
       - name: Does anything act on the campus without owning it?
         run: node tools/check-owner.mjs
+
+  # ── the first twenty seconds ────────────────────────────────────────
+  # A juror gives a site one to three minutes, and every other job here
+  # is blind to the first of them: Playwright sets navigator.webdriver,
+  # the arrival reads that as "somebody is measuring, skip the
+  # theatrics" — which is the right call and makes the theatrics
+  # untestable. This job lies about webdriver on purpose. It is the only
+  # way to test a cinematic that only first-time visitors ever see.
+  #
+  # It asserts ORDER and POSE, never wall-clock: on a runner with no GPU
+  # the descent runs at one to three frames a second and every duration
+  # stretches, while the sequence does not.
+  opening:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Cache the browser
+        id: browser
+        timeout-minutes: 5
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ env.PW_VERSION }}
+
+      - name: Install Playwright
+        timeout-minutes: 6
+        run: npm install --no-save --no-audit --no-fund playwright@${{ env.PW_VERSION }}
+
+      - name: Fetch the browser
+        if: steps.browser.outputs.cache-hit != 'true'
+        timeout-minutes: 8
+        run: npx playwright install --with-deps chromium
+
+      - name: System libraries for the cached browser
+        if: steps.browser.outputs.cache-hit == 'true'
+        timeout-minutes: 6
+        run: npx playwright install-deps chromium
+
+      - name: Where does a first visit actually end up?
+        run: node tools/check-opening.mjs
