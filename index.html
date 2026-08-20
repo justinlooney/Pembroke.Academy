@@ -1415,7 +1415,7 @@ body.touched.walkmode .orient .o-step:not(.now){display:none;}
     </div>
 
     <!-- ═══════ CONVERSATION (the campus stops; one person remains) ═══════ -->
-    <div id="convo" aria-hidden="true">
+    <div id="convo" aria-hidden="true" inert>
       <div class="convo-card">
         <div class="convo-who">
           <div class="convo-name" id="convo-name"></div>
@@ -1442,7 +1442,7 @@ body.touched.walkmode .orient .o-step:not(.now){display:none;}
          entering for what it TELLS you, so the door now opens the
          hall's own record over a photograph of the room. See
          openInterior(). -->
-    <div id="interior" aria-hidden="true">
+    <div id="interior" aria-hidden="true" inert>
       <div class="int-plate" id="int-plate"></div>
       <div class="int-sheet" id="int-sheet" tabindex="-1">
         <div class="int-head">
@@ -1483,11 +1483,11 @@ body.touched.walkmode .orient .o-step:not(.now){display:none;}
       <div id="courses" class="space-y-6"></div>
 
       <!-- footer / ledger controls -->
-      <footer class="mt-10 mb-4 flex flex-wrap items-center justify-between gap-4 text-[11px] text-slate-500">
+      <footer class="mt-10 mb-4 flex flex-wrap items-center justify-between gap-4 text-[11px] text-slate-400">
         <div>
           <span class="font-serif-d italic text-[13px] text-slate-400">"Lux, Mathesis, Machina"</span> — Light, Learning, and the Machine.
           <div class="mt-1">Progress is inscribed to your browser's <code class="font-mono-d text-[10.5px]">localStorage</code> ledger — it survives every visit.</div>
-          <div class="mt-1 text-slate-600">3D, adapted, <a class="underline hover:text-slate-400" href="http://creativecommons.org/licenses/by/4.0/">CC-BY-4.0</a> unless noted: "<a class="underline hover:text-slate-400" href="https://sketchfab.com/tabitown">Cathedral</a>" by tabitown · "New Colgate University Dorm" · "Baseball stadium 3d drone survey" by KCraw · university campus aerial scan, sugar maple, residence hall, cathedral and the Drosdick Hall atrium capture (World&nbsp;Labs Marble) supplied by the project owner · flora by Miguel-Angel, PropShop™, EFX, Joanne Viertel &amp; Batuhan13. Full list in assets/CREDITS.md.</div>
+          <div class="mt-1 text-slate-400">3D, adapted, <a class="underline hover:text-[color:var(--parchment)]" href="http://creativecommons.org/licenses/by/4.0/">CC-BY-4.0</a> unless noted: "<a class="underline hover:text-[color:var(--parchment)]" href="https://sketchfab.com/tabitown">Cathedral</a>" by tabitown · "New Colgate University Dorm" · "Baseball stadium 3d drone survey" by KCraw · university campus aerial scan, sugar maple, residence hall, cathedral and the Drosdick Hall atrium capture (World&nbsp;Labs Marble) supplied by the project owner · flora by Miguel-Angel, PropShop™, EFX, Joanne Viertel &amp; Batuhan13. Full list in assets/CREDITS.md.</div>
         </div>
         <div class="flex gap-2 flex-wrap">
           <button id="ai-settings" class="chip rounded-full px-4 py-1.5 text-[11px] uppercase tracking-[.15em] text-slate-400 hover:text-[color:var(--brass)]">Local AI</button>
@@ -3592,7 +3592,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v141";
+const BUILD = "pembroke-v142";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -12597,10 +12597,10 @@ function courseCard(c){
     <div class="playground" data-panel="${c.id}">
       <div class="codebox rounded-xl mt-3 overflow-hidden" style="--c:${S.color}">
         <div class="flex items-center justify-between gap-3 px-4 py-2 border-b border-slate-700/50">
-          <span class="text-[10.5px] text-slate-500 italic truncate">${c.snippetNote}</span>
+          <span class="text-[10.5px] text-slate-400 italic truncate">${c.snippetNote}</span>
           <button class="copy-btn flex-none font-mono-d text-[10px] uppercase tracking-[.15em] hover:text-[color:var(--parchment)] transition" style="color:${S.color}" data-copy-course="${c.id}">copy ⧉</button>
         </div>
-        <pre class="p-4 overflow-x-auto text-slate-300"><code>${highlight(c.snippet, c.lang)}</code></pre>
+        <pre class="p-4 overflow-x-auto text-slate-300" tabindex="0"><code>${highlight(c.snippet, c.lang)}</code></pre>
       </div>
     </div>
   </article>`;
@@ -12619,9 +12619,9 @@ function renderCourses(){
         <div class="flex items-center gap-3 pt-3 first:pt-0">
           <span class="w-2.5 h-2.5 rounded-sm flex-none" style="background:${S.color};box-shadow:0 0 10px ${S.color}"></span>
           <h3 class="font-serif-d text-lg font-semibold text-slate-200 whitespace-nowrap">${S.hall}</h3>
-          <span class="text-[10px] uppercase tracking-[.18em] text-slate-500 truncate">${S.track}</span>
+          <span class="text-[10px] uppercase tracking-[.18em] text-slate-400 truncate">${S.track}</span>
           <span class="flex-1 h-px" style="background:linear-gradient(90deg, ${S.soft}.35), transparent)"></span>
-          <span class="font-mono-d text-[10.5px] text-slate-500 flex-none">${courseCountText(k)}</span>
+          <span class="font-mono-d text-[10.5px] text-slate-400 flex-none">${courseCountText(k)}</span>
         </div>
         ${group.map(courseCard).join("")}`;
     }).join("");
@@ -14757,6 +14757,7 @@ function convoOpen(s){
   convoSay(s, null);
   convoEl.classList.add("open");
   convoEl.setAttribute("aria-hidden", "false");
+  convoEl.removeAttribute("inert");
   document.body.classList.add("convo-open");
   /* the stage has just left the document and covers the window, so the
      renderer and both cameras need the new shape */
@@ -14799,7 +14800,12 @@ function convoClose(){
   convoLook = null;
   convoView = null; convoHome = null;
   convoEl.classList.remove("open");
+  /* inert alongside aria-hidden, always: aria-hidden alone told the
+     screen reader the panel was gone while leaving its input, send,
+     cancel and leave controls in the tab order — a keyboard could
+     still walk into a conversation that was not happening. */
   convoEl.setAttribute("aria-hidden", "true");
+  convoEl.setAttribute("inert", "");
   document.body.classList.remove("convo-open");
   resize();                      /* and back into the page it goes */
 }
@@ -15919,6 +15925,7 @@ function openInterior(key){
   engineOpenInterior(key);
   interiorEl.classList.add("open");
   interiorEl.setAttribute("aria-hidden", "false");
+  interiorEl.removeAttribute("inert");
   const sheet = document.getElementById("int-sheet");
   sheet.scrollTop = 0;
   sheet.focus({ preventScroll: true });
@@ -15927,6 +15934,7 @@ function closeInterior(){
   engineCloseInterior();
   interiorEl.classList.remove("open");
   interiorEl.setAttribute("aria-hidden", "true");
+  interiorEl.setAttribute("inert", "");
   /* the markup goes with the view: it is rebuilt from state on every
      open, so keeping it costs memory and risks showing a stale record
      for the frame before the next open finishes */

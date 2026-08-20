@@ -15,7 +15,7 @@
  * fine pointer and a touchscreen, and a visitor who has asked the
  * operating system to stop moving things.
  */
-import { chromium } from "playwright";
+import { chromium, devices } from "playwright";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { existsSync, statSync } from "node:fs";
@@ -40,6 +40,27 @@ const server = createServer(async (req, res) => {
   res.writeHead(200, { "content-type": MIME[extname(path)] || "application/octet-stream" });
   res.end(await readFile(path));
 });
+
+/* axe-core over one surface. WCAG 2.0/2.1 A and AA, violations only —
+   "incomplete" results are things axe cannot decide without a human
+   and would make this gate advisory rather than a gate. */
+const AXE = resolve(ROOT, "node_modules/axe-core/axe.min.js");
+const audit = async (page, label) => {
+  if (!existsSync(AXE)){
+    step(`axe finds nothing to fix — ${label}`, false,
+         "axe-core is not installed — npm install --no-save playwright axe-core (both in one call, or the second prunes the first)");
+    return;
+  }
+  await page.addScriptTag({ path: AXE });
+  const v = await page.evaluate(async () => {
+    const r = await axe.run(document, { resultTypes: ["violations"],
+      runOnly: { type: "tag", values: ["wcag2a","wcag2aa","wcag21a","wcag21aa"] } });
+    return r.violations.map(x => ({ id: x.id, impact: x.impact, n: x.nodes.length }));
+  });
+  step(`axe finds nothing to fix — ${label}`, v.length === 0,
+       v.length ? v.map(x => `${x.id} ×${x.n} (${x.impact})`).join(", ")
+                : "wcag2a + wcag2aa + wcag21a + wcag21aa, violations only");
+};
 
 const failures = [];
 const step = (name, ok, detail = "") => {
@@ -73,6 +94,7 @@ try {
   /* ── 1. a keyboard can see where it is ──────────────────────────── */
   const first = await open({});
   const { page } = first;
+  await audit(page, "the campus");
 
   /* Two passes, because "does it have an outline" is the wrong
      question. Half this HUD wears a box-shadow as decoration, and the
@@ -192,6 +214,8 @@ try {
     document.getElementById("jmodal").contains(document.activeElement));
   step("and neither does going backwards", backwards);
 
+  await audit(page, "the journey dialog");
+
   await page.keyboard.press("Escape");
   const returned = await page.evaluate(() => {
     const el = document.activeElement;
@@ -240,12 +264,13 @@ try {
 
   /* and a phone, which reports the coarse pointer outright, is covered
      by the media query rather than by the class */
-  const phone = await open({ hasTouch: true, viewport: { width: 412, height: 915 } });
+  const phone = await open(devices["Pixel 5"]);
   const padPhone = await phone.page.evaluate(() => {
     document.body.classList.add("walkmode");
     return { coarse: matchMedia("(any-pointer: coarse)").matches,
              shown: getComputedStyle(document.getElementById("touchpad")).display };
   });
+  await audit(phone.page, "the campus on a Pixel 5");
   await phone.ctx.close();
   step("a phone gets one from the media query, before any touch happens",
        padPhone.coarse && padPhone.shown !== "none",
