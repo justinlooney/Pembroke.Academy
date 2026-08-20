@@ -129,7 +129,56 @@ try {
     !document.getElementById("jmodal").classList.contains("open"));
   step("but the dialog's own Escape still closes it", shut);
 
-  /* ── 2. a turn that is no longer the turn writes nothing ─────────
+  /* ── 2. the governor answers for the object, not its prototype ───
+     A bracket lookup answers for the prototype too, so SECTORS
+     ["__proto__"] is truthy and its .hall is undefined: the caption
+     used to read "(points toward undefined)". Fail-closed either way —
+     no state moves — but it is a lookup that says yes to a key nobody
+     put there, and the same lookup on the same object was already
+     corrected at the sector restore while this one was left. */
+  /* Its own try, because the failure this guards against is a THROW,
+     not a wrong answer: AI_POLICY["__proto__"] resolved to
+     Object.prototype and .includes on it is not a function. Left
+     unattributed it took the whole probe down and reported as
+     "ownership check completed", which names nothing. */
+  const gov = await page.evaluate(() => {
+    const { aiGovern } = window.__ai;
+    const who = (cls) => ({ data: { name: "probe", ai: { cls } } });
+    const cap = (r) => r?.caption ?? null;
+    return {
+      real:   cap(aiGovern({ type: "point_to_location", target: "lib" }, who("social"))),
+      proto:  cap(aiGovern({ type: "point_to_location", target: "__proto__" }, who("social"))),
+      ctor:   cap(aiGovern({ type: "point_to_location", target: "constructor" }, who("social"))),
+      none:   cap(aiGovern({ type: "point_to_location" }, who("social"))),
+      /* A role reaching past its own table. An UNKNOWN class falling
+         back to AI_POLICY.social is by design and is the safe
+         direction — social is the least-privileged table — so the
+         question is not whether "__proto__" may point at a hall (it
+         may, as any stranger may) but whether it inherits anything
+         more. Before this was hasOwn, AI_POLICY["__proto__"] resolved
+         to Object.prototype, which is truthy, so the `|| social`
+         fallback never fired and .includes threw instead. */
+      overreach:     aiGovern({ type: "open_registration" }, who("social")),
+      protoPoints:   aiGovern({ type: "point_to_location", target: "lib" }, who("__proto__")),
+      protoEscalate: aiGovern({ type: "open_registration" }, who("__proto__")),
+    };
+  }).catch(e => ({ threw: e.message.split("\n")[0] }));
+  if (gov.threw){
+    step("the governor points only at halls that exist", false, `it threw: ${gov.threw}`);
+    step("and a role cannot reach past its own table", false, "not reached — the call above threw");
+  } else {
+  step("the governor points only at halls that exist",
+       !!gov.real && gov.proto === null && gov.ctor === null && gov.none === null,
+       `lib → ${JSON.stringify(gov.real)} · __proto__ → ${JSON.stringify(gov.proto)} · ` +
+       `constructor → ${JSON.stringify(gov.ctor)} · no target → ${JSON.stringify(gov.none)}`);
+  step("and a role cannot reach past its own table",
+       gov.overreach === null && gov.protoEscalate === null && gov.protoPoints !== null,
+       `social proposing open_registration → ${JSON.stringify(gov.overreach)} · ` +
+       `class "__proto__" proposing it → ${JSON.stringify(gov.protoEscalate)} · ` +
+       `and pointing at a hall → ${gov.protoPoints ? "allowed, as social" : "refused"}`);
+  }
+
+  /* ── 3. a turn that is no longer the turn writes nothing ─────────
      A provider that ignores abort and takes its time, so the
      continuation lands well after the conversation has changed hands.
      Nothing else about the page is stubbed: the real submit handler,

@@ -45,7 +45,7 @@
  * engine and the stylesheet are re-precached by every install with
  * cache:"reload", so they track releases despite living in the depot.
  */
-const VERSION = "pembroke-v143";
+const VERSION = "pembroke-v144";
 /* v3 stays even though this release removes assets. Re-versioning the
    depot is a blunt instrument: it throws away every model a returning
    visitor holds — all ~85MB of a campus they already walked — to

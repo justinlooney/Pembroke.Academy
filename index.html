@@ -3592,7 +3592,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v143";
+const BUILD = "pembroke-v144";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -6767,7 +6767,8 @@ const STUDENT_ROSTER = [
   /* Tier 1: the MATH 201 professor. He stands by his own hall's door
      and teaches to the student's actual frontier in the course — the
      mastery data says what to affirm and what to revisit. */
-  { name:"Prof. Merion", ai:{ cls:"professor", year:"professor of mathematics", pron:"he/him", traits:["exacting but kind","allergic to hand-waving","believes every formula is a picture first"], style:"a lecturer's clarity at conversation volume; asks what you SEE before what you compute" },
+  { name:"Prof. Merion", ai:{ cls:"professor", year:"professor of mathematics", pron:"he/him",
+      role:"the MATH 201 (Applied Calculus) professor at Pembroke Academy", traits:["exacting but kind","allergic to hand-waving","believes every formula is a picture first"], style:"a lecturer's clarity at conversation volume; asks what you SEE before what you compute" },
     /* looks follows the body, for the same reason it does on the Dean:
        it is read only to pick a stand-in in the seconds before the
        pinned body lands, and a stale value there puts the wrong person
@@ -6788,7 +6789,8 @@ const STUDENT_ROSTER = [
      wrong basis, on a campus where a visitor may be told about the Dean
      by somebody else. Optional: a character without it simply has
      nothing said about theirs. */
-  { name:"Dean Aldergate", ai:{ cls:"advisor", year:"dean of students", pron:"she/her", traits:["courtly","attentive","quietly funny","remembers everyone"], style:"warm and unhurried, an old-fashioned advisor's cadence; asks one good question at a time" },
+  { name:"Dean Aldergate", ai:{ cls:"advisor", year:"dean of students", pron:"she/her",
+      role:"the Dean of Students and academic advisor at Pembroke Academy", traits:["courtly","attentive","quietly funny","remembers everyone"], style:"warm and unhurried, an old-fashioned advisor's cadence; asks one good question at a time" },
     /* looks follows the body. It is read only to pick a stand-in if the
        pinned one has not arrived, so a stale "m" here would put a man on
        the Administration apron in the seconds before char17 lands — the
@@ -15242,7 +15244,15 @@ function aiSystemPrompt(s, userText){
     ].join(" ");
   })() : "";
   return [
-    `You are ${d.name}, a ${ai.year || "student"} at Pembroke Academy studying ${d.major}. You are a person in this world, never an assistant: no "how can I help you today", no mention of being an AI, no offers of general assistance. You are mid-walk on campus having a chat.`,
+    /* A role where the student sentence does not fit. "a ${year} at
+       Pembroke Academy studying ${major}" is right for a sophomore and
+       wrong for everyone who teaches: it produced "a dean of students
+       at Pembroke Academy studying Academic Advising" and "a professor
+       of mathematics ... studying Applied Calculus". The hosted Worker
+       never had this, because its registry carries a role string per
+       character — this is the browser's copy of that prompt catching
+       up, which is the same lag PE-16 was. */
+    `You are ${d.name}, ${ai.role || `a ${ai.year || "student"} at Pembroke Academy studying ${d.major}`}. You are a person in this world, never an assistant: no "how can I help you today", no mention of being an AI, no offers of general assistance. You are mid-walk on campus having a chat.`,
     `Personality: ${(ai.traits || []).join(", ")}.${ai.pron ? ` Your pronouns are ${ai.pron}.` : ""} Voice: ${ai.style}. Keep replies to 1-3 short sentences${ai.cls === "academic" ? ", except when actually teaching a concept — then up to 6, always concrete, image-first" : ""}. Contractions, hesitations, opinions welcome.`,
     `Knowledge boundaries: ${knowledge}`,
     `Where you are: ${aiPlaceOf(s.pos)}, ${aiClock()}. Your home hall is ${hall ? hall.hall : "the quad"}. You are currently ${s.inside ? "just out of a lecture" : s.mode === "todoor" || s.route ? "walking to a class" : "out on the paths"}.`,
@@ -15561,8 +15571,22 @@ function aiGovern(intent, s){
   const cls = s?.data?.ai?.cls || "social";
   /* authorization first, from the one table — an intent a role may not
      propose dies here regardless of how plausible it looks */
-  if (!(AI_POLICY[cls] || AI_POLICY.social).includes(intent.type)) return null;
-  if (intent.type === "point_to_location" && SECTORS[intent.target])
+  /* hasOwn on both, because a bracket lookup answers for the prototype
+     as well as the object. SECTORS["__proto__"] is truthy and its
+     .hall is undefined, so a model proposing point_to_location with
+     that target used to render "(points toward undefined)". And
+     AI_POLICY["__proto__"] is Object.prototype, which is truthy — so
+     the `|| AI_POLICY.social` fallback would NOT catch it and
+     .includes would throw instead. cls comes from the campus rather
+     than the model, so that second one is defence in depth; the rule
+     is easier to keep when it has no exceptions.
+
+     The same lookup on the same object was already corrected at the
+     sector restore (see LS_SECTOR) while this one was left, which is
+     what filing a bug and fixing its twin elsewhere looks like. */
+  const policy = Object.hasOwn(AI_POLICY, cls) ? AI_POLICY[cls] : AI_POLICY.social;
+  if (!policy.includes(intent.type)) return null;
+  if (intent.type === "point_to_location" && Object.hasOwn(SECTORS, intent.target ?? ""))
     return { caption: `(points toward ${SECTORS[intent.target].hall})` };
   if (intent.type === "end_conversation")
     return { caption: "(seems ready to get going)" };
