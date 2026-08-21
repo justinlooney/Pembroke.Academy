@@ -3774,6 +3774,7 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { Reflector } from "three/addons/objects/Reflector.js";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { clone as skeletonClone } from "three/addons/utils/SkeletonUtils.js";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { SSAOPass } from "three/addons/postprocessing/SSAOPass.js";
@@ -4990,6 +4991,14 @@ let fountainWater = null;
     new THREE.MeshStandardMaterial({ map: rippleTex, roughness: 0.06, metalness: 0.55, envMapIntensity: 1.2 }));
   water.rotation.x = -Math.PI / 2; water.position.y = 7.2;
   fountainWater = water;
+  /* The one mesh in the campus that the render loop turns. bakeScenery
+     folds static siblings into one buffer and the folded originals stop
+     being drawn — so anything the page keeps a handle on and MUTATES has
+     to say so here, or it quietly freezes with no error at all. Every
+     other thing the loop moves is a Points, a Sprite or a Light, none of
+     which bake. This is the whole opt-out list; if it grows, it grows
+     here. */
+  water.userData.noBake = true;
   world.add(water);
   const jet = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 3.2, 15, 10),
     basin.material);
@@ -12705,6 +12714,106 @@ function dbgUpdate(now, dt, raw){
     (slow ? "slowest\n" + slow : "");
 }
 
+/* ── BAKING THE SCENERY ───────────────────────────────────────────────
+   The largest single cost in a frame is the number of times the CPU
+   tells the GPU to draw, and no rung of the quality ladder lowers it —
+   all five trade fill rate. A settled campus submitted ~1609 draws for
+   378 meshes, because most meshes are drawn more than once: the main
+   pass, then again into the shadow map.
+
+   Most of those meshes are scenery that never moves and shares a
+   material with its neighbours — thirteen iron railings, ten oak
+   benches, twenty-six of one stone. Folded into one buffer each they
+   cost one draw instead of thirteen.
+
+   SIBLINGS ONLY, and this is the constraint that decides the design.
+   Picking is ray.intersectObject(hallGroups[k], true) — a hall is a
+   Group and clicking it means hitting something inside it. Merging by
+   material ACROSS halls would lift geometry out of those groups and
+   stop them being clickable, with no error anywhere. Measured, that
+   unrestricted version saves 543 draws and breaks the campus; folding
+   only within one parent and re-parenting the result there saves 369
+   and keeps every hierarchy the page raycasts against.
+
+   What is excluded, and why each one:
+     skinned          the cast, whose bones move the vertices
+     instanced        already one draw
+     invisible        a landmark still compiling, or night-only scenery
+     multi-material   one buffer cannot carry two materials
+     userData.noBake  the page holds a handle on it and moves it
+   Points, Sprites and Lights are not meshes and never reach here, which
+   covers stars, fireflies, leaves, the door glows and every lamp.
+
+   Runs ONCE, after the campus stops arriving. Anything that lands later
+   simply is not folded — which costs a few draws and breaks nothing. */
+/* ?nobake keeps every mesh separate, the way ?noladder keeps every
+   quality rung. Two reasons it earns its place: an A/B of the draw
+   count needs a build with the fold switched off, and if folding ever
+   is the thing that broke a campus, the first question anybody asks is
+   whether it still breaks without it. */
+const NO_BAKE = q.has("nobake");
+let baked = false;
+function bakeScenery(){
+  if (baked || NO_BAKE) return;
+  baked = true;
+  const t0 = performance.now();
+  const cast = new Set();
+  for (const s of students) if (s.g) s.g.traverse(o => cast.add(o));
+
+  /* collect first, mutate after: traversing a tree while re-parenting
+     inside it visits some nodes twice and misses others */
+  const groups = new Map();
+  const parentKey = new Map(); let pn = 0;
+  const geoUse = new Map();
+  world.traverse(o => {
+    if (o.isMesh && o.geometry) geoUse.set(o.geometry, (geoUse.get(o.geometry) || 0) + 1);
+    if (!o.isMesh || o.isSkinnedMesh || o.isInstancedMesh) return;
+    if (!o.visible || o.userData.noBake || cast.has(o) || !o.parent || !o.geometry) return;
+    const mats = [].concat(o.material);
+    if (mats.length !== 1) return;
+    if (!parentKey.has(o.parent)) parentKey.set(o.parent, ++pn);
+    const attrs = Object.keys(o.geometry.attributes).sort().join("+");
+    const k = `${parentKey.get(o.parent)}|${mats[0].uuid}|${attrs}|` +
+              `${o.castShadow}|${o.receiveShadow}|${o.renderOrder}`;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(o);
+  });
+
+  let folded = 0, made = 0, refused = 0;
+  for (const list of groups.values()){
+    if (list.length < 2) continue;
+    let geos = null;
+    try {
+      /* baked into the PARENT's local space, not the world's, so the
+         parent may still be moved or hidden as one thing */
+      geos = list.map(o => { o.updateMatrix();
+                             const g = o.geometry.clone(); g.applyMatrix4(o.matrix); return g; });
+      const one = mergeGeometries(geos, false);
+      if (!one){ refused++; continue; }
+      const first = list[0];
+      const m = new THREE.Mesh(one, first.material);
+      m.castShadow = first.castShadow;
+      m.receiveShadow = first.receiveShadow;
+      m.renderOrder = first.renderOrder;
+      m.name = `baked:${first.material.name || first.material.type}:${list.length}`;
+      first.parent.add(m);
+      for (const o of list){
+        o.parent.remove(o);
+        /* only when nothing else draws it — five geometries in this
+           campus are shared between meshes, and disposing one of those
+           would blank whatever else was using it */
+        if ((geoUse.get(o.geometry) || 0) <= 1) o.geometry.dispose();
+      }
+      folded += list.length - 1; made++;
+    } catch (e){ refused++; }
+    finally { if (geos) for (const g of geos) g.dispose(); }
+  }
+  console.info(`campus: scenery baked — ${made} group(s), ${folded} draw(s) folded, ` +
+               `${refused} refused, ${Math.round(performance.now() - t0)}ms`);
+  window.__baked = { done: true, groups: made, folded, refused };
+}
+window.__bake = () => { baked = false; bakeScenery(); };   /* test/debug hook */
+
 renderer.setAnimationLoop(() => {
   renderer.info.reset();                  /* totals accumulate across every pass below */
   const now = performance.now();
@@ -12739,6 +12848,13 @@ renderer.setAnimationLoop(() => {
      two things that react to a slow machine, rather than two averages
      that can disagree about what the machine is doing. */
   stepQuality(now, crowdFps);
+  /* Once, and only once the campus has stopped arriving. Eight seconds
+     rather than the ladder's four: folding is not undoable, so it waits
+     longer than a decision that only costs a rung. */
+  if (!baked){
+    const arr = arrivalState(now);
+    if (assetLog.length && !arr.arriving && now - arr.lastIn > 8000) bakeScenery();
+  }
   stepStudents(dt, now);
   if (walker.on) walkUpdate(dt);
   else { stepFlight(now); controls.update(); }
