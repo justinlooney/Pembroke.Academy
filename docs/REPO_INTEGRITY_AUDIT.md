@@ -922,39 +922,69 @@ headline of D3 and it is a negative result, reported as one.
 
 ## D4. New findings
 
-### D4.1 PROBABLE · P2 · `check-frame`'s settle has no arrival guard
+### D4.1 CONFIRMED · P2 · `check-frame` settles before the campus does, and its ceiling is calibrated from that
 
 **File** `tools/check-frame.mjs`, the settle loop added by repair 6.
 
-It waits for `__crowd().ready` and `crowdFill`, then for two 12-second
-windows to agree within 2. It does **not** wait for the campus's own
-arrival signal, which the page already publishes as `__preset().on`.
+**This entry was first written as PROBABLE, on evidence that the check
+"got the right answer this run". It did not.** The second half of the
+same experiment had not finished when that was written; when it did, it
+inverted the finding. Both readings are kept below because the wrong one
+is the more useful of the two.
 
-**Evidence** — reproducing its exact sequence:
+The loop waits for `__crowd().ready` and `crowdFill`, then for two
+12-second windows to agree within 2. Reproducing its exact sequence and
+then continuing to watch:
 
 ```
 window 0:  737 draws · still arriving: true
 window 1: 1243 draws · still arriving: true
-window 2: 1243 draws · still arriving: false   ← settled, correctly
+window 2: 1243 draws · still arriving: false   ← check-frame stops here
+
+… kept waiting, campus reports arrival finished …
+                       1609 draws              ← the settled figure
 ```
 
-It got the **right** answer in this run. But `737` is what a plateau
-looks like, and a probe using identical logic settled at **803** on a
-scene that reads 1243 when finished. The mechanism is proven; this run
-did not trigger it.
+**+366.** Two windows agreed at 1243 and the campus was not finished.
 
-**Impact if it fires** — `DRAW_CEILING` (1320) was derived from a
-settled reading. A premature settle would set the ceiling too low, and
-the gate would then fail honest builds; a premature settle at check time
-would pass builds it should fail. Either way the gate measures the wrong
-moment, which is worse than no gate — the lesson §12 drew from the
-vacuous a11y check and the non-idempotent clock loop.
+**Root cause, and it is deeper than a missing guard.** The obvious fix —
+wait for `__preset().on === false` — is **not sufficient**, and this run
+proves it: `arriving` was already `false` at 1243. `arrivalState` tracks
+the **asset log**, and the campus keeps changing after the last asset
+lands, because the crowd keeps churning: bodies walk into buildings and
+out of them for the whole session, by design. There is no moment when
+this scene stops changing, so "two windows agreed" is luck, not
+convergence.
 
-**Smallest safe fix** — `await page.waitForFunction(() => window.__preset().on === false)`
-before the settle loop. One line; the hook already exists.
+**Impact.** `DRAW_CEILING = 1320` was derived from a **premature 1243**.
+The true settled figure is 1609. The gate is self-consistently wrong: it
+measures early, compares an early number to a ceiling built from an
+early number, and passes. A run that happens to wait longer reads 1609
+and fails against 1320 — a spurious failure on unchanged code. The gate
+is unstable in both directions.
 
-**Regression test** — the run above, asserting `still arriving: false`
-at the moment of settling.
+**It also invalidates numbers this document quotes.** Every draw-call
+figure taken today — 711, 723, 765, 803, 1239, 1243, 1491, 1609 — came
+from a method that never defined "settled" against a scene that never
+settles. §9.1's headline of ~1,239 should be read as *a* reading, not
+*the* reading. 1609 is the highest and the most-waited-for, reached
+independently twice; it is the best current estimate and is still not a
+proof.
+
+**Smallest safe fix** — the check cannot ask "has it stopped changing",
+because it never does. It has to ask a bounded question instead: hold
+the crowd fixed for the measurement (`__crowd` exposes the controls), or
+measure a fixed camera on a fixed frame count and report a distribution
+rather than a single median. Then re-derive the ceiling from whatever
+that produces.
+
+**Until then the ceiling should not be trusted**, and repair 10's
+"22.9%" — an A/B of 1609 against 1243 — is comparing a settled reading
+to a premature one and cannot be relied on either. That branch is
+unopened; it should stay unopened until the measurement is sound.
+
+**Regression test** — the run above: settle by the check's own rule,
+then keep waiting, and assert the two agree.
 
 ### D4.2 CONFIRMED · P3 · `__preset()` reports `Infinity`, which is `null` across JSON
 
@@ -1009,8 +1039,9 @@ warnings left are one already-filed performance note.
 
 What replaced it is a subtler version of the same thing, and it is worth
 naming: **the risk has moved from the product into the gates.** D4.1 is a
-check that can measure the wrong moment and report a number with full
-confidence. Three times in one day a gate here has been found asserting
+check that DOES measure the wrong moment and reports a number with full
+confidence — and the correction to it, mid-write, came from an
+experiment finishing after the conclusion had been drafted. Three times in one day a gate here has been found asserting
 something other than what it claimed — the a11y check that passed
 without testing, the clock check that pressed past its own target, and
 now a settle that can agree with itself while the campus is still
