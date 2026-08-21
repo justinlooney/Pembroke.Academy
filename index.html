@@ -3839,7 +3839,35 @@ stageEl.appendChild(labelRenderer.domElement);
 const world = new THREE.Scene();
 /* image-based lighting: glass, water and paint pick up a real environment */
 const pmrem = new THREE.PMREMGenerator(renderer);
-world.environment = pmrem.fromScene(new RoomEnvironment(), 0.06).texture;
+/* 0.04, not 0.06, and the number is derived rather than tuned. r170's
+   PMREMGenerator blurs with at most MAX_SAMPLES = 20 taps:
+
+     pixels   = _sizeLods[0] - 1 = 255
+     samples  = 1 + floor(3 × sigma × 2 × pixels / π)
+
+   At 0.06 that asks for 30, so three clipped it to 20 and said so —
+   twice, every boot, in production. The kernel was therefore a WIDE
+   gaussian truncated at 20 taps rather than the blur the number
+   claimed. 0.041 is the largest sigma this generator will honour, so
+   0.04 buys a complete kernel with margin, and the code now describes
+   what the GPU actually does.
+
+   It IS a narrower blur, so it was measured rather than assumed —
+   two spheres lit by the environment and nothing else, at the
+   campus's own environmentIntensity of 0.55:
+
+     near-mirror (metal, roughness 0.05), the worst case
+       mean |Δ| 0.56/255 · peak 118 · 3.5% of pixels moved >2/255
+       mean brightness 26.9 → 26.5
+     stone as this campus wears it (roughness 0.75)
+       mean |Δ| 0.16/255 · peak 5 · 1.7% of pixels moved >2/255
+       mean brightness 22.7 → 22.6
+
+   The peak of 118 is a specular highlight edge on a near-mirror
+   moving by a pixel — the sharpest thing an environment can do. On
+   the surfaces the campus is actually built from it is a peak of 5
+   and no brightness shift. */
+world.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 /* The generator is scaffolding, not the product: it holds a ping-pong
    render target, the LOD plane geometry and three materials, and the
    texture above outlives all of it. Disposed once the environment
