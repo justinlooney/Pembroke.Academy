@@ -3700,6 +3700,7 @@ import { SSAOPass } from "three/addons/postprocessing/SSAOPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { SMAAPass } from "three/addons/postprocessing/SMAAPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
@@ -3776,10 +3777,92 @@ if (!softGL && !q.has("noao")){
   ssao.kernelRadius = 14; ssao.minDistance = 0.002; ssao.maxDistance = 0.09;
   composer.addPass(ssao);
 }
-const bloom = new UnrealBloomPass(new THREE.Vector2(800, 600), 0.28, 0.35, 0.86);
+const bloom = new UnrealBloomPass(new THREE.Vector2(800, 600), 0.18, 0.32, 0.90);
 if (!q.has("nobloom")) composer.addPass(bloom);
 if (!q.has("nosmaa")) composer.addPass(new SMAAPass(800, 600));
 composer.addPass(new OutputPass());
+
+/* ── the plate ────────────────────────────────────────────────────────
+   #89's own first suggestion: "a campus rendered as if printed in a
+   prospectus", which turns the procedural-SVG wall system from a
+   texture trick into the thesis. Those walls are already DRAWN — arched
+   lancets, clipped glazing, parapets, per-building seeds — so the
+   render should look drawn too.
+
+   Four moves, all deliberately small, because the difference between
+   art direction and a filter is restraint:
+
+     split tone   shadows warm toward iron-gall instead of going grey.
+                  This is the one that does most of the work and the one
+                  you notice least.
+     ink          a luma sobel, gated hard by smoothstep so it marks
+                  ONLY edges that were already high-contrast. An outline
+                  everywhere is a cartoon; an outline at the eaves and
+                  the window reveals is an engraving.
+     grain        static in SCREEN space, so the paper stays still while
+                  the world moves past it — which is what paper does.
+                  Weighted into shadow, where a plate's tooth shows.
+     vignette     a plate is printed on a sheet and the sheet has edges.
+
+   AFTER OutputPass on purpose: tone mapping and the sRGB transfer have
+   already happened there, so these numbers mean what they look like
+   rather than what they mean in linear light.
+
+   ?ink=0 turns it off and ?ink=2 doubles it — the same escape-hatch
+   convention as noao / nobloom / nosmaa, and the only honest way to
+   judge a grade is against the frame without it. */
+const InkShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    texel:    { value: new THREE.Vector2(1 / 800, 1 / 600) },
+    amount:   { value: 1 },
+  },
+  vertexShader: `varying vec2 vUv;
+    void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse; uniform vec2 texel; uniform float amount;
+    varying vec2 vUv;
+    float luma(vec3 c){ return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+    float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    void main(){
+      /* Keep the incoming alpha. This context is created WITH alpha and
+         the sky above the horizon is a CSS gradient showing through the
+         canvas — writing 1.0 here would seal that hole and paint the
+         backdrop out. */
+      vec4 src = texture2D(tDiffuse, vUv);
+      vec3 c = src.rgb;
+      float l = luma(c);
+
+      /* iron-gall in the shadows, barely warm in the lights */
+      vec3 tint = mix(vec3(1.115, 0.975, 0.840), vec3(1.030, 1.0, 0.960), l);
+      c *= mix(vec3(1.0), tint, amount);
+
+      /* the ink, and only where the drawing already had a line */
+      float lx = luma(texture2D(tDiffuse, vUv + vec2(texel.x, 0.0)).rgb)
+               - luma(texture2D(tDiffuse, vUv - vec2(texel.x, 0.0)).rgb);
+      float ly = luma(texture2D(tDiffuse, vUv + vec2(0.0, texel.y)).rgb)
+               - luma(texture2D(tDiffuse, vUv - vec2(0.0, texel.y)).rgb);
+      float e = smoothstep(0.13, 0.40, abs(lx) + abs(ly));
+      c = mix(c, c * 0.55, e * 0.70 * amount);
+
+      /* the tooth of the sheet */
+      float g = hash(gl_FragCoord.xy) - 0.5;
+      c += g * 0.030 * amount * (0.45 + 0.9 * (1.0 - l));
+
+      /* No vignette. A plate is printed on a sheet and the sheet has
+         edges — but this canvas's top edge lands in the MIDDLE of the
+         frame, because the sky above the horizon is CSS showing
+         through. A vignette there darkens exactly the seam it should
+         be hiding. The idea was right and the surface is the wrong
+         one to put it on. */
+
+      gl_FragColor = vec4(c, src.a);
+    }`,
+};
+const ink = new ShaderPass(InkShader);
+ink.uniforms.amount.value = q.has("ink") ? Number(q.get("ink")) : 1;
+if (ink.uniforms.amount.value > 0) composer.addPass(ink);
+window.__ink = ink;   /* test/debug hook */
 
 /* fov is VERTICAL, so a tall phone screen collapses the horizontal view:
    at 412x915 a 46° vertical fov leaves about 21° across, and the campus
@@ -4217,6 +4300,11 @@ function resize(){
   const w = stageEl.clientWidth || 800, h = stageEl.clientHeight || 600;
   renderer.setSize(w, h);
   composer.setSize(w, h);
+  /* the ink samples its neighbours a texel away, so a texel has to
+     mean what it says at every size — left at the 800x600 default it
+     would trace a fatter line on a phone than on a desktop, which is
+     the one thing a stroke weight must never do */
+  ink.uniforms.texel.value.set(1 / w, 1 / h);
   labelRenderer.setSize(w, h);
   camera.aspect = w / h;
   /* walk mode owns the fov while zooming, so leave it alone there.
@@ -11567,7 +11655,10 @@ function setTimeOfDay(t){
   world.environmentIntensity = lerpN(6);
   world.fog.color.copy(lerpC(2)).multiplyScalar(night ? 0.62 : 0.92);
   renderer.toneMappingExposure = night ? 1.06 : 1.02;
-  bloom.strength = night ? 0.6 : 0.24;
+  /* Pulled back from 0.6/0.24. Gold leaf does not glow, it catches —
+     and a bloom wide enough to halo every lit window was the render
+     doing the work the light should do. */
+  bloom.strength = night ? 0.40 : 0.15;
   setVisualBinary(night ? "night" : "day");
 }
 let visual = null;
