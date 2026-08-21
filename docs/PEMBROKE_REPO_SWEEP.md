@@ -168,13 +168,6 @@ LS_STUDY    pembroke.study              ← the odd one out
 Six of seven agree. `LS_STUDY` is the one holding lecture mastery — the
 most valuable data the product stores.
 
-> **CORRECTED by `docs/REPO_INTEGRITY_AUDIT.md` §6.1.** It is six of
-> **nine**, not six of seven. This table missed `AI_LS = "pembroke.ai"`
-> and `NPC_LS = "pembroke.npc"` because the script behind it grepped
-> for constants matching `LS_` — the exact pattern those two break. A
-> naming audit that searches by the convention it is auditing cannot
-> see the drift.
-
 **JUDGEMENT:** renaming it strands every existing visitor's progress
 unless a migration reads the old key once and writes the new. That is
 a real cost for a cosmetic gain, and the honest options are (a) migrate
