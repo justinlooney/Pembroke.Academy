@@ -118,10 +118,28 @@ if ("serviceWorker" in navigator){
   --parchment:#e8e3d5;
   --brass:#d4af6a;
   --brass-dim:#8a744a;
-  --quad-eng:#f59e0b;   /* Engineering — amber        */
-  --quad-sci:#38bdf8;   /* Science Lab — electric blue */
-  --quad-lib:#10b981;   /* Library — deep emerald      */
-  --quad-adm:#a78bfa;   /* Administration — imperial purple */
+  /* ── the four pigments ────────────────────────────────────────
+     These were amber, electric blue, emerald and imperial purple —
+     which is Tailwind's default accent ramp, the palette of a status
+     page. Gothic Revival wearing a data-product costume is exactly
+     what "a genre, not a voice" means, and four unrelated hues
+     glowing at once was the loudest thing in the frame.
+
+     They are pigments now, and real ones: ground lapis was the most
+     expensive colour in a scriptorium and went to what mattered most,
+     so it goes to the Library; vermilion is the working red of
+     rubrication; verdigris is literally copper, for the hardware
+     school; madder lake is the crimson that fades, for the one
+     faculty that studies things that fly.
+
+     Gold is not among them. --brass is reserved for what you can
+     ACT on, and nothing else is ever gold — that is the whole
+     grammar, and it is what makes an interface legible without a
+     legend. */
+  --quad-lib:#3f5fa9;   /* lapis      — Library · Pure Mathematics  */
+  --quad-eng:#c0452c;   /* vermilion  — Engineering · Software      */
+  --quad-sci:#3f8a72;   /* verdigris  — Science Lab · Hardware      */
+  --quad-adm:#8e4b6b;   /* madder     — Administration · Flight     */
   --tiltX:0deg;
   --tiltZ:0deg;
   /* night palette (default) — body.day overrides every token */
@@ -160,10 +178,21 @@ body{
     radial-gradient(1200px 800px at 50% 118%, rgba(16,58,54,.30), transparent 62%),
     linear-gradient(180deg,#05070f 0%,#0a1020 44%,#0b1526 100%);
 }
+/* ── the day sky ──────────────────────────────────────────────────
+   This was #6aa9e3 → #8fc3ee → #c8e2f6: picture-book cerulean, and
+   once the render below the horizon was graded toward iron-gall and
+   parchment it became the loudest thing in the frame. No shader can
+   reach it either — the sky is CSS on purpose, because it paints
+   before any script runs and that is where the 388ms first paint
+   comes from — so it has to be corrected here or not at all.
+
+   A printed sky is paper with a wash over it, not pigment: cool slate
+   at the zenith falling to warm parchment at the horizon, which is
+   both what a low sun actually does and what the plate can hold. */
 body.day .sky{
   background:
-    radial-gradient(900px 500px at 78% 6%, rgba(255,250,225,.55), transparent 55%),
-    linear-gradient(180deg,#6aa9e3 0%,#8fc3ee 40%,#c8e2f6 78%,#e8f2fb 100%);
+    radial-gradient(1000px 560px at 78% 4%, rgba(255,244,214,.62), transparent 58%),
+    linear-gradient(180deg,#93a7b6 0%,#bfc2ba 34%,#ddd2bb 70%,#efe4cf 100%);
 }
 .stars{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.8;}
 .stars i{position:absolute;width:2px;height:2px;border-radius:50%;background:#dbe6ff;animation:twinkle 5s ease-in-out infinite;}
@@ -181,7 +210,20 @@ body.day .b-label .card{background:linear-gradient(180deg, rgba(24,30,44,.88), r
 /* drifting fair-weather clouds (day only) */
 .cloud{position:absolute;pointer-events:none;display:none;opacity:.9;filter:blur(1px);animation:cloud-drift var(--ct,80s) linear infinite;}
 body.day .cloud{display:block;}
-.cloud i{position:absolute;background:#fff;border-radius:50%;box-shadow:0 6px 18px rgba(120,150,180,.25);}
+/* Strata, not blobs. A white rounded rectangle with a drop shadow is
+   a cartoon cloud, and three of them in a row was the only place on
+   this campus drawing in that register. In an engraving a cloud is a
+   band of horizontal hatching, so: hatched, flattened toward the
+   horizontal, blurred at the edge, and with the shadow gone — nothing
+   printed casts one. */
+.cloud i{
+  position:absolute;border-radius:50% / 62%;
+  transform:scaleX(1.7) scaleY(.62);
+  background:
+    repeating-linear-gradient(0deg, rgba(255,253,247,.50) 0 1px, rgba(255,253,247,0) 1px 3px),
+    linear-gradient(180deg, rgba(255,253,247,.40), rgba(255,253,247,.06));
+  filter:blur(1.5px);
+}
 @keyframes cloud-drift{from{transform:translateX(-15vw)}to{transform:translateX(60vw)}}
 
 /* sun / moon — one orb, two lives */
@@ -600,8 +642,16 @@ body.day .tree .sprite{filter:brightness(1.02) saturate(1.02);}
 #daynight:hover{transform:scale(1.12) rotate(12deg);box-shadow:0 8px 26px -8px rgba(0,0,0,.8), 0 0 26px -4px rgba(212,175,106,.75);}
 body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgba(240,230,205,.92));}
 
+/* ── the rail ─────────────────────────────────────────────────────
+   These four sat in an L across the top-right corner and printed
+   themselves over the second line of the intro copy — three of them
+   were sitting on the words "and slate spires" in every frame of the
+   aerial view. A column at one margin instead: sky, sound, people,
+   walk, then the plan. Nothing overlaps the prose, and four controls
+   in a line read as an instrument panel rather than as four things
+   that happened to be added at different times. */
 #walkbtn{
-  position:absolute;top:4.6rem;right:1.4rem;z-index:25;
+  position:absolute;top:11rem;right:1.4rem;z-index:25;
   width:46px;height:46px;border-radius:50%;
   display:flex;align-items:center;justify-content:center;font-size:19px;
   background:linear-gradient(160deg, rgba(20,28,46,.9), rgba(10,16,30,.9));
@@ -611,7 +661,7 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
 }
 #walkbtn:hover{transform:scale(1.12);}
 #soundbtn{
-  position:absolute;top:4.6rem;right:8.2rem;z-index:25;
+  position:absolute;top:4.6rem;right:1.4rem;z-index:25;
   width:46px;height:46px;border-radius:50%;
   display:flex;align-items:center;justify-content:center;font-size:19px;
   background:linear-gradient(160deg, rgba(20,28,46,.9), rgba(10,16,30,.9));
@@ -620,10 +670,30 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
   cursor:pointer;transition:transform .3s ease;
 }
 #soundbtn:hover{transform:scale(1.12);}
+/* ── drawn, not typed ─────────────────────────────────────────────
+   Five emoji were doing the work of an icon set: 🌙 🎮 🔇 👥 🎯.
+   Emoji are somebody else's drawings, they change with the operating
+   system, and they are the one thing on this page rendered in a
+   register nothing else shares — a cartoon gamepad two inches from
+   Cormorant Garamond.
+
+   These are line glyphs in the crest's own idiom: one stroke weight,
+   round caps, currentColor so they take the gold when a control is
+   live and the slate when it is not. The objective's is a MANICULE —
+   the pointing hand a reader drew in the margin beside the line that
+   mattered, which is the oldest "this one" in the language, and the
+   only correct icon for a thing called Current objective. (#82) */
+.gl{width:1.15em;height:1.15em;display:block;fill:none;stroke:currentColor;
+  stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;}
+#daynight,#walkbtn,#soundbtn,#nearbybtn{color:rgba(226,232,240,.92);}
+#daynight .gl,#walkbtn .gl,#soundbtn .gl,#nearbybtn .gl{width:22px;height:22px;}
+#soundbtn[aria-pressed="true"]{color:var(--brass);}
+.walkmode #walkbtn{color:#7dd3fc;}
+#quest .q-icon .gl{width:20px;height:20px;color:var(--brass);stroke-width:1.9;}
 #soundbtn[aria-pressed="true"]{border-color:var(--brass);
   box-shadow:0 8px 24px -8px rgba(0,0,0,.8), 0 0 18px -6px var(--brass);}
 #nearbybtn{
-  position:absolute;top:4.6rem;right:4.9rem;z-index:25;
+  position:absolute;top:7.8rem;right:1.4rem;z-index:25;
   width:46px;height:46px;border-radius:50%;
   display:flex;align-items:center;justify-content:center;font-size:19px;
   background:linear-gradient(160deg, rgba(20,28,46,.9), rgba(10,16,30,.9));
@@ -652,17 +722,20 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
 .nb-where{display:block;font-size:10.5px;color:var(--brass-dim);}
 .nb-empty{padding:.4rem .5rem;font-size:11px;color:#94a3b8;}
 @media (max-width:640px){
-  #soundbtn{top:3.9rem;right:6.7rem;width:40px;height:40px;font-size:16px;}
-  #nearbybtn{top:3.9rem;right:3.9rem;width:40px;height:40px;font-size:16px;}
+  #soundbtn{top:3.9rem;right:1rem;width:40px;height:40px;font-size:16px;}
+  #nearbybtn{top:6.6rem;right:1rem;width:40px;height:40px;font-size:16px;}
   .nearby{left:1rem;right:1rem;width:auto;top:7rem;}
 }
 .walkmode #walkbtn{border-color:#38bdf8;background:linear-gradient(160deg, rgba(24,60,90,.95), rgba(10,30,50,.95));}
 #minimap{
-  position:absolute;top:7.9rem;right:1.4rem;z-index:25;
-  border-radius:12px;border:1.5px solid rgba(212,175,106,.4);
-  background:rgba(8,12,22,.82);
-  box-shadow:0 10px 28px -10px rgba(0,0,0,.8);
+  position:absolute;top:14.2rem;right:1.4rem;z-index:25;
+  border-radius:3px;border:1px solid rgba(212,175,106,.55);
+  background:rgba(232,223,201,.9);
+  box-shadow:0 10px 28px -12px rgba(0,0,0,.7);
 }
+/* The moon's position is owned by the max-width:1023px block further
+   down, which is why setting it here did nothing — measured at 900px
+   it still read right:45px. It moves there instead. */
 /* The objective is worth stating once and keeping to hand, not worth a
    permanent slab across the quad. Tap it and it folds down to its target
    pip; tap that and it opens again. The choice is remembered. */
@@ -740,7 +813,21 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
 body.touched.walkmode #touchpad{display:flex;}
 /* walk-mode scene overrides: JS owns the camera transform completely */
 #scene.walking{animation:none;transition:none;transform-origin:0 0;}
+/* #stage.walking and #scene.walking were written to clear this and
+   have never once fired: nothing in this file ever adds a "walking"
+   class to either element. The class that exists is body.walkmode.
+
+   The cost was not cosmetic. #stage carries 120px of padding-top so
+   the aerial campus sits clear of the intro copy, the canvas is a
+   static block so it begins AFTER that padding, and resize() sizes it
+   from clientHeight — which includes padding. So in walk mode the
+   canvas ran 120..760 inside a 640-tall window: 120px of empty sky
+   above the horizon, 120px of the world clipped off the bottom, and a
+   hard seam across the hero frame where the canvas simply started.
+
+   #67 made the WING fullscreen. The canvas inside it never followed. */
 #stage.walking{perspective:640px;perspective-origin:50% 50%;padding-top:0;}
+body.walkmode #stage{padding-top:0;perspective:640px;perspective-origin:50% 50%;}
 #scene.walking{margin-top:0;}
 .walkmode .b-label .stem{display:none;}
 .walkmode #campus-wing-intro, .walkmode #campus-legend, .walkmode #campus-hints{opacity:0;pointer-events:none;transition:opacity .4s ease;}
@@ -753,6 +840,28 @@ body.diagnosing #campus-wing-intro{opacity:0;pointer-events:none;}
   text-shadow:0 1px 2px rgba(4,8,16,.9), 0 0 16px rgba(4,8,16,.7);
 }
 #campus-legend, #campus-hints{ font-weight:500; }
+/* Both are bottom-anchored at opposite margins and neither had a
+   width, so on a mid-width stage the hints ran left until they were
+   printing through "Great Library · Pure Mathematics". Capped, and
+   they wrap upward into their own corners instead. The smoke drive
+   checks these two keep apart on a PHONE, where the hints are hidden
+   outright — which is why a collision at 1100px went unseen. */
+/* Only where the two are in opposite CORNERS. Below the lg breakpoint
+   the wing is full width and these stack in normal flow, one above the
+   other — there a width cap does not separate them, it makes both of
+   them WRAP, and two taller boxes stacked 11px apart overlap where two
+   shorter ones did not. Measured at 393x851, which is the width the
+   drive checks: legend 84px tall became 134, hints 49 became 79, and a
+   check that had passed for months went red.
+
+   The collision this fixes is real and lives at desktop widths, where
+   the hints run left until they print through "Great Library · Pure
+   Mathematics". That is where the cap belongs and nowhere else. */
+@media (min-width:1024px){
+  #campus-legend{ max-width:46%; }
+  #campus-hints{ max-width:50%; }
+  #campus-hints > div{ white-space:normal; }
+}
 
 /* Walk mode on a phone was crowded: the objective card sat under the
    thumb pad and a keyboard legend nobody can press ran off both edges.
@@ -1028,7 +1137,11 @@ body.panel-open #toasts{bottom:5.5rem;}
 @media (max-width:1023px){
   #scene{--zoom:.42;}
   #stage{padding-top:7.5rem;}
-  .moon{width:54px;height:54px;top:5%;right:5%;}
+  /* right:5% put the moon at 45px on a 900px stage, which is exactly
+     where the control rail is — the bell glyph was printing on top of
+     it. The rail is the thing that has to be reachable, so the moon
+     moves and the controls stay. */
+  .moon{width:54px;height:54px;top:5%;right:26%;}
   #daynight{top:1rem;right:1rem;width:40px;height:40px;font-size:17px;}
   #walkbtn{top:3.9rem;right:1rem;width:40px;height:40px;font-size:16px;}
   #minimap{top:6.8rem;right:1rem;width:96px;height:96px;}
@@ -1397,11 +1510,17 @@ body.touched.walkmode .orient .o-step:not(.now){display:none;}
     <div class="cloud" style="left:12%;top:38%;--ct:140s;animation-delay:-90s;opacity:.55">
       <i style="left:0;top:8px;width:44px;height:16px"></i><i style="left:15px;top:0;width:36px;height:22px"></i><i style="left:36px;top:7px;width:38px;height:15px"></i>
     </div>
-    <button id="daynight" title="Toggle day / night" aria-label="Toggle day or night">🌙</button>
-    <button id="walkbtn" title="Walk the campus (F)" aria-label="Enter first-person walk mode">🎮</button>
-    <button id="soundbtn" title="Sound (M)" aria-pressed="false" aria-label="Turn campus sound on">🔇</button>
+    <button id="daynight" title="Toggle day / night" aria-label="Toggle day or night"></button>
+    <button id="walkbtn" title="Walk the campus (F)" aria-label="Enter first-person walk mode">
+      <svg class="gl" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V9l7-5 7 5v11"/><path d="M9.5 20v-6a2.5 2.5 0 0 1 5 0v6"/></svg>
+    </button>
+    <button id="soundbtn" title="Sound (M)" aria-pressed="false" aria-label="Turn campus sound on">
+      <svg class="gl" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 16V12a5 5 0 0 1 10 0v4l1.5 2.5h-13L7 16Z"/><path d="M10.5 19a1.5 1.5 0 0 0 3 0"/><path d="M12 7V5"/></svg>
+    </button>
     <button id="nearbybtn" title="People and places (P)" aria-expanded="false"
-            aria-controls="nearby" aria-label="People and places nearby">👥</button>
+            aria-controls="nearby" aria-label="People and places nearby">
+      <svg class="gl" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20v-2a4 4 0 0 1 4-4h1"/><circle cx="9.5" cy="7.5" r="3"/><path d="M14 20v-3a4 4 0 0 1 4-4"/><circle cx="17" cy="8.5" r="2.5"/></svg>
+    </button>
     <canvas id="minimap" width="132" height="132" aria-label="Campus minimap"></canvas>
 
     <!-- The keyboard's way in. Buildings were already reachable — keys
@@ -1421,7 +1540,9 @@ body.touched.walkmode .orient .o-step:not(.now){display:none;}
     <!-- quest banner: the current academic objective -->
     <div id="quest" role="button" tabindex="0" aria-expanded="true"
          title="Tap to fold this away">
-      <span class="q-icon">🎯</span>
+      <span class="q-icon">
+        <svg class="gl" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h6"/><path d="M9 12V8.5a1.5 1.5 0 0 1 3 0V12"/><path d="M12 11.5V9a1.4 1.4 0 0 1 2.8 0v2.5"/><path d="M14.8 11.8v-1.6a1.3 1.3 0 0 1 2.6 0V14a5 5 0 0 1-5 5h-1a4 4 0 0 1-4-4v-3"/></svg>
+      </span>
       <div>
         <div class="q-label">Current objective</div>
         <div class="q-text" id="quest-text"></div>
@@ -1577,7 +1698,7 @@ body.touched.walkmode .orient .o-step:not(.now){display:none;}
 /* ── The four campus sectors ─────────────────────────────────────── */
 const SECTORS = {
   lib: { key:"lib", hall:"The Pembroke Great Library", track:"Pure Mathematics Sequence",
-         color:"#10b981", soft:"rgba(16,185,129,", icon:"◈",
+         color:"#3f5fa9", soft:"rgba(63,95,169,", icon:"◈",
          motto:"Every theorem here was once a stranger.",
          room:"The Chalk Vault — Lecture Theatre I",
          board:["∮_C F · dr  =  ∬_R ( ∂Q/∂x − ∂P/∂y ) dA",
@@ -1586,7 +1707,7 @@ const SECTORS = {
                 "· hw — Stewart §16.4, odd problems 1–17"],
          blurb:"Vaulted reading rooms and chalk-dusted lecture halls. The five-course mathematics spine — from College Algebra to the vector fields of Calculus III — is taught beneath the great emerald dome." },
   eng: { key:"eng", hall:"Drosdick Hall", track:"Software Foundations Track",
-         color:"#f59e0b", soft:"rgba(245,158,11,", icon:"⌬",
+         color:"#c0452c", soft:"rgba(192,69,44,", icon:"⌬",
          motto:"First make it work. Then make it beautiful.",
          room:"The Grand Atrium — Learning Commons",
          board:["def study(hours):",
@@ -1595,7 +1716,7 @@ const SECTORS = {
                 "· quiz friday: recursion vs iteration"],
          blurb:"A glass-roofed grand atrium where code is a craft. Three studio courses carry a complete beginner from a first Python print statement to disciplined systems engineering in C, at long study tables under the skylight." },
   sci: { key:"sci", hall:"Alden Science Laboratory", track:"Electrical Hardware & Microprocessors Track",
-         color:"#38bdf8", soft:"rgba(56,189,248,", icon:"⚡",
+         color:"#3f8a72", soft:"rgba(63,138,114,", icon:"⚡",
          room:"The Induction Chamber — Bench Lab 3",
          board:["Sum  = A ⊕ B ⊕ Cin",
                 "Cout = AB + Cin(A ⊕ B)",
@@ -1604,7 +1725,7 @@ const SECTORS = {
          blurb:"Oscilloscopes hum under electric-blue skylights. Here software meets silicon: boolean logic becomes gates, gates become registers, and registers become machines you command in assembly.",
          motto:"The machine keeps no secrets from those who read registers." },
   adm: { key:"adm", hall:"Aldergate Administration Hall", track:"AI Robotics & Flight Planners Track",
-         color:"#a78bfa", soft:"rgba(167,139,250,", icon:"✈",
+         color:"#8e4b6b", soft:"rgba(142,75,107,", icon:"✈",
          motto:"Autonomy is mathematics given wings.",
          room:"The Autonomy Wing — Flight Operations Room",
          board:["x̂ₖ = x̂ₖ₋₁ + Kₖ( zₖ − H·x̂ₖ₋₁ )",
@@ -1613,7 +1734,13 @@ const SECTORS = {
                 "· flight test — quad lawn, friday 0900"],
          blurb:"Behind the imperial-purple spire sits the Autonomy Wing — capstone territory. State estimation, control loops, and flight planners that let machines navigate the world alone." },
   cathedral: { key:"cathedral", hall:"The Pembroke Chapel", track:"The University Chapel",
-         color:"#d4af6a", soft:"rgba(212,175,106,", icon:"✦",
+         /* Parchment, not gold. The grammar says --brass marks what
+            can be ACTED on, and the moment the chapel wore it the
+            rule had an exception on its first day. It is also not a
+            faculty and has no courses, so no pigment is the honest
+            answer: it is the one place on this campus that is simply
+            itself. */
+         color:"#cbc0a6", soft:"rgba(203,192,166,", icon:"✦",
          motto:"Lux perpetua luceat studiis.",
          room:"The Nave — Lux Perpetua",
          board:[], blurb:"A place of quiet between lectures." },
@@ -3631,11 +3758,12 @@ import { SSAOPass } from "three/addons/postprocessing/SSAOPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { SMAAPass } from "three/addons/postprocessing/SMAAPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v146";
+const BUILD = "pembroke-v147";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -3707,10 +3835,92 @@ if (!softGL && !q.has("noao")){
   ssao.kernelRadius = 14; ssao.minDistance = 0.002; ssao.maxDistance = 0.09;
   composer.addPass(ssao);
 }
-const bloom = new UnrealBloomPass(new THREE.Vector2(800, 600), 0.28, 0.35, 0.86);
+const bloom = new UnrealBloomPass(new THREE.Vector2(800, 600), 0.18, 0.32, 0.90);
 if (!q.has("nobloom")) composer.addPass(bloom);
 if (!q.has("nosmaa")) composer.addPass(new SMAAPass(800, 600));
 composer.addPass(new OutputPass());
+
+/* ── the plate ────────────────────────────────────────────────────────
+   #89's own first suggestion: "a campus rendered as if printed in a
+   prospectus", which turns the procedural-SVG wall system from a
+   texture trick into the thesis. Those walls are already DRAWN — arched
+   lancets, clipped glazing, parapets, per-building seeds — so the
+   render should look drawn too.
+
+   Four moves, all deliberately small, because the difference between
+   art direction and a filter is restraint:
+
+     split tone   shadows warm toward iron-gall instead of going grey.
+                  This is the one that does most of the work and the one
+                  you notice least.
+     ink          a luma sobel, gated hard by smoothstep so it marks
+                  ONLY edges that were already high-contrast. An outline
+                  everywhere is a cartoon; an outline at the eaves and
+                  the window reveals is an engraving.
+     grain        static in SCREEN space, so the paper stays still while
+                  the world moves past it — which is what paper does.
+                  Weighted into shadow, where a plate's tooth shows.
+     vignette     a plate is printed on a sheet and the sheet has edges.
+
+   AFTER OutputPass on purpose: tone mapping and the sRGB transfer have
+   already happened there, so these numbers mean what they look like
+   rather than what they mean in linear light.
+
+   ?ink=0 turns it off and ?ink=2 doubles it — the same escape-hatch
+   convention as noao / nobloom / nosmaa, and the only honest way to
+   judge a grade is against the frame without it. */
+const InkShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    texel:    { value: new THREE.Vector2(1 / 800, 1 / 600) },
+    amount:   { value: 1 },
+  },
+  vertexShader: `varying vec2 vUv;
+    void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse; uniform vec2 texel; uniform float amount;
+    varying vec2 vUv;
+    float luma(vec3 c){ return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+    float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    void main(){
+      /* Keep the incoming alpha. This context is created WITH alpha and
+         the sky above the horizon is a CSS gradient showing through the
+         canvas — writing 1.0 here would seal that hole and paint the
+         backdrop out. */
+      vec4 src = texture2D(tDiffuse, vUv);
+      vec3 c = src.rgb;
+      float l = luma(c);
+
+      /* iron-gall in the shadows, barely warm in the lights */
+      vec3 tint = mix(vec3(1.115, 0.975, 0.840), vec3(1.030, 1.0, 0.960), l);
+      c *= mix(vec3(1.0), tint, amount);
+
+      /* the ink, and only where the drawing already had a line */
+      float lx = luma(texture2D(tDiffuse, vUv + vec2(texel.x, 0.0)).rgb)
+               - luma(texture2D(tDiffuse, vUv - vec2(texel.x, 0.0)).rgb);
+      float ly = luma(texture2D(tDiffuse, vUv + vec2(0.0, texel.y)).rgb)
+               - luma(texture2D(tDiffuse, vUv - vec2(0.0, texel.y)).rgb);
+      float e = smoothstep(0.13, 0.40, abs(lx) + abs(ly));
+      c = mix(c, c * 0.55, e * 0.70 * amount);
+
+      /* the tooth of the sheet */
+      float g = hash(gl_FragCoord.xy) - 0.5;
+      c += g * 0.030 * amount * (0.45 + 0.9 * (1.0 - l));
+
+      /* No vignette. A plate is printed on a sheet and the sheet has
+         edges — but this canvas's top edge lands in the MIDDLE of the
+         frame, because the sky above the horizon is CSS showing
+         through. A vignette there darkens exactly the seam it should
+         be hiding. The idea was right and the surface is the wrong
+         one to put it on. */
+
+      gl_FragColor = vec4(c, src.a);
+    }`,
+};
+const ink = new ShaderPass(InkShader);
+ink.uniforms.amount.value = q.has("ink") ? Number(q.get("ink")) : 1;
+if (ink.uniforms.amount.value > 0) composer.addPass(ink);
+window.__ink = ink;   /* test/debug hook */
 
 /* fov is VERTICAL, so a tall phone screen collapses the horizontal view:
    at 412x915 a 46° vertical fov leaves about 21° across, and the campus
@@ -4148,6 +4358,11 @@ function resize(){
   const w = stageEl.clientWidth || 800, h = stageEl.clientHeight || 600;
   renderer.setSize(w, h);
   composer.setSize(w, h);
+  /* the ink samples its neighbours a texel away, so a texel has to
+     mean what it says at every size — left at the 800x600 default it
+     would trace a fatter line on a phone than on a desktop, which is
+     the one thing a stroke weight must never do */
+  ink.uniforms.texel.value.set(1 / w, 1 / h);
   labelRenderer.setSize(w, h);
   camera.aspect = w / h;
   /* walk mode owns the fov while zooming, so leave it alone there.
@@ -11498,7 +11713,10 @@ function setTimeOfDay(t){
   world.environmentIntensity = lerpN(6);
   world.fog.color.copy(lerpC(2)).multiplyScalar(night ? 0.62 : 0.92);
   renderer.toneMappingExposure = night ? 1.06 : 1.02;
-  bloom.strength = night ? 0.6 : 0.24;
+  /* Pulled back from 0.6/0.24. Gold leaf does not glow, it catches —
+     and a bloom wide enough to halo every lit window was the render
+     doing the work the light should do. */
+  bloom.strength = night ? 0.40 : 0.15;
   setVisualBinary(night ? "night" : "day");
 }
 let visual = null;
@@ -12211,22 +12429,57 @@ function refreshQuest(){
    scraping the sentence off the screen and hoping the wording holds */
 window.__quest = () => questInfo();   /* test/debug hook */
 const mm = document.getElementById("minimap");
+/* ── the plan ─────────────────────────────────────────────────────
+   This was a bottle-green rectangle with primary-coloured blocks on
+   it, and once everything around it moved register it became the
+   loudest thing left in the corner of every frame — #82's
+   "debug-grade minimap", still reading as a debug view.
+
+   It is a drawn plan now, which is the one place in this interface
+   where "the drawing of the campus" can be literal rather than
+   implied. Paper ground, hairline ways, halls hatched in their own
+   pigment rather than filled with it — a plan shades a building, it
+   does not colour it in — and the visitor as a surveyor's mark.
+
+   Hatching rather than fill is the whole difference: a solid block is
+   a status light, and forty-five-degree lines at two-pixel pitch are
+   a drawing. The pigment survives either way; only the ink changes. */
+const HATCH = {};
+function hatchFor(colour){
+  if (HATCH[colour]) return HATCH[colour];
+  const t = document.createElement("canvas"); t.width = t.height = 6;
+  const g = t.getContext("2d");
+  g.strokeStyle = colour; g.lineWidth = 1.1; g.globalAlpha = .85;
+  /* two strokes, offset, so the pattern tiles without a seam */
+  g.beginPath(); g.moveTo(-1, 7); g.lineTo(7, -1); g.stroke();
+  g.beginPath(); g.moveTo(-1, 13); g.lineTo(13, -1); g.stroke();
+  return (HATCH[colour] = mm.getContext("2d").createPattern(t, "repeat"));
+}
 function drawMinimap(){
   const ctx = mm.getContext("2d");
   const k = mm.width / 1000;
   ctx.clearRect(0, 0, mm.width, mm.height);
-  ctx.fillStyle = "rgba(30,72,42,.55)";
+  /* the sheet */
+  ctx.fillStyle = "rgba(232,223,201,.90)";
   ctx.fillRect(2, 2, mm.width - 4, mm.height - 4);
-  ctx.strokeStyle = "rgba(226,216,188,.55)";
-  ctx.lineWidth = 2.5;
+  /* the ring and the four approaches, as ways rather than as lines:
+     a pale bed with a darker centre line, the way a plan draws a road */
+  const ways = [[500,196,500,314],[500,686,500,946],[686,500,928,500],[72,500,314,500]];
+  ctx.strokeStyle = "rgba(255,252,244,.95)"; ctx.lineWidth = 5;
   ctx.beginPath(); ctx.arc(500 * k, 500 * k, 183 * k, 0, 6.3); ctx.stroke();
-  ctx.lineWidth = 1.5;
-  [[500,196,500,314],[500,686,500,946],[686,500,928,500],[72,500,314,500]].forEach(([a, b, c, d]) => {
-    ctx.beginPath(); ctx.moveTo(a * k, b * k); ctx.lineTo(c * k, d * k); ctx.stroke();
-  });
+  ways.forEach(([a,b,c,d]) => { ctx.beginPath(); ctx.moveTo(a*k,b*k); ctx.lineTo(c*k,d*k); ctx.stroke(); });
+  ctx.strokeStyle = "rgba(58,44,28,.30)"; ctx.lineWidth = 0.7;
+  ctx.beginPath(); ctx.arc(500 * k, 500 * k, 183 * k, 0, 6.3); ctx.stroke();
+  ways.forEach(([a,b,c,d]) => { ctx.beginPath(); ctx.moveTo(a*k,b*k); ctx.lineTo(c*k,d*k); ctx.stroke(); });
+  /* the halls, hatched in their pigment and outlined in ink */
   for (const c of COLLIDERS){
-    ctx.fillStyle = c.sector ? SECTORS[c.sector].color : "rgba(196,186,164,.7)";
-    ctx.fillRect(c.x * k, c.y * k, Math.max(2, c.w * k), Math.max(2, c.d * k));
+    const w = Math.max(2, c.w * k), h = Math.max(2, c.d * k);
+    const col = c.sector ? SECTORS[c.sector].color : "#6b6152";
+    ctx.fillStyle = hatchFor(col) || col;
+    ctx.fillRect(c.x * k, c.y * k, w, h);
+    ctx.strokeStyle = c.sector ? col : "rgba(58,44,28,.55)";
+    ctx.lineWidth = c.sector ? 1 : 0.6;
+    ctx.strokeRect(c.x * k + .5, c.y * k + .5, w - 1, h - 1);
   }
   if (walker.on){
     ctx.save();
@@ -12239,9 +12492,17 @@ function drawMinimap(){
     ctx.globalAlpha = (mx !== walker.x || my !== walker.y) ? 0.55 : 1;
     ctx.translate(mx * k, my * k);
     ctx.rotate(walker.h * Math.PI / 180);
-    ctx.fillStyle = "#ffffff";
-    ctx.shadowColor = "#38bdf8"; ctx.shadowBlur = 6;
-    ctx.beginPath(); ctx.moveTo(0, -5.5); ctx.lineTo(4, 4.5); ctx.lineTo(-4, 4.5); ctx.closePath(); ctx.fill();
+    /* a surveyor's mark: an open arrowhead in gold, drawn rather than
+       filled, with the same stroke weight as everything else it shares
+       a rail with. It was a white triangle with a cyan glow — the only
+       cyan left on the campus, from a palette that no longer exists. */
+    ctx.strokeStyle = getComputedStyle(document.documentElement)
+      .getPropertyValue("--brass").trim() || "#d4af6a";
+    ctx.fillStyle = "rgba(40,30,16,.55)";
+    ctx.lineWidth = 1.4; ctx.lineJoin = "round";
+    ctx.beginPath(); ctx.moveTo(0, -6.2); ctx.lineTo(4.2, 5); ctx.lineTo(0, 2.6);
+    ctx.lineTo(-4.2, 5); ctx.closePath();
+    ctx.fill(); ctx.stroke();
     ctx.restore();
   }
 }
@@ -14435,7 +14696,13 @@ window.__sound = Sound;   /* test/debug hook */
 
 const soundBtn = document.getElementById("soundbtn");
 function soundPaint(){
-  soundBtn.textContent = Sound.on ? "🔊" : "🔇";
+  /* the same bell, struck or silent — one shape, two states, rather
+     than a speaker emoji and a crossed-out speaker emoji */
+  soundBtn.innerHTML = `<svg class="gl" viewBox="0 0 24 24" aria-hidden="true">` +
+    `<path d="M7 16V12a5 5 0 0 1 10 0v4l1.5 2.5h-13L7 16Z"/>` +
+    `<path d="M10.5 19a1.5 1.5 0 0 0 3 0"/><path d="M12 7V5"/>` +
+    (Sound.on ? `<path d="M19.5 7.5a6 6 0 0 1 0 6" opacity=".7"/>`
+              : `<path d="M4 4l16 16"/>`) + `</svg>`;
   soundBtn.setAttribute("aria-pressed", String(Sound.on));
   soundBtn.setAttribute("aria-label", Sound.on ? "Turn campus sound off" : "Turn campus sound on");
 }
@@ -16372,9 +16639,19 @@ const MODES = ["live", "day", "golden", "night", "auto"];
 let mode = MODES.includes(localStorage.getItem(LS_MODE))
   ? localStorage.getItem(LS_MODE) : "live";
 function applyMode(){
-  const icons = { live: "🕰️", day: "☀️", golden: "🌇", auto: "🌗", night: "🌙" };
+  /* One disc, filled by how much of it the sun is above. live is the
+     clock face it actually reads; auto is the same disc mid-sweep with
+     an arrow. Drawn here rather than picked from a font, so the five
+     states are one shape changing rather than five pictures. */
+  const D = {
+    live:   `<circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/>`,
+    day:    `<circle cx="12" cy="12" r="4.2"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4"/>`,
+    golden: `<path d="M3 16h18"/><circle cx="12" cy="16" r="4.6"/><path d="M12 5.5V8M5.5 9l1.7 1.7M18.5 9l-1.7 1.7"/>`,
+    night:  `<path d="M18 14.5A7 7 0 0 1 9.5 6a7.2 7.2 0 1 0 8.5 8.5Z"/>`,
+    auto:   `<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor" stroke="none"/>`,
+  };
   const btn = document.getElementById("daynight");
-  btn.textContent = icons[mode];
+  btn.innerHTML = `<svg class="gl" viewBox="0 0 24 24" aria-hidden="true">${D[mode]}</svg>`;
   btn.title = "Time of day: " + mode + " (N to change)";
   engineSetMode(mode);
 }
