@@ -178,10 +178,21 @@ body{
     radial-gradient(1200px 800px at 50% 118%, rgba(16,58,54,.30), transparent 62%),
     linear-gradient(180deg,#05070f 0%,#0a1020 44%,#0b1526 100%);
 }
+/* ── the day sky ──────────────────────────────────────────────────
+   This was #6aa9e3 → #8fc3ee → #c8e2f6: picture-book cerulean, and
+   once the render below the horizon was graded toward iron-gall and
+   parchment it became the loudest thing in the frame. No shader can
+   reach it either — the sky is CSS on purpose, because it paints
+   before any script runs and that is where the 388ms first paint
+   comes from — so it has to be corrected here or not at all.
+
+   A printed sky is paper with a wash over it, not pigment: cool slate
+   at the zenith falling to warm parchment at the horizon, which is
+   both what a low sun actually does and what the plate can hold. */
 body.day .sky{
   background:
-    radial-gradient(900px 500px at 78% 6%, rgba(255,250,225,.55), transparent 55%),
-    linear-gradient(180deg,#6aa9e3 0%,#8fc3ee 40%,#c8e2f6 78%,#e8f2fb 100%);
+    radial-gradient(1000px 560px at 78% 4%, rgba(255,244,214,.62), transparent 58%),
+    linear-gradient(180deg,#93a7b6 0%,#bfc2ba 34%,#ddd2bb 70%,#efe4cf 100%);
 }
 .stars{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.8;}
 .stars i{position:absolute;width:2px;height:2px;border-radius:50%;background:#dbe6ff;animation:twinkle 5s ease-in-out infinite;}
@@ -199,7 +210,20 @@ body.day .b-label .card{background:linear-gradient(180deg, rgba(24,30,44,.88), r
 /* drifting fair-weather clouds (day only) */
 .cloud{position:absolute;pointer-events:none;display:none;opacity:.9;filter:blur(1px);animation:cloud-drift var(--ct,80s) linear infinite;}
 body.day .cloud{display:block;}
-.cloud i{position:absolute;background:#fff;border-radius:50%;box-shadow:0 6px 18px rgba(120,150,180,.25);}
+/* Strata, not blobs. A white rounded rectangle with a drop shadow is
+   a cartoon cloud, and three of them in a row was the only place on
+   this campus drawing in that register. In an engraving a cloud is a
+   band of horizontal hatching, so: hatched, flattened toward the
+   horizontal, blurred at the edge, and with the shadow gone — nothing
+   printed casts one. */
+.cloud i{
+  position:absolute;border-radius:50% / 62%;
+  transform:scaleX(1.7) scaleY(.62);
+  background:
+    repeating-linear-gradient(0deg, rgba(255,253,247,.50) 0 1px, rgba(255,253,247,0) 1px 3px),
+    linear-gradient(180deg, rgba(255,253,247,.40), rgba(255,253,247,.06));
+  filter:blur(1.5px);
+}
 @keyframes cloud-drift{from{transform:translateX(-15vw)}to{transform:translateX(60vw)}}
 
 /* sun / moon — one orb, two lives */
@@ -786,7 +810,21 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
 body.touched.walkmode #touchpad{display:flex;}
 /* walk-mode scene overrides: JS owns the camera transform completely */
 #scene.walking{animation:none;transition:none;transform-origin:0 0;}
+/* #stage.walking and #scene.walking were written to clear this and
+   have never once fired: nothing in this file ever adds a "walking"
+   class to either element. The class that exists is body.walkmode.
+
+   The cost was not cosmetic. #stage carries 120px of padding-top so
+   the aerial campus sits clear of the intro copy, the canvas is a
+   static block so it begins AFTER that padding, and resize() sizes it
+   from clientHeight — which includes padding. So in walk mode the
+   canvas ran 120..760 inside a 640-tall window: 120px of empty sky
+   above the horizon, 120px of the world clipped off the bottom, and a
+   hard seam across the hero frame where the canvas simply started.
+
+   #67 made the WING fullscreen. The canvas inside it never followed. */
 #stage.walking{perspective:640px;perspective-origin:50% 50%;padding-top:0;}
+body.walkmode #stage{padding-top:0;perspective:640px;perspective-origin:50% 50%;}
 #scene.walking{margin-top:0;}
 .walkmode .b-label .stem{display:none;}
 .walkmode #campus-wing-intro, .walkmode #campus-legend, .walkmode #campus-hints{opacity:0;pointer-events:none;transition:opacity .4s ease;}
