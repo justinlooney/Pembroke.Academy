@@ -65,12 +65,136 @@ for (const c of used){
   if (!defined.has(c)) missing.push(c);
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   And the other direction: a rule nothing can ever match.
+
+   The check above asks whether every class in the markup has a rule.
+   This asks whether every rule has something to rule over — which is
+   the failure that keeps costing this repository real bugs, because
+   CSS fails SILENTLY. A selector that matches nothing throws nothing,
+   logs nothing, and renders identically to a selector that works.
+
+   #stage.walking and #scene.walking were written to make walk mode
+   fullscreen. Nothing in this file has ever added a class called
+   "walking" to anything — the class is body.walkmode — so those rules
+   have never once applied, and the campus spent months rendering into
+   a canvas offset 120px down with a seam across the middle of its
+   best frame. Nine CI jobs never saw it. Neither did I, three times.
+
+   The test is deliberately the narrowest one that cannot be wrong: a
+   class or id that appears NOWHERE in this file except inside its own
+   stylesheet. Not "does querySelectorAll find it right now" — half
+   this sheet styles surfaces that only exist mid-conversation — but
+   "is there any evidence anybody ever creates this". A token built by
+   interpolation still appears as a literal somewhere (kind === "done"),
+   so it stays quiet; a token that exists only in the CSS cannot.
+
+   What it does NOT catch, said plainly so nobody trusts it further
+   than it goes: a rule that matches and is then overridden. .moon
+   {right:24%} written above the breakpoint that owns .moon matched
+   perfectly and lost every time. That is a cascade question, and this
+   is a spelling one. */
+/* Comments out first, or a hex value written in prose about the sky
+   reads as an id — #c8e2f6 was the first thing this check reported. */
+const styleBody = style.replace(/<\/?style>/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+const outside = html.replace(style, "");
+
+/* Where a class can actually COME from, rather than "anywhere in the
+   file". Searching the whole document was the first attempt and it is
+   too loose by half: it stayed silent about .walking because the word
+   "walking" occurs in a calculus lecture — "walking along the tangent
+   line" — which is not a class anybody ever applied to anything.
+
+   Three sources, and then every short bare string literal. That last
+   one is what keeps a class built by interpolation quiet: `class=
+   "jstage ${kind}"` never spells out "done", but `kind === "done"`
+   does, and a lecture sentence is neither short nor punctuation-free
+   enough to pass for a class list. The trade is deliberate — this
+   check must never cry wolf, so it would rather miss a dead rule than
+   invent one. */
+const live = new Set();
+const feed = (v) => { for (const t of String(v).split(/\s+/)) if (t) live.add(t); };
+for (const m of outside.matchAll(/\bclass=["']([^"']*)["']/g)) feed(m[1]);
+for (const m of outside.matchAll(/\bid=["']([\w-]+)["']/g)) live.add(m[1]);
+for (const m of outside.matchAll(/classList\.(?:add|remove|toggle|replace|contains)\(([^)]*)\)/g))
+  for (const q of m[1].matchAll(/["'`]([^"'`]*)["'`]/g)) feed(q[1]);
+for (const m of outside.matchAll(/\.(?:className|id)\s*[+]?=\s*["'`]([^"'`]*)["'`]/g)) feed(m[1]);
+/* a selector written in JS is evidence somebody expects it to exist */
+for (const m of outside.matchAll(/(?:querySelector(?:All)?|closest|matches)\(\s*["'`]([^"'`]*)["'`]/g))
+  for (const t of m[1].matchAll(/[.#]([\w-]+)/g)) live.add(t[1]);
+/* And a bare string literal only when it is a SINGLE token — a whole
+   string that is nothing but one class-shaped word. Allowing spaces
+   here meant splitting sentences and keeping the pieces: "walking to
+   a class" and "their walking has a limp" between them taught this
+   check that .walking was alive, which is the one token it was
+   written to catch. One word, no spaces. */
+for (const m of outside.matchAll(/["'`]([A-Za-z][\w-]{0,29})["'`]/g)) live.add(m[1]);
+
+/* Selector TEXT only — the run between a brace and the next "{" — so
+   a declaration can never be read as a selector and background:#fff
+   never looks like an id. Leading "{" as well as "}", or every rule
+   nested inside an @media block is skipped. */
+const need = new Map();          /* token -> the selector that wants it */
+for (const m of styleBody.matchAll(/(?:^|[{}])([^{}@]+)\{/g)){
+  const sel = m[1].trim();
+  if (!sel) continue;
+  /* No delimiter required before the dot. The first draft demanded one
+     and so read #stage.walking as naming only #stage — missing the
+     exact token this check was written for, and .slope-n.terra as
+     naming only the first half. Compound selectors are the case that
+     matters: that is where a live element and a dead class get joined
+     into a rule that never fires. */
+  for (const t of sel.matchAll(/([.#])([A-Za-z_][\w-]*)/g)){
+    const tok = t[1] + t[2];
+    if (!need.has(tok)) need.set(tok, sel.split("\n").pop().trim().slice(0, 70));
+  }
+}
+/* ── the pre-WebGL campus ─────────────────────────────────────────
+   Every token below belongs to the CSS-3D campus this project drew
+   before three.js: buildings as transformed divs (.b3d, .wall, .roof,
+   .spire-n), students as stacked boxes (.torso, .legs, .rig), trees as
+   sprites. None of it is reachable — #scene, the element they all hung
+   under, is not in the markup and nothing creates it.
+
+   It is listed rather than deleted because that is a large removal
+   made at the end of a long night, and a list that names the debt is
+   honest where a silent pass is not. Anything NOT on this list fails
+   the build, which is the point: the check exists to stop the next
+   #stage.walking, not to relitigate the last one. The list should only
+   ever get shorter. */
+const LEGACY = new Set([
+  ".b-label", ".b3d", ".bb-inner", ".beacon", ".beacon-of", ".bgroup",
+  ".billboard", ".card", ".chimney", ".deco", ".face", ".fdot",
+  ".figure", ".finial", ".fly", ".ground", ".lamppool", ".lead",
+  ".legs", ".lit", ".lot", ".p2", ".pinn", ".plaza",
+  ".plinth", ".pulse", ".rig", ".roof", ".say", ".shadow",
+  ".slope-n", ".slope-s", ".spire-e", ".spire-face", ".spire-n", ".spire-s",
+  ".spire-w", ".sprite", ".sshadow", ".stem", ".tag", ".talking",
+  ".terra", ".text-slate-600", ".tok-f", ".torso", ".tree", ".tshadow",
+  ".walkring", ".wall", ".wall-r",
+]);
+const dead = [];
+for (const [tok, where] of need){
+  const bare = tok.slice(1);
+  if (LEGACY.has(tok)) continue;
+  if (!live.has(bare)) dead.push(`${tok}  —  ${where}`);
+}
+if (dead.length){
+  console.log(`${dead.length} selector token(s) appear nowhere but the stylesheet, ` +
+              `so the rules that need them can never match:\n  ` + dead.sort().join("\n  ") +
+              `\n\nEither the class is never applied (check what the JS actually adds) ` +
+              `or the rule is dead and should go.`);
+  process.exit(1);
+}
+
 if (missing.length){
   console.log(`${missing.length} utility class(es) in index.html have no rule in ` +
               `assets/site.css, so they do nothing:\n  ` + missing.sort().join("\n  ") +
               `\n\nRebuild the stylesheet: tools/build-css.sh`);
   process.exit(1);
 }
+console.log(`no rule names a class nobody creates — ${need.size} selector token(s) ` +
+            `checked, ${LEGACY.size} known-dead from the pre-WebGL campus`);
 console.log(`every utility class in the markup has a rule — ` +
             `${used.size} in the markup, ${defined.size} defined in ` +
             `${Math.round(css.length / 1024)}KB of CSS`);

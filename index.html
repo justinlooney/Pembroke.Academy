@@ -269,18 +269,13 @@ body.day #campus-wing .text-slate-600{color:#55657e;}
   perspective:1200px;
   perspective-origin:50% 32%;
 }
-#scene{
-  --zoom:.5;
-  margin-top:-64px;
-  position:relative;
-  width:1000px;height:1000px;
-  transform-style:preserve-3d;
-  transform:scale(var(--zoom)) rotateX(calc(55deg + var(--tiltX))) rotateZ(calc(-45deg + var(--tiltZ)));
-  transition:transform .35s cubic-bezier(.22,1,.36,1);
-  animation:campus-breathe 9s ease-in-out infinite;
-}
+/* The CSS-3D campus that predates the WebGL one is gone from the
+   markup — there is no #scene element and nothing creates one — so
+   every rule that named it has been dead for as long as three.js has
+   been drawing this place. Removed rather than left to look load
+   bearing. tools/check-css.mjs now refuses to let a selector like
+   that be written again. */
 @keyframes campus-breathe{0%,100%{translate:0 0}50%{translate:0 -10px}}
-#scene.warp-pulse{animation:campus-breathe 9s ease-in-out infinite, warp .9s cubic-bezier(.22,1,.36,1);}
 @keyframes warp{0%{scale:1}35%{scale:1.055}100%{scale:1}}
 
 /* The great lawn — clipped English turf with mowing stripes */
@@ -812,10 +807,10 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
 @media (any-pointer: coarse){ .walkmode #touchpad{display:flex;} }
 body.touched.walkmode #touchpad{display:flex;}
 /* walk-mode scene overrides: JS owns the camera transform completely */
-#scene.walking{animation:none;transition:none;transform-origin:0 0;}
 /* #stage.walking and #scene.walking were written to clear this and
-   have never once fired: nothing in this file ever adds a "walking"
-   class to either element. The class that exists is body.walkmode.
+   never once fired: nothing in this file ever added a "walking" class
+   to anything. The class that exists is body.walkmode. Those rules
+   have been deleted; this is the one that does the work.
 
    The cost was not cosmetic. #stage carries 120px of padding-top so
    the aerial campus sits clear of the intro copy, the canvas is a
@@ -826,9 +821,7 @@ body.touched.walkmode #touchpad{display:flex;}
    hard seam across the hero frame where the canvas simply started.
 
    #67 made the WING fullscreen. The canvas inside it never followed. */
-#stage.walking{perspective:640px;perspective-origin:50% 50%;padding-top:0;}
 body.walkmode #stage{padding-top:0;perspective:640px;perspective-origin:50% 50%;}
-#scene.walking{margin-top:0;}
 .walkmode .b-label .stem{display:none;}
 .walkmode #campus-wing-intro, .walkmode #campus-legend, .walkmode #campus-hints{opacity:0;pointer-events:none;transition:opacity .4s ease;}
 /* ?debug puts a panel of numbers where the intro sits; show one or the other */
@@ -1079,12 +1072,12 @@ body.opening #campus-wing-intro, body.opening #campus-legend,
 body.opening #campus-hints, body.opening #quest, body.opening #minimap,
 body.opening #daynight, body.opening #walkbtn, body.opening #nearbybtn,
 body.opening #soundbtn,
-body.opening #journey, body.opening #toasts, body.opening .b-label,
+body.opening #journey, body.opening #toasts, body.opening .hall-tag,
 body.opening #arr-cta{
   opacity:0 !important; pointer-events:none !important;
 }
 #campus-wing-intro, #campus-legend, #campus-hints, #quest, #minimap,
-#daynight, #walkbtn, #nearbybtn, #soundbtn, #journey, #toasts, .b-label{
+#daynight, #walkbtn, #nearbybtn, #soundbtn, #journey, #toasts, .hall-tag{
   transition:opacity 2s ease;
 }
 #arr-skip{transition:opacity .3s ease;}
@@ -1135,7 +1128,6 @@ body.opening #arr-cta{
 body.panel-open #toasts{bottom:5.5rem;}
 
 @media (max-width:1023px){
-  #scene{--zoom:.42;}
   #stage{padding-top:7.5rem;}
   /* right:5% put the moon at 45px on a 900px stage, which is exactly
      where the control rail is — the bell glyph was printing on top of
@@ -1165,7 +1157,6 @@ body.panel-open #toasts{bottom:5.5rem;}
   #quest{left:1rem;top:auto;bottom:5.2rem;max-width:250px;}
 }
 @media (max-width:639px){
-  #scene{--zoom:.32;}
   #stage{padding-top:8.5rem;}
 }
 
@@ -3780,7 +3771,7 @@ import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v148";
+const BUILD = "pembroke-v149";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
