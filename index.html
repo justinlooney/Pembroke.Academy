@@ -3906,6 +3906,14 @@ const q = new URLSearchParams(location.search);
 const glInfo = (renderer.getContext().getParameter(
   renderer.getContext().getExtension("WEBGL_debug_renderer_info")?.UNMASKED_RENDERER_WEBGL || 7937) || "") + "";
 const softGL = /swiftshader|llvmpipe|software/i.test(glInfo);
+/* Published because a performance number is only reproducible if the
+   machine that produced it is recorded beside it. The run record can
+   carry the commit, the profile and the pose; it cannot carry the
+   hardware unless the page says what it is running on — and "was
+   hardware acceleration actually active" is the single field that
+   decides whether a ceiling calibrated somewhere describes here. */
+window.__gpu = () => ({ info: glInfo, software: softGL,
+                        accelerated: !softGL, ua: navigator.userAgent });
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(world, camera));
 let ssao = null;

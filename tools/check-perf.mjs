@@ -56,10 +56,21 @@
  * five independent browsers and prints the spread across them; the
  * ceiling belongs above the highest p95 seen across several such
  * launches, with the reason written down.
+ *
+ * PROVENANCE. The workload above is half of a measurement; the machine
+ * is the other half. Every record carries `environment` — GPU and
+ * driver string, WHETHER HARDWARE ACCELERATION WAS ACTUALLY ACTIVE,
+ * browser and version, OS, CPUs, memory, and the CI runner image where
+ * CI provides it. The accelerated flag is the one that decides whether
+ * a ceiling transfers: SwiftShader and a real GPU are not the same
+ * measurement however identical the workload was, so --calibrate
+ * refuses to recommend a number when acceleration was off, and the
+ * commit that sets P95_CEILING must paste this block beside it.
  */
 import { serve, launch, reporter } from "./_harness.mjs";
 import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { platform, release, arch, cpus, totalmem } from "node:os";
 
 const argv = process.argv.slice(2);
 const LIVE  = argv.includes("--live");
@@ -222,8 +233,10 @@ async function measure(origin, browser, i){
 
   const elapsedMs = Date.now() - t0;
   const env = await page.evaluate(() => {
+    const g = window.__gpu ? window.__gpu() : {};
     const p = window.__preset();
     return { dpr: p.dpr, rung: p.rung, rungWhy: p.rungWhy, presetOn: p.on,
+             gpu: g.info ?? null, accelerated: g.accelerated ?? null, ua: g.ua ?? null,
              crowd: window.__crowd().n, people: window.__students.length,
              build: (document.documentElement.innerHTML.match(/const BUILD = "([^"]+)"/) || [,"?"])[1] };
   });
@@ -257,8 +270,27 @@ note(`p95 across ${RUNS} launch(es): ${p95s.join(", ")}  ·  spread ${spread}`);
    one; it is REPRODUCIBLE only if everything that could have changed it
    is written down next to it. This block is that, and it is emitted as
    JSON so a run can be diffed against a run rather than remembered. */
+/* THE MACHINE, not just the workload. A ceiling calibrated on one class
+   of runner does not describe another, and the single field that
+   decides it is whether hardware acceleration was actually ACTIVE — a
+   number from SwiftShader and a number from a real GPU are not the same
+   measurement however identical the workload was. Runner image and OS
+   come from the environment where CI sets them. */
+const environment = {
+  gpu: all[0]?.gpu ?? null,
+  hardwareAccelerated: all[0]?.accelerated ?? null,
+  browser: `${browser.browserType().name()} ${browser.version()}`,
+  userAgent: all[0]?.ua ?? null,
+  os: `${platform()} ${release()} ${arch()}`,
+  cpus: cpus().length,
+  totalMemGB: +(totalmem() / 1073741824).toFixed(1),
+  runnerImage: process.env.ImageOS || process.env.RUNNER_IMAGE || null,
+  runnerOS: process.env.RUNNER_OS || null,
+  ci: process.env.CI === "true" || !!process.env.GITHUB_ACTIONS,
+};
 const record = {
   benchVersion: BENCH_VERSION,
+  environment,
   profile: PROFILE,
   profileValidated: PROFILES[PROFILE].validated,
   workload: LIVE ? "live" : "deterministic",
@@ -306,13 +338,23 @@ if (CALIBRATE){
   if (!validProfile) console.log(`\n  PROFILE "${PROFILE}" IS UNVALIDATED — calibrate on "full", or first` +
                                  `\n  show that this profile's p95 tracks it.`);
   if (LIVE) console.log(`\n  LIVE WORKLOAD — cannot calibrate a gate from a stochastic run.`);
+  console.log(`  measured on         ${environment.gpu || "unknown GPU"}`);
+  console.log(`  hardware accelerated ${environment.hardwareAccelerated}` +
+              (environment.hardwareAccelerated === false
+                 ? "   *** a ceiling from a software rasterizer does not describe a GPU runner ***" : ""));
+  console.log(`  browser / os        ${environment.browser} · ${environment.os}` +
+              (environment.runnerImage ? ` · image ${environment.runnerImage}` : ""));
   if (enough && stable && validProfile && !LIVE){
     const rec = Math.ceil(worst * (1 + HEADROOM));
     console.log(`\n  RECOMMENDED P95_CEILING = ${rec}   (worst ${worst} + ${(HEADROOM*100).toFixed(0)}%)`);
-    console.log(`  Set it by hand, in a commit that says which machine this ran on —`);
-    console.log(`  the record carries the commit and the profile but cannot carry the`);
-    console.log(`  hardware, and a ceiling from one class of runner does not describe`);
-    console.log(`  another.`);
+    console.log(`  Set it by hand, in a commit that carries the provenance printed`);
+    console.log(`  above: GPU and driver string, whether acceleration was ACTIVE,`);
+    console.log(`  browser and version, runner image and OS. The record block holds`);
+    console.log(`  all of it — paste it into the commit that sets the number.`);
+    if (environment.hardwareAccelerated === false){
+      console.log(`\n  BUT NOT FROM THIS RUN: acceleration was not active. This number`);
+      console.log(`  describes a software rasterizer and must not gate a GPU runner.`);
+    }
   } else {
     console.log(`\n  NO RECOMMENDATION. The conditions above are the whole point;`);
     console.log(`  a number produced without them is how the last ceiling happened.`);

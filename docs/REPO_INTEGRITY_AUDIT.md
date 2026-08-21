@@ -599,12 +599,38 @@ repository has already been swept; this pass found no second layer.
 >
 > **Standard deviation 0.5 — the count moved by one across ninety
 > frames.** The same campus under the retracted method produced 711,
-> 723, 765, 803, 1239, 1243, 1491 and 1609. That is the difference
-> between a number and a measurement. The ceiling that used
-> to live in `check-frame` has been withdrawn rather than left in place:
-> a gate with no stable meaning turns a broken instrument into policy,
-> and a green build would have claimed the campus stayed inside an
-> envelope nobody had defined.
+> 723, 765, 803, 1239, 1243, 1491 and 1609.
+>
+> **Read that the right way round.** The old spread was not noise in a
+> measurement of one thing. It was a sequence of measurements of
+> *different things* — a campus with 700 draw calls' worth of people in
+> it is not the same workload as a campus with 1,600, and the old method
+> sampled whichever one happened to exist when two windows agreed. The
+> story is not "our performance numbers varied a lot." It is **"the
+> previous instrument was measuring different workloads."** Hold the
+> workload still and the count is stable to within a single draw call,
+> which is what the 0.5 proves: the variance was never in the renderer,
+> it was in what we pointed the instrument at.
+>
+> The ceiling that used to live in `check-frame` has been withdrawn
+> rather than left in place: a gate with no stable meaning turns a
+> broken instrument into policy, and a green build would have claimed
+> the campus stayed inside an envelope nobody had defined.
+>
+> **Before any ceiling is set again**, the calibration run must carry
+> its own provenance, because a workload specification only fixes half
+> of a measurement — the other half is the machine. `check-perf` now
+> records, in the run record and in `--calibrate` output: the GPU and
+> driver string, **whether hardware acceleration was actually active**,
+> browser and version, OS, CPU count and memory, and the CI runner image
+> where CI sets it. The accelerated flag is the one that decides
+> transferability: the baseline above was produced under SwiftShader
+> (`ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device …))`,
+> `accelerated: false`), and a ceiling derived from a software
+> rasterizer does not describe a GPU runner however identical the
+> workload was. `--calibrate` refuses to recommend a number when
+> acceleration was off, and the commit that eventually sets
+> `P95_CEILING` is required to paste this block beside it.
 
 
 **Measured**, desktop 1280×800, day, after proving the scene settled
