@@ -13,6 +13,17 @@ directly observed). Nothing is asserted from reading alone. Where an
 experiment failed, the failure is reported rather than the number it
 produced — §9.4 is one of those.
 
+> **On the line numbers.** Every `index.html:NNNN` below was exact
+> against `pembroke-v150`, the tree this was measured on. They are a
+> **snapshot, not an address**: any commit that adds a line above a
+> citation moves it, and several already have — the accessibility fix
+> that landed alongside this audit shifted the CSS citations by 4 and
+> the script ones by 19. Each finding quotes the code it is about, so
+> **search for the quoted line, and read the number as a hint.** Fixing
+> this properly would mean citing by anchor rather than offset; that is
+> a change to how this document is written, not a correction to what it
+> found.
+
 No production code was modified.
 
 ---
