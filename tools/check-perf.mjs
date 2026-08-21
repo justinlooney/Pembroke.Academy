@@ -102,6 +102,40 @@ const POSE = { v: 1, pos: [-420, 300, 420], look: [0, 0, 0] };
    gate. */
 const P95_CEILING = null;
 
+/* FIRST BASELINE UNDER THE CONTRACT — recorded as data, not as a
+   ceiling. One launch, profile `ci`, commit a70dfe8, build pembroke-v150:
+ *
+ *     min 1482 · p50 1482 · p90 1483 · p95 1483 · max 1483
+ *     mean 1482.4 · stddev 0.5 · 90 frames
+ *     dpr 1 · ladder rung 0 (held) · preset off · crowd 9 · people 5
+ *
+ * STDDEV 0.5. Draw calls moved by one across the whole sample. The same
+ * campus measured by the method this replaces produced 711, 723, 765,
+ * 803, 1239, 1243, 1491 and 1609 — a nine-hundred-call swing, every
+ * reading correct at the moment it was taken and none of them
+ * comparable to another. That difference is the entire point of the
+ * workload contract, and it is why a future "15% improvement" now has
+ * to survive an equivalent workload rather than benefit from crowd
+ * timing.
+ *
+ * RUNTIME, and it decides where this can run. 120 frames took 18.7
+ * minutes here — about 9.4 seconds a frame on a software rasterizer
+ * with no GPU. The full profile's 420 frames would be roughly 66
+ * minutes, which matches a full-profile attempt that ran past 51
+ * without reaching its first result. On a runner holding 60fps the same
+ * two profiles are about 2 and 7 seconds.
+ *
+ *   So: this belongs on a GPU runner, or on a schedule. It is not a
+ *   per-PR gate on a software rasterizer at any profile, and pretending
+ *   otherwise would trade one badly-specified instrument for a
+ *   well-specified one nobody can afford to run.
+ *
+ * STILL MISSING before a ceiling can be set: several independent
+ * launches, on the machine that will actually enforce it, and evidence
+ * that the `ci` profile's p95 tracks `full`'s. One launch establishes
+ * that the workload is stable; it does not establish where the line
+ * goes. */
+
 const stats = (a) => {
   const s = [...a].sort((x, y) => x - y);
   const q = (p) => s[Math.min(s.length - 1, Math.floor(s.length * p))];

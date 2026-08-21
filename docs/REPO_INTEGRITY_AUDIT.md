@@ -585,7 +585,22 @@ repository has already been swept; this pass found no second layer.
 > the ladder's own definition, not from a sample.
 >
 > The replacement is `tools/check-perf.mjs`, which specifies a workload
-> instead of waiting for the scene to hold still. The ceiling that used
+> instead of waiting for the scene to hold still.
+>
+> **The replacement's first baseline, for contrast.** One launch of the
+> deterministic workload — fixed camera, fixed viewport and pixel ratio,
+> ladder held, crowd filled and frozen, 30 warm frames discarded, 90
+> sampled:
+>
+> ```
+> min 1482 · p50 1482 · p90 1483 · p95 1483 · max 1483
+> mean 1482.4 · stddev 0.5
+> ```
+>
+> **Standard deviation 0.5 — the count moved by one across ninety
+> frames.** The same campus under the retracted method produced 711,
+> 723, 765, 803, 1239, 1243, 1491 and 1609. That is the difference
+> between a number and a measurement. The ceiling that used
 > to live in `check-frame` has been withdrawn rather than left in place:
 > a gate with no stable meaning turns a broken instrument into policy,
 > and a green build would have claimed the campus stayed inside an
