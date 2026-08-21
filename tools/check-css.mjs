@@ -187,6 +187,62 @@ if (dead.length){
   process.exit(1);
 }
 
+/* ── does every var(--x) resolve to a declaration? ────────────────────
+   The check above asks whether a SELECTOR names something live. This
+   asks the same question one level down, about custom properties, and
+   it exists because the answer was no in two places nobody could see.
+
+   .jpanel h3 read var(--font-serif, Georgia, serif) and .jcourse
+   .jc-code read var(--font-mono, monospace). Neither property was
+   declared anywhere in this repository. Measured on the live journey
+   panel: the heading rendered in "Georgia, serif" while Cormorant
+   Garamond was loaded, available, and passing document.fonts.check in
+   the same document.
+
+   Nothing could have caught it. var(--x, fallback) is valid CSS with a
+   sensible default: it does not warn, does not error, and produces a
+   page that looks finished — in the wrong face, on the registrar
+   surface. A fallback is a promise that the token exists and this is
+   the spare; when the token never existed, the spare is simply the
+   design, silently.
+
+   Two exemptions, both real:
+     INLINE     set per-element from a style attribute or setProperty,
+                so a stylesheet declaration would be wrong.
+     LEGACY_VARS  read only by the pre-WebGL rules the LEGACY set above
+                already names. Same debt, same fence, one level down. */
+const INLINE = new Set(["--c", "--ct", "--glow", "--plate"]);
+const LEGACY_VARS = new Set([
+  "--bb",         /* .bb-inner            */  "--dx",  /* @keyframes firefly  */
+  "--dy",         /* @keyframes firefly   */  "--fc",  /* .finial .fdot       */
+  "--s",          /* @keyframes tree-sway */  "--t",   /* .fly                */
+  "--tex-noise",  /* .walk::after         */  "--tex-shingle", /* .slope-*    */
+]);
+/* Comments blanked rather than removed, so offsets — and therefore the
+   line numbers reported below — still point at the real file. Prose
+   discussing a var() is not a var(): the paragraph above this check
+   contains one, and the first draft flagged its own explanation. */
+const noComments = (t) => t.replace(/\/\*[\s\S]*?\*\//g, (m) => " ".repeat(m.length));
+const declaredVars = new Set([...noComments(style).matchAll(/(--[\w-]+)\s*:/g)].map(m => m[1]));
+const readVars = new Map();
+for (const m of noComments(html).matchAll(/var\(\s*(--[\w-]+)/g)){
+  const line = html.slice(0, m.index).split("\n").length;
+  if (!readVars.has(m[1])) readVars.set(m[1], line);
+}
+const unresolved = [];
+for (const [v, line] of readVars){
+  if (declaredVars.has(v) || INLINE.has(v) || LEGACY_VARS.has(v)) continue;
+  unresolved.push(`${v}  —  first read at index.html:${line}`);
+}
+if (unresolved.length){
+  console.log(`${unresolved.length} custom propert(ies) are read through var() but ` +
+              `declared nowhere, so every rule that reads one silently takes its ` +
+              `fallback:\n  ` + unresolved.sort().join("\n  ") +
+              `\n\nDeclare it in :root, or — if it is genuinely set per-element — ` +
+              `add it to INLINE in this file and say where it is set.`);
+  process.exit(1);
+}
+
 if (missing.length){
   console.log(`${missing.length} utility class(es) in index.html have no rule in ` +
               `assets/site.css, so they do nothing:\n  ` + missing.sort().join("\n  ") +
@@ -195,6 +251,9 @@ if (missing.length){
 }
 console.log(`no rule names a class nobody creates — ${need.size} selector token(s) ` +
             `checked, ${LEGACY.size} known-dead from the pre-WebGL campus`);
+console.log(`every var() resolves to a declaration — ${readVars.size} read, ` +
+            `${declaredVars.size} declared, ${INLINE.size} set per-element, ` +
+            `${LEGACY_VARS.size} known-dead from the pre-WebGL campus`);
 console.log(`every utility class in the markup has a rule — ` +
             `${used.size} in the markup, ${defined.size} defined in ` +
             `${Math.round(css.length / 1024)}KB of CSS`);

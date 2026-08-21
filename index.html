@@ -118,6 +118,19 @@ if ("serviceWorker" in navigator){
   --parchment:#e8e3d5;
   --brass:#d4af6a;
   --brass-dim:#8a744a;
+  /* The three faces this page loads, as tokens.
+     They existed only as utility classes (.font-serif-d, .font-mono-d)
+     and as the family named directly in a dozen rules — so the two
+     rules that read them THROUGH a variable, .jpanel h3 and
+     .jcourse .jc-code, resolved to nothing and quietly took their
+     fallbacks. Measured on the live journey panel: the heading
+     rendered in "Georgia, serif" with Cormorant Garamond loaded,
+     available, and passing document.fonts.check in the same document.
+     var(--x, fallback) is what made that invisible — valid CSS, a
+     sensible default, no error, wrong face. tools/check-css.mjs now
+     refuses a var() that resolves to nothing. */
+  --font-serif:'Cormorant Garamond',Georgia,serif;
+  --font-mono:'JetBrains Mono',ui-monospace,monospace;
   /* ── the four pigments ────────────────────────────────────────
      These were amber, electric blue, emerald and imperial purple —
      which is Tailwind's default accent ramp, the palette of a status
