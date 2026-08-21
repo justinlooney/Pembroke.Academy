@@ -323,7 +323,7 @@ try {
     return { up: !el.hidden,
              expanded: document.getElementById("nearbybtn").getAttribute("aria-expanded"),
              people: el.querySelectorAll("#nb-people .nb-row").length,
-             reachable: el.querySelectorAll("#nb-people .nb-row:not([disabled])").length,
+             reachable: el.querySelectorAll("#nb-people .nb-row:not([aria-disabled])").length,
              places: el.querySelectorAll("#nb-places .nb-row").length,
              focusInside: el.contains(document.activeElement) };
   });
@@ -335,7 +335,7 @@ try {
   /* every named person the ray could reach must have a control here */
   const covered = await page.evaluate(() => {
     const named = window.__students.filter(s => s.data?.name && s.g?.visible).map(s => s.data.name);
-    const listed = [...document.querySelectorAll("#nb-people .nb-row:not([disabled]) .nb-name")]
+    const listed = [...document.querySelectorAll("#nb-people .nb-row:not([aria-disabled]) .nb-name")]
       .map(e => e.textContent);
     return { missing: named.filter(n => !listed.includes(n)), named: named.length };
   });
@@ -351,7 +351,7 @@ try {
      immediately, so none of them ever waited long enough to be thrown
      out. This one waits through two refreshes on purpose. */
   const kept = await page.evaluate(async () => {
-    const rows = [...document.querySelectorAll("#nb-people .nb-row:not([disabled])")];
+    const rows = [...document.querySelectorAll("#nb-people .nb-row:not([aria-disabled])")];
     const target = rows[rows.length - 1] || rows[0];
     if (!target) return { ok: false, why: "no reachable row to stand on" };
     target.focus();
@@ -364,8 +364,49 @@ try {
   step("the list refreshing does not throw the keyboard out of it", kept.ok,
        kept.why || `stood on ${JSON.stringify(kept.was)}, ended on ${JSON.stringify(kept.now)}`);
 
+  /* …and the same question asked so it cannot pass by luck.
+     The check above waits two refreshes and hopes somebody walks
+     indoors during them. That is the ONLY condition under which the
+     bug it guards fires, so on a quiet quad it passes without ever
+     testing anything — which is how the defect reached CI, and how a
+     lucky green would then have hidden it again. Here the person the
+     keyboard is standing on is walked indoors ON PURPOSE.
+
+     "Gone dim" is read from aria-disabled OR the disabled attribute,
+     deliberately: this asks whether the KEYBOARD SURVIVES somebody
+     stepping inside, not how the row was marked. Either marking may
+     answer it. And if the row never goes dim at all, that is a
+     FAILURE rather than a pass — the scenario did not happen and the
+     check learned nothing. */
+  const dimmed = await page.evaluate(async () => {
+    const rows = [...document.querySelectorAll(
+      "#nb-people .nb-row:not([aria-disabled]):not([disabled])")];
+    if (rows.length < 2) return { exercised: false, why: `only ${rows.length} reachable row(s) to work with` };
+    const target = rows[rows.length - 1];
+    target.focus();
+    const was = target.dataset.talk, first = rows[0].dataset.talk;
+    const s = window.__students?.find(x => x.data?.name === was);
+    if (!s) return { exercised: false, why: `no student behind the row for ${was}` };
+    s.g.visible = false;                       /* they step inside */
+    window.__nearby.render();
+    const row = document.querySelector(`[data-talk="${CSS.escape(was)}"]`);
+    const dim = !!row && (row.getAttribute("aria-disabled") === "true" || row.hasAttribute("disabled"));
+    const now = document.activeElement;
+    s.g.visible = true;                        /* put them back */
+    return { exercised: dim, why: dim ? null : "the row never went dim — the scenario did not happen",
+             was, first, now: now?.dataset?.talk ?? now?.tagName?.toLowerCase() ?? "nothing",
+             inPanel: document.getElementById("nearby").contains(now) };
+  });
+  step("and somebody walking indoors does not take the keyboard with them",
+       dimmed.exercised && dimmed.now === dimmed.was && dimmed.inPanel,
+       dimmed.why || `stood on ${JSON.stringify(dimmed.was)}, they stepped inside, keyboard ended on ` +
+                     `${JSON.stringify(dimmed.now)}` +
+                     (dimmed.now === dimmed.was ? " — stayed, dimmed and still reachable"
+                      : dimmed.now === dimmed.first ? " — the FIRST row: focus fell through to a different person"
+                      : " — focus left the row it was on"));
+
   const talked = await page.evaluate(async () => {
-    document.querySelector("#nb-people .nb-row:not([disabled])").click();
+    document.querySelector("#nb-people .nb-row:not([aria-disabled])").click();
     await new Promise(r => setTimeout(r, 600));
     const on = document.body.classList.contains("convo-open");
     if (on) document.getElementById("convo-cancel")?.click();

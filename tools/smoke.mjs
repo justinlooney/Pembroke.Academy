@@ -69,10 +69,19 @@ const shoot = async (path) => {
 /* CI has no GPU and 80MB of models decode on the main thread, so the
    page can be wedged for seconds at a time. Re-check before re-pressing
    so a toggle key is never fired twice, and give the world room. */
+/* Read BEFORE pressing, and never press on a read that FAILED.
+   Every key this drives toggles or advances something, so a press is
+   not idempotent and cannot be taken back. A page stalled mid-GLB-parse
+   answers no evaluate at all, and treating that silence as "not there
+   yet" spends a press on a state we never saw. Wait the stall out
+   instead: the deadline still bounds the whole thing. */
 const pressUntil = async (key, predicate, budgetMs = 150_000) => {
   const deadline = Date.now() + budgetMs;
   while (Date.now() < deadline){
-    if (await page.evaluate(predicate).catch(() => false)) return true;
+    let here;
+    try { here = await page.evaluate(predicate); }
+    catch { await page.waitForTimeout(1000); continue; }   /* stalled, not absent */
+    if (here) return true;
     await page.keyboard.press(key).catch(() => {});
     const ok = await page.waitForFunction(predicate, null, { timeout: 15_000 })
       .then(() => true, () => false);
@@ -644,22 +653,43 @@ try {
   step("panel closes",
        await pressUntil("Escape", () => !document.querySelector(".interior-open"), 60_000));
 
-  /* The clock cycles day → golden → night → auto; press until night
-     lands. Polled on a TIMER, not the default requestAnimationFrame:
-     landmark arrivals stage textures across frames now, and under
-     swiftshader those frames stall for seconds — the mode walked
-     THROUGH night while no frame ticked inside the window, the wait
-     timed out, and the next press moved off night again. The campus's
-     night was fine; the poll was blind. */
-  let night = false;
-  for (let i = 0; i < 6 && !night; i++){
-    await page.keyboard.press("n").catch(() => {});
-    night = await page.waitForFunction(() => window.__visual === "night", null,
-        { timeout: 25_000, polling: 500 })
-      .then(() => true, () => false);
-  }
-  step("day/night cycle reaches night", night,
-       await page.evaluate(() => window.__visual).catch(() => "?"));
+  /* THE CLOCK. Two questions, asked separately on purpose, because the
+     one check that used to ask them together could not say which half
+     had broken — and intermittently failed on neither.
+
+     It pressed first and asked afterwards, in its own loop rather than
+     through pressUntil, so it had no pre-check: every retry ADVANCED a
+     five-state cycle that it believed it was re-attempting. Miss the
+     observation once and the press still landed, so the next press
+     walked PAST night rather than back to it. Six presses around
+     ["live","day","golden","night","auto"] return you one step from
+     where you began — and "day" is exactly what it reported.
+
+     It also watched the wrong thing. window.__visual is the sky as
+     RENDERED, and it reads "day" for three different reasons: the mode
+     is day, the mode is `live` and the visitor's wall clock says
+     daytime, or the mode is `auto` mid-sweep. Two of those are not
+     failures. The MODE is the deterministic thing — set synchronously
+     by the click handler, published in the control's own title — so
+     that is what drives the loop now, through pressUntil, which has
+     checked before pressing all along. */
+  const atNight = () => /Time of day: night\b/.test(
+    document.getElementById("daynight")?.title || "");
+  const reached = await pressUntil("n", atNight, 120_000);
+  const modeNow = await page.evaluate(() =>
+    (document.getElementById("daynight")?.title.match(/Time of day: (\w+)/) || [, "?"])[1]
+  ).catch(() => "?");
+  step("the clock control reaches night", reached, `mode reads ${modeNow}`);
+
+  /* …and only now, from a mode we know, does the sky get asked. This is
+     the half that is actually about the campus: night is selected, so
+     the render must follow. Failing HERE means the campus did not go
+     dark; failing above means the control never got there. */
+  const dark = reached && await page.waitForFunction(() => window.__visual === "night",
+      null, { timeout: 60_000, polling: 500 }).then(() => true, () => false);
+  step("and the campus actually goes dark", dark,
+       reached ? `mode night · __visual ${await page.evaluate(() => window.__visual).catch(() => "?")}`
+               : "not asked — the control never reached night");
 
   step("no console errors or failed assets", errors.length === 0,
        errors.slice(0, 5).join(" | "));
