@@ -65,6 +65,7 @@ const argv = process.argv.slice(2);
 const LIVE  = argv.includes("--live");
 const RUNS  = Math.max(1, +(argv[argv.indexOf("--runs") + 1] || 1) || 1);
 const OUT   = argv.includes("--out") ? argv[argv.indexOf("--out") + 1] : null;
+const CALIBRATE = argv.includes("--calibrate");
 
 /* BENCH_VERSION changes whenever anything about the workload changes —
    the pose, the frame counts, what ?bench freezes. Numbers from
@@ -135,6 +136,35 @@ const P95_CEILING = null;
  * that the `ci` profile's p95 tracks `full`'s. One launch establishes
  * that the workload is stable; it does not establish where the line
  * goes. */
+
+/* ── CALIBRATION, SPECIFIED ───────────────────────────────────────────
+   The workload needed a specification and so does the calibration, for
+   the same reason: "run it a few times and pick a number" is how 1320
+   happened. --calibrate is that procedure as a command.
+ *
+ *   MIN_LAUNCHES   three is not several. Five independent launches, so
+ *                  that one anomalous boot cannot set the line.
+ *   same runner    a ceiling calibrated on a software rasterizer does
+ *                  not describe a GPU runner, and vice versa. The
+ *                  record carries the commit and the profile; it cannot
+ *                  carry the machine, so that part stays a human
+ *                  responsibility and is printed as a warning.
+ *   unchanged main the point is the baseline, not the branch.
+ *   ACCEPT_SPREAD  if p95 varies by more than this across launches the
+ *                  workload is not yet deterministic enough to gate on,
+ *                  and the answer is to fix the workload rather than to
+ *                  pad the ceiling.
+ *   HEADROOM       what separates the ceiling from the highest p95 seen.
+ *                  Small on purpose: a wide margin is a gate that never
+ *                  fires, which is the same as no gate with extra
+ *                  ceremony.
+ *
+ *   It PRINTS a recommendation and never writes one. Setting the number
+ *   is a decision with a reason attached, and the reason belongs in the
+ *   commit that sets it. */
+const MIN_LAUNCHES = 5;
+const ACCEPT_SPREAD = 25;      /* p95 draw calls, across launches */
+const HEADROOM = 0.03;         /* 3% above the worst p95 observed */
 
 const stats = (a) => {
   const s = [...a].sort((x, y) => x - y);
@@ -259,7 +289,36 @@ if (OUT){ mkdirSync(OUT.replace(/\/[^/]*$/, "") || ".", { recursive: true });
           writeFileSync(OUT, JSON.stringify(record, null, 1));
           note(`record written to ${OUT}`); }
 
-if (LIVE){
+if (CALIBRATE){
+  const worst = Math.max(...p95s), best = Math.min(...p95s);
+  console.log("\n=== calibration ===");
+  console.log(`  launches            ${RUNS}${RUNS < MIN_LAUNCHES ? `  — WANT AT LEAST ${MIN_LAUNCHES}` : ""}`);
+  console.log(`  p95 per launch      ${p95s.join(", ")}`);
+  console.log(`  spread              ${spread}  (accept <= ${ACCEPT_SPREAD})`);
+  console.log(`  worst p95           ${worst}`);
+  const enough = RUNS >= MIN_LAUNCHES;
+  const stable = spread <= ACCEPT_SPREAD;
+  const validProfile = PROFILES[PROFILE].validated;
+  if (!enough) console.log(`\n  NOT ENOUGH LAUNCHES — run --calibrate --runs ${MIN_LAUNCHES} or more.`);
+  if (!stable) console.log(`\n  SPREAD TOO WIDE — p95 moved ${spread} across launches. Fix the` +
+                           `\n  workload rather than padding the ceiling: something is still free` +
+                           `\n  to vary. The record above names every field that was controlled.`);
+  if (!validProfile) console.log(`\n  PROFILE "${PROFILE}" IS UNVALIDATED — calibrate on "full", or first` +
+                                 `\n  show that this profile's p95 tracks it.`);
+  if (LIVE) console.log(`\n  LIVE WORKLOAD — cannot calibrate a gate from a stochastic run.`);
+  if (enough && stable && validProfile && !LIVE){
+    const rec = Math.ceil(worst * (1 + HEADROOM));
+    console.log(`\n  RECOMMENDED P95_CEILING = ${rec}   (worst ${worst} + ${(HEADROOM*100).toFixed(0)}%)`);
+    console.log(`  Set it by hand, in a commit that says which machine this ran on —`);
+    console.log(`  the record carries the commit and the profile but cannot carry the`);
+    console.log(`  hardware, and a ceiling from one class of runner does not describe`);
+    console.log(`  another.`);
+  } else {
+    console.log(`\n  NO RECOMMENDATION. The conditions above are the whole point;`);
+    console.log(`  a number produced without them is how the last ceiling happened.`);
+  }
+  note("calibration prints a recommendation and never writes one");
+} else if (LIVE){
   note("live workload — diagnostic only, never gates");
 } else if (!PROFILES[PROFILE].validated){
   note(`profile "${PROFILE}" has not been shown to track the full profile — reporting only`);
