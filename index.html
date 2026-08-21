@@ -12197,6 +12197,11 @@ function onPaving(x, y){
 }
 window.__onPaving = onPaving;   /* test/debug hook */
 
+/* Hoisted out of the frame. Both were looked up on every walking frame;
+   an id lookup is cheap and sixty of them a second for the life of a
+   walk is still work done for nothing. */
+const doorPromptEl   = document.getElementById("doorprompt");
+const doorPromptName = document.getElementById("doorprompt-name");
 function walkUpdate(dt){
   const k = walker.keys;
   /* zoomed in, the same angular rate sweeps far more scenery past the
@@ -12234,14 +12239,20 @@ function walkUpdate(dt){
   if (mv || str) Sound.footfall(walker.odo || 0, onPaving(walker.x, walker.y));
   camera.rotation.x = -0.045 + (walker.pitch || 0);
   camera.rotation.z = 0;
+  const wasDoor = walker.door;
   walker.door = null;
   for (const d of DOORS){
     if (Math.hypot(d.x - walker.x, d.y - walker.y) < 54){ walker.door = d.sector; break; }
   }
   if (walker.door === "adm") jOrient("adm");   /* orientation: found Administration Hall */
-  const dp = document.getElementById("doorprompt");
-  dp.classList.toggle("show", !!walker.door);
-  if (walker.door) document.getElementById("doorprompt-name").textContent = "Enter " + SECTORS[walker.door].hall;
+  /* Looked up once, not sixty times a second, and written only when the
+     answer CHANGES. The name was re-assigned every frame the visitor
+     stood at a door — the same string, which still dirties the text
+     node and costs a layout for a sentence nobody watched change. */
+  if (walker.door !== wasDoor){
+    doorPromptEl.classList.toggle("show", !!walker.door);
+    if (walker.door) doorPromptName.textContent = "Enter " + SECTORS[walker.door].hall;
+  }
 }
 /* ── who owns the keyboard ───────────────────────────────────────────
    Four global listeners each knew its own mode and none knew the
@@ -14158,7 +14169,7 @@ function jPractice(courseId, n){
     ${ps.map((it, i) => {
       if (it.w) return `
         <div class="st-unit">Worked — ${it.q}</div>
-        <div data-psworked="${i}">
+        <div>
           ${it.steps.map(([ask, reveal], si) => `
             <div class="st-step" data-wstep="${i}.${si}" ${si ? "hidden" : ""}>
               <div class="st-ask">${ask}</div>
@@ -14912,6 +14923,16 @@ async function aiHealth(url, social, academic){
   const t = setTimeout(() => ctrl.abort(), 10000);
   try {
     const r = await fetch(base + "/api/tags", { signal: ctrl.signal });
+    /* The status, before the body. Its sibling aiHostedHealth checks
+       this and this one did not, so an Ollama that answered 500 was
+       diagnosed as "unreachable — is Ollama running?" when it plainly
+       was: r.json() threw on the error page and the catch below owns
+       every throw. The other shape is worse — an error body that
+       happens to parse leaves j.models undefined, names empty, and the
+       panel tells you to pull models you already have. Neither is a
+       lie the user can see through. */
+    if (!r.ok) return { state: "provider-unavailable",
+                        detail: `✗ Ollama answered ${r.status} — it is running, but not serving the model list` };
     const j = await r.json();
     const names = (j.models || []).map(m => m.name);
     const has = m => names.some(nm => nm === m || nm.startsWith(m + ":"));
@@ -14985,7 +15006,14 @@ function jAISettings(){
       : await aiHealth(val("ai-url"), val("ai-social"), val("ai-academic"));
     st.textContent = h.state === "ready" ? "available" : h.state.replace(/-/g, " ");
     out.textContent = h.detail;
-    out.dataset.state = h.state;
+    /* data-state was written here and read by nothing: no rule matched
+       [data-state], no script queried it. Its shape says it was meant
+       to colour this readout ready/failed, and the alternative to
+       deleting it was writing that rule. Not taken — the palette has an
+       explicit grammar (brass is reserved for what you can ACT on, the
+       four pigments mean the four sectors) and inventing a fifth colour
+       for a diagnostic panel would cost more than the cue is worth. The
+       state already reaches the visitor as words, one line above. */
   };
   jbody.querySelector("#ai-test").onclick = runHealth;
   jbody.querySelector("#ai-save").onclick = () => {
