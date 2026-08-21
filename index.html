@@ -843,9 +843,22 @@ body.diagnosing #campus-wing-intro{opacity:0;pointer-events:none;}
    they wrap upward into their own corners instead. The smoke drive
    checks these two keep apart on a PHONE, where the hints are hidden
    outright — which is why a collision at 1100px went unseen. */
-#campus-legend{ max-width:46%; }
-#campus-hints{ max-width:50%; }
-#campus-hints > div{ white-space:normal; }
+/* Only where the two are in opposite CORNERS. Below the lg breakpoint
+   the wing is full width and these stack in normal flow, one above the
+   other — there a width cap does not separate them, it makes both of
+   them WRAP, and two taller boxes stacked 11px apart overlap where two
+   shorter ones did not. Measured at 393x851, which is the width the
+   drive checks: legend 84px tall became 134, hints 49 became 79, and a
+   check that had passed for months went red.
+
+   The collision this fixes is real and lives at desktop widths, where
+   the hints run left until they print through "Great Library · Pure
+   Mathematics". That is where the cap belongs and nowhere else. */
+@media (min-width:1024px){
+  #campus-legend{ max-width:46%; }
+  #campus-hints{ max-width:50%; }
+  #campus-hints > div{ white-space:normal; }
+}
 
 /* Walk mode on a phone was crowded: the objective card sat under the
    thumb pad and a keyboard legend nobody can press ran off both edges.
