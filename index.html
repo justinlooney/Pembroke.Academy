@@ -729,10 +729,13 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
 .walkmode #walkbtn{border-color:#38bdf8;background:linear-gradient(160deg, rgba(24,60,90,.95), rgba(10,30,50,.95));}
 #minimap{
   position:absolute;top:14.2rem;right:1.4rem;z-index:25;
-  border-radius:12px;border:1.5px solid rgba(212,175,106,.4);
-  background:rgba(8,12,22,.82);
-  box-shadow:0 10px 28px -10px rgba(0,0,0,.8);
+  border-radius:3px;border:1px solid rgba(212,175,106,.55);
+  background:rgba(232,223,201,.9);
+  box-shadow:0 10px 28px -12px rgba(0,0,0,.7);
 }
+/* The moon's position is owned by the max-width:1023px block further
+   down, which is why setting it here did nothing — measured at 900px
+   it still read right:45px. It moves there instead. */
 /* The objective is worth stating once and keeping to hand, not worth a
    permanent slab across the quad. Tap it and it folds down to its target
    pip; tap that and it opens again. The choice is remembered. */
@@ -1134,7 +1137,11 @@ body.panel-open #toasts{bottom:5.5rem;}
 @media (max-width:1023px){
   #scene{--zoom:.42;}
   #stage{padding-top:7.5rem;}
-  .moon{width:54px;height:54px;top:5%;right:5%;}
+  /* right:5% put the moon at 45px on a 900px stage, which is exactly
+     where the control rail is — the bell glyph was printing on top of
+     it. The rail is the thing that has to be reachable, so the moon
+     moves and the controls stay. */
+  .moon{width:54px;height:54px;top:5%;right:26%;}
   #daynight{top:1rem;right:1rem;width:40px;height:40px;font-size:17px;}
   #walkbtn{top:3.9rem;right:1rem;width:40px;height:40px;font-size:16px;}
   #minimap{top:6.8rem;right:1rem;width:96px;height:96px;}
@@ -12422,22 +12429,57 @@ function refreshQuest(){
    scraping the sentence off the screen and hoping the wording holds */
 window.__quest = () => questInfo();   /* test/debug hook */
 const mm = document.getElementById("minimap");
+/* ── the plan ─────────────────────────────────────────────────────
+   This was a bottle-green rectangle with primary-coloured blocks on
+   it, and once everything around it moved register it became the
+   loudest thing left in the corner of every frame — #82's
+   "debug-grade minimap", still reading as a debug view.
+
+   It is a drawn plan now, which is the one place in this interface
+   where "the drawing of the campus" can be literal rather than
+   implied. Paper ground, hairline ways, halls hatched in their own
+   pigment rather than filled with it — a plan shades a building, it
+   does not colour it in — and the visitor as a surveyor's mark.
+
+   Hatching rather than fill is the whole difference: a solid block is
+   a status light, and forty-five-degree lines at two-pixel pitch are
+   a drawing. The pigment survives either way; only the ink changes. */
+const HATCH = {};
+function hatchFor(colour){
+  if (HATCH[colour]) return HATCH[colour];
+  const t = document.createElement("canvas"); t.width = t.height = 6;
+  const g = t.getContext("2d");
+  g.strokeStyle = colour; g.lineWidth = 1.1; g.globalAlpha = .85;
+  /* two strokes, offset, so the pattern tiles without a seam */
+  g.beginPath(); g.moveTo(-1, 7); g.lineTo(7, -1); g.stroke();
+  g.beginPath(); g.moveTo(-1, 13); g.lineTo(13, -1); g.stroke();
+  return (HATCH[colour] = mm.getContext("2d").createPattern(t, "repeat"));
+}
 function drawMinimap(){
   const ctx = mm.getContext("2d");
   const k = mm.width / 1000;
   ctx.clearRect(0, 0, mm.width, mm.height);
-  ctx.fillStyle = "rgba(30,72,42,.55)";
+  /* the sheet */
+  ctx.fillStyle = "rgba(232,223,201,.90)";
   ctx.fillRect(2, 2, mm.width - 4, mm.height - 4);
-  ctx.strokeStyle = "rgba(226,216,188,.55)";
-  ctx.lineWidth = 2.5;
+  /* the ring and the four approaches, as ways rather than as lines:
+     a pale bed with a darker centre line, the way a plan draws a road */
+  const ways = [[500,196,500,314],[500,686,500,946],[686,500,928,500],[72,500,314,500]];
+  ctx.strokeStyle = "rgba(255,252,244,.95)"; ctx.lineWidth = 5;
   ctx.beginPath(); ctx.arc(500 * k, 500 * k, 183 * k, 0, 6.3); ctx.stroke();
-  ctx.lineWidth = 1.5;
-  [[500,196,500,314],[500,686,500,946],[686,500,928,500],[72,500,314,500]].forEach(([a, b, c, d]) => {
-    ctx.beginPath(); ctx.moveTo(a * k, b * k); ctx.lineTo(c * k, d * k); ctx.stroke();
-  });
+  ways.forEach(([a,b,c,d]) => { ctx.beginPath(); ctx.moveTo(a*k,b*k); ctx.lineTo(c*k,d*k); ctx.stroke(); });
+  ctx.strokeStyle = "rgba(58,44,28,.30)"; ctx.lineWidth = 0.7;
+  ctx.beginPath(); ctx.arc(500 * k, 500 * k, 183 * k, 0, 6.3); ctx.stroke();
+  ways.forEach(([a,b,c,d]) => { ctx.beginPath(); ctx.moveTo(a*k,b*k); ctx.lineTo(c*k,d*k); ctx.stroke(); });
+  /* the halls, hatched in their pigment and outlined in ink */
   for (const c of COLLIDERS){
-    ctx.fillStyle = c.sector ? SECTORS[c.sector].color : "rgba(196,186,164,.7)";
-    ctx.fillRect(c.x * k, c.y * k, Math.max(2, c.w * k), Math.max(2, c.d * k));
+    const w = Math.max(2, c.w * k), h = Math.max(2, c.d * k);
+    const col = c.sector ? SECTORS[c.sector].color : "#6b6152";
+    ctx.fillStyle = hatchFor(col) || col;
+    ctx.fillRect(c.x * k, c.y * k, w, h);
+    ctx.strokeStyle = c.sector ? col : "rgba(58,44,28,.55)";
+    ctx.lineWidth = c.sector ? 1 : 0.6;
+    ctx.strokeRect(c.x * k + .5, c.y * k + .5, w - 1, h - 1);
   }
   if (walker.on){
     ctx.save();
@@ -12450,9 +12492,17 @@ function drawMinimap(){
     ctx.globalAlpha = (mx !== walker.x || my !== walker.y) ? 0.55 : 1;
     ctx.translate(mx * k, my * k);
     ctx.rotate(walker.h * Math.PI / 180);
-    ctx.fillStyle = "#ffffff";
-    ctx.shadowColor = "#38bdf8"; ctx.shadowBlur = 6;
-    ctx.beginPath(); ctx.moveTo(0, -5.5); ctx.lineTo(4, 4.5); ctx.lineTo(-4, 4.5); ctx.closePath(); ctx.fill();
+    /* a surveyor's mark: an open arrowhead in gold, drawn rather than
+       filled, with the same stroke weight as everything else it shares
+       a rail with. It was a white triangle with a cyan glow — the only
+       cyan left on the campus, from a palette that no longer exists. */
+    ctx.strokeStyle = getComputedStyle(document.documentElement)
+      .getPropertyValue("--brass").trim() || "#d4af6a";
+    ctx.fillStyle = "rgba(40,30,16,.55)";
+    ctx.lineWidth = 1.4; ctx.lineJoin = "round";
+    ctx.beginPath(); ctx.moveTo(0, -6.2); ctx.lineTo(4.2, 5); ctx.lineTo(0, 2.6);
+    ctx.lineTo(-4.2, 5); ctx.closePath();
+    ctx.fill(); ctx.stroke();
     ctx.restore();
   }
 }
