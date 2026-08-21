@@ -262,9 +262,59 @@ try {
   step("without taking its keyboard legend away", touch.keys !== "none",
        `#hint-keys display ${touch.keys} — a device with both needs both`);
 
+  /* ── nothing on the rail sits on anything else ──────────────────
+     Three separate times this repository has put two controls at the
+     same coordinates and shipped it, because CSS fails silently: a
+     rule at one breakpoint and a rule at another disagree, the later
+     one paints over the earlier, and everything still "works" — the
+     covered control is simply unreachable. The worst of them put the
+     sound button exactly on top of the walk button on a phone, where
+     there is no F key, so the one way into walk mode could not be
+     tapped at all.
+
+     No assertion about a single element would have caught any of
+     them. This asks the only question that would: do any two of these
+     overlap? */
+  const RAIL = () => {
+    const ids = ["daynight", "soundbtn", "nearbybtn", "walkbtn", "minimap", "quest"];
+    const seen = ids.map(id => {
+      const el = document.getElementById(id);
+      if (!el) return null;
+      const cs = getComputedStyle(el);
+      if (cs.display === "none" || cs.visibility === "hidden" || +cs.opacity < 0.05) return null;
+      const r = el.getBoundingClientRect();
+      return r.width && r.height ? { id, x: r.left, y: r.top, r: r.right, b: r.bottom } : null;
+    }).filter(Boolean);
+    const clashes = [];
+    for (let i = 0; i < seen.length; i++)
+      for (let j = i + 1; j < seen.length; j++){
+        const a = seen[i], b = seen[j];
+        if (a.x < b.r && b.x < a.r && a.y < b.b && b.y < a.b)
+          clashes.push(`${a.id} over ${b.id}`);
+      }
+    return { count: seen.length, clashes };
+  };
+  const railStep = (where, r) =>
+    step(`no two controls on the rail are in the same place — ${where}`,
+         r.count >= 4 && r.clashes.length === 0,
+         r.count < 4 ? `only ${r.count} control(s) visible to compare`
+           : r.clashes.length ? r.clashes.join(", ")
+           : `${r.count} controls, none overlapping`);
+  railStep("desktop", await page.evaluate(RAIL));
+
   /* and a phone, which reports the coarse pointer outright, is covered
      by the media query rather than by the class */
   const phone = await open(devices["Pixel 5"]);
+
+  /* Asked FIRST, before the touchpad check puts the page into walk
+     mode, because the rail a visitor arrives to is the one that has to
+     be usable — and asked here at all because on the desktop alone it
+     passed against a build where the sound button sat exactly on top
+     of the walk button. The rail is only redefined below 1023px, so
+     the fault lived entirely inside a block the desktop never reads.
+     A check at one viewport says nothing about the others. */
+  railStep("Pixel 5", await phone.page.evaluate(RAIL));
+
   const padPhone = await phone.page.evaluate(() => {
     document.body.classList.add("walkmode");
     return { coarse: matchMedia("(any-pointer: coarse)").matches,

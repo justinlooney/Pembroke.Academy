@@ -722,8 +722,8 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
 .nb-where{display:block;font-size:10.5px;color:var(--brass-dim);}
 .nb-empty{padding:.4rem .5rem;font-size:11px;color:#94a3b8;}
 @media (max-width:640px){
-  #soundbtn{top:3.9rem;right:1rem;width:40px;height:40px;font-size:16px;}
-  #nearbybtn{top:6.6rem;right:1rem;width:40px;height:40px;font-size:16px;}
+  /* the rail itself is defined once, in the 1023 block below — this
+     one only has business with the panel it opens */
   .nearby{left:1rem;right:1rem;width:auto;top:7rem;}
 }
 .walkmode #walkbtn{border-color:#38bdf8;background:linear-gradient(160deg, rgba(24,60,90,.95), rgba(10,30,50,.95));}
@@ -1142,9 +1142,26 @@ body.panel-open #toasts{bottom:5.5rem;}
      it. The rail is the thing that has to be reachable, so the moon
      moves and the controls stay. */
   .moon{width:54px;height:54px;top:5%;right:26%;}
-  #daynight{top:1rem;right:1rem;width:40px;height:40px;font-size:17px;}
-  #walkbtn{top:3.9rem;right:1rem;width:40px;height:40px;font-size:16px;}
-  #minimap{top:6.8rem;right:1rem;width:96px;height:96px;}
+  /* ── the rail, on a phone ───────────────────────────────────────
+     One column, one pitch, in one place. It was written in two blocks
+     at two breakpoints and they disagreed: the walk button and the
+     sound button were both at top:3.9rem right:1rem — the same
+     coordinates — and since #soundbtn comes later in the markup it
+     painted straight over the walk control. The minimap sat on the
+     people button the same way.
+
+     The cost was not cosmetic. There is no F key on a phone, so the
+     button IS walk mode there, and tapping it hit the bell instead:
+     the best thing this campus does was unreachable on the device
+     most visitors arrive on.
+
+     40px buttons at a 2.9rem pitch, the plan last. Any future control
+     goes on the end of this list and nowhere else. */
+  #daynight {top:1rem;    right:1rem;width:40px;height:40px;font-size:17px;}
+  #soundbtn {top:3.9rem;  right:1rem;width:40px;height:40px;font-size:16px;}
+  #nearbybtn{top:6.8rem;  right:1rem;width:40px;height:40px;font-size:16px;}
+  #walkbtn  {top:9.7rem;  right:1rem;width:40px;height:40px;font-size:16px;}
+  #minimap  {top:12.6rem; right:1rem;width:96px;height:96px;}
   #quest{left:1rem;top:auto;bottom:5.2rem;max-width:250px;}
 }
 @media (max-width:639px){
@@ -3763,7 +3780,7 @@ import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v147";
+const BUILD = "pembroke-v148";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
