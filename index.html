@@ -118,10 +118,28 @@ if ("serviceWorker" in navigator){
   --parchment:#e8e3d5;
   --brass:#d4af6a;
   --brass-dim:#8a744a;
-  --quad-eng:#f59e0b;   /* Engineering — amber        */
-  --quad-sci:#38bdf8;   /* Science Lab — electric blue */
-  --quad-lib:#10b981;   /* Library — deep emerald      */
-  --quad-adm:#a78bfa;   /* Administration — imperial purple */
+  /* ── the four pigments ────────────────────────────────────────
+     These were amber, electric blue, emerald and imperial purple —
+     which is Tailwind's default accent ramp, the palette of a status
+     page. Gothic Revival wearing a data-product costume is exactly
+     what "a genre, not a voice" means, and four unrelated hues
+     glowing at once was the loudest thing in the frame.
+
+     They are pigments now, and real ones: ground lapis was the most
+     expensive colour in a scriptorium and went to what mattered most,
+     so it goes to the Library; vermilion is the working red of
+     rubrication; verdigris is literally copper, for the hardware
+     school; madder lake is the crimson that fades, for the one
+     faculty that studies things that fly.
+
+     Gold is not among them. --brass is reserved for what you can
+     ACT on, and nothing else is ever gold — that is the whole
+     grammar, and it is what makes an interface legible without a
+     legend. */
+  --quad-lib:#3f5fa9;   /* lapis      — Library · Pure Mathematics  */
+  --quad-eng:#c0452c;   /* vermilion  — Engineering · Software      */
+  --quad-sci:#3f8a72;   /* verdigris  — Science Lab · Hardware      */
+  --quad-adm:#8e4b6b;   /* madder     — Administration · Flight     */
   --tiltX:0deg;
   --tiltZ:0deg;
   /* night palette (default) — body.day overrides every token */
@@ -600,8 +618,16 @@ body.day .tree .sprite{filter:brightness(1.02) saturate(1.02);}
 #daynight:hover{transform:scale(1.12) rotate(12deg);box-shadow:0 8px 26px -8px rgba(0,0,0,.8), 0 0 26px -4px rgba(212,175,106,.75);}
 body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgba(240,230,205,.92));}
 
+/* ── the rail ─────────────────────────────────────────────────────
+   These four sat in an L across the top-right corner and printed
+   themselves over the second line of the intro copy — three of them
+   were sitting on the words "and slate spires" in every frame of the
+   aerial view. A column at one margin instead: sky, sound, people,
+   walk, then the plan. Nothing overlaps the prose, and four controls
+   in a line read as an instrument panel rather than as four things
+   that happened to be added at different times. */
 #walkbtn{
-  position:absolute;top:4.6rem;right:1.4rem;z-index:25;
+  position:absolute;top:11rem;right:1.4rem;z-index:25;
   width:46px;height:46px;border-radius:50%;
   display:flex;align-items:center;justify-content:center;font-size:19px;
   background:linear-gradient(160deg, rgba(20,28,46,.9), rgba(10,16,30,.9));
@@ -611,7 +637,7 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
 }
 #walkbtn:hover{transform:scale(1.12);}
 #soundbtn{
-  position:absolute;top:4.6rem;right:8.2rem;z-index:25;
+  position:absolute;top:4.6rem;right:1.4rem;z-index:25;
   width:46px;height:46px;border-radius:50%;
   display:flex;align-items:center;justify-content:center;font-size:19px;
   background:linear-gradient(160deg, rgba(20,28,46,.9), rgba(10,16,30,.9));
@@ -620,10 +646,30 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
   cursor:pointer;transition:transform .3s ease;
 }
 #soundbtn:hover{transform:scale(1.12);}
+/* ── drawn, not typed ─────────────────────────────────────────────
+   Five emoji were doing the work of an icon set: 🌙 🎮 🔇 👥 🎯.
+   Emoji are somebody else's drawings, they change with the operating
+   system, and they are the one thing on this page rendered in a
+   register nothing else shares — a cartoon gamepad two inches from
+   Cormorant Garamond.
+
+   These are line glyphs in the crest's own idiom: one stroke weight,
+   round caps, currentColor so they take the gold when a control is
+   live and the slate when it is not. The objective's is a MANICULE —
+   the pointing hand a reader drew in the margin beside the line that
+   mattered, which is the oldest "this one" in the language, and the
+   only correct icon for a thing called Current objective. (#82) */
+.gl{width:1.15em;height:1.15em;display:block;fill:none;stroke:currentColor;
+  stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;}
+#daynight,#walkbtn,#soundbtn,#nearbybtn{color:rgba(226,232,240,.92);}
+#daynight .gl,#walkbtn .gl,#soundbtn .gl,#nearbybtn .gl{width:22px;height:22px;}
+#soundbtn[aria-pressed="true"]{color:var(--brass);}
+.walkmode #walkbtn{color:#7dd3fc;}
+#quest .q-icon .gl{width:20px;height:20px;color:var(--brass);stroke-width:1.9;}
 #soundbtn[aria-pressed="true"]{border-color:var(--brass);
   box-shadow:0 8px 24px -8px rgba(0,0,0,.8), 0 0 18px -6px var(--brass);}
 #nearbybtn{
-  position:absolute;top:4.6rem;right:4.9rem;z-index:25;
+  position:absolute;top:7.8rem;right:1.4rem;z-index:25;
   width:46px;height:46px;border-radius:50%;
   display:flex;align-items:center;justify-content:center;font-size:19px;
   background:linear-gradient(160deg, rgba(20,28,46,.9), rgba(10,16,30,.9));
@@ -652,13 +698,13 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
 .nb-where{display:block;font-size:10.5px;color:var(--brass-dim);}
 .nb-empty{padding:.4rem .5rem;font-size:11px;color:#94a3b8;}
 @media (max-width:640px){
-  #soundbtn{top:3.9rem;right:6.7rem;width:40px;height:40px;font-size:16px;}
-  #nearbybtn{top:3.9rem;right:3.9rem;width:40px;height:40px;font-size:16px;}
+  #soundbtn{top:3.9rem;right:1rem;width:40px;height:40px;font-size:16px;}
+  #nearbybtn{top:6.6rem;right:1rem;width:40px;height:40px;font-size:16px;}
   .nearby{left:1rem;right:1rem;width:auto;top:7rem;}
 }
 .walkmode #walkbtn{border-color:#38bdf8;background:linear-gradient(160deg, rgba(24,60,90,.95), rgba(10,30,50,.95));}
 #minimap{
-  position:absolute;top:7.9rem;right:1.4rem;z-index:25;
+  position:absolute;top:14.2rem;right:1.4rem;z-index:25;
   border-radius:12px;border:1.5px solid rgba(212,175,106,.4);
   background:rgba(8,12,22,.82);
   box-shadow:0 10px 28px -10px rgba(0,0,0,.8);
@@ -753,6 +799,15 @@ body.diagnosing #campus-wing-intro{opacity:0;pointer-events:none;}
   text-shadow:0 1px 2px rgba(4,8,16,.9), 0 0 16px rgba(4,8,16,.7);
 }
 #campus-legend, #campus-hints{ font-weight:500; }
+/* Both are bottom-anchored at opposite margins and neither had a
+   width, so on a mid-width stage the hints ran left until they were
+   printing through "Great Library · Pure Mathematics". Capped, and
+   they wrap upward into their own corners instead. The smoke drive
+   checks these two keep apart on a PHONE, where the hints are hidden
+   outright — which is why a collision at 1100px went unseen. */
+#campus-legend{ max-width:46%; }
+#campus-hints{ max-width:50%; }
+#campus-hints > div{ white-space:normal; }
 
 /* Walk mode on a phone was crowded: the objective card sat under the
    thumb pad and a keyboard legend nobody can press ran off both edges.
@@ -1397,11 +1452,17 @@ body.touched.walkmode .orient .o-step:not(.now){display:none;}
     <div class="cloud" style="left:12%;top:38%;--ct:140s;animation-delay:-90s;opacity:.55">
       <i style="left:0;top:8px;width:44px;height:16px"></i><i style="left:15px;top:0;width:36px;height:22px"></i><i style="left:36px;top:7px;width:38px;height:15px"></i>
     </div>
-    <button id="daynight" title="Toggle day / night" aria-label="Toggle day or night">🌙</button>
-    <button id="walkbtn" title="Walk the campus (F)" aria-label="Enter first-person walk mode">🎮</button>
-    <button id="soundbtn" title="Sound (M)" aria-pressed="false" aria-label="Turn campus sound on">🔇</button>
+    <button id="daynight" title="Toggle day / night" aria-label="Toggle day or night"></button>
+    <button id="walkbtn" title="Walk the campus (F)" aria-label="Enter first-person walk mode">
+      <svg class="gl" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V9l7-5 7 5v11"/><path d="M9.5 20v-6a2.5 2.5 0 0 1 5 0v6"/></svg>
+    </button>
+    <button id="soundbtn" title="Sound (M)" aria-pressed="false" aria-label="Turn campus sound on">
+      <svg class="gl" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 16V12a5 5 0 0 1 10 0v4l1.5 2.5h-13L7 16Z"/><path d="M10.5 19a1.5 1.5 0 0 0 3 0"/><path d="M12 7V5"/></svg>
+    </button>
     <button id="nearbybtn" title="People and places (P)" aria-expanded="false"
-            aria-controls="nearby" aria-label="People and places nearby">👥</button>
+            aria-controls="nearby" aria-label="People and places nearby">
+      <svg class="gl" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20v-2a4 4 0 0 1 4-4h1"/><circle cx="9.5" cy="7.5" r="3"/><path d="M14 20v-3a4 4 0 0 1 4-4"/><circle cx="17" cy="8.5" r="2.5"/></svg>
+    </button>
     <canvas id="minimap" width="132" height="132" aria-label="Campus minimap"></canvas>
 
     <!-- The keyboard's way in. Buildings were already reachable — keys
@@ -1421,7 +1482,9 @@ body.touched.walkmode .orient .o-step:not(.now){display:none;}
     <!-- quest banner: the current academic objective -->
     <div id="quest" role="button" tabindex="0" aria-expanded="true"
          title="Tap to fold this away">
-      <span class="q-icon">🎯</span>
+      <span class="q-icon">
+        <svg class="gl" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h6"/><path d="M9 12V8.5a1.5 1.5 0 0 1 3 0V12"/><path d="M12 11.5V9a1.4 1.4 0 0 1 2.8 0v2.5"/><path d="M14.8 11.8v-1.6a1.3 1.3 0 0 1 2.6 0V14a5 5 0 0 1-5 5h-1a4 4 0 0 1-4-4v-3"/></svg>
+      </span>
       <div>
         <div class="q-label">Current objective</div>
         <div class="q-text" id="quest-text"></div>
@@ -1577,7 +1640,7 @@ body.touched.walkmode .orient .o-step:not(.now){display:none;}
 /* ── The four campus sectors ─────────────────────────────────────── */
 const SECTORS = {
   lib: { key:"lib", hall:"The Pembroke Great Library", track:"Pure Mathematics Sequence",
-         color:"#10b981", soft:"rgba(16,185,129,", icon:"◈",
+         color:"#3f5fa9", soft:"rgba(63,95,169,", icon:"◈",
          motto:"Every theorem here was once a stranger.",
          room:"The Chalk Vault — Lecture Theatre I",
          board:["∮_C F · dr  =  ∬_R ( ∂Q/∂x − ∂P/∂y ) dA",
@@ -1586,7 +1649,7 @@ const SECTORS = {
                 "· hw — Stewart §16.4, odd problems 1–17"],
          blurb:"Vaulted reading rooms and chalk-dusted lecture halls. The five-course mathematics spine — from College Algebra to the vector fields of Calculus III — is taught beneath the great emerald dome." },
   eng: { key:"eng", hall:"Drosdick Hall", track:"Software Foundations Track",
-         color:"#f59e0b", soft:"rgba(245,158,11,", icon:"⌬",
+         color:"#c0452c", soft:"rgba(192,69,44,", icon:"⌬",
          motto:"First make it work. Then make it beautiful.",
          room:"The Grand Atrium — Learning Commons",
          board:["def study(hours):",
@@ -1595,7 +1658,7 @@ const SECTORS = {
                 "· quiz friday: recursion vs iteration"],
          blurb:"A glass-roofed grand atrium where code is a craft. Three studio courses carry a complete beginner from a first Python print statement to disciplined systems engineering in C, at long study tables under the skylight." },
   sci: { key:"sci", hall:"Alden Science Laboratory", track:"Electrical Hardware & Microprocessors Track",
-         color:"#38bdf8", soft:"rgba(56,189,248,", icon:"⚡",
+         color:"#3f8a72", soft:"rgba(63,138,114,", icon:"⚡",
          room:"The Induction Chamber — Bench Lab 3",
          board:["Sum  = A ⊕ B ⊕ Cin",
                 "Cout = AB + Cin(A ⊕ B)",
@@ -1604,7 +1667,7 @@ const SECTORS = {
          blurb:"Oscilloscopes hum under electric-blue skylights. Here software meets silicon: boolean logic becomes gates, gates become registers, and registers become machines you command in assembly.",
          motto:"The machine keeps no secrets from those who read registers." },
   adm: { key:"adm", hall:"Aldergate Administration Hall", track:"AI Robotics & Flight Planners Track",
-         color:"#a78bfa", soft:"rgba(167,139,250,", icon:"✈",
+         color:"#8e4b6b", soft:"rgba(142,75,107,", icon:"✈",
          motto:"Autonomy is mathematics given wings.",
          room:"The Autonomy Wing — Flight Operations Room",
          board:["x̂ₖ = x̂ₖ₋₁ + Kₖ( zₖ − H·x̂ₖ₋₁ )",
@@ -1613,7 +1676,13 @@ const SECTORS = {
                 "· flight test — quad lawn, friday 0900"],
          blurb:"Behind the imperial-purple spire sits the Autonomy Wing — capstone territory. State estimation, control loops, and flight planners that let machines navigate the world alone." },
   cathedral: { key:"cathedral", hall:"The Pembroke Chapel", track:"The University Chapel",
-         color:"#d4af6a", soft:"rgba(212,175,106,", icon:"✦",
+         /* Parchment, not gold. The grammar says --brass marks what
+            can be ACTED on, and the moment the chapel wore it the
+            rule had an exception on its first day. It is also not a
+            faculty and has no courses, so no pigment is the honest
+            answer: it is the one place on this campus that is simply
+            itself. */
+         color:"#cbc0a6", soft:"rgba(203,192,166,", icon:"✦",
          motto:"Lux perpetua luceat studiis.",
          room:"The Nave — Lux Perpetua",
          board:[], blurb:"A place of quiet between lectures." },
@@ -3635,7 +3704,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v146";
+const BUILD = "pembroke-v147";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -14435,7 +14504,13 @@ window.__sound = Sound;   /* test/debug hook */
 
 const soundBtn = document.getElementById("soundbtn");
 function soundPaint(){
-  soundBtn.textContent = Sound.on ? "🔊" : "🔇";
+  /* the same bell, struck or silent — one shape, two states, rather
+     than a speaker emoji and a crossed-out speaker emoji */
+  soundBtn.innerHTML = `<svg class="gl" viewBox="0 0 24 24" aria-hidden="true">` +
+    `<path d="M7 16V12a5 5 0 0 1 10 0v4l1.5 2.5h-13L7 16Z"/>` +
+    `<path d="M10.5 19a1.5 1.5 0 0 0 3 0"/><path d="M12 7V5"/>` +
+    (Sound.on ? `<path d="M19.5 7.5a6 6 0 0 1 0 6" opacity=".7"/>`
+              : `<path d="M4 4l16 16"/>`) + `</svg>`;
   soundBtn.setAttribute("aria-pressed", String(Sound.on));
   soundBtn.setAttribute("aria-label", Sound.on ? "Turn campus sound off" : "Turn campus sound on");
 }
@@ -16372,9 +16447,19 @@ const MODES = ["live", "day", "golden", "night", "auto"];
 let mode = MODES.includes(localStorage.getItem(LS_MODE))
   ? localStorage.getItem(LS_MODE) : "live";
 function applyMode(){
-  const icons = { live: "🕰️", day: "☀️", golden: "🌇", auto: "🌗", night: "🌙" };
+  /* One disc, filled by how much of it the sun is above. live is the
+     clock face it actually reads; auto is the same disc mid-sweep with
+     an arrow. Drawn here rather than picked from a font, so the five
+     states are one shape changing rather than five pictures. */
+  const D = {
+    live:   `<circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/>`,
+    day:    `<circle cx="12" cy="12" r="4.2"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4"/>`,
+    golden: `<path d="M3 16h18"/><circle cx="12" cy="16" r="4.6"/><path d="M12 5.5V8M5.5 9l1.7 1.7M18.5 9l-1.7 1.7"/>`,
+    night:  `<path d="M18 14.5A7 7 0 0 1 9.5 6a7.2 7.2 0 1 0 8.5 8.5Z"/>`,
+    auto:   `<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor" stroke="none"/>`,
+  };
   const btn = document.getElementById("daynight");
-  btn.textContent = icons[mode];
+  btn.innerHTML = `<svg class="gl" viewBox="0 0 24 24" aria-hidden="true">${D[mode]}</svg>`;
   btn.title = "Time of day: " + mode + " (N to change)";
   engineSetMode(mode);
 }
