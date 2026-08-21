@@ -454,3 +454,48 @@ jobs:
 
       - name: Where does a first visit actually end up?
         run: node tools/check-opening.mjs
+
+  # ── does the campus make a sound, and only when asked? ──────────────
+  # A runner has no speakers, so nothing here listens. It renders the
+  # bell through an OfflineAudioContext and measures the samples — a
+  # struck bell has several partials at once and the high ones die
+  # first, so it darkens as it decays, and that is checkable — and it
+  # asks the live page what its audio graph is doing.
+  #
+  # The two checks that matter most are not about sound at all: nothing
+  # is built before a gesture, and a remembered yes still waits to be
+  # asked again. Both are the autoplay policy, and both are manners.
+  sound:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Cache the browser
+        id: browser
+        timeout-minutes: 5
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ env.PW_VERSION }}
+
+      - name: Install Playwright
+        timeout-minutes: 6
+        run: npm install --no-save --no-audit --no-fund playwright@${{ env.PW_VERSION }}
+
+      - name: Fetch the browser
+        if: steps.browser.outputs.cache-hit != 'true'
+        timeout-minutes: 8
+        run: npx playwright install --with-deps chromium
+
+      - name: System libraries for the cached browser
+        if: steps.browser.outputs.cache-hit == 'true'
+        timeout-minutes: 6
+        run: npx playwright install-deps chromium
+
+      - name: Does the campus make a sound, and only when asked?
+        run: node tools/check-sound.mjs
