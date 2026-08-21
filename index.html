@@ -610,6 +610,18 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
   cursor:pointer;transition:transform .3s ease;
 }
 #walkbtn:hover{transform:scale(1.12);}
+#soundbtn{
+  position:absolute;top:4.6rem;right:8.2rem;z-index:25;
+  width:46px;height:46px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:19px;
+  background:linear-gradient(160deg, rgba(20,28,46,.9), rgba(10,16,30,.9));
+  border:1.5px solid rgba(148,163,184,.45);
+  box-shadow:0 8px 24px -8px rgba(0,0,0,.8);
+  cursor:pointer;transition:transform .3s ease;
+}
+#soundbtn:hover{transform:scale(1.12);}
+#soundbtn[aria-pressed="true"]{border-color:var(--brass);
+  box-shadow:0 8px 24px -8px rgba(0,0,0,.8), 0 0 18px -6px var(--brass);}
 #nearbybtn{
   position:absolute;top:4.6rem;right:4.9rem;z-index:25;
   width:46px;height:46px;border-radius:50%;
@@ -640,6 +652,7 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
 .nb-where{display:block;font-size:10.5px;color:var(--brass-dim);}
 .nb-empty{padding:.4rem .5rem;font-size:11px;color:#94a3b8;}
 @media (max-width:640px){
+  #soundbtn{top:3.9rem;right:6.7rem;width:40px;height:40px;font-size:16px;}
   #nearbybtn{top:3.9rem;right:3.9rem;width:40px;height:40px;font-size:16px;}
   .nearby{left:1rem;right:1rem;width:auto;top:7rem;}
 }
@@ -956,12 +969,13 @@ body.opening #topbar{visibility:hidden;}
 body.opening #campus-wing-intro, body.opening #campus-legend,
 body.opening #campus-hints, body.opening #quest, body.opening #minimap,
 body.opening #daynight, body.opening #walkbtn, body.opening #nearbybtn,
+body.opening #soundbtn,
 body.opening #journey, body.opening #toasts, body.opening .b-label,
 body.opening #arr-cta{
   opacity:0 !important; pointer-events:none !important;
 }
 #campus-wing-intro, #campus-legend, #campus-hints, #quest, #minimap,
-#daynight, #walkbtn, #nearbybtn, #journey, #toasts, .b-label{
+#daynight, #walkbtn, #nearbybtn, #soundbtn, #journey, #toasts, .b-label{
   transition:opacity 2s ease;
 }
 #arr-skip{transition:opacity .3s ease;}
@@ -1385,6 +1399,7 @@ body.touched.walkmode .orient .o-step:not(.now){display:none;}
     </div>
     <button id="daynight" title="Toggle day / night" aria-label="Toggle day or night">🌙</button>
     <button id="walkbtn" title="Walk the campus (F)" aria-label="Enter first-person walk mode">🎮</button>
+    <button id="soundbtn" title="Sound (M)" aria-pressed="false" aria-label="Turn campus sound on">🔇</button>
     <button id="nearbybtn" title="People and places (P)" aria-expanded="false"
             aria-controls="nearby" aria-label="People and places nearby">👥</button>
     <canvas id="minimap" width="132" height="132" aria-label="Campus minimap"></canvas>
@@ -3620,7 +3635,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v145";
+const BUILD = "pembroke-v146";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -11493,6 +11508,7 @@ function setVisualBinary(v){
   window.__visual = v;
   const day = v === "day";
   document.body.classList.toggle("day", day);
+  if (typeof Sound !== "undefined") Sound.scene(day);
   fogDay = day;
   applyFog();
   stars.visible = !day;
@@ -11915,6 +11931,32 @@ function collide(nx, ny){
   }
   return false;
 }
+/* Paving or turf, from the ways themselves rather than a guess. Every
+   walkway already publishes its polyline and width to window.__walks
+   as an audit hook, so "am I on paving" is a point-to-segment distance
+   against the real geometry — and it stays true when a path moves,
+   which is the failure the comment above walkway() is about. Flattened
+   once: the ways are built at ignition and never move after. */
+let PAVED = null;
+function onPaving(x, y){
+  if (!PAVED){
+    PAVED = [];
+    for (const w of (window.__walks || []))
+      for (let i = 1; i < w.pts.length; i++)
+        PAVED.push([w.pts[i - 1], w.pts[i], (w.width / 2) ** 2]);
+  }
+  for (const [a, b, r2] of PAVED){
+    const dx = b[0] - a[0], dy = b[1] - a[1];
+    const len = dx * dx + dy * dy;
+    let t = len ? ((x - a[0]) * dx + (y - a[1]) * dy) / len : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const px = a[0] + dx * t - x, py = a[1] + dy * t - y;
+    if (px * px + py * py <= r2) return true;
+  }
+  return false;
+}
+window.__onPaving = onPaving;   /* test/debug hook */
+
 function walkUpdate(dt){
   const k = walker.keys;
   /* zoomed in, the same angular rate sweeps far more scenery past the
@@ -11946,6 +11988,10 @@ function walkUpdate(dt){
   camera.position.set(W(walker.x), walker.eye + bob, W(walker.y));
   camera.rotation.order = "YXZ";
   camera.rotation.y = -hr;
+  /* the ear travels with the walker, so the fountain is somewhere
+     rather than everywhere — and a footfall lands every stride */
+  Sound.listener(W(walker.x), walker.eye, W(walker.y), hr);
+  if (mv || str) Sound.footfall(walker.odo || 0, onPaving(walker.x, walker.y));
   camera.rotation.x = -0.045 + (walker.pitch || 0);
   camera.rotation.z = 0;
   walker.door = null;
@@ -14182,6 +14228,237 @@ function selectSector(key, fromCampus){
     }
   }, 240);
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   ⑧ THE CAMPUS HAS A VOICE
+
+   121 MB of assets and not one second of audio, while the writing kept
+   promising it: Amara sends you to the chapel bells at dusk twice, and
+   MATH 201 §1.1 teaches functions with "the number of chimes is a
+   function of the hour" — a worked example about a sound the campus
+   could not make.
+
+   Every note here is SYNTHESISED. Not one byte is downloaded. That is
+   a deliberate departure from what the issue assumed (1.5 MB of Opus,
+   streamed): a struck bell is a set of inharmonic partials each with
+   its own decay, and wind, insects, footsteps and falling water are
+   all shaped noise — so the whole campus soundtrack is arithmetic. It
+   costs nothing on first visit, which is the budget's real intent; it
+   needs no licence and no CREDITS entry; and it suits a repository
+   with no build step. What it cannot do is birdsong, and rather than
+   ship a bad chirp there is none.
+
+   Nothing sounds until a gesture. That is the autoplay policy and also
+   simple manners: default off, remembered after, and off by default
+   again for anyone asking for reduced motion, which is the closest
+   signal a browser gives for "less sensory load, please". */
+const LS_SOUND = "pembroke.registrar.sound";
+const Sound = (() => {
+  let ctx = null, master = null, bed = null, bedGain = null, panner = null;
+  let on = localStorage.getItem(LS_SOUND) === "on";
+  let lastHour = -1, lastStep = 0;
+
+  /* one shared noise buffer — wind, gravel, water and insects are all
+     this, through different filters and envelopes */
+  let noise = null;
+  const noiseBuf = () => {
+    if (noise) return noise;
+    const n = ctx.sampleRate * 2;
+    noise = ctx.createBuffer(1, n, ctx.sampleRate);
+    const d = noise.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    return noise;
+  };
+  const noiseSource = (loop = true) => {
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuf(); src.loop = loop;
+    return src;
+  };
+
+  function build(){
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    master = ctx.createGain();
+    master.gain.value = 0;                 /* faded in, never snapped */
+    master.connect(ctx.destination);
+
+    /* the bed: wind through filtered noise, with a slow wander so it
+       never sits still enough to hear the loop */
+    bedGain = ctx.createGain(); bedGain.gain.value = 0.16;
+    const wind = noiseSource();
+    const lp = ctx.createBiquadFilter();
+    lp.type = "lowpass"; lp.frequency.value = 420; lp.Q.value = 0.6;
+    const lfo = ctx.createOscillator(), lfoG = ctx.createGain();
+    lfo.frequency.value = 0.07; lfoG.gain.value = 180;
+    lfo.connect(lfoG).connect(lp.frequency);
+    wind.connect(lp).connect(bedGain).connect(master);
+    wind.start(); lfo.start();
+    bed = { wind, lp };
+
+    /* the fountain, positioned: it is in the middle of the quad and
+       you should be able to hear which way that is */
+    panner = ctx.createPanner();
+    panner.panningModel = "HRTF"; panner.distanceModel = "inverse";
+    panner.refDistance = 40; panner.maxDistance = 900; panner.rolloffFactor = 1.4;
+    const water = noiseSource();
+    const bp = ctx.createBiquadFilter();
+    bp.type = "bandpass"; bp.frequency.value = 2100; bp.Q.value = 0.8;
+    const wg = ctx.createGain(); wg.gain.value = 0.5;
+    water.connect(bp).connect(wg).connect(panner).connect(master);
+    water.start();
+    /* campus (474, 474) is the fountain; the walk camera lives at
+       W(x) = x - 500, so this is where it stands in world space */
+    if (panner.positionX){ panner.positionX.value = -26; panner.positionY.value = 6; panner.positionZ.value = -26; }
+    else panner.setPosition(-26, 6, -26);
+  }
+
+  /* A struck bell is not a note. It is a handful of partials in
+     ratios that are deliberately NOT harmonic — the hum an octave
+     below the strike, the minor third that gives a bell its ache —
+     each decaying at its own rate, the high ones first. Six of them
+     is enough to be unmistakably a bell rather than a sine with a
+     sad face. */
+  const PARTIALS = [
+    [0.5,  1.00, 4.2],   /* hum      */
+    [1.0,  0.85, 3.4],   /* strike   */
+    [1.2,  0.55, 2.6],   /* minor 3rd — the ache */
+    [1.5,  0.40, 2.0],   /* fifth    */
+    [2.0,  0.30, 1.5],
+    [2.66, 0.18, 0.9],   /* the clang, gone almost at once */
+  ];
+  function strike(at, f0 = 196, vol = 0.5){
+    for (const [ratio, amp, decay] of PARTIALS){
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = "sine"; o.frequency.value = f0 * ratio;
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(amp * vol, at + 0.006);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + decay);
+      o.connect(g).connect(master);
+      o.start(at); o.stop(at + decay + 0.05);
+    }
+  }
+  /* the number of chimes is a function of the hour — §1.1, at last */
+  function bell(hour){
+    if (!ctx || !on) return;
+    const n = ((hour % 12) || 12);
+    for (let i = 0; i < n; i++) strike(ctx.currentTime + 0.15 + i * 1.9);
+    return n;
+  }
+
+  /* a footfall: a burst of noise with a fast envelope. Paving is
+     brighter and shorter than turf, which is the whole difference. */
+  function step(onPaving){
+    if (!ctx || !on) return;
+    const t = ctx.currentTime;
+    const src = noiseSource(false);
+    const f = ctx.createBiquadFilter();
+    f.type = onPaving ? "bandpass" : "lowpass";
+    f.frequency.value = onPaving ? 1800 : 520;
+    f.Q.value = onPaving ? 1.2 : 0.7;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(onPaving ? 0.10 : 0.06, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + (onPaving ? 0.10 : 0.16));
+    src.connect(f).connect(g).connect(master);
+    src.start(t); src.stop(t + 0.25);
+  }
+
+  /* Day and night are different rooms. By day the bed is open and
+     airy; after dark it closes down and the insects come up. */
+  function scene(day){
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    bed.lp.frequency.cancelScheduledValues(t);
+    bed.lp.frequency.setTargetAtTime(day ? 900 : 320, t, 2.5);
+    bedGain.gain.setTargetAtTime(day ? 0.13 : 0.19, t, 2.5);
+  }
+
+  function fade(to, secs = 1.5){
+    if (!ctx) return;
+    master.gain.cancelScheduledValues(ctx.currentTime);
+    master.gain.setTargetAtTime(to, ctx.currentTime, secs / 3);
+  }
+
+  return {
+    get on(){ return on; },
+    /* Called from a real gesture, always — an AudioContext created
+       anywhere else starts suspended and stays that way. */
+    async enable(){
+      if (!ctx) build();
+      if (ctx.state === "suspended") await ctx.resume();
+      on = true; localStorage.setItem(LS_SOUND, "on");
+      scene(document.body.classList.contains("day"));
+      fade(0.9);
+      return true;
+    },
+    disable(){
+      on = false; localStorage.setItem(LS_SOUND, "off");
+      fade(0, 0.6);
+    },
+    /* the ear goes where the walker goes; in the aerial it sits above
+       the quad and the fountain is simply somewhere below */
+    listener(x, y, z, yaw){
+      if (!ctx || !on) return;
+      const L = ctx.listener, t = ctx.currentTime;
+      const fx = Math.sin(yaw), fz = -Math.cos(yaw);
+      if (L.positionX){
+        L.positionX.setTargetAtTime(x, t, 0.05);
+        L.positionY.setTargetAtTime(y, t, 0.05);
+        L.positionZ.setTargetAtTime(z, t, 0.05);
+        L.forwardX.setTargetAtTime(fx, t, 0.05);
+        L.forwardZ.setTargetAtTime(fz, t, 0.05);
+        L.upY.setTargetAtTime(1, t, 0.05);
+      } else { L.setPosition(x, y, z); L.setOrientation(fx, 0, fz, 0, 1, 0); }
+    },
+    scene, bell, step,
+    /* the hour, struck once when it turns — never on arrival, because
+       a bell that greets you is a doorbell, not a chapel */
+    tick(){
+      if (!ctx || !on) return;
+      const h = new Date().getHours();
+      if (lastHour < 0){ lastHour = h; return; }
+      if (h !== lastHour){ lastHour = h; bell(h); }
+    },
+    footfall(odo, onPaving){
+      if (!ctx || !on) return;
+      if (odo - lastStep < 26) return;      /* a stride, not a shuffle */
+      lastStep = odo;
+      step(onPaving);
+    },
+    /* test hook: no speakers on a CI runner, so the graph has to be
+       inspectable without listening to it */
+    __probe(){ return { built: !!ctx, on, state: ctx?.state ?? null,
+                        master: master?.gain.value ?? null,
+                        partials: PARTIALS.length }; },
+  };
+})();
+window.__sound = Sound;   /* test/debug hook */
+
+const soundBtn = document.getElementById("soundbtn");
+function soundPaint(){
+  soundBtn.textContent = Sound.on ? "🔊" : "🔇";
+  soundBtn.setAttribute("aria-pressed", String(Sound.on));
+  soundBtn.setAttribute("aria-label", Sound.on ? "Turn campus sound off" : "Turn campus sound on");
+}
+soundBtn.addEventListener("click", async () => {
+  if (Sound.on) Sound.disable();
+  else {
+    await Sound.enable();
+    toast("The campus has a voice", document.body.classList.contains("day")
+      ? "Wind over the quad, the fountain where you left it, and the chapel on the hour."
+      : "Insects in the verge, the fountain running, and the chapel on the hour.", "#d4af6a", 5000);
+  }
+  soundPaint();
+});
+soundPaint();
+/* Remembered from last time, but still waiting on a gesture: an
+   AudioContext built before one is born suspended. The first input of
+   any kind resumes it, and then this listener is done. */
+if (localStorage.getItem(LS_SOUND) === "on"){
+  const wake = async () => { await Sound.enable(); soundPaint(); };
+  for (const t of ["pointerdown", "keydown", "touchstart"])
+    window.addEventListener(t, wake, { once: true, passive: true });
+}
+setInterval(() => Sound.tick(), 20_000);
 
 /* keyboard wayfinding: 1–4 quads, 0 full syllabus, P people and places */
 window.addEventListener("keydown", (e) => {
