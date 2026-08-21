@@ -60,6 +60,40 @@ await page.goto(`http://localhost:${PORT}/index.html?crowd`,
 await page.waitForFunction(() => window.__crowd && window.__crowd().ready &&
   window.__students.length > 0, null, { timeout: 600000 });
 await page.evaluate(() => window.__crowdFill());
+
+/* ── SETTLE, and prove it settled ─────────────────────────────────────
+   The census below reads renderer.info for the LAST FRAME, and until
+   this was added it read whatever frame happened to be current. The
+   campus streams in — detailPass, the crowd ramp, the late landmark
+   wave — so that number climbs for minutes after "ready". The audit
+   that asked for this check sampled 711, then 723, then 765, and only
+   then found the true figure was 1239: three of those four were the
+   scene still arriving, and not one of them was wrong at the moment it
+   was taken.
+
+   So take the median of a short burst, twice, and trust the number only
+   when two windows agree. A count that never settles is reported as
+   such rather than averaged into something tidy. */
+const burst = () => page.evaluate(() => new Promise((done) => {
+  const r = window.__app.renderer, c = [];
+  let n = 0;
+  const tick = () => { c.push(r.info.render.calls);
+    if (++n < 12) requestAnimationFrame(tick);
+    else { c.sort((a, b) => a - b); done(c[c.length >> 1]); } };
+  requestAnimationFrame(tick);
+}));
+let settled = false, prev = -1;
+for (let i = 0; i < 10; i++){
+  await page.waitForTimeout(12000);
+  const now = await burst();
+  if (prev >= 0) console.log(`   settling... median draw calls ${now} (was ${prev})`);
+  if (prev >= 0 && Math.abs(now - prev) <= 2){ settled = true; prev = now; break; }
+  prev = now;
+}
+const drawCalls = prev;
+console.log(settled
+  ? `   settled at ${drawCalls} draw calls\n`
+  : `   NEVER SETTLED - the last two windows disagreed; ${drawCalls} is a moving number\n`);
 /* ...and wait for the OUTER WORLD, which is the whole reason a previous
    run could not see the residence hall. Landmarks are fetched after the
    campus reports ready, deliberately and one at a time, so a measurement
@@ -225,7 +259,16 @@ const r = await page.evaluate(() => {
 const n = (x) => (x || 0).toLocaleString();
 const m = (x) => ((x || 0) / 1e6).toFixed(2) + "M";
 console.log(`renderer   ${r.size} at pixelRatio ${r.pixelRatio}`);
-console.log(`draw calls ${n(r.render.calls)}   triangles ${m(r.render.tris)}   (three.js own count for the last frame)`);
+/* Two numbers, because they disagree and the difference is the point.
+   The settled median is what the campus costs in a steady frame. The
+   raw figure beneath it is renderer.info for whatever frame happened to
+   be current when the census ran — the reading this check printed on
+   its own before settling was added, and it came out 252 higher on the
+   run that introduced the ceiling. Judge regressions on the settled
+   one; the raw is kept because a large gap between them is itself worth
+   seeing. */
+console.log(`draw calls ${n(drawCalls)}   triangles ${m(r.render.tris)}   (settled median)`);
+console.log(`           ${n(r.render.calls)} on the single frame the census read`);
 console.log(`programs   ${r.programs}   materials ${r.materials}   textures ${r.textures} (~${r.texMB}MB decoded)`);
 console.log(`lights     ${r.lights}, of which ${r.shadowLights} cast shadows (${r.shadowMap})`);
 console.log(`shadows    ${n(r.shadowDraws)} casters, ${m(r.shadowTris)} triangles re-drawn per shadow pass`);
@@ -248,6 +291,43 @@ for (const [k, v] of Object.entries(r.byOrigin || {}))
 console.log("\ntexture memory by resolution — the decoded footprint, not the file size");
 for (const [dim, mb] of r.byTex)
   console.log(`   ${String(mb).padStart(7)}MB  ${dim}`);
+
+/* == THE CEILING ======================================================
+   Draw calls are the one number here that is the same on every GPU, and
+   on a phone they are usually what runs out first. This campus's own
+   field note, from a real Adreno during the arrival-flicker
+   investigation, reads "1289 draws, 7.13M triangles".
+
+   The quality ladder cannot help with this. Its five rungs trade SSAO,
+   pixel ratio, shadow-map size, shadows and bloom - fill rate and
+   post-processing, every one. Not a single rung removes a draw call, so
+   a submit-bound device gets no relief at any rung, and rungs never
+   climb back. That makes this a hard floor on what the campus costs,
+   which is exactly the kind of number that should not be allowed to
+   drift quietly upward.
+
+   DRAW_CEILING is MEASURED, not chosen: the figure this check reported
+   on a settled full-crowd campus when the limit was introduced, plus
+   room for honest variation. Raise it deliberately, with a note saying
+   what was added and why it was worth it. That is the whole point of
+   having it. */
+const DRAW_CEILING = 1320;
+console.log("");
+if (!settled){
+  console.log(` FAIL  draw calls never settled - ${drawCalls} is a moving number, ` +
+              `so no ceiling can be judged against it`);
+  await browser.close(); srv.close(); process.exit(1);
+}
+if (drawCalls > DRAW_CEILING){
+  console.log(` FAIL  ${drawCalls} draw calls, over the ceiling of ${DRAW_CEILING}\n` +
+    `       Nothing in the quality ladder can lower this - every rung trades fill\n` +
+    `       rate, not geometry - so it is a floor on what the campus costs on a\n` +
+    `       phone. Merge static scenery by material, hide distant props, or raise\n` +
+    `       the ceiling ON PURPOSE with a note saying what was added.`);
+  await browser.close(); srv.close(); process.exit(1);
+}
+console.log(`  ok   ${drawCalls} draw calls, within the ceiling of ${DRAW_CEILING}` +
+            ` (${DRAW_CEILING - drawCalls} to spare)`);
 
 await browser.close();
 srv.close();
