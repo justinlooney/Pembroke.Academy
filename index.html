@@ -4199,6 +4199,26 @@ window.__preset = () => ({ on: loadPreset, dpr: renderer.getPixelRatio(),
                            ssao: !!(ssao && ssao.enabled), bloom: bloom.enabled,
                            shadowsLive: renderer.shadowMap.autoUpdate });
 const NO_LADDER = q.has("noladder");
+/* ?bench — A WORKLOAD, NOT A RENDERING MODE.
+   A performance gate needs a specification of what is being measured.
+   "Wait until the scene settles" was never one for this campus: the
+   crowd churns by design, bodies walking into buildings and out again
+   for the whole session, so there is no moment when the draw count
+   stops moving. A check that waited for two readings to agree got 1243
+   where the finished campus reads 1609, and the ceiling built on that
+   number gated merges for a day.
+
+   So this freezes the things that must be CONTROLLED and changes
+   nothing about how a frame is DRAWN — the same passes, the same
+   materials, the same shadow map. What it holds still: the crowd's
+   motion, the camera, the quality ladder, and the clock. What it does
+   not touch: anything the renderer does with what is in front of it.
+   A number measured here is comparable to another number measured
+   here, which is the only property a regression gate actually needs.
+
+   The POSE is deliberately not set here. The tool that drives the
+   measurement owns the workload spec; the page only owns the freeze. */
+const BENCH = q.has("bench");
 /* WHY the ladder is not shedding, in words, for the frame after this
    one to report. The panel could always say which rung the campus was
    on and never why it was still on it — and "why" is the whole question
@@ -4243,6 +4263,10 @@ function stepQuality(now, fpsNow){
      whole duration too. */
   const arr = arrivalState(now);
   if (!NO_LADDER) setLoadPreset(arr.arriving);
+  /* the preset still lifts when the assets are in — measuring the
+     campus mid-arrival is the whole thing being fixed — but no rung is
+     ever shed, so quality cannot move under a sample */
+  if (BENCH){ LADDER_WHY = "benchmark — the ladder is held"; return; }
   if (NO_LADDER || rung >= LADDER.length){ LADDER_WHY = rung >= LADDER.length ? "nothing left to give up" : "disabled"; return; }
   /* Not on a software rasterizer. Its frame rate is a fact about a CPU
      drawing pixels one at a time and says nothing about any GPU, so
@@ -12739,13 +12763,13 @@ renderer.setAnimationLoop(() => {
      two things that react to a slow machine, rather than two averages
      that can disagree about what the machine is doing. */
   stepQuality(now, crowdFps);
-  stepStudents(dt, now);
+  if (!BENCH) stepStudents(dt, now);   /* frozen where they stand */
   if (walker.on) walkUpdate(dt);
-  else { stepFlight(now); controls.update(); }
-  if (autoCycle && !interiorView){
+  else if (!BENCH) { stepFlight(now); controls.update(); }
+  if (autoCycle && !interiorView && !BENCH){
     cycleT += dt / 180;                /* a full day in three minutes */
     setTimeOfDay(cycleT);
-  } else if (liveClock && !interiorView && now - lastClock > 20000){
+  } else if (liveClock && !interiorView && !BENCH && now - lastClock > 20000){
     /* the real sky moves slowly; a check every 20s is plenty and keeps
        this off the per-frame path */
     lastClock = now;
