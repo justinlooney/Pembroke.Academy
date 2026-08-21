@@ -4196,6 +4196,11 @@ window.__preset = () => ({ on: loadPreset, dpr: renderer.getPixelRatio(),
                               a probe can assert the invariant rather than infer
                               it from the one number they produce */
                            ceiling: dprCeiling, ladderCap, presetCap,
+                           /* which rung the ladder has shed to, and why it
+                              stopped there — a benchmark reading is only
+                              reproducible if the quality it was taken at is
+                              recorded beside it */
+                           rung, rungWhy: LADDER_WHY,
                            ssao: !!(ssao && ssao.enabled), bloom: bloom.enabled,
                            shadowsLive: renderer.shadowMap.autoUpdate });
 const NO_LADDER = q.has("noladder");

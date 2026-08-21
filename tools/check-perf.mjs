@@ -58,18 +58,41 @@
  * launches, with the reason written down.
  */
 import { serve, launch, reporter } from "./_harness.mjs";
+import { execSync } from "node:child_process";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 
 const argv = process.argv.slice(2);
 const LIVE  = argv.includes("--live");
 const RUNS  = Math.max(1, +(argv[argv.indexOf("--runs") + 1] || 1) || 1);
-const WARMUP = 120;
-const SAMPLE = 300;
+const OUT   = argv.includes("--out") ? argv[argv.indexOf("--out") + 1] : null;
+
+/* BENCH_VERSION changes whenever anything about the workload changes —
+   the pose, the frame counts, what ?bench freezes. Numbers from
+   different versions are not comparable, and recording it is what makes
+   that checkable rather than remembered. */
+const BENCH_VERSION = 1;
+
+/* Two profiles, because the full one is not free. Measured on a
+   software rasterizer with a full crowd, 120 warm + 300 sampled frames
+   ran past FORTY MINUTES — trivial on a GPU, punishing headless. So the
+   full profile is for nightly and release validation, and a shorter one
+   exists for per-PR use.
+   THE SHORT PROFILE IS NOT YET VALIDATED: nobody has shown its p95
+   tracks the full profile's. Until somebody does, it reports and does
+   not gate, the same as the ceiling it would feed. */
+const PROFILES = {
+  full: { warmup: 120, sample: 300, validated: true  },
+  ci:   { warmup:  30, sample:  90, validated: false },
+};
+const PROFILE = argv.includes("--profile") ? argv[argv.indexOf("--profile") + 1] : "full";
+if (!PROFILES[PROFILE]){ console.log(`unknown profile "${PROFILE}" — try full or ci`); process.exit(1); }
+const { warmup: WARMUP, sample: SAMPLE } = PROFILES[PROFILE];
 
 /* The pose. It lives HERE, in the tool, because the camera position is
    part of the workload specification and not part of the campus. The
    quad from the north-west, high enough to hold the whole academic
    range — the view a visitor actually arrives on. */
-const POSE = { pos: [-420, 300, 420], look: [0, 0, 0] };
+const POSE = { v: 1, pos: [-420, 300, 420], look: [0, 0, 0] };
 
 /* THE CEILING IS DELIBERATELY NOT SET. The old one was 1320, derived
    from a single premature reading, and re-deriving it from one run of a
@@ -122,6 +145,7 @@ async function measure(origin, browser, i){
              preset: window.__preset().on, bench: new URL(location.href).searchParams.has("bench") };
   }, POSE);
 
+  const t0 = Date.now();
   const frames = await page.evaluate(([warm, n]) => new Promise((done) => {
     const r = window.__app.renderer, out = [];
     let seen = 0;
@@ -132,15 +156,26 @@ async function measure(origin, browser, i){
     requestAnimationFrame(tick);
   }), [WARMUP, SAMPLE]);
 
+  const elapsedMs = Date.now() - t0;
+  const env = await page.evaluate(() => {
+    const p = window.__preset();
+    return { dpr: p.dpr, rung: p.rung, rungWhy: p.rungWhy, presetOn: p.on,
+             crowd: window.__crowd().n, people: window.__students.length,
+             build: (document.documentElement.innerHTML.match(/const BUILD = "([^"]+)"/) || [,"?"])[1] };
+  });
   await shut();
-  return { ...stats(frames), n: frames.length, ...fixed };
+  return { ...stats(frames), sampled: frames.length, elapsedMs, ...fixed, ...env };
 }
 
 const { origin, close } = await serve();
 const browser = await launch();
 const { step, note, done } = reporter();
 
+let commit = "?";
+try { commit = execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim(); } catch {}
+const started = Date.now();
 console.log(`workload: ${LIVE ? "LIVE campus (diagnostic only)" : "deterministic"} · ` +
+            `profile ${PROFILE}${PROFILES[PROFILE].validated ? "" : " (UNVALIDATED — reports, does not gate)"} · ` +
             `1280x800 · warm ${WARMUP} · sample ${SAMPLE} · ${RUNS} launch(es)`);
 const all = [];
 for (let i = 0; i < RUNS; i++){
@@ -154,8 +189,46 @@ const p95s = all.map(r => r.p95);
 const spread = Math.max(...p95s) - Math.min(...p95s);
 note(`p95 across ${RUNS} launch(es): ${p95s.join(", ")}  ·  spread ${spread}`);
 
+/* THE RECORD. A number is comparable if you can put it beside another
+   one; it is REPRODUCIBLE only if everything that could have changed it
+   is written down next to it. This block is that, and it is emitted as
+   JSON so a run can be diffed against a run rather than remembered. */
+const record = {
+  benchVersion: BENCH_VERSION,
+  profile: PROFILE,
+  profileValidated: PROFILES[PROFILE].validated,
+  workload: LIVE ? "live" : "deterministic",
+  gates: !LIVE && PROFILES[PROFILE].validated && P95_CEILING != null,
+  commit,
+  build: all[0]?.build ?? "?",
+  viewport: "1280x800",
+  dpr: all[0]?.dpr ?? null,
+  ladderRung: all[0]?.rung ?? null,
+  ladderWhy: all[0]?.rungWhy ?? null,
+  arrivalPresetOn: all[0]?.presetOn ?? null,
+  crowdCount: all[0]?.crowd ?? null,
+  people: all[0]?.people ?? null,
+  cameraPose: POSE,
+  warmupFrames: WARMUP,
+  sampleFrames: SAMPLE,
+  launches: RUNS,
+  runs: all.map(r => ({ min: r.min, p50: r.p50, p90: r.p90, p95: r.p95, max: r.max,
+                        mean: r.mean, stddev: r.sd, sampled: r.sampled,
+                        elapsedMs: r.elapsedMs })),
+  p95Spread: spread,
+  p95Ceiling: P95_CEILING,
+  totalElapsedMs: Date.now() - started,
+};
+console.log("\n--- run record (JSON) ---");
+console.log(JSON.stringify(record, null, 1));
+if (OUT){ mkdirSync(OUT.replace(/\/[^/]*$/, "") || ".", { recursive: true });
+          writeFileSync(OUT, JSON.stringify(record, null, 1));
+          note(`record written to ${OUT}`); }
+
 if (LIVE){
   note("live workload — diagnostic only, never gates");
+} else if (!PROFILES[PROFILE].validated){
+  note(`profile "${PROFILE}" has not been shown to track the full profile — reporting only`);
 } else if (P95_CEILING == null){
   note("no ceiling set: re-baseline with --runs 5 on an unchanged main, more than once,");
   note("then set P95_CEILING above the highest p95 seen and say what it was measured on");
