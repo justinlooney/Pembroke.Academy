@@ -20,44 +20,12 @@
  *      nothing enforced. So this installs a provider that IGNORES
  *      abort, which is the case the ordering does not cover.
  */
-import { chromium } from "playwright";
-import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
-import { existsSync, statSync } from "node:fs";
-import { resolve, extname, dirname, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { serve, launch, open, reporter } from "./_harness.mjs";
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const PORT = 8095;
-const MIME = { ".html":"text/html", ".js":"text/javascript", ".mjs":"text/javascript",
-  ".css":"text/css", ".glb":"model/gltf-binary", ".png":"image/png", ".woff2":"font/woff2",
-  ".jpg":"image/jpeg", ".webp":"image/webp", ".svg":"image/svg+xml",
-  ".webmanifest":"application/manifest+json" };
-
-const server = createServer(async (req, res) => {
-  let rel;
-  try { rel = decodeURIComponent(req.url.split("?")[0]); }
-  catch { res.writeHead(400); return res.end(); }
-  if (rel === "/favicon.ico"){ res.writeHead(204); return res.end(); }
-  const path = resolve(ROOT, "." + (rel === "/" ? "/index.html" : rel));
-  if (path !== ROOT && !path.startsWith(ROOT + sep)){ res.writeHead(403); return res.end(); }
-  if (!existsSync(path) || statSync(path).isDirectory()){ res.writeHead(404); return res.end(); }
-  res.writeHead(200, { "content-type": MIME[extname(path)] || "application/octet-stream" });
-  res.end(await readFile(path));
-});
-
-const failures = [];
-const step = (name, ok, detail = "") => {
-  console.log(`${ok ? "  ok  " : " FAIL "} ${name}${detail ? "  — " + detail : ""}`);
-  if (!ok) failures.push(name);
-};
-
-await new Promise(r => server.listen(PORT, r));
-const browser = await chromium.launch({
-  args: ["--enable-unsafe-swiftshader", "--disable-dev-shm-usage", "--no-sandbox"],
-});
-const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-const page = await ctx.newPage();
+const { origin, close: closeServer } = await serve();
+const browser = await launch([]);
+const { step, note, done } = reporter();
+const { page } = await open(browser, origin, { ready: () => window.__app && window.__journey });
 
 /* what the campus looks like from outside, in the terms the bug is in */
 const campus = () => page.evaluate(() => ({
@@ -72,7 +40,7 @@ const campus = () => page.evaluate(() => ({
 }));
 
 try {
-  await page.goto(`http://localhost:${PORT}/`, { waitUntil: "domcontentloaded", timeout: 90_000 });
+  await page.goto(`${origin}/`, { waitUntil: "domcontentloaded", timeout: 90_000 });
   if (!await page.waitForFunction(() => window.__app && window.__journey, null, { timeout: 240_000 })
         .then(() => true, () => false)) throw new Error("the campus did not ignite");
 
@@ -273,11 +241,7 @@ try {
   step("ownership check completed", false, e.message.split("\n")[0]);
 } finally {
   await browser.close();
-  server.close();
+  closeServer();
 }
 
-if (failures.length){
-  console.log(`\n${failures.length} check(s) failed: ${failures.join(", ")}`);
-  process.exit(1);
-}
-console.log("\nall ownership checks passed.");
+done("ownership");

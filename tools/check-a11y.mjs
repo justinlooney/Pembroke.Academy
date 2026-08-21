@@ -15,31 +15,14 @@
  * fine pointer and a touchscreen, and a visitor who has asked the
  * operating system to stop moving things.
  */
-import { chromium, devices } from "playwright";
-import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
-import { existsSync, statSync } from "node:fs";
-import { resolve, extname, dirname, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { serve, launch, open, reporter, ROOT } from "./_harness.mjs";
+import { devices } from "playwright";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const PORT = 8097;
-const MIME = { ".html":"text/html", ".js":"text/javascript", ".mjs":"text/javascript",
-  ".css":"text/css", ".glb":"model/gltf-binary", ".png":"image/png", ".woff2":"font/woff2",
-  ".jpg":"image/jpeg", ".webp":"image/webp", ".svg":"image/svg+xml",
-  ".webmanifest":"application/manifest+json" };
-
-const server = createServer(async (req, res) => {
-  let rel;
-  try { rel = decodeURIComponent(req.url.split("?")[0]); }
-  catch { res.writeHead(400); return res.end(); }
-  if (rel === "/favicon.ico"){ res.writeHead(204); return res.end(); }
-  const path = resolve(ROOT, "." + (rel === "/" ? "/index.html" : rel));
-  if (path !== ROOT && !path.startsWith(ROOT + sep)){ res.writeHead(403); return res.end(); }
-  if (!existsSync(path) || statSync(path).isDirectory()){ res.writeHead(404); return res.end(); }
-  res.writeHead(200, { "content-type": MIME[extname(path)] || "application/octet-stream" });
-  res.end(await readFile(path));
-});
+const { origin, close: closeServer } = await serve();
+const browser = await launch();
+const { step, note, done } = reporter();
 
 /* axe-core over one surface. WCAG 2.0/2.1 A and AA, violations only —
    "incomplete" results are things axe cannot decide without a human
@@ -62,17 +45,6 @@ const audit = async (page, label) => {
                 : "wcag2a + wcag2aa + wcag21a + wcag21aa, violations only");
 };
 
-const failures = [];
-const step = (name, ok, detail = "") => {
-  console.log(`${ok ? "  ok  " : " FAIL "} ${name}${detail ? "  — " + detail : ""}`);
-  if (!ok) failures.push(name);
-};
-
-await new Promise(r => server.listen(PORT, r));
-const browser = await chromium.launch({
-  args: ["--enable-unsafe-swiftshader", "--disable-dev-shm-usage", "--no-sandbox"],
-});
-
 /* the same generous boot the ledger probe uses, for the same reason:
    no GPU, a software rasterizer, and forty megabytes of campus */
 /* One campus at a time. Three live contexts is three WebGL campuses and
@@ -80,19 +52,15 @@ const browser = await chromium.launch({
    of memory and then failed the third boot on a timeout, which reads as
    a page that will not start rather than a harness that will not let
    go. Each context is closed the moment its questions are answered. */
-const open = async (opts) => {
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, ...opts });
-  const page = await ctx.newPage();
-  await page.goto(`http://localhost:${PORT}/`, { waitUntil: "domcontentloaded", timeout: 90_000 });
-  const up = await page.waitForFunction(() => window.__app && window.__journey,
-                                        null, { timeout: 240_000 }).then(() => true, () => false);
-  if (!up) throw new Error("the campus did not ignite");
-  return { ctx, page };
+const visit = async (opts) => {
+  const v = await open(browser, origin, { ready: () => window.__app && window.__journey, ...opts });
+  if (!v.up) throw new Error("the campus did not ignite");
+  return v;
 };
 
 try {
   /* ── 1. a keyboard can see where it is ──────────────────────────── */
-  const first = await open({});
+  const first = await visit({});
   const { page } = first;
   await audit(page, "the campus");
 
@@ -304,7 +272,7 @@ try {
 
   /* and a phone, which reports the coarse pointer outright, is covered
      by the media query rather than by the class */
-  const phone = await open(devices["Pixel 5"]);
+  const phone = await visit(devices["Pixel 5"]);
 
   /* Asked FIRST, before the touchpad check puts the page into walk
      mode, because the rail a visitor arrives to is the one that has to
@@ -460,7 +428,7 @@ try {
 
   const busy = await page.evaluate(census);
   await first.ctx.close();          /* see the note on open() */
-  const calm = await open({ reducedMotion: "reduce" });
+  const calm = await visit({ reducedMotion: "reduce" });
   const quiet = await calm.page.evaluate(census);
   await calm.ctx.close();
   step("nothing on the campus keeps moving when asked to stop", quiet === 0 && busy > 0,
@@ -470,11 +438,7 @@ try {
   step("accessibility check completed", false, e.message.split("\n")[0]);
 } finally {
   await browser.close();
-  server.close();
+  closeServer();
 }
 
-if (failures.length){
-  console.log(`\n${failures.length} check(s) failed: ${failures.join(", ")}`);
-  process.exit(1);
-}
-console.log("\nall accessibility checks passed.");
+done("accessibility");

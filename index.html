@@ -140,8 +140,6 @@ if ("serviceWorker" in navigator){
   --quad-eng:#c0452c;   /* vermilion  — Engineering · Software      */
   --quad-sci:#3f8a72;   /* verdigris  — Science Lab · Hardware      */
   --quad-adm:#8e4b6b;   /* madder     — Administration · Flight     */
-  --tiltX:0deg;
-  --tiltZ:0deg;
   /* night palette (default) — body.day overrides every token */
   --roofA:#39352c; --roofB:#242119;
   --slate1:#3d382e; --slate2:#1d1b16; --slate3:#191712; --slate4:#14120e;
@@ -274,9 +272,8 @@ body.day #campus-wing .text-slate-600{color:#55657e;}
    every rule that named it has been dead for as long as three.js has
    been drawing this place. Removed rather than left to look load
    bearing. tools/check-css.mjs now refuses to let a selector like
-   that be written again. */
-@keyframes campus-breathe{0%,100%{translate:0 0}50%{translate:0 -10px}}
-@keyframes warp{0%{scale:1}35%{scale:1.055}100%{scale:1}}
+   that be written again. Its two animations, campus-breathe and warp,
+   went with it — nothing else referenced them. */
 
 /* The great lawn — clipped English turf with mowing stripes */
 .ground{
@@ -3775,7 +3772,7 @@ import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v149";
+const BUILD = "pembroke-v150";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -7074,48 +7071,10 @@ const STUDENT_ROSTER = [
           "The one whose hardest course you would still take if it weren't required. Come to my advising session and we'll find out which that is."]] },
 ];
 const students = [];
-const skinMat = new THREE.MeshStandardMaterial({ color: 0xe2cfae, roughness: 0.8 });
-/* articulated low-poly people: pivoted hips and shoulders so limbs
-   swing in a real walk cycle; varied skin, hair, trousers, packs */
-const SKIN_TONES = [0xe8cfae, 0xd9b48f, 0xb98a5e, 0x8a5f3d, 0x6b452b, 0xf0d8bc];
-const HAIR_TONES = [0x2b2118, 0x4a3423, 0x8a6a3f, 0xc9a15a, 0x1c1c22, 0x5b4632];
-const PANT_TONES = [0x1e293b, 0x3f4a5a, 0x6b5d43, 0x2f3e2f, 0x30363f, 0x54423a];
-function mkPerson(jacketColor, seed){
-  const R = (i) => { const s = Math.sin(seed * 91.7 + i * 47.3) * 43758.545; return s - Math.floor(s); };
-  const skin = new THREE.MeshStandardMaterial({ color: SKIN_TONES[Math.floor(R(1) * SKIN_TONES.length)], roughness: 0.75 });
-  const hair = new THREE.MeshStandardMaterial({ color: HAIR_TONES[Math.floor(R(2) * HAIR_TONES.length)], roughness: 0.9 });
-  const pant = new THREE.MeshStandardMaterial({ color: PANT_TONES[Math.floor(R(3) * PANT_TONES.length)], roughness: 0.9 });
-  const jac  = new THREE.MeshStandardMaterial({ color: jacketColor, roughness: 0.85 });
-  const shoe = new THREE.MeshStandardMaterial({ color: 0x26221e, roughness: 0.7 });
-  const g = new THREE.Group();
-  const box = (w, h, d, mat, x, y, z, parent = g) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-    m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m;
-  };
-  const legL = new THREE.Group(); legL.position.set(-2.2, 19, 0); g.add(legL);
-  box(2.8, 16.4, 3.4, pant, 0, -8.2, 0, legL);
-  box(3.2, 2, 5.4, shoe, 0, -17.3, 0.9, legL);
-  const legR = new THREE.Group(); legR.position.set(2.2, 19, 0); g.add(legR);
-  box(2.8, 16.4, 3.4, pant, 0, -8.2, 0, legR);
-  box(3.2, 2, 5.4, shoe, 0, -17.3, 0.9, legR);
-  box(9.6, 13.5, 5.4, jac, 0, 25.8, 0);
-  const armL = new THREE.Group(); armL.position.set(-5.9, 31, 0); armL.rotation.z = 0.1; g.add(armL);
-  box(2.3, 12.5, 2.7, jac, 0, -6.2, 0, armL);
-  box(2.1, 2.6, 2.3, skin, 0, -13.4, 0, armL);
-  const armR = new THREE.Group(); armR.position.set(5.9, 31, 0); armR.rotation.z = -0.1; g.add(armR);
-  box(2.3, 12.5, 2.7, jac, 0, -6.2, 0, armR);
-  box(2.1, 2.6, 2.3, skin, 0, -13.4, 0, armR);
-  box(2.6, 2.4, 2.6, skin, 0, 33.4, 0);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(3.8, 12, 10), skin);
-  head.position.y = 37; head.castShadow = true; g.add(head);
-  const cap = new THREE.Mesh(new THREE.SphereGeometry(4.05, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.58), hair);
-  cap.position.set(0, 37.2, -0.4); cap.rotation.x = -0.22; g.add(cap);
-  if (R(9) > 0.45){
-    const packMat = new THREE.MeshStandardMaterial({ color: [0x7a2e2e, 0x2e4a7a, 0x3d5a3a, 0x6b5535][Math.floor(R(10) * 4)], roughness: 0.9 });
-    box(6.4, 8.6, 2.8, packMat, 0, 26, -4.4);
-  }
-  return { g, legL, legR, armL, armR };
-}
+/* The box people are gone. skinMat, three tone tables and mkPerson
+   built a student out of nine cuboids with pivoted hips and shoulders,
+   and nothing has called them since the cast became authored bodies
+   with their own skeletons and their own clips — CAST_FILES, below. */
 /* ── the bodies ───────────────────────────────────────────────────────
    Five rigged people, not one. This matters more than any amount of
    recolouring: a campus built from a single mesh is a campus of
