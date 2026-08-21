@@ -76,16 +76,34 @@ try {
        `built=${cold.built} on=${cold.on} — an AudioContext made on page load is a page that decided for you`);
 
   /* ── 2. a gesture turns it on, and the graph is actually running ──
-     force:true, and it matters why. Hovering the button starts a 300ms
-     transform transition, and on a software rasterizer running at one
-     to three frames a second Playwright's stability check sees a
-     different bounding box every time it looks and waits forever. The
-     force flag skips the actionability wait, NOT the input: this is
-     still a real trusted click, which is the only kind that counts as
-     user activation — and user activation is the entire subject of
-     this check. A scripted el.click() would pass the click and fail
-     the point. */
-  const press = () => page.click("#soundbtn", { force: true });
+     Raw input at measured coordinates, and it matters why.
+
+     This has to be a TRUSTED click: user activation is the entire
+     subject of two of these checks, and a scripted el.click() would
+     pass the click and fail the point. But page.click() resolves the
+     element, scrolls it into view and waits for it to hold still, and
+     on a headless runner rendering fullscreen WebGL with no GPU it
+     never gets there — 30s timeout, twice, once with force:true, which
+     skips the actionability WAIT and still runs the rest of that
+     pipeline.
+
+     So: read the rectangle with evaluate, which waits for nothing, and
+     send the input with page.mouse, which resolves nothing. Both ends
+     of the problem removed rather than one. The hit test is asserted
+     here rather than assumed, because a click at coordinates cannot
+     tell you it missed. */
+  const press = async () => {
+    const hit = await page.evaluate(() => {
+      const el = document.getElementById("soundbtn");
+      const r = el.getBoundingClientRect();
+      const x = r.left + r.width / 2, y = r.top + r.height / 2;
+      const at = document.elementFromPoint(x, y);
+      return { x, y, mine: at === el || el.contains(at),
+               who: at ? (at.id || at.tagName) : "nothing" };
+    });
+    if (!hit.mine) throw new Error(`the sound control is covered by ${hit.who}`);
+    await page.mouse.click(hit.x, hit.y);
+  };
   await press();
   const warm = await page.evaluate(async () => {
     await new Promise(r => setTimeout(r, 400));
