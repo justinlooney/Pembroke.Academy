@@ -707,8 +707,12 @@ body.day #daynight{background:linear-gradient(160deg, rgba(255,252,240,.92), rgb
   padding:.35rem .3rem .3rem;}
 .nb-row{display:block;width:100%;text-align:left;padding:.42rem .5rem;border-radius:.5rem;
   border:1px solid transparent;color:#e2e8f0;cursor:pointer;background:none;}
-.nb-row:hover:not(:disabled){background:rgba(212,175,106,.12);border-color:rgba(212,175,106,.32);}
-.nb-row:disabled{opacity:.45;cursor:default;}
+.nb-row:hover:not([aria-disabled]){background:rgba(212,175,106,.12);border-color:rgba(212,175,106,.32);}
+/* aria-disabled, NOT the disabled attribute. A disabled button cannot
+   be focused at all, and somebody who walks indoors while the keyboard
+   is resting on their row would take the focus with them — see the
+   restore in nearbyRender. Dimmed, unactivatable, still reachable. */
+.nb-row[aria-disabled]{opacity:.45;cursor:default;}
 .nb-name{display:block;font-size:12.5px;}
 .nb-meta{display:block;font-size:10.5px;color:#94a3b8;}
 .nb-where{display:block;font-size:10.5px;color:var(--brass-dim);}
@@ -14747,7 +14751,7 @@ function nearbyRender(){
   const peopleHtml = people.length
     ? people.map(r => {
         const ai = r.s.data.ai || {};
-        return `<button class="nb-row" data-talk="${escA(r.s.data.name)}"${r.out ? "" : " disabled"}>
+        return `<button class="nb-row" data-talk="${escA(r.s.data.name)}"${r.out ? "" : ' aria-disabled="true"'}>
           <span class="nb-name">${esc(r.s.data.name)}</span>
           <span class="nb-meta">${esc([ai.year, r.s.data.major].filter(Boolean).join(" · "))}</span>
           <span class="nb-where">${esc(where(r))}</span></button>`;
@@ -14782,8 +14786,18 @@ function nearbyRender(){
   placesEl.innerHTML = placesHtml;
   if (!key) return;
   const [kind, val] = [key.slice(0, key.indexOf(":")), key.slice(key.indexOf(":") + 1)];
-  const again = nearbyEl.querySelector(`[data-${kind}="${CSS.escape(val)}"]:not([disabled])`);
-  (again || nearbyEl.querySelector(".nb-row:not([disabled])"))?.focus();
+  /* No :not() on THIS lookup. It used to carry one, and that is how the
+     keyboard ended up on a stranger: somebody the reader was standing on
+     walks into a building, their row is still listed but is now dimmed,
+     the identity lookup misses it, and the fallback below hands the
+     keyboard to whoever happens to be first in the list. Measured:
+     stood on "Elowen", ended on "Prof. Merion", and Enter would have
+     opened a conversation with the wrong person. Now the row is only
+     aria-disabled, so it still takes focus and the reader stays where
+     they were — dimmed, and told so. The fallback is for a row that has
+     genuinely gone. */
+  const again = nearbyEl.querySelector(`[data-${kind}="${CSS.escape(val)}"]`);
+  (again || nearbyEl.querySelector(".nb-row:not([aria-disabled])"))?.focus();
 }
 function nearbyToggle(force){
   const open = force === undefined ? nearbyEl.hidden : !!force;
@@ -14796,7 +14810,7 @@ function nearbyToggle(force){
     nearbyRender();
     /* people walk while the list is up, so the list walks with them */
     nearbyTimer = setInterval(nearbyRender, 1500);
-    nearbyEl.querySelector(".nb-row:not([disabled])")?.focus();
+    nearbyEl.querySelector(".nb-row:not([aria-disabled])")?.focus();
   } else if (held) nearbyBtn.focus();   /* only if it was ours to give back */
 }
 nearbyBtn.addEventListener("click", () => nearbyToggle());
@@ -14804,6 +14818,11 @@ nearbyEl.addEventListener("keydown", e => { if (e.key === "Escape") nearbyToggle
 nearbyEl.addEventListener("click", e => {
   const t = e.target.closest("[data-talk],[data-enter]");
   if (!t) return;
+  /* aria-disabled is a promise to the reader, not to the browser: unlike
+     the disabled attribute it suppresses nothing, so the row that says
+     it cannot be activated has to refuse here. Covers Enter and Space
+     too — both arrive as a click on a button. */
+  if (t.getAttribute("aria-disabled") === "true") return;
   nearbyToggle(false);
   if (t.dataset.enter){ openInterior(t.dataset.enter); return; }
   const s = students.find(x => x.data?.name === t.dataset.talk);
