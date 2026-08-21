@@ -45,7 +45,16 @@ const srv = createServer(async (req, res) => {
   res.writeHead(200, { "content-type": MIME[extname(p)] || "application/octet-stream" });
   res.end(await readFile(p));
 });
-await new Promise((ok) => srv.listen(8321, ok));
+/* Port 0, so the operating system hands out one nobody else holds.
+   This file and check-dialogue.mjs used to name the same number, and two
+   probes on one port means the second dies on EADDRINUSE before it
+   checks anything — reading like a broken checkout rather than a
+   clash. Left as a two-line change rather than a move onto
+   tools/_harness.mjs, because this probe is not in CI and I cannot
+   verify a larger edit to it. */
+let PORT = 0;
+await new Promise((ok) => srv.listen(0, ok));
+PORT = srv.address().port;
 await mkdir(resolve(ROOT, ".shots"), { recursive: true });
 
 const PAGE = `<!doctype html><meta charset="utf-8">
@@ -99,7 +108,7 @@ const browser = await chromium.launch({ args: ["--use-gl=swiftshader",
   "--enable-unsafe-swiftshader", "--disable-dev-shm-usage"] });
 const page = await browser.newPage({ viewport: { width: 940, height: 700 } });
 await page.route("**/lod.html", (r) => r.fulfill({ contentType: "text/html", body: PAGE }));
-await page.goto("http://localhost:8321/lod.html", { waitUntil: "load" });
+await page.goto(`http://localhost:${PORT}/lod.html`, { waitUntil: "load" });
 await page.waitForFunction(() => window.__ready, null, { timeout: 60000 });
 
 const { writeFile } = await import("node:fs/promises");

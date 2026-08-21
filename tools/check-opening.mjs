@@ -15,42 +15,12 @@
  * with no GPU the descent runs at one to three frames a second and
  * every duration stretches; the sequence does not.
  */
-import { chromium, devices } from "playwright";
-import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
-import { existsSync, statSync } from "node:fs";
-import { resolve, extname, dirname, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { serve, launch, open, reporter } from "./_harness.mjs";
+import { devices } from "playwright";
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const PORT = 8092;
-const MIME = { ".html":"text/html", ".js":"text/javascript", ".mjs":"text/javascript",
-  ".css":"text/css", ".glb":"model/gltf-binary", ".png":"image/png", ".woff2":"font/woff2",
-  ".jpg":"image/jpeg", ".webp":"image/webp", ".svg":"image/svg+xml",
-  ".webmanifest":"application/manifest+json" };
-
-const server = createServer(async (req, res) => {
-  let rel;
-  try { rel = decodeURIComponent(req.url.split("?")[0]); }
-  catch { res.writeHead(400); return res.end(); }
-  if (rel === "/favicon.ico"){ res.writeHead(204); return res.end(); }
-  const path = resolve(ROOT, "." + (rel === "/" ? "/index.html" : rel));
-  if (path !== ROOT && !path.startsWith(ROOT + sep)){ res.writeHead(403); return res.end(); }
-  if (!existsSync(path) || statSync(path).isDirectory()){ res.writeHead(404); return res.end(); }
-  res.writeHead(200, { "content-type": MIME[extname(path)] || "application/octet-stream" });
-  res.end(await readFile(path));
-});
-
-const failures = [];
-const step = (name, ok, detail = "") => {
-  console.log(`${ok ? "  ok  " : " FAIL "} ${name}${detail ? "  — " + detail : ""}`);
-  if (!ok) failures.push(name);
-};
-
-await new Promise(r => server.listen(PORT, r));
-const browser = await chromium.launch({
-  args: ["--enable-unsafe-swiftshader", "--disable-dev-shm-usage", "--no-sandbox"],
-});
+const { origin, close: closeServer } = await serve();
+const browser = await launch();
+const { step, note, done } = reporter();
 
 /* The timeline is recorded INSIDE the page, so nothing here depends on
    how long a screenshot or a round trip takes on a software rasterizer. */
@@ -82,7 +52,7 @@ const visit = async (opts = {}) => {
   await page.addInitScript(() => Object.defineProperty(navigator, "webdriver", { get: () => false }));
   if (opts.before) await page.addInitScript(opts.before);
   await page.addInitScript(RECORD);
-  await page.goto(`http://localhost:${PORT}/`, { waitUntil: "domcontentloaded", timeout: 90_000 });
+  await page.goto(`${origin}/`, { waitUntil: "domcontentloaded", timeout: 90_000 });
   return { ctx, page };
 };
 /* Wait on the PAGE's own recording, not on a duration. The budget is
@@ -186,11 +156,7 @@ try {
   step("opening check completed", false, e.message.split("\n")[0]);
 } finally {
   await browser.close();
-  server.close();
+  closeServer();
 }
 
-if (failures.length){
-  console.log(`\n${failures.length} check(s) failed: ${failures.join(", ")}`);
-  process.exit(1);
-}
-console.log("\nall opening checks passed.");
+done("opening");

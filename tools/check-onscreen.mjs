@@ -22,7 +22,14 @@ import { existsSync, statSync } from "node:fs";
 import { resolve, extname, sep } from "node:path";
 
 const ROOT = resolve(new URL("..", import.meta.url).pathname);
-const PORT = 8311;
+/* Port 0, so the operating system hands out one nobody else holds.
+   This file and check-rig-names.mjs used to name the same number, and two
+   probes on one port means the second dies on EADDRINUSE before it
+   checks anything — reading like a broken checkout rather than a
+   clash. Left as a two-line change rather than a move onto
+   tools/_harness.mjs, because this probe is not in CI and I cannot
+   verify a larger edit to it. */
+let PORT = 0;
 const MIME = { ".html": "text/html", ".js": "text/javascript",
                ".css": "text/css", ".glb": "model/gltf-binary",
                ".png": "image/png", ".woff2": "font/woff2" };
@@ -35,7 +42,8 @@ const srv = createServer(async (req, res) => {
   res.writeHead(200, { "content-type": MIME[extname(p)] || "application/octet-stream" });
   res.end(await readFile(p));
 });
-await new Promise((ok) => srv.listen(PORT, ok));
+await new Promise((ok) => srv.listen(0, ok));
+PORT = srv.address().port;
 
 const browser = await chromium.launch({ args: ["--use-gl=swiftshader",
   "--enable-unsafe-swiftshader", "--disable-dev-shm-usage"] });

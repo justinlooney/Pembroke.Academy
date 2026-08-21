@@ -208,37 +208,36 @@ inspectors named as nouns. Minor.
 
 ## 5. What I would do, in order
 
-| | what | why | cost |
-|---|---|---|---|
-| 1 | Delete `_look.mjs`, `_site.mjs` | They advertise the shared harness that does not exist | minutes |
-| 2 | Delete the two orphaned keyframes and two custom properties | Already dead, orphaned by v149 | minutes |
-| 3 | `tools/_harness.mjs`, ports from the OS | Removes the port-collision class outright, not three instances | hours |
-| 4 | `tools/README.md` with the §6 table | Tells the next person which scripts are load-bearing | an hour |
-| 5 | Decide on the 17 hooks and the 51 legacy tokens | Both are named and visible now; neither is urgent | judgement |
-| 6 | Decide `LS_STUDY` | Migrate or document; do not leave it silent | judgement |
+| | what | why | cost | state |
+|---|---|---|---|---|
+| 1 | Delete `_look.mjs`, `_site.mjs` | They advertise the shared harness that does not exist | minutes | **done, v150** |
+| 2 | Delete the two orphaned keyframes and two custom properties | Already dead, orphaned by v149 | minutes | **done, v150** |
+| 3 | `tools/_harness.mjs`, ports from the OS | Removes the port-collision class outright, not three instances | hours | **done, v150** |
+| 4 | `tools/README.md` with the §6 table | Tells the next person which scripts are load-bearing | an hour | **done, v150** |
+| 5 | Decide on the 17 hooks and the 51 legacy tokens | Both are named and visible now; neither is urgent | judgement | open |
+| 6 | Decide `LS_STUDY` | Migrate or document; do not leave it silent | judgement | open |
 
-`mkPerson` is one line to remove and belongs with (2).
+`mkPerson` went with (2), and took more with it than one line: `skinMat`
+and all three tone tables (`SKIN_TONES`, `HAIR_TONES`, `PANT_TONES`)
+were read only from inside it. Forty-two lines, the last of the
+pre-GLB box people — a student built from nine cuboids with pivoted
+hips. Nothing has called them since the cast became authored bodies
+carrying their own skeletons.
 
----
+(2) and (3) shipped together in v150. Ports are now assigned by the OS
+in the six probes that had picked one by hand from the colliding set,
+and **no two scripts under `tools/` name the same port any more.**
 
 ## 6. The tool inventory
 
-**CI-enforced (16).** `check-a11y` · `check-breath` · `check-css` ·
-`check-gateway` · `check-ledger` · `check-materials` · `check-opening` ·
-`check-owner` · `check-rig-names` · `check-roles` · `check-sound` ·
-`check-stance` · `check-sw-version` · `check-worker` · `flatten-scenes` ·
-`smoke` · `thin-character` · plus the `mixamo-*` and `inspect-rig`
-authoring chain.
+Moved to **`tools/README.md`**, where it can be maintained next to the
+scripts it describes rather than inside a dated audit.
 
-**Documented but manual (6).** `check-character` · `check-donor` ·
-`check-frame` · `check-sitting` · `decimate.py` · `optimize-assets.sh` ·
-`make-assets` · `build-css.sh` · `vendor-three`.
-
-**Referenced by nothing (7).** `_look` · `_site` · `check-animations` ·
-`check-dialogue` · `check-onscreen` · `compare-lod` · `weigh` ·
-`png-in-terminal.py` · `clips/Standing_Idle.fbx`.
-
----
+Two corrections it carries that this section had wrong:
+`check-gateway.mjs` is **not** CI-enforced — it talks to production and
+spends real inference, and the CI job named `gateway` runs
+`check-worker.mjs` instead. And `check-css.mjs` was missing from the
+enforced list entirely.
 
 ## 7. Method
 

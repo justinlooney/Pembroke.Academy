@@ -19,7 +19,14 @@ import { resolve, extname, sep } from "node:path";
 import { mkdir } from "node:fs/promises";
 const ROOT = resolve(new URL("..", import.meta.url).pathname);
 const OUT = resolve(ROOT, ".shots");
-const PORT = 8321;
+/* Port 0, so the operating system hands out one nobody else holds.
+   This file and compare-lod.mjs used to name the same number, and two
+   probes on one port means the second dies on EADDRINUSE before it
+   checks anything — reading like a broken checkout rather than a
+   clash. Left as a two-line change rather than a move onto
+   tools/_harness.mjs, because this probe is not in CI and I cannot
+   verify a larger edit to it. */
+let PORT = 0;
 const BODY = process.argv[2] || "walker";
 const MIME = { ".html":"text/html", ".js":"text/javascript", ".css":"text/css",
   ".glb":"model/gltf-binary", ".png":"image/png", ".jpg":"image/jpeg",
@@ -32,7 +39,8 @@ const server = createServer(async (req, res) => {
   res.writeHead(200, { "content-type": MIME[extname(p)] || "application/octet-stream" });
   res.end(await readFile(p));
 });
-await new Promise(r => server.listen(PORT, r));
+await new Promise(r => server.listen(0, r));
+PORT = server.address().port;
 
 const browser = await chromium.launch({
   args: ["--enable-unsafe-swiftshader", "--disable-dev-shm-usage", "--no-sandbox"] });

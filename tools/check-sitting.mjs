@@ -32,7 +32,14 @@ import { existsSync, statSync, readdirSync } from "node:fs";
 import { resolve, extname, sep } from "node:path";
 
 const ROOT = resolve(new URL("..", import.meta.url).pathname);
-const PORT = 8361;
+/* Port 0, so the operating system hands out one nobody else holds.
+   This file and check-roles.mjs used to name the same number, and two
+   probes on one port means the second dies on EADDRINUSE before it
+   checks anything — reading like a broken checkout rather than a
+   clash. Left as a two-line change rather than a move onto
+   tools/_harness.mjs, because this probe is not in CI and I cannot
+   verify a larger edit to it. */
+let PORT = 0;
 const MIME = { ".html": "text/html", ".js": "text/javascript",
                ".glb": "model/gltf-binary", ".png": "image/png" };
 const pick = process.argv.slice(2).filter(a => !a.startsWith("-"));
@@ -139,7 +146,8 @@ const server = createServer(async (req, res) => {
   res.writeHead(200, { "content-type": MIME[extname(p)] || "application/octet-stream" });
   res.end(await readFile(p));
 });
-await new Promise(r => server.listen(PORT, r));
+await new Promise(r => server.listen(0, r));
+PORT = server.address().port;
 const browser = await chromium.launch({ args: ["--enable-unsafe-swiftshader", "--no-sandbox"] });
 const page = await browser.newPage();
 await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "domcontentloaded" });

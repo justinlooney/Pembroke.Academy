@@ -13,55 +13,23 @@
  *   - nothing plays before a gesture (the autoplay policy, and manners)
  *   - the choice is remembered, and still waits for a gesture next time
  */
-import { chromium } from "playwright";
-import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
-import { existsSync, statSync } from "node:fs";
-import { resolve, extname, dirname, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { serve, launch, open, reporter } from "./_harness.mjs";
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const PORT = 8091;
-const MIME = { ".html":"text/html", ".js":"text/javascript", ".mjs":"text/javascript",
-  ".css":"text/css", ".glb":"model/gltf-binary", ".png":"image/png", ".woff2":"font/woff2",
-  ".jpg":"image/jpeg", ".webp":"image/webp", ".svg":"image/svg+xml",
-  ".webmanifest":"application/manifest+json" };
-
-const server = createServer(async (req, res) => {
-  let rel;
-  try { rel = decodeURIComponent(req.url.split("?")[0]); }
-  catch { res.writeHead(400); return res.end(); }
-  if (rel === "/favicon.ico"){ res.writeHead(204); return res.end(); }
-  const path = resolve(ROOT, "." + (rel === "/" ? "/index.html" : rel));
-  if (path !== ROOT && !path.startsWith(ROOT + sep)){ res.writeHead(403); return res.end(); }
-  if (!existsSync(path) || statSync(path).isDirectory()){ res.writeHead(404); return res.end(); }
-  res.writeHead(200, { "content-type": MIME[extname(path)] || "application/octet-stream" });
-  res.end(await readFile(path));
-});
-
-const failures = [];
-const step = (name, ok, detail = "") => {
-  console.log(`${ok ? "  ok  " : " FAIL "} ${name}${detail ? "  — " + detail : ""}`);
-  if (!ok) failures.push(name);
-};
-
-await new Promise(r => server.listen(PORT, r));
-const browser = await chromium.launch({
-  args: ["--enable-unsafe-swiftshader", "--disable-dev-shm-usage", "--no-sandbox",
-         "--autoplay-policy=document-user-activation-required"],
-});
-const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-const page = await ctx.newPage();
+const { origin, close: closeServer } = await serve();
+const browser = await launch(["--autoplay-policy=document-user-activation-required"]);
+const { step, done } = reporter();
+/* __sound exists long before the arrival overlay leaves, and that
+   overlay sits at z-index 200 across the whole window — so waiting on
+   the module and then clicking a HUD button clicks the curtain. The
+   same predicate is needed again after the reload below, so it is
+   named once and handed to the harness. */
+const LIT = () => window.__sound && window.__app && !document.getElementById("arrival");
+const { page, up } = await open(browser, origin, { ready: LIT });
+const ready = () => page.waitForFunction(LIT, null, { timeout: 240_000 })
+                        .then(() => true, () => false);
 
 try {
-  await page.goto(`http://localhost:${PORT}/`, { waitUntil: "domcontentloaded", timeout: 90_000 });
-  /* __sound exists long before the arrival overlay leaves, and that
-     overlay sits at z-index 200 across the whole window — so waiting
-     on the module and then clicking a HUD button clicks the curtain */
-  const ready = () => page.waitForFunction(
-    () => window.__sound && window.__app && !document.getElementById("arrival"),
-    null, { timeout: 240_000 }).then(() => true, () => false);
-  if (!await ready()){
+  if (!up){
     /* say which of the two it was: a campus that will not start and a
        campus with no sound module are different failures */
     const up = await page.evaluate(() => !!window.__app).catch(() => false);
@@ -204,11 +172,7 @@ try {
   step("sound check completed", false, e.message.split("\n")[0]);
 } finally {
   await browser.close();
-  server.close();
+  closeServer();
 }
 
-if (failures.length){
-  console.log(`\n${failures.length} check(s) failed: ${failures.join(", ")}`);
-  process.exit(1);
-}
-console.log("\nall sound checks passed.");
+done("sound");
