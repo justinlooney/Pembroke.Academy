@@ -3796,7 +3796,30 @@ const stageEl = document.getElementById("stage");
 const wingEl  = document.getElementById("campus-wing");
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+/* THE PIXEL RATIO, IN ONE PLACE.
+   Three things have an opinion: the device (its ceiling, capped at 2 —
+   beyond that nobody can see the difference and everybody pays for
+   it), the quality ladder, and the arrival preset. They used to write
+   renderer.setPixelRatio directly from five sites, and the ceiling was
+   read ONCE at boot and never again — so resize(), which fires on
+   browser zoom and on a window moving between displays of different
+   density, updated the canvas size and left the density behind.
+   Measured: devicePixelRatio 3, resize dispatched, getPixelRatio still
+   1, drawing buffer unchanged.
+
+   Naively re-reading it in resize() would have been worse than the
+   bug: it would stomp the ladder, handing a phone back the rung it
+   shed on an honest measurement every time it was rotated. So the
+   ladder and the preset now hold CAPS rather than values, the device
+   holds the ceiling, and the lowest of the three wins. A rung given up
+   still stays given up — ladderCap only ever falls — and the preset
+   restores to whatever the ladder currently allows rather than to a
+   number captured before it. */
+let dprCeiling = Math.min(window.devicePixelRatio, 2);
+let ladderCap = Infinity, presetCap = Infinity;
+const applyPixelRatio = () =>
+  renderer.setPixelRatio(Math.min(dprCeiling, ladderCap, presetCap));
+applyPixelRatio();
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -3817,6 +3840,12 @@ const world = new THREE.Scene();
 /* image-based lighting: glass, water and paint pick up a real environment */
 const pmrem = new THREE.PMREMGenerator(renderer);
 world.environment = pmrem.fromScene(new RoomEnvironment(), 0.06).texture;
+/* The generator is scaffolding, not the product: it holds a ping-pong
+   render target, the LOD plane geometry and three materials, and the
+   texture above outlives all of it. Disposed once the environment
+   exists, which is what three's own documented usage does — this had
+   been held for the whole session since the day IBL was added. */
+pmrem.dispose();
 world.environmentIntensity = 0.55;
 const camera = new THREE.PerspectiveCamera(46, 1, 2, 6000);
 /* Stand back further on a tall screen. Even at the widened fov, portrait
@@ -4035,13 +4064,13 @@ const RUNG_MS = 3000;            /* how long a rung gets before the next one */
 let rung = 0, rungAt = 0;
 const LADDER = [
   () => { if (ssao){ composer.removePass(ssao); ssao.dispose?.(); ssao = null; } },
-  () => renderer.setPixelRatio(1),
+  () => { ladderCap = 1; applyPixelRatio(); },
   () => { sun.shadow.mapSize.set(1536, 1536);
           sun.shadow.map?.dispose(); sun.shadow.map = null; },
   () => { renderer.shadowMap.enabled = false;
           world.traverse(o => { if (o.isMesh && o.material) [].concat(o.material)
             .forEach(m => m.needsUpdate = true); }); },
-  () => { composer.removePass(bloom); renderer.setPixelRatio(0.75); },
+  () => { composer.removePass(bloom); ladderCap = 0.75; applyPixelRatio(); },
 ];
 /* ── the arrival preset ───────────────────────────────────────────────
    The flicker, and why the ladder could never have fixed it.
@@ -4106,17 +4135,17 @@ const LADDER = [
    ratio is. It makes the frames on either side of the block cheap,
    which is worth having and is not the whole answer — see the note on
    the atrium's own load. */
-let loadPreset = false, presetDpr = 0;
+let loadPreset = false;
 function setLoadPreset(on){
   if (on === loadPreset) return;
   loadPreset = on;
   if (on){
-    /* Captured fresh each time. The ladder may have shed a pixel-ratio
-       rung since the last arrival, and restoring a number from before
-       that would hand back quality the ladder had already taken away on
-       an honest measurement. */
-    presetDpr = renderer.getPixelRatio();
-    if (presetDpr > 1) renderer.setPixelRatio(1);
+    /* A cap, not a captured number. The old shape read the current
+       ratio on the way in and wrote it back on the way out, guarded by
+       `rung < 2` so that a rung shed DURING the preset was not undone.
+       Caps make that guard unnecessary: the ladder's own cap is still
+       there underneath, so whatever it took stays taken. */
+    presetCap = 1; applyPixelRatio();
     if (ssao) ssao.enabled = false;
     bloom.enabled = false;
     renderer.shadowMap.needsUpdate = true;   /* one good map, then hold it */
@@ -4125,7 +4154,7 @@ function setLoadPreset(on){
     /* Handed back to the ladder, not forced back to full: a rung given
        up while the preset was on stays given up, because the ladder
        shed it on a measurement that was already honest. */
-    if (presetDpr > 1 && rung < 2) renderer.setPixelRatio(presetDpr);
+    presetCap = Infinity; applyPixelRatio();
     if (ssao) ssao.enabled = true;
     if (composer.passes.includes(bloom)) bloom.enabled = true;
     renderer.shadowMap.autoUpdate = true;
@@ -4135,6 +4164,10 @@ function setLoadPreset(on){
   console.info("campus: arrival preset " + (on ? "on — cheap while the cast decodes" : "off — full quality restored"));
 }
 window.__preset = () => ({ on: loadPreset, dpr: renderer.getPixelRatio(),
+                           /* the three opinions and what they resolved to, so
+                              a probe can assert the invariant rather than infer
+                              it from the one number they produce */
+                           ceiling: dprCeiling, ladderCap, presetCap,
                            ssao: !!(ssao && ssao.enabled), bloom: bloom.enabled,
                            shadowsLive: renderer.shadowMap.autoUpdate });
 const NO_LADDER = q.has("noladder");
@@ -4378,6 +4411,11 @@ function sweepPlates(now){
 
 function resize(){
   const w = stageEl.clientWidth || 800, h = stageEl.clientHeight || 600;
+  /* Browser zoom changes devicePixelRatio and fires this; so does a
+     window moving between displays. Re-read the ceiling — the ladder's
+     and the preset's caps still sit under it. */
+  dprCeiling = Math.min(window.devicePixelRatio, 2);
+  applyPixelRatio();
   renderer.setSize(w, h);
   composer.setSize(w, h);
   /* the ink samples its neighbours a texel away, so a texel has to
