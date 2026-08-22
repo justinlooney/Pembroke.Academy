@@ -69,36 +69,6 @@ const out = await page.evaluate(async ([want, clipName, donorUrl]) => {
     return m; };
   const R = map(s.g, false), D = map(donor.scene, true);
 
-  /* ── the basis the retarget INTENDS, captured at rest ─────────────
-     The receiver's world quaternion is not supposed to equal the
-     donor's. lendClip maps the donor's rest onto the receiver's, so the
-     intended relationship carries a constant per-bone offset
-
-         C = restDonor^-1 * restReceiver
-
-     and comparing raw quaternions measures C, which is design rather
-     than fault. The first version of this did exactly that and reported
-     179.7 deg of "twist" at a shoulder — almost certainly two rigs whose
-     upper-arm axes point opposite ways, exactly as intended.
-
-     So C is measured here, at rest, before either is driven, and
-     divided out below. What is left is the retarget's error. */
-  s.g.userData.anim.mixer.stopAllAction();
-  s.g.skeletonRestDone = true;
-  const restC = new Map();
-  donor.scene.updateMatrixWorld(true); s.g.updateMatrixWorld(true);
-  for (const [k, rb] of R){
-    const db = D.get(k); if (!db) continue;
-    const dq = db.getWorldQuaternion(new THREE.Quaternion());
-    const rq = rb.getWorldQuaternion(new THREE.Quaternion());
-    restC.set(k, dq.invert().multiply(rq));        /* donor^-1 * receiver */
-  }
-  const restDir = new Map();
-  for (const k of R.keys()){
-    const rd = dirOf(R, k), dd = dirOf(D, k);
-    if (rd && dd) restDir.set(k, +(Math.acos(Math.max(-1, Math.min(1, rd.dot(dd)))) * 180 / Math.PI).toFixed(1));
-  }
-
   const dMixer = new THREE.AnimationMixer(donor.scene);
   const dAct = dMixer.clipAction(dClip); dAct.play();
   act.play();
@@ -139,6 +109,41 @@ const out = await page.evaluate(async ([want, clipName, donorUrl]) => {
     const c = kid.getWorldPosition(new THREE.Vector3());
     const v = c.sub(a); return v.lengthSq() > 1e-9 ? v.normalize() : null;
   };
+
+  /* ── the basis the retarget INTENDS, captured at rest ─────────────
+     The receiver's world quaternion is not supposed to equal the
+     donor's. lendClip maps the donor's rest onto the receiver's, so the
+     intended relationship carries a constant per-bone offset
+
+         C = restDonor^-1 * restReceiver
+
+     and comparing raw quaternions measures C, which is design rather
+     than fault. The first version of this did exactly that and reported
+     179.7 deg of "twist" at a shoulder — almost certainly two rigs whose
+     upper-arm axes point opposite ways, exactly as intended.
+
+     So C is measured here, at rest, before either is driven, and
+     divided out below. What is left is the retarget's error. */
+  /* stopAllAction only stops DRIVING the skeleton; it leaves whatever
+     frame was last written standing. skeleton.pose() is what actually
+     restores the bind pose, and without it "rest" would have been a
+     random frame of whatever was playing when the probe attached. */
+  s.g.userData.anim.mixer.stopAllAction();
+  s.g.traverse(o => { if (o.isSkinnedMesh) o.skeleton.pose(); });
+  const restC = new Map();
+  donor.scene.updateMatrixWorld(true); s.g.updateMatrixWorld(true);
+  for (const [k, rb] of R){
+    const db = D.get(k); if (!db) continue;
+    const dq = db.getWorldQuaternion(new THREE.Quaternion());
+    const rq = rb.getWorldQuaternion(new THREE.Quaternion());
+    restC.set(k, dq.invert().multiply(rq));        /* donor^-1 * receiver */
+  }
+  const restDir = new Map();
+  for (const k of R.keys()){
+    const rd = dirOf(R, k), dd = dirOf(D, k);
+    if (rd && dd) restDir.set(k, +(Math.acos(Math.max(-1, Math.min(1, rd.dot(dd)))) * 180 / Math.PI).toFixed(1));
+  }
+
 
   const SAMPLES = 8, worst = new Map();
   for (let i = 0; i < SAMPLES; i++){
