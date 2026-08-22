@@ -69,8 +69,39 @@ const out = await page.evaluate(async ([want, clipName, donorUrl]) => {
     return m; };
   const R = map(s.g, false), D = map(donor.scene, true);
 
+  /* ── the basis the retarget INTENDS, captured at rest ─────────────
+     The receiver's world quaternion is not supposed to equal the
+     donor's. lendClip maps the donor's rest onto the receiver's, so the
+     intended relationship carries a constant per-bone offset
+
+         C = restDonor^-1 * restReceiver
+
+     and comparing raw quaternions measures C, which is design rather
+     than fault. The first version of this did exactly that and reported
+     179.7 deg of "twist" at a shoulder — almost certainly two rigs whose
+     upper-arm axes point opposite ways, exactly as intended.
+
+     So C is measured here, at rest, before either is driven, and
+     divided out below. What is left is the retarget's error. */
+  s.g.userData.anim.mixer.stopAllAction();
+  s.g.skeletonRestDone = true;
+  const restC = new Map();
+  donor.scene.updateMatrixWorld(true); s.g.updateMatrixWorld(true);
+  for (const [k, rb] of R){
+    const db = D.get(k); if (!db) continue;
+    const dq = db.getWorldQuaternion(new THREE.Quaternion());
+    const rq = rb.getWorldQuaternion(new THREE.Quaternion());
+    restC.set(k, dq.invert().multiply(rq));        /* donor^-1 * receiver */
+  }
+  const restDir = new Map();
+  for (const k of R.keys()){
+    const rd = dirOf(R, k), dd = dirOf(D, k);
+    if (rd && dd) restDir.set(k, +(Math.acos(Math.max(-1, Math.min(1, rd.dot(dd)))) * 180 / Math.PI).toFixed(1));
+  }
+
   const dMixer = new THREE.AnimationMixer(donor.scene);
   const dAct = dMixer.clipAction(dClip); dAct.play();
+  act.play();
 
   /* swing-twist split about `axis`: the component of q that rotates
      around the axis is the twist; what is left is the swing. */
@@ -80,10 +111,30 @@ const out = await page.evaluate(async ([want, clipName, donorUrl]) => {
     const t = new THREE.Quaternion(proj.x, proj.y, proj.z, q.w).normalize();
     return 2 * Math.acos(Math.min(1, Math.abs(t.w))) * 180 / Math.PI;
   };
+  /* ── the child is NAMED, never "the first one found" ──────────────
+     A bone's direction is the vector to its child, which is only
+     comparable across two rigs if it is the SAME child on both. The
+     first version took b.children.find(...), and at a branching joint
+     that is whichever the exporter happened to list first — the spine
+     on one rig and a leg on the other. It made hips, spine, spine1 and
+     spine2 meaningless while printing them beside the limbs as though
+     they were evidence. Only single-chain joints survived, and only by
+     luck.
+
+     So the chain is declared. A joint with no entry here has no
+     comparable direction and is not reported at all, rather than
+     reported wrongly. */
+  const CHILD = {
+    hips: "spine", spine: "spine1", spine1: "spine2", spine2: "neck",
+    chest: "neck", neck: "head",
+    leftshoulder: "leftarm", leftarm: "leftforearm", leftforearm: "lefthand",
+    rightshoulder: "rightarm", rightarm: "rightforearm", rightforearm: "righthand",
+    leftupleg: "leftleg", leftleg: "leftfoot", leftfoot: "lefttoebase",
+    rightupleg: "rightleg", rightleg: "rightfoot", rightfoot: "righttoebase",
+  };
   const dirOf = (m, k) => {
-    const b = m.get(k); if (!b) return null;
-    const kid = b.children.find(c => m.get(key(c.name)) === c);
-    if (!kid) return null;
+    const b = m.get(k), kid = m.get(CHILD[k]);
+    if (!b || !kid) return null;
     const a = b.getWorldPosition(new THREE.Vector3());
     const c = kid.getWorldPosition(new THREE.Vector3());
     const v = c.sub(a); return v.lengthSq() > 1e-9 ? v.normalize() : null;
@@ -102,11 +153,15 @@ const out = await page.evaluate(async ([want, clipName, donorUrl]) => {
       if (!rd || !dd) continue;
       const rq = rb.getWorldQuaternion(new THREE.Quaternion());
       const dq = db.getWorldQuaternion(new THREE.Quaternion());
-      const diff = dq.clone().invert().premultiply(rq);      /* receiver relative to donor */
+      /* intended = donor's orientation carried through the rest basis.
+         What the receiver does beyond that is the error. */
+      const C = restC.get(k); if (!C) continue;
+      const intended = dq.clone().multiply(C);
+      const err = intended.invert().premultiply(rq);
       const swing = +(Math.acos(Math.max(-1, Math.min(1, rd.dot(dd)))) * 180 / Math.PI).toFixed(1);
-      const twist = +twistOf(diff, dd).toFixed(1);
+      const twist = +twistOf(err, dd).toFixed(1);
       const cur = worst.get(k);
-      if (!cur || twist > cur.twist) worst.set(k, { swing, twist });
+      if (!cur || twist > cur.twist) worst.set(k, { swing, twist, rest: restDir.get(k) ?? null });
     }
   }
   act.paused = false;
@@ -119,20 +174,30 @@ else {
   out.rows.sort((a, b) => b.twist - a.twist);
   console.log(`\n${WANT} · "${CLIP}" vs ${DONOR.split("/").pop()}  (${out.dur}s, 8 matched times)`);
   console.log(`donor joints ${out.donorBones}, receiver joints ${out.recvBones}, compared ${out.rows.length}\n`);
-  console.log("  joint            swing   twist    (deg; worst of 8 matched samples)");
+  console.log("  joint            swing   twist   restSwing   (deg; worst of 8 matched)");
   for (const r of out.rows)
     console.log(`  ${r.k.padEnd(16)} ${String(r.swing).padStart(5)}   ${String(r.twist).padStart(5)}` +
-                (r.twist > 30 ? "   <<<" : ""));
+                `   ${String(r.rest ?? "-").padStart(9)}` +
+                (r.twist > 30 || r.swing > 30 ? "   <<<" : ""));
   const bad = out.rows.filter(r => r.twist > 30);
   const swung = out.rows.filter(r => r.swing > 30);
-  console.log(`\n  ${bad.length} joint(s) roll more than 30 deg away from the donor;` +
-              ` ${swung.length} point more than 30 deg away.`);
-  console.log(bad.length && bad.length > swung.length
-    ? `  Twist dominates: the bones point roughly right and are ROLLED about their\n` +
-      `  own axes, which is what shears a mesh while leaving joint angles intact.`
-    : bad.length
-      ? `  Both are off; twist is not the whole story.`
-      : `  Twist is small. The retarget reproduces the donor's roll, and this is NOT\n` +
-        `  the fault either.`);
+  console.log(`\n  swing = where the limb points vs the donor, basis-independent.`);
+  console.log(`  twist = roll left over AFTER the intended rest basis is divided out.`);
+  console.log(`  restSwing = the same swing measured at REST, before any clip plays —`);
+  console.log(`              a large value there is the rigs' own pose difference,`);
+  console.log(`              not something the clip did.`);
+  console.log(`\n  ${swung.length} joint(s) point more than 30 deg from the donor;` +
+              ` ${bad.length} roll more than 30 deg.`);
+  if (!swung.length && !bad.length)
+    console.log(`  The retarget reproduces the donor on both channels. Neither is the fault.`);
+  else if (swung.length && bad.length)
+    console.log(`  BOTH channels are off, so this does not isolate one mechanism.`);
+  else if (swung.length)
+    console.log(`  Direction is wrong and roll is not: the retarget is not reproducing the\n` +
+                `  donor's SHAPE, which is a pose fault rather than a shearing one.`);
+  else
+    console.log(`  Roll is wrong and direction is not: bones point where they should and are\n` +
+                `  rolled about their own axes, which shears a mesh while leaving joint\n` +
+                `  angles intact.`);
 }
 await browser.close(); await closeSrv();
