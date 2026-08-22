@@ -4236,6 +4236,9 @@ const BENCH = q.has("bench");
    only: absent, nothing below it runs. */
 const RIGTRACE = q.get("rigtrace") || null;
 const RIGREST = q.has("rigrest");
+/* ?skin=2 or 3 — see tightenWeights. 0 or absent leaves the weights as
+   the files carry them. */
+const SKIN_TIGHTEN = +(q.get("skin") || 0) || 0;
 const RIGTRACE_FRAME = +(q.get("rigframe") || 8);
 /* WHY the ladder is not shedding, in words, for the frame after this
    one to report. The panel could always say which rung the campus was
@@ -7997,6 +8000,54 @@ function deshine(root){
  * Left as a note because it will look like an obvious improvement to
  * the next person who reads the material flags, as it did to me.
  */
+/* ── ?skin=N — tighten the skin weights, at load, on the way in ───────
+   Measured on char17, over all 119,483 vertices: the weights are
+   valid — every vertex sums to exactly 1, every index points at the
+   bone its vertices sit on, every inverse bind returns identity — and
+   they are SOFT. 54% of vertices are split across all four influences,
+   and no vertex anywhere is more than 85% controlled by a forearm, a
+   hand, a clavicle, the spine or the chest. Those bones own nothing
+   outright, while Head owns 17,610 and each thigh about 1,300.
+
+   Wide falloff smears under strong poses, worst where several bones
+   converge and disagree: shoulder, elbow, wrist, torso. That is a
+   property of how the bodies were skinned, not of anything this code
+   does, and the real repair is upstream — tighter falloff, or more
+   bones through the elbow and wrist.
+
+   What CAN be done here is pull each vertex back toward whichever bone
+   already leads it: raise every weight to a power and renormalise. An
+   exponent of 1 is the file as authored. 2 halves the influence of a
+   bone at half strength relative to the leader; 3 quarters it. It
+   cannot invent detail the skinning never had, and pushed far enough it
+   trades smear for creasing at the joints, which is why it is a dial
+   and not a constant.
+
+   OFF unless asked for, because it is a judgement about how the cast
+   should look and not a defect being repaired — and because a flag is
+   what lets the same phone compare the same figure with and without it,
+   which is worth more than any measurement taken here. */
+function tightenWeights(root, power){
+  if (!(power > 1)) return;
+  root.traverse(o => {
+    if (!o.isSkinnedMesh) return;
+    const a = o.geometry.attributes.skinWeight;
+    if (!a) return;
+    /* Written into a fresh float attribute rather than edited in place:
+       meshopt hands these back as normalised integers, and writing
+       floats into that array silently quantises every value. */
+    const out = new Float32Array(a.count * 4);
+    for (let i = 0; i < a.count; i++){
+      const w = [a.getX(i), a.getY(i), a.getZ(i), a.getW(i)]
+        .map(v => Math.pow(Math.max(0, v), power));
+      const sum = w[0] + w[1] + w[2] + w[3];
+      const o4 = i * 4;
+      if (sum > 1e-8) for (let c = 0; c < 4; c++) out[o4 + c] = w[c] / sum;
+      else out[o4] = 1;              /* a vertex with no influence at all */
+    }
+    o.geometry.setAttribute("skinWeight", new THREE.BufferAttribute(out, 4));
+  });
+}
 function sharpen(root){
   const aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy() || 1);
   root.traverse(o => {
@@ -9360,6 +9411,7 @@ function lendSitDown(){
     castLib[k] = g;
     deshine(g.scene);
     sharpen(g.scene);
+    tightenWeights(g.scene, SKIN_TIGHTEN);
     /* Measured before they are pinned in place, for every body that
        walks — the gait count is what both paces playback and tells a
        walk cycle from a standing loop. */
