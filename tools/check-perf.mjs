@@ -58,14 +58,15 @@
  * launches, with the reason written down.
  *
  * PROVENANCE. The workload above is half of a measurement; the machine
- * is the other half. Every record carries `environment` — GPU and
- * driver string, WHETHER HARDWARE ACCELERATION WAS ACTUALLY ACTIVE,
- * browser and version, OS, CPUs, memory, and the CI runner image where
- * CI provides it. The accelerated flag is the one that decides whether
- * a ceiling transfers: SwiftShader and a real GPU are not the same
- * measurement however identical the workload was, so --calibrate
- * refuses to recommend a number when acceleration was off, and the
- * commit that sets P95_CEILING must paste this block beside it.
+ * is the other half. Every record carries `environment` — renderer and
+ * driver string, whether hardware acceleration was active, browser and
+ * version, OS, CPUs, memory, and the CI runner image where CI provides
+ * it — together with the ENFORCEMENT target it was compared against.
+ * The rule is not "measure on a GPU"; it is that the machine which
+ * calibrates must match the machine that enforces. --calibrate refuses
+ * to recommend a number off-target and says which field differs, and
+ * the commit that sets P95_CEILING must paste this block beside it. See
+ * ENFORCEMENT below for why the target here is a software rasterizer.
  */
 import { serve, launch, reporter } from "./_harness.mjs";
 import { execSync } from "node:child_process";
@@ -111,7 +112,12 @@ const POSE = { v: 1, pos: [-420, 300, 420], look: [0, 0, 0] };
    new method would repeat exactly that mistake. Run --runs 5 on an
    unchanged main, several times, then put the number here with a note
    saying what it was measured on. Until then this reports and does not
-   gate. */
+   gate.
+
+   The run that produces the number is `.github/workflows/calibrate.yml`
+   — dispatch it by hand, take the recommendation out of the artifact,
+   and paste the record's `environment` and `enforcementTarget` into the
+   commit that sets this constant. */
 const P95_CEILING = null;
 
 /* FIRST BASELINE UNDER THE CONTRACT — recorded as data, not as a
@@ -176,6 +182,55 @@ const P95_CEILING = null;
 const MIN_LAUNCHES = 5;
 const ACCEPT_SPREAD = 25;      /* p95 draw calls, across launches */
 const HEADROOM = 0.03;         /* 3% above the worst p95 observed */
+
+/* THE ENFORCEMENT TARGET — the machine the gate will RUN ON.
+ *
+ * An earlier version of this file refused to recommend a ceiling
+ * whenever hardware acceleration was off, on the reasoning that "a
+ * number from SwiftShader does not describe a GPU runner". That rule is
+ * wrong, and wrong in the direction that blocks the only calibration
+ * this project can actually perform.
+ *
+ * GitHub-hosted runners have no GPU. Every probe here launches with
+ * --enable-unsafe-swiftshader (tools/_harness.mjs), so the machine that
+ * would ENFORCE a perf gate is a software rasterizer — permanently,
+ * short of buying GPU runners. Calibrating under SwiftShader for a gate
+ * that runs under SwiftShader is not a compromise. It is the procedure.
+ *
+ * The real requirement was never "measure on a GPU". It is: THE MACHINE
+ * THAT CALIBRATES MUST MATCH THE MACHINE THAT ENFORCES. So the target is
+ * declared, and the run is compared against it.
+ *
+ * WHAT IS COMPARED, AND WHY ONLY THIS. The metric is a draw-call COUNT,
+ * not a duration, so most of what differs between machines cannot move
+ * it: core count, clock speed and memory bandwidth change how long a
+ * frame takes, not how many submissions it contains. What CAN move the
+ * count is anything that changes which passes and which objects exist —
+ * renderer class (extension and capability support decides whether a
+ * pass can be built at all), platform, and browser, since Three's
+ * capability detection is what composes the chain. Those are compared.
+ * CPU and RAM are recorded for the reader and deliberately not gated
+ * on; claiming they matter here would be ceremony, not rigour. */
+const ENFORCEMENT = {
+  id: "github-hosted · ubuntu · chromium · swiftshader",
+  platform: "linux",
+  browser: "chromium",
+  hardwareAccelerated: false,
+  why: "GitHub-hosted runners have no GPU and _harness.mjs launches with --enable-unsafe-swiftshader",
+};
+
+/** Everything about this run that disqualifies it from calibrating the target. */
+function targetMismatch(env, target){
+  const out = [];
+  if (env.hardwareAccelerated !== target.hardwareAccelerated)
+    out.push(`hardware acceleration is ${env.hardwareAccelerated} here, ` +
+             `${target.hardwareAccelerated} on the target`);
+  if (!String(env.os).startsWith(target.platform))
+    out.push(`platform is "${env.os}" here, "${target.platform}" on the target`);
+  if (!String(env.browser).startsWith(target.browser))
+    out.push(`browser is "${env.browser}" here, "${target.browser}" on the target`);
+  return out;
+}
 
 const stats = (a) => {
   const s = [...a].sort((x, y) => x - y);
@@ -313,6 +368,8 @@ const record = {
                         elapsedMs: r.elapsedMs })),
   p95Spread: spread,
   p95Ceiling: P95_CEILING,
+  enforcementTarget: ENFORCEMENT.id,
+  enforcementMismatch: targetMismatch(environment, ENFORCEMENT),
   totalElapsedMs: Date.now() - started,
 };
 console.log("\n--- run record (JSON) ---");
@@ -338,23 +395,31 @@ if (CALIBRATE){
   if (!validProfile) console.log(`\n  PROFILE "${PROFILE}" IS UNVALIDATED — calibrate on "full", or first` +
                                  `\n  show that this profile's p95 tracks it.`);
   if (LIVE) console.log(`\n  LIVE WORKLOAD — cannot calibrate a gate from a stochastic run.`);
-  console.log(`  measured on         ${environment.gpu || "unknown GPU"}`);
-  console.log(`  hardware accelerated ${environment.hardwareAccelerated}` +
-              (environment.hardwareAccelerated === false
-                 ? "   *** a ceiling from a software rasterizer does not describe a GPU runner ***" : ""));
+  const mismatch = targetMismatch(environment, ENFORCEMENT);
+  const onTarget = mismatch.length === 0;
+  console.log(`  enforcement target  ${ENFORCEMENT.id}`);
+  console.log(`  measured on         ${environment.gpu || "unknown renderer"}`);
+  console.log(`  hardware accelerated ${environment.hardwareAccelerated}`);
   console.log(`  browser / os        ${environment.browser} · ${environment.os}` +
               (environment.runnerImage ? ` · image ${environment.runnerImage}` : ""));
-  if (enough && stable && validProfile && !LIVE){
+  console.log(`  cpus / memory       ${environment.cpus} · ${environment.totalMemGB} GB` +
+              `   (recorded, not gated on — see ENFORCEMENT)`);
+  console.log(`  matches the target  ${onTarget ? "yes" : "NO"}`);
+  if (!onTarget){
+    console.log(`\n  NOT THE ENFORCING MACHINE — a ceiling calibrated here would gate`);
+    console.log(`  something else. What differs:`);
+    for (const m of mismatch) console.log(`    · ${m}`);
+    console.log(`  Either calibrate on the target, or change ENFORCEMENT to name`);
+    console.log(`  the machine that will actually run the gate — deliberately, in`);
+    console.log(`  a commit. Do not calibrate here and hope.`);
+  }
+  if (enough && stable && validProfile && !LIVE && onTarget){
     const rec = Math.ceil(worst * (1 + HEADROOM));
     console.log(`\n  RECOMMENDED P95_CEILING = ${rec}   (worst ${worst} + ${(HEADROOM*100).toFixed(0)}%)`);
-    console.log(`  Set it by hand, in a commit that carries the provenance printed`);
-    console.log(`  above: GPU and driver string, whether acceleration was ACTIVE,`);
-    console.log(`  browser and version, runner image and OS. The record block holds`);
-    console.log(`  all of it — paste it into the commit that sets the number.`);
-    if (environment.hardwareAccelerated === false){
-      console.log(`\n  BUT NOT FROM THIS RUN: acceleration was not active. This number`);
-      console.log(`  describes a software rasterizer and must not gate a GPU runner.`);
-    }
+    console.log(`  Set it by hand, in a commit carrying the provenance printed above:`);
+    console.log(`  renderer, acceleration state, browser and version, runner image`);
+    console.log(`  and OS, and the enforcement target it was matched against. The`);
+    console.log(`  record block holds all of it — paste it into that commit.`);
   } else {
     console.log(`\n  NO RECOMMENDATION. The conditions above are the whole point;`);
     console.log(`  a number produced without them is how the last ceiling happened.`);
