@@ -101,29 +101,46 @@ for (let i = 0; i < SAMPLES; i++){
     const ul = (s) => pick(s + "upleg", s + "upperleg", s + "thigh");
     const ll = (s) => pick(s + "leg", s + "lowerleg", s + "shin");
     const ft = (s) => pick(s + "foot");
-    const sp = pick("spine", "spine1"), ch = pick("spine2", "chest", "spine1");
-    return { names,
+    /* This rig is NOT Mixamo-named. It reads
+         Root, Pelvis, Spine, Spine1, Spine2, Chest, Neck, Head,
+         RightClavicle, RightUpperArm, RightForeArm, RightHand,
+         RightThigh, RightShin, RightFoot, RightToe
+       and the first run of this probe asked for "hips", got nothing,
+       and printed "spineBend — no bones matched" while still closing
+       with "every measured joint is inside human range". The one chain
+       that looks wrong in the render was the one chain not measured.
+       Aliases now cover both vocabularies. */
+    const root = pick("pelvis", "hips");
+    const sp = pick("spine", "spine1"), ch = pick("chest", "spine2", "spine1");
+    return { names, rootBone: root, chestBone: ch,
       leftElbow:  bend(ua("left"),  fa("left"),  hd("left")),
       rightElbow: bend(ua("right"), fa("right"), hd("right")),
       leftKnee:   bend(ul("left"),  ll("left"),  ft("left")),
       rightKnee:  bend(ul("right"), ll("right"), ft("right")),
-      spineBend:  bend("hips", sp, ch),
+      lowSpine:   bend(root, sp, pick("spine1", "spine2", "chest")),
+      midSpine:   bend(sp, pick("spine1", "spine2"), ch),
+      spineTotal: bend(root, ch, pick("head", "neck")),
       neckBend:   bend(ch, pick("neck"), pick("head")),
-      leftShoulder:  bend(pick("spine2","chest","spine1"), pick("leftshoulder", ua("left")), fa("left")),
-      rightShoulder: bend(pick("spine2","chest","spine1"), pick("rightshoulder", ua("right")), fa("right")),
+      leftShoulder:  bend(ch, pick("leftclavicle", "leftshoulder", ua("left")), ua("left")),
+      rightShoulder: bend(ch, pick("rightclavicle", "rightshoulder", ua("right")), ua("right")),
+      leftArmSwing:  bend(ch, ua("left"),  fa("left")),
+      rightArmSwing: bend(ch, ua("right"), fa("right")),
     };
   }));
   await page.waitForTimeout(700);
 }
 
-console.log(`\n${frames[0].names.length} bones: ${frames[0].names.join(", ")}\n`);
+console.log(`\n${frames[0].names.length} bones: ${frames[0].names.join(", ")}`);
+console.log(`root joint matched: ${frames[0].rootBone}   chest: ${frames[0].chestBone}\n`);
 /* Ranges a living joint stays inside. Deliberately generous — the point
    is to catch the impossible, not to grade the posture. */
 const RANGE = {
   leftElbow: [30, 185], rightElbow: [30, 185],
   leftKnee: [55, 190], rightKnee: [55, 190],
-  spineBend: [110, 190], neckBend: [95, 190],
-  leftShoulder: [25, 185], rightShoulder: [25, 185],
+  lowSpine: [130, 190], midSpine: [130, 190], spineTotal: [120, 190],
+  neckBend: [95, 190],
+  leftShoulder: [55, 185], rightShoulder: [55, 185],
+  leftArmSwing: [10, 185], rightArmSwing: [10, 185],
 };
 const keys = Object.keys(RANGE);
 const rows = keys.map(k => {
@@ -144,8 +161,14 @@ for (const r of rows){
 const bad = rows.filter(r => !r.missing && r.out > 0);
 console.log(bad.length
   ? `\n  ${bad.length} joint(s) hold a pose a person cannot: ${bad.map(r => r.k).join(", ")}`
-  : `\n  every measured joint is inside human range — the distortion is NOT joint angles,`
-    + `\n  and the next suspect is skinning rather than posing.`);
+  : `\n  every measured joint is inside human range.`);
+const missed = rows.filter(r => r.missing);
+if (missed.length)
+  console.log(`  BUT ${missed.length} were not measured at all (${missed.map(r => r.k).join(", ")}) —`
+            + `\n  no conclusion covers a joint this probe could not find.`);
+else if (!bad.length)
+  console.log(`  Nothing was skipped, so the skeleton holds a possible pose and the`
+            + `\n  next suspect is skinning, or a pose that is possible but wrong.`);
 
 await page.screenshot({ path: `${OUT}/anatomy-${target.body}.png`, timeout: 120_000 });
 console.log(`\nwrote .shots/anatomy-${target.body}.png`);
