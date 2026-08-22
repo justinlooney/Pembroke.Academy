@@ -7690,16 +7690,16 @@ const loadedLoitering = () => LOITERING.filter(k => castLib[k]);
  * which, so the plan asks for the pose and lets the body answer.
  * `needs` is the same question asked before the body is chosen. */
 const CAST_PLAN = [
-  { k: "any" },                                             /* Elowen — roams        */
-  { k: "loiter", at: [790, 428], face: -0.9, live: true, pose: 0 }, /* Marcus — Drosdick door apron */
+  { k: "char2" },                                             /* Elowen — roams        */
+  { k: "char5", at: [790, 428], face: -0.9, live: true, pose: 0 }, /* Marcus — Drosdick door apron */
   /* Priya — a roamer now, the same medicine Sofia took. She stood on
      the plaza as kind "chat", swivelling through her body's gesture
      clip at nobody — reported from a phone as "one person is stuck in
      idle talking mode". A chat pose with no partner is a pantomime,
      and the roamer machinery already lets her stop and talk to someone
      real when the campus offers one. */
-  { k: "any" },
-  { k: "loiter", at: [286, 838], face:  0.2, live: true, pose: 1 }, /* Jun — Alden front.
+  { k: "char4" },
+  { k: "char10", at: [286, 838], face:  0.2, live: true, pose: 1 }, /* Jun — Alden front.
      He stood at 270,700 — inside the science hall, behind its south
      wall. Out on the front now, facing the quad. */
   /* Sofia — a roamer now, like everyone else. She spent two designs
@@ -7710,13 +7710,13 @@ const CAST_PLAN = [
      seconds, stand, walk — and a student pinned to one bench all
      visit is the statue problem wearing a new pose. The roamer
      machinery already sits her down properly when a bench is free. */
-  { k: "any", needs: "seat" },
-  { k: "any" },                                             /* Theo   — roams        */
+  { k: "char8", needs: "seat" },
+  { k: "char6" },                                             /* Theo   — roams        */
   /* Amara used to lap the ring at 182 — which, with the player standing
      in the middle of it, meant she was on screen permanently. She runs
      the campus now, on the same paths as everyone else, just faster. */
-  { k: "any", needs: "gait", jog: true },                   /* Amara  — runs the campus */
-  { k: "any" },                                             /* Kenji  — roams        */
+  { k: "char9", needs: "gait", jog: true },                   /* Amara  — runs the campus */
+  { k: "char7" },                                             /* Kenji  — roams        */
   /* The faculty are PINNED to their bodies. "loiter" dealt them
      whichever body was free — and on an early wave that fell across
      gender lines: a phone reported "prof. merion changed into a
@@ -9918,7 +9918,25 @@ function buildCast(){
        in with a stranger's: bodyFor's fallback is right for legacy
        names and wrong for identity — a stand-in Dean is the bug this
        pin exists to end. The second pass builds them when it lands. */
-    if ((st.tier ?? 2) <= 1 && CAST_HEIGHT[plan.k] && !castLib[plan.k]) return;
+    /* Extended from the faculty to everyone with a NAMED body.
+       Reported from a phone: "characters should keep their name". They
+       did keep their names — the names never moved. What moved was the
+       body under them: k was "any" for every student, so each visit
+       dealt them a stranger's face and Sofia arrived as whoever Elowen
+       had been yesterday. A character whose appearance is redrawn every
+       visit is not a character, and the dossier attached to the name
+       makes that worse, not better: the same words in a different body.
+
+       The pin already existed and only the faculty had it, with the
+       reason written beside it — "a stand-in Dean is the bug this pin
+       exists to end". It is the same bug for a student.
+
+       Nobody is starved by waiting. Every body loads eventually; the
+       first wave is a subset, the late wave brings the rest, and
+       buildCast is resumable, so a pinned student simply arrives when
+       their own body lands rather than borrowing someone else's. */
+    if (plan.k !== "any" && plan.k !== "loiter" &&
+        CAST_HEIGHT[plan.k] && !castLib[plan.k]) return;
     /* ── arriving into a lecture ──────────────────────────────────
        A student who cannot be DRAWN can still exist: they arrive the
        way this campus already lets people exist off screen, which is
