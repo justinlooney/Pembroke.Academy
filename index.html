@@ -7917,7 +7917,21 @@ function bodyFor(k, looks, needs, spare){
     return drawBody(pool.filter(x => canDo(x, needs)), looks, spare) ||
            drawBody(pool, looks, spare);
   }
-  if (castLib[k]) return k;
+  /* A NAMED body obeys the ceiling too, and it did not used to.
+     This line returned k the moment the body was loaded, with no room
+     check at all — which was survivable while two faculty were the only
+     pinned characters, because they are built first into an empty
+     screen. Pinning the eight students put ten characters down this
+     path and the ceiling stopped meaning anything: smoke caught it at
+     "6 bodies drawn, 96MB against a ceiling of 48MB".
+
+     `spare` is the caller's deliberate over-ceiling allowance for a
+     roamer who will shortly walk indoors; it is computed there and was
+     simply never consulted here. Everyone else waits for room, exactly
+     as the "any" path already made them wait — bodyFor returning null
+     is how a student is deferred to the next pass, not how they are
+     lost. */
+  if (castLib[k]) return (spare || roomOnScreen(k)) ? k : null;
   const pool = ROAMING.includes(k) ? loadedRoaming() : loadedLoitering();
   const alt = pool[0] || loadedRoaming()[0] || loadedLoitering()[0] || null;
   console.warn("cast: " + k + " is missing" +
