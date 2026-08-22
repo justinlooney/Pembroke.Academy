@@ -71,9 +71,20 @@ const out = await page.evaluate((want) => {
       const c = s.v.divideScalar(s.n);
       let best = -1, bestD = Infinity;
       bp.forEach((p, bi) => { const d = p.distanceTo(c); if (d < bestD){ bestD = d; best = bi; } });
+      /* A TIE IS NOT A MISMATCH. Adjacent joints sit almost on top of
+         each other — Spine2 and Chest, Foot and Toe — so whichever wins
+         by a rounding error is arbitrary. The first run of this called
+         three such ties a skinIndex mismatch on distances of 0.1
+         against 0.1, which is not evidence of anything. A real
+         mis-index puts the vertices on a bone limbs away, so the named
+         bone has to be MATERIALLY farther before it counts: half a
+         bone-length of slack, and at least 25% worse than the winner. */
+      const dNamed = bones[j] ? bp[j].distanceTo(c) : Infinity;
+      const slack = Math.max(0.5, bestD * 0.25);
       pairs.push({ j, named: bones[j] ? bones[j].name : "(no such bone)",
                    nearest: bones[best] ? bones[best].name : "?",
-                   agree: best === j, verts: s.n,
+                   agree: best === j || dNamed <= bestD + slack,
+                   tie: best !== j && dNamed <= bestD + slack, verts: s.n,
                    dToNamed: bones[j] ? +bp[j].distanceTo(c).toFixed(1) : null,
                    dToNearest: +bestD.toFixed(1) });
     }
@@ -90,9 +101,10 @@ else for (const r of out.rows){
   const bad = r.pairs.filter(p => !p.agree);
   console.log(`  joints with dominated vertices: ${r.pairs.length}   disagreeing: ${bad.length}`);
   for (const p of r.pairs){
-    const mark = p.agree ? "  ok " : "  ** ";
+    const mark = p.tie ? "  ~  " : p.agree ? "  ok " : "  ** ";
     console.log(`${mark}index ${String(p.j).padStart(2)} names ${p.named.padEnd(16)}` +
                 ` nearest ${p.nearest.padEnd(16)} verts ${String(p.verts).padStart(5)}` +
+                (p.tie ? `   tie with ${p.nearest} at ${p.dToNamed} vs ${p.dToNearest} — not a mismatch` : "") +
                 (p.agree ? "" : `   named ${p.dToNamed} away vs nearest ${p.dToNearest}`));
   }
   console.log(bad.length
