@@ -8562,7 +8562,12 @@ function lendClip(clip, target, srcRoot, name, fps = 30, writeHips = true){
           ds.toArray().map(n => n.toFixed(2)).join(", ")}]  recv [${
           dt.toArray().map(n => n.toFixed(2)).join(", ")}]  apart ${deg.toFixed(1)} deg`);
       });
-      console.info(`rigrest ${name} (${pairs.length} pairs, mirrored=${mirrored})\n` + lines.join("\n"));
+      /* the BODY, not just the clip. Without it these numbers name no
+         skeleton — every body lending the same clip prints an identical
+         header, and a claim about "these bodies" rests on output that
+         cannot say which one it measured. */
+      console.info(`rigrest ${target.userData?.figure || "?"} · ${name}` +
+                   ` (${pairs.length} pairs, mirrored=${mirrored})\n` + lines.join("\n"));
     }
 
     const mixer = new THREE.AnimationMixer(srcRoot);
