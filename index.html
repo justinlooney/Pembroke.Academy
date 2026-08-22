@@ -4232,6 +4232,10 @@ const NO_LADDER = q.has("noladder");
    The POSE is deliberately not set here. The tool that drives the
    measurement owns the workload spec; the page only owns the freeze. */
 const BENCH = q.has("bench");
+/* ?rigtrace=leftarm[&rigframe=N] — see the block in lendClip. Diagnostic
+   only: absent, nothing below it runs. */
+const RIGTRACE = q.get("rigtrace") || null;
+const RIGTRACE_FRAME = +(q.get("rigframe") || 8);
 /* WHY the ladder is not shedding, in words, for the frame after this
    one to report. The panel could always say which rung the campus was
    on and never why it was still on it — and "why" is the whole question
@@ -8484,6 +8488,61 @@ function lendClip(clip, target, srcRoot, name, fps = 30, writeHips = true){
         const pq = worldFor(t.parent);
         if (pq) _lP.copy(pq); else _lP.identity();
         _lL.copy(_lP).invert().multiply(_lW);
+        /* ── ?rigtrace=<canonBone> — the six numbers, from inside ──────
+           Everything measured about this bug so far has been measured
+           from OUTSIDE the function, on its output, and six of those
+           readings turned out to mean something other than their label.
+           The arms diverge from the donor by 46-86 degrees while the
+           spine, hips, neck, shoulders and legs all track it, and the
+           two rigs' arms agree to within 19 degrees AT REST — so it is
+           not a rest mismatch and not a chain fault, both of which have
+           been ruled out by measurement.
+
+           So print what the function actually has in its hands for one
+           named bone at one frame: what the donor is doing, the two
+           rests, the world orientation computed for the receiver, the
+           local rotation that gets written, and — the one that matters —
+           where the receiver's bone POINTS against where the donor's
+           points. Direction is basis-independent, so if those two agree
+           the maths here is sound and the fault is downstream in how the
+           track is written or played. If they disagree, it disagrees on
+           a line, and there are only three.
+
+           Off unless asked for, costs one string compare per bone, and
+           reports one frame rather than every frame of every lend. */
+        if (RIGTRACE && i === RIGTRACE_FRAME && canonBone(t.name) === RIGTRACE){
+          const dirOf = (node, pick) => {
+            const kid = node.children.find(c => pick(c));
+            if (!kid) return null;
+            const a = node.getWorldPosition(new THREE.Vector3());
+            const b = kid.getWorldPosition(new THREE.Vector3());
+            const v = b.sub(a);
+            return v.lengthSq() > 1e-9 ? v.normalize() : null;
+          };
+          const deg = (q) => +(2 * Math.acos(Math.min(1, Math.abs(q.w))) * 180 / Math.PI).toFixed(1);
+          const sDir = dirOf(s, (c) => !!canonBone(c.name));
+          /* the receiver has not been posed, so ask where it WOULD point:
+             rotate its rest direction by the world orientation just made */
+          const tRest = dirOf(t, (c) => !!canonBone(c.name));
+          let tDir = null;
+          if (tRest){
+            const restW = restT[bi].clone();
+            tDir = tRest.clone().applyQuaternion(restW.clone().invert()).applyQuaternion(_lW);
+          }
+          const between = (a, b) => a && b
+            ? +(Math.acos(Math.max(-1, Math.min(1, a.dot(b)))) * 180 / Math.PI).toFixed(1) : null;
+          console.info(`rigtrace ${name} frame ${i} ${canonBone(t.name)} (${s.name} -> ${t.name})`
+            + `\n  donor world q      turned ${deg(_lq)} deg from identity`
+            + `\n  donor rest  restS  turned ${deg(restS[bi])}`
+            + `\n  recv  rest  restT  turned ${deg(restT[bi])}`
+            + `\n  delta D = q*restS^-1 turned ${deg(_lD)}`
+            + `\n  computed W          turned ${deg(_lW)}`
+            + `\n  parent world        turned ${deg(_lP)}`
+            + `\n  local written L     turned ${deg(_lL)}`
+            + `\n  donor points        ${sDir ? sDir.toArray().map(n => n.toFixed(2)).join(", ") : "n/a"}`
+            + `\n  recv would point    ${tDir ? tDir.toArray().map(n => n.toFixed(2)).join(", ") : "n/a"}`
+            + `\n  ANGLE BETWEEN THEM  ${between(sDir, tDir)} deg   <-- 0 means the maths here is sound`);
+        }
         const a = out[bi], o4 = i * 4;
         a[o4] = _lL.x; a[o4 + 1] = _lL.y; a[o4 + 2] = _lL.z; a[o4 + 3] = _lL.w;
       });
