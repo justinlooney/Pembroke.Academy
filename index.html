@@ -8716,8 +8716,40 @@ function lendClip(clip, target, srcRoot, name, fps = 30, writeHips = true){
     }
     act.stop(); mixer.uncacheAction(clip); mixer.uncacheRoot(srcRoot);
 
-    const tracks = pairs.map(({ t }, bi) =>
-      new THREE.QuaternionKeyframeTrack(t.name + ".quaternion", times, out[bi]));
+    /* ── the clavicle keeps its rest, and that is the shoulders ───────
+       Measured, and it is the one thing that settles this. Rendered at
+       rest, straight from the file with no clip and no mixer, char6 has
+       entirely normal shoulders: a clear deltoid, proper width, sleeves
+       sitting where sleeves sit. Animated, the same body has no
+       shoulders at all — the shirt runs straight from the neck.
+
+       So the geometry is there and the POSE destroys it. Aligning the
+       clavicle's rest to the donor's moved its angle by 9 to 18 degrees
+       and did not bring the deltoid back, which says the fault is not
+       where the joint starts but that it is being driven at all.
+
+       Mixamo's Shoulder and this rig's Clavicle are not the same joint.
+       They differ in length and in pivot, so a rotation that shrugs one
+       correctly folds the other inward and the deltoid collapses into
+       the chest. The arms do not need it: UpperArm, ForeArm and Hand
+       are all driven, and they carry every gesture a clip contains. The
+       clavicle contributes a few degrees of shrug that no viewer will
+       miss and that this rig cannot receive.
+
+       So it is left at rest. Not excluded from the pairing — it still
+       anchors the arm chain's parent orientation, which is what broke
+       when Chest went unpaired — simply not given a track of its own. */
+    const HOLD_REST = /^(left|right)shoulder$/;
+    let heldBones = 0;
+    const tracks = pairs.filter(({ t }) => {
+      if (!HOLD_REST.test(canonBone(t.name) || "")) return true;
+      heldBones++; return false;
+    }).map(({ t }) => {
+      const bi = pairs.findIndex(p => p.t === t);
+      return new THREE.QuaternionKeyframeTrack(t.name + ".quaternion", times, out[bi]);
+    });
+    if (heldBones) console.info("cast: " + name + " — " + heldBones +
+      " clavicle(s) hold their rest; Mixamo's Shoulder is not this rig's Clavicle");
     /* The hips height is read as reach(hips, ONE foot) — right for a
        sit, where the feet stay planted and the shrinking reach IS the
        descent. Wrong for a walk: that leg swings, the reach oscillates
