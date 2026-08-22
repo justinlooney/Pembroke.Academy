@@ -4235,6 +4235,7 @@ const BENCH = q.has("bench");
 /* ?rigtrace=leftarm[&rigframe=N] — see the block in lendClip. Diagnostic
    only: absent, nothing below it runs. */
 const RIGTRACE = q.get("rigtrace") || null;
+const RIGREST = q.has("rigrest");
 const RIGTRACE_FRAME = +(q.get("rigframe") || 8);
 /* WHY the ladder is not shedding, in words, for the frame after this
    one to report. The panel could always say which rung the campus was
@@ -8402,6 +8403,43 @@ function lendClip(clip, target, srcRoot, name, fps = 30, writeHips = true){
 
     const restS = pairs.map(({ s }) => s.getWorldQuaternion(new THREE.Quaternion()));
     const restT = pairs.map(({ t }) => t.getWorldQuaternion(new THREE.Quaternion()));
+
+    /* ── ?rigrest=1 — do these two rigs REST in the same shape? ────────
+       Asked from in here because this is the only place both rests exist
+       side by side under the pairing lendClip actually uses. Every
+       attempt to ask it from outside was wrong: the skinless donors have
+       no isBone nodes so a bare traversal finds nothing, the bodies are
+       meshopt-compressed so a plain loader will not open them, and
+       pairing by name compares left to right whenever a rig labels its
+       sides the other way round — which reported arms 160 degrees apart
+       and meant nothing.
+
+       Per pair: where each bone points at rest, in the world, and the
+       angle between. Direction is basis-independent, so this is the
+       question free of any convention either rig holds. Large numbers
+       here are a genuine rest-pose difference — the thing a T-pose
+       alignment step would have to correct. Small numbers mean the rests
+       already agree and twist, not pose, is what is left. */
+    if (RIGREST){
+      const dirOf = (node) => {
+        const kid = node.children.find(c => canonBone(c.name));
+        if (!kid) return null;
+        const a = node.getWorldPosition(new THREE.Vector3());
+        const b = kid.getWorldPosition(new THREE.Vector3());
+        const v = b.sub(a);
+        return v.lengthSq() > 1e-9 ? v.normalize() : null;
+      };
+      const lines = [];
+      pairs.forEach(({ s: sb, t: tb }, bi) => {
+        const ds = dirOf(sb), dt = dirOf(tb);
+        if (!ds || !dt) return;
+        const deg = Math.acos(Math.max(-1, Math.min(1, ds.dot(dt)))) * 180 / Math.PI;
+        lines.push(`    ${canonBone(tb.name).padEnd(16)} donor [${
+          ds.toArray().map(n => n.toFixed(2)).join(", ")}]  recv [${
+          dt.toArray().map(n => n.toFixed(2)).join(", ")}]  apart ${deg.toFixed(1)} deg`);
+      });
+      console.info(`rigrest ${name} (${pairs.length} pairs, mirrored=${mirrored})\n` + lines.join("\n"));
+    }
 
     const mixer = new THREE.AnimationMixer(srcRoot);
     const act = mixer.clipAction(clip);
