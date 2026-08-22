@@ -88,21 +88,33 @@ const out = await page.evaluate(async ([want, clipName, donorUrl]) => {
   act.play(); act.setEffectiveWeight(1);
 
   const rows = [];
+  let frozen = 0;
   for (let i = 0; i < 8; i++){
     const t = Math.min(dClip.duration - 1e-4, dClip.duration * i / 8);
     dAct.time = t; dMixer.setTime(t); donor.scene.updateMatrixWorld(true);
-    act.paused = true; act.time = Math.min(act.getClip().duration - 1e-4, t);
-    s.g.userData.anim.mixer.setTime(act.time); s.g.updateMatrixWorld(true);
+    /* NOT paused. three.js AnimationMixer.setTime() zeroes every
+       action's time and then advances by the argument, and a paused
+       action does not advance — so pausing first, assigning act.time,
+       then calling setTime left the receiver at frame 0 for every
+       sample while the donor moved. Eight identical rows compared
+       against eight different ones. Drive it the way the mixer expects
+       instead, and assert afterwards that the clock actually moved. */
+    act.paused = false; act.setEffectiveTimeScale(1);
+    const want = Math.min(act.getClip().duration - 1e-4, t);
+    s.g.userData.anim.mixer.setTime(want); s.g.updateMatrixWorld(true);
+    if (Math.abs(act.time - want) > 0.05) frozen++;
     rows.push({ t: +t.toFixed(2),
                 recvL: armOf(R, "left"), recvR: armOf(R, "right"),
                 donL: armOf(D, "left"), donR: armOf(D, "right") });
   }
   act.paused = false;
-  return { rows };
+  return { rows, frozen };
 }, [WANT, CLIP, DONOR]);
 
 if (out.error) console.log("  " + out.error);
 else {
+  if (out.frozen) console.log(`\n  ${out.frozen} of 8 samples did NOT advance the receiver's clock —`
+                            + `\n  the rows below are not matched in time and prove nothing.`);
   console.log(`\n${WANT} · "${CLIP}"   how far the hand/elbow sits AHEAD of the shoulder`);
   console.log(`(body-lengths along the figure's own forward. negative = BEHIND the back)\n`);
   console.log("   t      recv L hand  recv R hand   donor L hand  donor R hand");

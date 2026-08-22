@@ -146,7 +146,7 @@ const out = await page.evaluate(async ([want, clipName, donorUrl]) => {
 
 
   const SAMPLES = 8, worst = new Map();
-  let blended = 0;
+  let blended = 0, frozen = 0;
   for (let i = 0; i < SAMPLES; i++){
     const t = Math.min(dClip.duration - 1e-4, dClip.duration * i / SAMPLES);
     dAct.time = t; dMixer.setTime(t); donor.scene.updateMatrixWorld(true);
@@ -169,8 +169,17 @@ const out = await page.evaluate(async ([want, clipName, donorUrl]) => {
     }
     if (i === 0) blended = others;
     act.setEffectiveWeight(1);
-    act.paused = true; act.time = Math.min(act.getClip().duration - 1e-4, t);
-    s.g.userData.anim.mixer.setTime(act.time); s.g.updateMatrixWorld(true);
+    /* NOT paused. three.js AnimationMixer.setTime() zeroes every
+       action's time and then advances by the argument, and a paused
+       action does not advance — so pausing first, assigning act.time,
+       then calling setTime left the receiver at frame 0 for every
+       sample while the donor moved. Eight identical rows compared
+       against eight different ones. Drive it the way the mixer expects
+       instead, and assert afterwards that the clock actually moved. */
+    act.paused = false; act.setEffectiveTimeScale(1);
+    const want = Math.min(act.getClip().duration - 1e-4, t);
+    s.g.userData.anim.mixer.setTime(want); s.g.updateMatrixWorld(true);
+    if (Math.abs(act.time - want) > 0.05) frozen++;
 
     for (const [k, rb] of R){
       const db = D.get(k); if (!db) continue;
@@ -191,7 +200,7 @@ const out = await page.evaluate(async ([want, clipName, donorUrl]) => {
   }
   act.paused = false;
   return { rows: [...worst.entries()].map(([k, v]) => ({ k, ...v })),
-           donorBones: D.size, recvBones: R.size, dur: +dClip.duration.toFixed(2), blended };
+           donorBones: D.size, recvBones: R.size, dur: +dClip.duration.toFixed(2), blended, frozen };
 }, [WANT, CLIP, DONOR]);
 
 if (out.error){ console.log("  " + out.error); }
@@ -203,6 +212,8 @@ else {
     ? `  ${out.blended} OTHER action(s) were live and have been stopped — the previous`
       + `\n  run of this measured a blend and labelled it "${CLIP}".\n`
     : `  no other action was live; this is one clip.\n`);
+  if (out.frozen) console.log(`  ${out.frozen} of 8 samples did NOT advance the receiver's clock —\n` +
+                              `  swing and twist below are not matched in time and prove nothing.\n`);
   console.log("  joint            swing   twist   restSwing   (deg; worst of 8 matched)");
   for (const r of out.rows)
     console.log(`  ${r.k.padEnd(16)} ${String(r.swing).padStart(5)}   ${String(r.twist).padStart(5)}` +
