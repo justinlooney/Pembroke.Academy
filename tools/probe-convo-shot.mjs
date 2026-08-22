@@ -34,13 +34,40 @@ await page.waitForFunction(() => window.__app && window.__convo, null, { timeout
 await page.waitForFunction(() => (window.__convo.named() || []).length > 0,
                            null, { timeout: 240_000 });
 
+/* Wait for the campus to LEND before judging what it plays.
+   The first version opened the conversation the moment a named student
+   existed and photographed a figure with anim.current === null — a
+   T-pose with nothing driving it, which cannot answer the question and
+   reads exactly like a fixed pose to anyone reading the picture alone.
+   A test that can pass without exercising the thing under test is worse
+   than no test. */
+const lent = await page.waitForFunction(() => {
+  const s = (window.__convo.named() || [])[0];
+  const r = s && s.roles;
+  return r && (r.talk || r.idle || (r.gaits && r.gaits.length)) ? true : null;
+}, null, { timeout: 180_000 }).then(() => true).catch(() => false);
+
 const who = await page.evaluate(() => {
   const s = window.__convo.named()[0];
   window.__convo.open(s);
-  return { name: s.data?.name, body: s.g?.userData?.figure };
+  return { name: s.data?.name, body: s.g?.userData?.figure,
+           roles: { talk: s.roles?.talk ?? null, idle: s.roles?.idle ?? null,
+                    gaits: s.roles?.gaits ?? [], seat: s.roles?.seat ?? null } };
 });
 console.log(`\nclose-up on ${who.name}  (body ${who.body})`);
-await page.waitForTimeout(3000);
+console.log(`roles lent:    talk=${who.roles.talk}  idle=${who.roles.idle}` +
+            `  gaits=[${who.roles.gaits.join(", ")}]  seat=${who.roles.seat}`);
+if (!lent) console.log(`  NOTHING WAS LENT within 180s — the reading below is a bind pose,`);
+if (!lent) console.log(`  not a retargeted one, and says nothing about the retarget.`);
+
+/* and wait for a clip to be RUNNING, not merely chosen */
+const playing = await page.waitForFunction(() => {
+  const g = (window.__convo.named().find(s => s.g && s.g.parent &&
+             s.g.parent !== window.__app.world) || {}).g;
+  return g && g.userData.anim && g.userData.anim.current ? true : null;
+}, null, { timeout: 60_000 }).then(() => true).catch(() => false);
+if (!playing) console.log(`  NO CLIP EVER STARTED in the close-up — INCONCLUSIVE about the pose.`);
+await page.waitForTimeout(2500);
 
 const read = await page.evaluate(() => {
   const THREE = window.__app.THREE;
