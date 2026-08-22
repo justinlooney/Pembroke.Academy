@@ -88,8 +88,36 @@ const out = await page.evaluate((want) => {
                    dToNamed: bones[j] ? +bp[j].distanceTo(c).toFixed(1) : null,
                    dToNearest: +bestD.toFixed(1) });
     }
+    /* ── the inverse bind matrices, checked against the rest pose ────
+       three.js skins by  boneMatrix[i] = bone.matrixWorld * boneInverses[i].
+       At BIND pose that product must be the identity — that is what an
+       inverse bind matrix is for. If a file's inverses do not
+       correspond to its own rest pose, the mesh still renders perfectly
+       at rest, because nothing is driving it, and deforms wrongly the
+       moment any clip plays. Flawless standing still, smeared when
+       animated, bones anatomically fine throughout: every symptom this
+       bug has, and it survives both checks above.
+
+       Measured as the largest deviation of the product from identity,
+       reported in the file's own units for translation and in degrees
+       for rotation, so a small numerical residue reads differently from
+       a real mismatch. */
+    const bind = [];
+    const M = new THREE.Matrix4(), P = new THREE.Vector3();
+    const Q = new THREE.Quaternion(), S = new THREE.Vector3();
+    for (let i = 0; i < bones.length; i++){
+      const inv = m.skeleton.boneInverses[i];
+      if (!inv) continue;
+      M.multiplyMatrices(bones[i].matrixWorld, inv);
+      M.decompose(P, Q, S);
+      const degOff = 2 * Math.acos(Math.min(1, Math.abs(Q.w))) * 180 / Math.PI;
+      bind.push({ bone: bones[i].name, move: +P.length().toFixed(3),
+                  turn: +degOff.toFixed(2),
+                  scale: +Math.max(Math.abs(S.x - 1), Math.abs(S.y - 1), Math.abs(S.z - 1)).toFixed(3) });
+    }
+    bind.sort((a, b) => (b.turn + b.move) - (a.turn + a.move));
     rows.push({ mesh: m.name || "(unnamed)", bones: bones.length,
-                verts: pos.count, sampled: Math.ceil(pos.count / step), pairs });
+                verts: pos.count, sampled: Math.ceil(pos.count / step), pairs, bind });
   }
   return { rows };
 }, WANT);
@@ -106,6 +134,19 @@ else for (const r of out.rows){
                 ` nearest ${p.nearest.padEnd(16)} verts ${String(p.verts).padStart(5)}` +
                 (p.tie ? `   tie with ${p.nearest} at ${p.dToNamed} vs ${p.dToNearest} — not a mismatch` : "") +
                 (p.agree ? "" : `   named ${p.dToNamed} away vs nearest ${p.dToNearest}`));
+  }
+  if (r.bind && r.bind.length){
+    const off = r.bind.filter(b => b.turn > 1 || b.move > 0.05 || b.scale > 0.02);
+    console.log(`\n  inverse bind vs rest pose — bone.matrixWorld * boneInverse should be identity`);
+    for (const b of r.bind.slice(0, 8))
+      console.log(`     ${b.bone.padEnd(16)} moves ${String(b.move).padStart(8)}` +
+                  `  turns ${String(b.turn).padStart(7)} deg  scale off ${b.scale}`);
+    console.log(off.length
+      ? `  ** ${off.length} of ${r.bind.length} bones do NOT return identity at bind pose.`
+        + `\n     The inverse bind matrices do not describe this rest pose: perfect`
+        + `\n     standing still, wrong the moment anything animates it.`
+      : `     all ${r.bind.length} bones return identity — the inverse bind matrices`
+        + `\n     agree with the rest pose, and this is NOT the fault either.`);
   }
   console.log(bad.length
     ? `\n  ${bad.length} joint index(es) do not point at the bone their vertices sit on.`
