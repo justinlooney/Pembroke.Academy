@@ -1120,3 +1120,38 @@ arriving.
 
 The product is in good order. The instruments are the thing to keep
 auditing.
+
+---
+
+## D7. Resolution — where these findings stand on `main` @ `3a75031`
+
+This delta was written against `c0b6736`. Two merges have landed since
+(#129, and this document's own rebase onto it), and a finding is only
+worth keeping if its current status is stated. Re-checked at runtime,
+not from the diff.
+
+| finding | status on current `main` |
+|---|---|
+| **D4.1** settle fires early, ceiling calibrated from it | **RESOLVED — by withdrawal, not by repair.** `DRAW_CEILING` and both `process.exit(1)` paths are gone from `check-frame`; it is a diagnostic again. `tools/check-perf.mjs` replaces it with a stated workload, and §9.1 now carries the formal retraction of the 22.9% figure this entry flagged as unreliable |
+| **D4.2** `__preset()` reports `Infinity`, which crosses as `null` | **STILL OPEN. Re-measured on `3a75031`:** the page holds `ladderCap: "Infinity"`; a Playwright `evaluate` receives `{"ladderCap": null, "presetCap": 1}`. No tool asserts on it yet, so it remains P3 — a trap laid for the next probe, not a live defect |
+| **D4.3** README does not say `check-frame` is a gate | **INVERTED, and the same class of defect is live again.** `check-frame` is no longer a gate, so its row under *"Run by hand"* is correct once more — the entry was overtaken by #129 before it was ever true to fix. But `check-perf.mjs` merged with **no README row at all**, which is the identical failure: the table did not follow the tool. Corrected in this commit |
+
+**The D5 row for `check-frame` is also superseded**: it read *"now exits
+non-zero"*, which was true for one day. It exits zero again, and nothing
+in CI calls it.
+
+**What D4.1 became.** It is worth stating plainly, because the entry
+above reads like a bug report and the outcome was larger than one. The
+finding was that a gate measured at an undefined moment. The repair was
+not to find a better moment — there isn't one, the crowd churns for the
+whole session — but to stop asking the scene to hold still and specify
+the workload instead. Under that contract the same campus reads
+**stddev 0.5 across ninety frames** where the old method produced 711
+through 1609. That reframes this entire section's central complaint:
+**the instrument was not noisy, it was measuring different workloads.**
+The nine-hundred-call spread was never evidence about the renderer.
+
+**D6's closing claim survives the merge**, and is if anything better
+supported: the risk sat in the instruments, and the instrument that was
+found asserting something other than what it claimed has now been
+withdrawn rather than tuned into looking right.

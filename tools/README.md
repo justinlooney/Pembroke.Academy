@@ -89,7 +89,8 @@ which is why they are not gates.
 |---|---|
 | `check-character.mjs` | will this character work on the campus? |
 | `check-donor.mjs` | can this clip be lent to somebody else's skeleton? |
-| `check-frame.mjs` | where does a frame actually go? (not a frame rate) |
+| `check-frame.mjs` | where does a frame actually go? (not a frame rate — and not a gate: it reports, it does not fail) |
+| `check-perf.mjs` | what does a frame cost under a **stated** workload? `--live` for the churning campus, `--calibrate` to derive a ceiling. Long: minutes per run on a software rasterizer, which is why it is here and not in CI |
 | `check-sitting.mjs` | is this clip sitting, standing up, or sitting down? |
 | `check-gateway.mjs` | does the **deployed** Worker still hold? (talks to production, spends real inference — that is why it is not in CI) |
 | `character-sheet.mjs` | look at one character properly |
