@@ -74,6 +74,7 @@ authoring pipelines rather than gates:
 
 | workflow | fires on | scripts |
 |---|---|---|
+| `calibrate.yml` | **nothing — `workflow_dispatch` only** | `check-perf.mjs --calibrate`. Produces a *recommendation* for `P95_CEILING`, never a verdict; cannot fail a build. It runs on an ordinary GPU-less runner on purpose: the machine that calibrates has to match the machine that enforces, and the enforcing machine is a software rasterizer. Records upload as an artifact so the commit that sets the number can carry its provenance |
 | `materials.yml` | `check-materials.mjs` changes | `check-materials.mjs` |
 | `mixamo.yml` | `tools/mixamo-inbox.txt` changes | `mixamo-plan.py` · `mixamo-to-glb.py` · `flatten-scenes.mjs` · `thin-character.mjs` |
 | `inspect.yml` | `tools/inspect-inbox.txt` changes | `inspect-rig.py` |
