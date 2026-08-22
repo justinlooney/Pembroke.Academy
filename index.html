@@ -8455,6 +8455,79 @@ function lendClip(clip, target, srcRoot, name, fps = 30, writeHips = true){
     const restS = pairs.map(({ s }) => s.getWorldQuaternion(new THREE.Quaternion()));
     const restT = pairs.map(({ t }) => t.getWorldQuaternion(new THREE.Quaternion()));
 
+    /* ── the shoulders rest in different places, and only the shoulders ─
+       Reported from a phone, repeatedly and finally precisely: "their
+       shoulders are all pulled back too far and just not right". The
+       rest comparison taken in here names the joint. Measured, donor
+       against receiver, as the direction each bone points at rest:
+
+         Talking  leftshoulder   donor [ 0.99,  0.03, -0.15]
+                                 recv  [ 0.95,  0.24, -0.20]   12.5 deg
+         Jogging  leftshoulder   donor [ 0.95, -0.30,  0.00]
+                                 recv  [ 0.95,  0.24, -0.20]   33.6 deg
+
+       These bodies rest with the clavicles angled UP — y = +0.24, about
+       14 degrees above horizontal. The Mixamo donors rest level or
+       angled down. Every other joint in the skeleton agrees to within
+       1.7 to 11 degrees; the shoulders are 12 to 34 out, by far the
+       largest disagreement anywhere in the rig.
+
+       Delta retargeting carries CHANGE FROM REST, so the donor's
+       clavicle motion lands on a clavicle that already starts raised,
+       and the shoulders ride up and back on every clip. The arms
+       measure correct because they ARE correct — the fault is the joint
+       above them, which is why measuring arm droop, arm swing and arm
+       twist all came back clean.
+
+       So each paired joint's rest is aligned to its donor's before any
+       delta is taken. Two things that broke the first attempt at this
+       are fixed here:
+
+         · the direction is measured to a NAMED child, never to an
+           average of all children. At a branching joint — the hips
+           carry a spine that points up and two legs that point down —
+           the mean is near zero and its direction is noise, which is
+           where a 173 degree "correction" at the hips came from.
+         · a joint with no named child in the pairing gets no
+           correction at all, rather than a guess.
+
+       It becomes identity by itself on any rig that already rests where
+       its donor does. */
+    const CHAIN = {
+      hips: "spine", spine: "spine1", spine1: "spine2", spine2: "neck",
+      neck: "head",
+      leftshoulder: "leftarm", leftarm: "leftforearm", leftforearm: "lefthand",
+      rightshoulder: "rightarm", rightarm: "rightforearm", rightforearm: "righthand",
+      leftupleg: "leftleg", leftleg: "leftfoot", leftfoot: "lefttoebase",
+      rightupleg: "rightleg", rightleg: "rightfoot", rightfoot: "righttoebase",
+    };
+    const byKeyS = new Map(), byKeyT = new Map();
+    pairs.forEach(({ s: sb, t: tb }) => {
+      const k = canonBone(tb.name);
+      if (k && !byKeyT.has(k)){ byKeyT.set(k, tb); byKeyS.set(k, sb); }
+    });
+    const dirTo = (from, to) => {
+      if (!from || !to) return null;
+      const a = from.getWorldPosition(new THREE.Vector3());
+      const b = to.getWorldPosition(new THREE.Vector3());
+      const v = b.sub(a);
+      return v.lengthSq() > 1e-9 ? v.normalize() : null;
+    };
+    let worstFix = 0, worstAt = "";
+    pairs.forEach(({ s: sb, t: tb }, bi) => {
+      const k = canonBone(tb.name), kid = CHAIN[k];
+      if (!kid) return;
+      const ds = dirTo(sb, byKeyS.get(kid)), dt = dirTo(tb, byKeyT.get(kid));
+      if (!ds || !dt) return;
+      const a = new THREE.Quaternion().setFromUnitVectors(dt, ds);
+      const deg = 2 * Math.acos(Math.min(1, Math.abs(a.w))) * 180 / Math.PI;
+      if (deg > worstFix){ worstFix = deg; worstAt = k; }
+      restT[bi].premultiply(a);
+    });
+    if (worstFix > 5)
+      console.info("cast: " + name + " — rests aligned, worst " +
+                   worstFix.toFixed(0) + " deg at " + worstAt);
+
     /* ── ?rigrest=1 — do these two rigs REST in the same shape? ────────
        Asked from in here because this is the only place both rests exist
        side by side under the pairing lendClip actually uses. Every
