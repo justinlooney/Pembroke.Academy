@@ -32,7 +32,13 @@ for (const wait of [0, 15000, 30000]){
     const live = Object.entries(a.actions)
       .map(([n, act]) => ({ n, w: +act.getEffectiveWeight().toFixed(3),
                             run: act.isRunning(), paused: act.paused }))
-      .filter(x => x.run || x.w > 0.001);
+      /* RUNNING is what counts. A stopped action keeps whatever
+         _effectiveWeight it last held, and getEffectiveWeight() reports
+         it, but the mixer does not consult a stopped action at all — it
+         contributes nothing to the pose. Filtering on weight counted
+         five stopped clips as live and turned an ordinary crossfade
+         into a six-way blend that was not happening. */
+      .filter(x => x.run && x.w > 0.001);
     return { who: s.data?.name || "(crowd)", body: s.g?.userData?.figure,
              mode: s.mode, held: s.held, current: a.current,
              total: Object.keys(a.actions).length, live };

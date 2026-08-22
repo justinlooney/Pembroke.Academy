@@ -161,7 +161,10 @@ const out = await page.evaluate(async ([want, clipName, donorUrl]) => {
     let others = 0;
     for (const [nm, a2] of Object.entries(s.g.userData.anim.actions)){
       if (a2 === act) continue;
-      if (a2.isRunning() || a2.getEffectiveWeight() > 0){ others++; }
+      /* running, not merely weighted — see probe-action-weights.mjs.
+         Counting stopped actions inflated this to 6 when the real
+         figure was an ordinary two-clip crossfade. */
+      if (a2.isRunning()){ others++; }
       a2.stop(); a2.setEffectiveWeight(0);
     }
     if (i === 0) blended = others;
