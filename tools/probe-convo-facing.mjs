@@ -46,9 +46,18 @@ for (let visit = 1; visit <= (WANT ? 6 : 3); visit++){
         let cam = null;
         (function find(o){ if (o.isCamera && o !== window.__app.camera && !cam) cam = o;
           (o.children || []).forEach(find); })(g.parent || {});
+        /* The aliases matter, and their absence is why the first run of
+           this printed a null chest for every figure and then concluded
+           "all 9 face the camera": null > 40 is false, so every
+           unmeasured row counted as a pass. This rig names them
+           LeftClavicle and LeftUpperArm, not LeftShoulder and LeftArm. */
         const key = (n) => { let x = (n||"").split("|").pop().split(":").pop();
-          return x.replace(/^mixamorig\d*/i,"").replace(/[._]\d+$/,"")
-                  .replace(/[^a-z0-9]/gi,"").toLowerCase(); };
+          x = x.replace(/^mixamorig\d*/i,"").replace(/[._]\d+$/,"")
+               .replace(/[^a-z0-9]/gi,"").toLowerCase();
+          return ({ leftclavicle: "leftshoulder", rightclavicle: "rightshoulder",
+                    leftupperarm: "leftarm", rightupperarm: "rightarm",
+                    lefttoe: "lefttoebase", righttoe: "righttoebase",
+                    pelvis: "hips" })[x] || x; };
         const B = new Map();
         g.traverse(o => { if (o.isBone){ const k = key(o.name); if (!B.has(k)) B.set(k, o); } });
         const P = (k) => { const b = B.get(k); return b ? b.getWorldPosition(new THREE.Vector3()) : null; };
@@ -87,9 +96,19 @@ for (const r of rows)
   console.log(`  ${String(r.name).padEnd(16)} ${String(r.body).padEnd(8)} ` +
               `${String(r.chestOff).padStart(9)}   ${String(r.feetOff).padStart(8)}   ${String(r.rotY).padStart(8)}` +
               (r.chestOff != null && r.chestOff > 40 ? "   <<< not facing you" : ""));
-const bad = rows.filter(r => r.chestOff != null && r.chestOff > 40);
+const measured = rows.filter(r => r.chestOff != null);
+const bad = measured.filter(r => r.chestOff > 40);
 console.log(`\n  0 = facing you, 90 = profile, 180 = their back.`);
-console.log(bad.length
-  ? `  ${bad.length} of ${rows.length} do not face the camera when the conversation opens.`
-  : rows.length ? `  all ${rows.length} face the camera.` : `  nothing measured.`);
+if (!rows.length) console.log(`  nothing measured.`);
+else if (!measured.length)
+  console.log(`  NO CHEST WAS MEASURED on any of ${rows.length} rows — no verdict.`
+            + `\n  A row that could not be read is not a row that passed.`);
+else {
+  if (measured.length < rows.length)
+    console.log(`  ${rows.length - measured.length} of ${rows.length} rows had no chest reading,`
+              + ` excluded rather than counted as passes.`);
+  console.log(bad.length
+    ? `  ${bad.length} of ${measured.length} do not face the camera when the conversation opens.`
+    : `  all ${measured.length} measured figures face the camera.`);
+}
 await browser.close(); await closeSrv();
