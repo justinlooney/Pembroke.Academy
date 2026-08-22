@@ -560,7 +560,78 @@ repository has already been swept; this pass found no second layer.
 
 ## 9. Performance
 
-### 9.1 P1 · CONFIRMED · ~1,239 draw calls, and no rung of the ladder lowers it
+### 9.1 P1 · RETRACTED AS A MEASUREMENT · ~1,239 draw calls, and no rung of the ladder lowers it
+
+> **RETRACTION — the numbers in this section are not valid comparative
+> measurements.**
+>
+> Previous draw-call values and the reported 22.9% delta were generated
+> from measurements taken at non-equivalent points in a continuously
+> changing scene. They are retained as historical observations but are
+> not valid comparative performance measurements.
+>
+> The method waited for two sampling windows to agree and treated that
+> as "settled". This campus never settles: the crowd churns by design,
+> bodies walking into buildings and out again for the whole session.
+> Measured, the same check read **1243** where the finished campus reads
+> **1609**, and `arrivalState` already reported "not arriving" at 1243.
+> Every figure below — 711, 723, 765, 1239, 1491 — is one arbitrary
+> moment in a moving scene, and so is the 1609.
+>
+> **What survives this retraction** is the structural claim, which does
+> not depend on the number: frustum culling removes almost nothing from
+> the default viewpoint, and **no rung of the five-rung quality ladder
+> removes a draw call** — every rung trades fill rate. That is read from
+> the ladder's own definition, not from a sample.
+>
+> The replacement is `tools/check-perf.mjs`, which specifies a workload
+> instead of waiting for the scene to hold still.
+>
+> **The replacement's first baseline, for contrast.** One launch of the
+> deterministic workload — fixed camera, fixed viewport and pixel ratio,
+> ladder held, crowd filled and frozen, 30 warm frames discarded, 90
+> sampled:
+>
+> ```
+> min 1482 · p50 1482 · p90 1483 · p95 1483 · max 1483
+> mean 1482.4 · stddev 0.5
+> ```
+>
+> **Standard deviation 0.5 — the count moved by one across ninety
+> frames.** The same campus under the retracted method produced 711,
+> 723, 765, 803, 1239, 1243, 1491 and 1609.
+>
+> **Read that the right way round.** The old spread was not noise in a
+> measurement of one thing. It was a sequence of measurements of
+> *different things* — a campus with 700 draw calls' worth of people in
+> it is not the same workload as a campus with 1,600, and the old method
+> sampled whichever one happened to exist when two windows agreed. The
+> story is not "our performance numbers varied a lot." It is **"the
+> previous instrument was measuring different workloads."** Hold the
+> workload still and the count is stable to within a single draw call,
+> which is what the 0.5 proves: the variance was never in the renderer,
+> it was in what we pointed the instrument at.
+>
+> The ceiling that used to live in `check-frame` has been withdrawn
+> rather than left in place: a gate with no stable meaning turns a
+> broken instrument into policy, and a green build would have claimed
+> the campus stayed inside an envelope nobody had defined.
+>
+> **Before any ceiling is set again**, the calibration run must carry
+> its own provenance, because a workload specification only fixes half
+> of a measurement — the other half is the machine. `check-perf` now
+> records, in the run record and in `--calibrate` output: the GPU and
+> driver string, **whether hardware acceleration was actually active**,
+> browser and version, OS, CPU count and memory, and the CI runner image
+> where CI sets it. The accelerated flag is the one that decides
+> transferability: the baseline above was produced under SwiftShader
+> (`ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device …))`,
+> `accelerated: false`), and a ceiling derived from a software
+> rasterizer does not describe a GPU runner however identical the
+> workload was. `--calibrate` refuses to recommend a number when
+> acceleration was off, and the commit that eventually sets
+> `P95_CEILING` is required to paste this block beside it.
+
 
 **Measured**, desktop 1280×800, day, after proving the scene settled
 (median draw calls stable across two 15-second windows):
@@ -834,7 +905,7 @@ are judgement calls for the owner, not repairs.
 | **most serious Three.js defect** | §4.3 — `resize()` never re-reads `devicePixelRatio`; measured DPR 3 with the renderer still at 1 |
 | **most serious CSS/DOM defect** | §7.1 — `--font-serif` declared nowhere; `.jpanel h3` measured rendering in Georgia beside a loaded Cormorant Garamond |
 | **worst silent failure** | §7.1, the same one. `var(--x, fallback)` turns a missing token into a design decision |
-| **largest performance waste** | §9.1 — ~1,239 settled draw calls with no ladder rung able to lower them; corroborated at 1,289 on a real Adreno by the repo's own field note |
+| **largest performance waste** | §9.1 — no ladder rung can lower a draw call, so the submit count is a floor on what the campus costs. **The figures are retracted as measurements** (see §9.1): they were taken at non-equivalent points in a scene that never settles. The structural claim stands; the numbers await `tools/check-perf.mjs` |
 | **highest-value cleanup** | §12's `var()` gate — 15 lines that close the only unowned contract in §2 |
 
 **Top five repairs:** declare the two font tokens · gate `var()`

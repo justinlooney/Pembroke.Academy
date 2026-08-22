@@ -292,42 +292,53 @@ console.log("\ntexture memory by resolution — the decoded footprint, not the f
 for (const [dim, mb] of r.byTex)
   console.log(`   ${String(mb).padStart(7)}MB  ${dim}`);
 
-/* == THE CEILING ======================================================
-   Draw calls are the one number here that is the same on every GPU, and
-   on a phone they are usually what runs out first. This campus's own
-   field note, from a real Adreno during the arrival-flicker
-   investigation, reads "1289 draws, 7.13M triangles".
+/* == THE CEILING, WITHDRAWN =========================================
+   This asserted `drawCalls <= 1320` and it is switched off, because the
+   number it compared and the number it compared it AGAINST were both
+   taken at a moment nobody had defined.
 
-   The quality ladder cannot help with this. Its five rungs trade SSAO,
-   pixel ratio, shadow-map size, shadows and bloom - fill rate and
-   post-processing, every one. Not a single rung removes a draw call, so
-   a submit-bound device gets no relief at any rung, and rungs never
-   climb back. That makes this a hard floor on what the campus costs,
-   which is exactly the kind of number that should not be allowed to
-   drift quietly upward.
+   The settle above stops when two twelve-second windows agree within 2.
+   That was believed to mean "the campus has finished arriving". It does
+   not, and the measurement that established the ceiling is the one that
+   disproves it:
 
-   DRAW_CEILING is MEASURED, not chosen: the figure this check reported
-   on a settled full-crowd campus when the limit was introduced, plus
-   room for honest variation. Raise it deliberately, with a note saying
-   what was added and why it was worth it. That is the whole point of
-   having it. */
-const DRAW_CEILING = 1320;
+     check-frame's own rule        1243 draws   (arrivalState: not arriving)
+     kept waiting                  1609 draws
+
+   +366. And the obvious repair — wait for __preset().on === false —
+   fails too: `arriving` was ALREADY false at 1243. arrivalState tracks
+   the asset log, and this campus keeps changing after the last asset
+   lands because the crowd churns by design: bodies walk into buildings
+   and out again for the whole session. There is no moment when the
+   scene stops changing, so two agreeing windows is luck, not
+   convergence.
+
+   1320 was therefore derived from a premature 1243. The gate was
+   self-consistently wrong — it measured early, compared an early number
+   to a ceiling built from an early number, and passed. A run that
+   happened to wait longer would read 1609 and fail on unchanged code.
+
+   A gate with no stable meaning is worse than no gate: a green build
+   would claim the campus stayed inside an envelope that was never
+   defined. So the assertion is withdrawn rather than left in place, and
+   what is printed below is a DIAGNOSTIC — a number to look at, not a
+   number to merge against.
+
+   The replacement is tools/check-perf.mjs, which specifies the workload
+   instead of waiting for the scene to hold still: fixed camera, fixed
+   viewport and pixel ratio, ladder held, crowd filled and frozen, warm
+   N frames, sample M, report a distribution. Re-baseline from repeated
+   deterministic runs on unchanged main before anything gates again. */
 console.log("");
 if (!settled){
-  console.log(` FAIL  draw calls never settled - ${drawCalls} is a moving number, ` +
-              `so no ceiling can be judged against it`);
-  await browser.close(); srv.close(); process.exit(1);
+  console.log(`  ..   draw calls did not settle — last reading ${drawCalls}. Not a` +
+              ` failure: this scene never stops changing, which is why the ceiling` +
+              ` that used to live here was withdrawn.`);
+} else {
+  console.log(`  ..   ${drawCalls} draw calls at the moment two windows agreed.` +
+              ` DIAGNOSTIC ONLY — see the note above, and tools/check-perf.mjs for` +
+              ` the measurement that has a defined workload.`);
 }
-if (drawCalls > DRAW_CEILING){
-  console.log(` FAIL  ${drawCalls} draw calls, over the ceiling of ${DRAW_CEILING}\n` +
-    `       Nothing in the quality ladder can lower this - every rung trades fill\n` +
-    `       rate, not geometry - so it is a floor on what the campus costs on a\n` +
-    `       phone. Merge static scenery by material, hide distant props, or raise\n` +
-    `       the ceiling ON PURPOSE with a note saying what was added.`);
-  await browser.close(); srv.close(); process.exit(1);
-}
-console.log(`  ok   ${drawCalls} draw calls, within the ceiling of ${DRAW_CEILING}` +
-            ` (${DRAW_CEILING - drawCalls} to spare)`);
 
 await browser.close();
 srv.close();
