@@ -8433,10 +8433,56 @@ function lendClip(clip, target, srcRoot, name, fps = 30, writeHips = true){
         _lD.copy(restS[bi]).invert().premultiply(_lq);   /* how far from ITS rest */
         _lW.copy(_lD).multiply(restT[bi]);               /* onto the receiver's */
         world.set(t, _lW.clone());
-        const p = t.parent;
-        if (p && world.has(p)) _lP.copy(world.get(p));
-        else if (p) p.getWorldQuaternion(_lP);
-        else _lP.identity();
+        /* ── an unpaired parent is not at rest at runtime ──────────────
+           This converts the world orientation just computed into a local
+           one, which needs the PARENT's world orientation. For a paired
+           parent that value is in `world`, freshly computed this frame,
+           and traverse order guarantees it is already there.
+
+           For an UNPAIRED parent it used to fall back to
+           p.getWorldQuaternion() — and the receiver is never posed while
+           this bakes, so that returns the parent's REST orientation. At
+           runtime the parent is not at rest: it hangs off a bone that IS
+           animated, so its real world orientation is that bone's new one
+           composed with the unpaired bone's local rest. Every bone below
+           was therefore baked against a pose that never occurs, and the
+           error is exactly however far the animated ancestor has turned.
+
+           This rig has such a bone. Its spine runs
+               Spine -> Spine1 -> Spine2 -> Chest -> Neck
+           and Mixamo's runs
+               Spine -> Spine1 -> Spine2 -> Neck
+           so nothing canonicalises to "chest", Chest never pairs, and
+           tools/probe-clip-tracks.mjs shows it rotated by none of the
+           seven clips. Neck, Head, both Clavicles, both UpperArms,
+           ForeArms and Hands all hang off it — the head, shoulders and
+           arms on every clip, growing with torso movement, worst
+           mid-stride. The legs and pelvis were always fine because they
+           hang off Pelvis, which pairs.
+
+           So walk the chain instead of reading a stale pose: an unpaired
+           bone's world orientation is its parent's, composed with its
+           own local rest, and its parent's is found the same way up to
+           the first bone that is paired or to the root. `world` is
+           cleared each frame, so caching there costs nothing and keeps
+           the walk O(1) per bone after the first. */
+        const worldFor = (node) => {
+          if (!node) return null;
+          if (world.has(node)) return world.get(node);
+          if (node === target || !node.parent){
+            const q = new THREE.Quaternion();
+            node.getWorldQuaternion(q);
+            world.set(node, q);
+            return q;
+          }
+          const pq = worldFor(node.parent);
+          const q = pq ? pq.clone() : new THREE.Quaternion();
+          q.multiply(node.quaternion);          /* its local REST — nothing drives it */
+          world.set(node, q);
+          return q;
+        };
+        const pq = worldFor(t.parent);
+        if (pq) _lP.copy(pq); else _lP.identity();
         _lL.copy(_lP).invert().multiply(_lW);
         const a = out[bi], o4 = i * 4;
         a[o4] = _lL.x; a[o4 + 1] = _lL.y; a[o4 + 2] = _lL.z; a[o4 + 3] = _lL.w;
