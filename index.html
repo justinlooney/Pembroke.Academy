@@ -4232,6 +4232,14 @@ const NO_LADDER = q.has("noladder");
    The POSE is deliberately not set here. The tool that drives the
    measurement owns the workload spec; the page only owns the freeze. */
 const BENCH = q.has("bench");
+/* ?rigtrace=leftarm[&rigframe=N] — see the block in lendClip. Diagnostic
+   only: absent, nothing below it runs. */
+const RIGTRACE = q.get("rigtrace") || null;
+const RIGREST = q.has("rigrest");
+/* ?skin=2 or 3 — see tightenWeights. 0 or absent leaves the weights as
+   the files carry them. */
+const SKIN_TIGHTEN = +(q.get("skin") || 0) || 0;
+const RIGTRACE_FRAME = +(q.get("rigframe") || 8);
 /* WHY the ladder is not shedding, in words, for the frame after this
    one to report. The panel could always say which rung the campus was
    on and never why it was still on it — and "why" is the whole question
@@ -7992,6 +8000,54 @@ function deshine(root){
  * Left as a note because it will look like an obvious improvement to
  * the next person who reads the material flags, as it did to me.
  */
+/* ── ?skin=N — tighten the skin weights, at load, on the way in ───────
+   Measured on char17, over all 119,483 vertices: the weights are
+   valid — every vertex sums to exactly 1, every index points at the
+   bone its vertices sit on, every inverse bind returns identity — and
+   they are SOFT. 54% of vertices are split across all four influences,
+   and no vertex anywhere is more than 85% controlled by a forearm, a
+   hand, a clavicle, the spine or the chest. Those bones own nothing
+   outright, while Head owns 17,610 and each thigh about 1,300.
+
+   Wide falloff smears under strong poses, worst where several bones
+   converge and disagree: shoulder, elbow, wrist, torso. That is a
+   property of how the bodies were skinned, not of anything this code
+   does, and the real repair is upstream — tighter falloff, or more
+   bones through the elbow and wrist.
+
+   What CAN be done here is pull each vertex back toward whichever bone
+   already leads it: raise every weight to a power and renormalise. An
+   exponent of 1 is the file as authored. 2 halves the influence of a
+   bone at half strength relative to the leader; 3 quarters it. It
+   cannot invent detail the skinning never had, and pushed far enough it
+   trades smear for creasing at the joints, which is why it is a dial
+   and not a constant.
+
+   OFF unless asked for, because it is a judgement about how the cast
+   should look and not a defect being repaired — and because a flag is
+   what lets the same phone compare the same figure with and without it,
+   which is worth more than any measurement taken here. */
+function tightenWeights(root, power){
+  if (!(power > 1)) return;
+  root.traverse(o => {
+    if (!o.isSkinnedMesh) return;
+    const a = o.geometry.attributes.skinWeight;
+    if (!a) return;
+    /* Written into a fresh float attribute rather than edited in place:
+       meshopt hands these back as normalised integers, and writing
+       floats into that array silently quantises every value. */
+    const out = new Float32Array(a.count * 4);
+    for (let i = 0; i < a.count; i++){
+      const w = [a.getX(i), a.getY(i), a.getZ(i), a.getW(i)]
+        .map(v => Math.pow(Math.max(0, v), power));
+      const sum = w[0] + w[1] + w[2] + w[3];
+      const o4 = i * 4;
+      if (sum > 1e-8) for (let c = 0; c < 4; c++) out[o4 + c] = w[c] / sum;
+      else out[o4] = 1;              /* a vertex with no influence at all */
+    }
+    o.geometry.setAttribute("skinWeight", new THREE.BufferAttribute(out, 4));
+  });
+}
 function sharpen(root){
   const aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy() || 1);
   root.traverse(o => {
@@ -8399,6 +8455,121 @@ function lendClip(clip, target, srcRoot, name, fps = 30, writeHips = true){
     const restS = pairs.map(({ s }) => s.getWorldQuaternion(new THREE.Quaternion()));
     const restT = pairs.map(({ t }) => t.getWorldQuaternion(new THREE.Quaternion()));
 
+    /* ── the shoulders rest in different places, and only the shoulders ─
+       Reported from a phone, repeatedly and finally precisely: "their
+       shoulders are all pulled back too far and just not right". The
+       rest comparison taken in here names the joint. Measured, donor
+       against receiver, as the direction each bone points at rest:
+
+         Talking  leftshoulder   donor [ 0.99,  0.03, -0.15]
+                                 recv  [ 0.95,  0.24, -0.20]   12.5 deg
+         Jogging  leftshoulder   donor [ 0.95, -0.30,  0.00]
+                                 recv  [ 0.95,  0.24, -0.20]   33.6 deg
+
+       These bodies rest with the clavicles angled UP — y = +0.24, about
+       14 degrees above horizontal. The Mixamo donors rest level or
+       angled down. Every other joint in the skeleton agrees to within
+       1.7 to 11 degrees; the shoulders are 12 to 34 out, by far the
+       largest disagreement anywhere in the rig.
+
+       Delta retargeting carries CHANGE FROM REST, so the donor's
+       clavicle motion lands on a clavicle that already starts raised,
+       and the shoulders ride up and back on every clip. The arms
+       measure correct because they ARE correct — the fault is the joint
+       above them, which is why measuring arm droop, arm swing and arm
+       twist all came back clean.
+
+       So each paired joint's rest is aligned to its donor's before any
+       delta is taken. Two things that broke the first attempt at this
+       are fixed here:
+
+         · the direction is measured to a NAMED child, never to an
+           average of all children. At a branching joint — the hips
+           carry a spine that points up and two legs that point down —
+           the mean is near zero and its direction is noise, which is
+           where a 173 degree "correction" at the hips came from.
+         · a joint with no named child in the pairing gets no
+           correction at all, rather than a guess.
+
+       It becomes identity by itself on any rig that already rests where
+       its donor does. */
+    const CHAIN = {
+      hips: "spine", spine: "spine1", spine1: "spine2", spine2: "neck",
+      neck: "head",
+      leftshoulder: "leftarm", leftarm: "leftforearm", leftforearm: "lefthand",
+      rightshoulder: "rightarm", rightarm: "rightforearm", rightforearm: "righthand",
+      leftupleg: "leftleg", leftleg: "leftfoot", leftfoot: "lefttoebase",
+      rightupleg: "rightleg", rightleg: "rightfoot", rightfoot: "righttoebase",
+    };
+    const byKeyS = new Map(), byKeyT = new Map();
+    pairs.forEach(({ s: sb, t: tb }) => {
+      const k = canonBone(tb.name);
+      if (k && !byKeyT.has(k)){ byKeyT.set(k, tb); byKeyS.set(k, sb); }
+    });
+    const dirTo = (from, to) => {
+      if (!from || !to) return null;
+      const a = from.getWorldPosition(new THREE.Vector3());
+      const b = to.getWorldPosition(new THREE.Vector3());
+      const v = b.sub(a);
+      return v.lengthSq() > 1e-9 ? v.normalize() : null;
+    };
+    let worstFix = 0, worstAt = "";
+    pairs.forEach(({ s: sb, t: tb }, bi) => {
+      const k = canonBone(tb.name), kid = CHAIN[k];
+      if (!kid) return;
+      const ds = dirTo(sb, byKeyS.get(kid)), dt = dirTo(tb, byKeyT.get(kid));
+      if (!ds || !dt) return;
+      const a = new THREE.Quaternion().setFromUnitVectors(dt, ds);
+      const deg = 2 * Math.acos(Math.min(1, Math.abs(a.w))) * 180 / Math.PI;
+      if (deg > worstFix){ worstFix = deg; worstAt = k; }
+      restT[bi].premultiply(a);
+    });
+    if (worstFix > 5)
+      console.info("cast: " + name + " — rests aligned, worst " +
+                   worstFix.toFixed(0) + " deg at " + worstAt);
+
+    /* ── ?rigrest=1 — do these two rigs REST in the same shape? ────────
+       Asked from in here because this is the only place both rests exist
+       side by side under the pairing lendClip actually uses. Every
+       attempt to ask it from outside was wrong: the skinless donors have
+       no isBone nodes so a bare traversal finds nothing, the bodies are
+       meshopt-compressed so a plain loader will not open them, and
+       pairing by name compares left to right whenever a rig labels its
+       sides the other way round — which reported arms 160 degrees apart
+       and meant nothing.
+
+       Per pair: where each bone points at rest, in the world, and the
+       angle between. Direction is basis-independent, so this is the
+       question free of any convention either rig holds. Large numbers
+       here are a genuine rest-pose difference — the thing a T-pose
+       alignment step would have to correct. Small numbers mean the rests
+       already agree and twist, not pose, is what is left. */
+    if (RIGREST){
+      const dirOf = (node) => {
+        const kid = node.children.find(c => canonBone(c.name));
+        if (!kid) return null;
+        const a = node.getWorldPosition(new THREE.Vector3());
+        const b = kid.getWorldPosition(new THREE.Vector3());
+        const v = b.sub(a);
+        return v.lengthSq() > 1e-9 ? v.normalize() : null;
+      };
+      const lines = [];
+      pairs.forEach(({ s: sb, t: tb }, bi) => {
+        const ds = dirOf(sb), dt = dirOf(tb);
+        if (!ds || !dt) return;
+        const deg = Math.acos(Math.max(-1, Math.min(1, ds.dot(dt)))) * 180 / Math.PI;
+        lines.push(`    ${canonBone(tb.name).padEnd(16)} donor [${
+          ds.toArray().map(n => n.toFixed(2)).join(", ")}]  recv [${
+          dt.toArray().map(n => n.toFixed(2)).join(", ")}]  apart ${deg.toFixed(1)} deg`);
+      });
+      /* the BODY, not just the clip. Without it these numbers name no
+         skeleton — every body lending the same clip prints an identical
+         header, and a claim about "these bodies" rests on output that
+         cannot say which one it measured. */
+      console.info(`rigrest ${target.userData?.figure || "?"} · ${name}` +
+                   ` (${pairs.length} pairs, mirrored=${mirrored})\n` + lines.join("\n"));
+    }
+
     const mixer = new THREE.AnimationMixer(srcRoot);
     const act = mixer.clipAction(clip);
     act.reset(); act.play(); act.setEffectiveWeight(1);
@@ -8433,19 +8604,152 @@ function lendClip(clip, target, srcRoot, name, fps = 30, writeHips = true){
         _lD.copy(restS[bi]).invert().premultiply(_lq);   /* how far from ITS rest */
         _lW.copy(_lD).multiply(restT[bi]);               /* onto the receiver's */
         world.set(t, _lW.clone());
-        const p = t.parent;
-        if (p && world.has(p)) _lP.copy(world.get(p));
-        else if (p) p.getWorldQuaternion(_lP);
-        else _lP.identity();
+        /* ── an unpaired parent is not at rest at runtime ──────────────
+           This converts the world orientation just computed into a local
+           one, which needs the PARENT's world orientation. For a paired
+           parent that value is in `world`, freshly computed this frame,
+           and traverse order guarantees it is already there.
+
+           For an UNPAIRED parent it used to fall back to
+           p.getWorldQuaternion() — and the receiver is never posed while
+           this bakes, so that returns the parent's REST orientation. At
+           runtime the parent is not at rest: it hangs off a bone that IS
+           animated, so its real world orientation is that bone's new one
+           composed with the unpaired bone's local rest. Every bone below
+           was therefore baked against a pose that never occurs, and the
+           error is exactly however far the animated ancestor has turned.
+
+           This rig has such a bone. Its spine runs
+               Spine -> Spine1 -> Spine2 -> Chest -> Neck
+           and Mixamo's runs
+               Spine -> Spine1 -> Spine2 -> Neck
+           so nothing canonicalises to "chest", Chest never pairs, and
+           tools/probe-clip-tracks.mjs shows it rotated by none of the
+           seven clips. Neck, Head, both Clavicles, both UpperArms,
+           ForeArms and Hands all hang off it — the head, shoulders and
+           arms on every clip, growing with torso movement, worst
+           mid-stride. The legs and pelvis were always fine because they
+           hang off Pelvis, which pairs.
+
+           So walk the chain instead of reading a stale pose: an unpaired
+           bone's world orientation is its parent's, composed with its
+           own local rest, and its parent's is found the same way up to
+           the first bone that is paired or to the root. `world` is
+           cleared each frame, so caching there costs nothing and keeps
+           the walk O(1) per bone after the first. */
+        const worldFor = (node) => {
+          if (!node) return null;
+          if (world.has(node)) return world.get(node);
+          if (node === target || !node.parent){
+            const q = new THREE.Quaternion();
+            node.getWorldQuaternion(q);
+            world.set(node, q);
+            return q;
+          }
+          const pq = worldFor(node.parent);
+          const q = pq ? pq.clone() : new THREE.Quaternion();
+          q.multiply(node.quaternion);          /* its local REST — nothing drives it */
+          world.set(node, q);
+          return q;
+        };
+        const pq = worldFor(t.parent);
+        if (pq) _lP.copy(pq); else _lP.identity();
         _lL.copy(_lP).invert().multiply(_lW);
+        /* ── ?rigtrace=<canonBone> — the six numbers, from inside ──────
+           Everything measured about this bug so far has been measured
+           from OUTSIDE the function, on its output, and six of those
+           readings turned out to mean something other than their label.
+           The arms diverge from the donor by 46-86 degrees while the
+           spine, hips, neck, shoulders and legs all track it, and the
+           two rigs' arms agree to within 19 degrees AT REST — so it is
+           not a rest mismatch and not a chain fault, both of which have
+           been ruled out by measurement.
+
+           So print what the function actually has in its hands for one
+           named bone at one frame: what the donor is doing, the two
+           rests, the world orientation computed for the receiver, the
+           local rotation that gets written, and — the one that matters —
+           where the receiver's bone POINTS against where the donor's
+           points. Direction is basis-independent, so if those two agree
+           the maths here is sound and the fault is downstream in how the
+           track is written or played. If they disagree, it disagrees on
+           a line, and there are only three.
+
+           Off unless asked for, costs one string compare per bone, and
+           reports one frame rather than every frame of every lend. */
+        if (RIGTRACE && i === RIGTRACE_FRAME && canonBone(t.name) === RIGTRACE){
+          const dirOf = (node, pick) => {
+            const kid = node.children.find(c => pick(c));
+            if (!kid) return null;
+            const a = node.getWorldPosition(new THREE.Vector3());
+            const b = kid.getWorldPosition(new THREE.Vector3());
+            const v = b.sub(a);
+            return v.lengthSq() > 1e-9 ? v.normalize() : null;
+          };
+          const deg = (q) => +(2 * Math.acos(Math.min(1, Math.abs(q.w))) * 180 / Math.PI).toFixed(1);
+          const sDir = dirOf(s, (c) => !!canonBone(c.name));
+          /* the receiver has not been posed, so ask where it WOULD point:
+             rotate its rest direction by the world orientation just made */
+          const tRest = dirOf(t, (c) => !!canonBone(c.name));
+          let tDir = null;
+          if (tRest){
+            const restW = restT[bi].clone();
+            tDir = tRest.clone().applyQuaternion(restW.clone().invert()).applyQuaternion(_lW);
+          }
+          const between = (a, b) => a && b
+            ? +(Math.acos(Math.max(-1, Math.min(1, a.dot(b)))) * 180 / Math.PI).toFixed(1) : null;
+          console.info(`rigtrace ${name} frame ${i} ${canonBone(t.name)} (${s.name} -> ${t.name})`
+            + `\n  donor world q      turned ${deg(_lq)} deg from identity`
+            + `\n  donor rest  restS  turned ${deg(restS[bi])}`
+            + `\n  recv  rest  restT  turned ${deg(restT[bi])}`
+            + `\n  delta D = q*restS^-1 turned ${deg(_lD)}`
+            + `\n  computed W          turned ${deg(_lW)}`
+            + `\n  parent world        turned ${deg(_lP)}`
+            + `\n  local written L     turned ${deg(_lL)}`
+            + `\n  donor points        ${sDir ? sDir.toArray().map(n => n.toFixed(2)).join(", ") : "n/a"}`
+            + `\n  recv would point    ${tDir ? tDir.toArray().map(n => n.toFixed(2)).join(", ") : "n/a"}`
+            + `\n  ANGLE BETWEEN THEM  ${between(sDir, tDir)} deg   <-- 0 means the maths here is sound`);
+        }
         const a = out[bi], o4 = i * 4;
         a[o4] = _lL.x; a[o4 + 1] = _lL.y; a[o4 + 2] = _lL.z; a[o4 + 3] = _lL.w;
       });
     }
     act.stop(); mixer.uncacheAction(clip); mixer.uncacheRoot(srcRoot);
 
-    const tracks = pairs.map(({ t }, bi) =>
-      new THREE.QuaternionKeyframeTrack(t.name + ".quaternion", times, out[bi]));
+    /* ── the clavicle keeps its rest, and that is the shoulders ───────
+       Measured, and it is the one thing that settles this. Rendered at
+       rest, straight from the file with no clip and no mixer, char6 has
+       entirely normal shoulders: a clear deltoid, proper width, sleeves
+       sitting where sleeves sit. Animated, the same body has no
+       shoulders at all — the shirt runs straight from the neck.
+
+       So the geometry is there and the POSE destroys it. Aligning the
+       clavicle's rest to the donor's moved its angle by 9 to 18 degrees
+       and did not bring the deltoid back, which says the fault is not
+       where the joint starts but that it is being driven at all.
+
+       Mixamo's Shoulder and this rig's Clavicle are not the same joint.
+       They differ in length and in pivot, so a rotation that shrugs one
+       correctly folds the other inward and the deltoid collapses into
+       the chest. The arms do not need it: UpperArm, ForeArm and Hand
+       are all driven, and they carry every gesture a clip contains. The
+       clavicle contributes a few degrees of shrug that no viewer will
+       miss and that this rig cannot receive.
+
+       So it is left at rest. Not excluded from the pairing — it still
+       anchors the arm chain's parent orientation, which is what broke
+       when Chest went unpaired — simply not given a track of its own. */
+    const HOLD_REST = /^(left|right)shoulder$/;
+    let heldBones = 0;
+    const tracks = pairs.filter(({ t }) => {
+      if (!HOLD_REST.test(canonBone(t.name) || "")) return true;
+      heldBones++; return false;
+    }).map(({ t }) => {
+      const bi = pairs.findIndex(p => p.t === t);
+      return new THREE.QuaternionKeyframeTrack(t.name + ".quaternion", times, out[bi]);
+    });
+    if (heldBones) console.info("cast: " + name + " — " + heldBones +
+      " clavicle(s) hold their rest; Mixamo's Shoulder is not this rig's Clavicle");
     /* The hips height is read as reach(hips, ONE foot) — right for a
        sit, where the feet stay planted and the shrinking reach IS the
        descent. Wrong for a walk: that leg swings, the reach oscillates
@@ -9217,6 +9521,7 @@ function lendSitDown(){
     castLib[k] = g;
     deshine(g.scene);
     sharpen(g.scene);
+    tightenWeights(g.scene, SKIN_TIGHTEN);
     /* Measured before they are pinned in place, for every body that
        walks — the gait count is what both paces playback and tells a
        walk cycle from a standing loop. */
