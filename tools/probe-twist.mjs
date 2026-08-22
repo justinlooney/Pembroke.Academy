@@ -146,9 +146,26 @@ const out = await page.evaluate(async ([want, clipName, donorUrl]) => {
 
 
   const SAMPLES = 8, worst = new Map();
+  let blended = 0;
   for (let i = 0; i < SAMPLES; i++){
     const t = Math.min(dClip.duration - 1e-4, dClip.duration * i / SAMPLES);
     dAct.time = t; dMixer.setTime(t); donor.scene.updateMatrixWorld(true);
+    /* ONE clip, not a blend. mixer.setTime steps EVERY action on the
+       mixer, and students on the campus crossfade — so the previous
+       version measured whatever mixture happened to be running and
+       called it "Talking". A blend diverges most where motion is
+       largest, which is the arms, and least at the spine and hips:
+       exactly the result it produced. Every other action is stopped and
+       zeroed here, and the count is reported so a silent blend cannot
+       masquerade as a reading again. */
+    let others = 0;
+    for (const [nm, a2] of Object.entries(s.g.userData.anim.actions)){
+      if (a2 === act) continue;
+      if (a2.isRunning() || a2.getEffectiveWeight() > 0){ others++; }
+      a2.stop(); a2.setEffectiveWeight(0);
+    }
+    if (i === 0) blended = others;
+    act.setEffectiveWeight(1);
     act.paused = true; act.time = Math.min(act.getClip().duration - 1e-4, t);
     s.g.userData.anim.mixer.setTime(act.time); s.g.updateMatrixWorld(true);
 
@@ -171,14 +188,18 @@ const out = await page.evaluate(async ([want, clipName, donorUrl]) => {
   }
   act.paused = false;
   return { rows: [...worst.entries()].map(([k, v]) => ({ k, ...v })),
-           donorBones: D.size, recvBones: R.size, dur: +dClip.duration.toFixed(2) };
+           donorBones: D.size, recvBones: R.size, dur: +dClip.duration.toFixed(2), blended };
 }, [WANT, CLIP, DONOR]);
 
 if (out.error){ console.log("  " + out.error); }
 else {
   out.rows.sort((a, b) => b.twist - a.twist);
   console.log(`\n${WANT} · "${CLIP}" vs ${DONOR.split("/").pop()}  (${out.dur}s, 8 matched times)`);
-  console.log(`donor joints ${out.donorBones}, receiver joints ${out.recvBones}, compared ${out.rows.length}\n`);
+  console.log(`donor joints ${out.donorBones}, receiver joints ${out.recvBones}, compared ${out.rows.length}`);
+  console.log(out.blended
+    ? `  ${out.blended} OTHER action(s) were live and have been stopped — the previous`
+      + `\n  run of this measured a blend and labelled it "${CLIP}".\n`
+    : `  no other action was live; this is one clip.\n`);
   console.log("  joint            swing   twist   restSwing   (deg; worst of 8 matched)");
   for (const r of out.rows)
     console.log(`  ${r.k.padEnd(16)} ${String(r.swing).padStart(5)}   ${String(r.twist).padStart(5)}` +
