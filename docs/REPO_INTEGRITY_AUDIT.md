@@ -936,3 +936,222 @@ signature of a repository coasting on fallbacks. It is the signature of
 one where the hard parts were done deliberately and **the gaps are
 exactly where nobody wrote a gate** — which is §2's table, and which is
 why four of the five top repairs are gates rather than fixes.
+
+---
+
+# Delta audit — 2026-08-21, against `main` @ `c0b6736`
+
+The pass above was measured at `pembroke-v150`. Since then nine of its
+ten repairs have merged, along with the probe harness, an accessibility
+fix and two rewritten CI checks. **`main` is materially different code**,
+so this section asks two questions the original could not: *did the
+repairs hold*, and *what did they break*.
+
+Same standard as above — MEASURED, CONFIRMED, PROBABLE, and nothing
+asserted from reading alone. No production code was modified.
+
+## D1. Boot health on current `main`
+
+| | |
+|---|---|
+| console errors | **0** |
+| HTTP ≥ 400 | **0** |
+| unhandled rejections | **0** |
+| console warnings | **2 distinct** — both the `ReadPixels` GPU stall already filed as §9.2 |
+
+The two `sigmaRadians … will clip` warnings that fired every boot are
+**gone**. §4.1 is closed.
+
+## D2. The nine repairs, verified at runtime
+
+| repair | evidence |
+|---|---|
+| **1 · 2** font tokens | `.jpanel h3` → `"Cormorant Garamond", Georgia, serif`; `--font-serif` resolves. §7.1 closed — the worst silent failure in the original pass |
+| **3** DPR ceiling | `__preset()` invariant `dpr === min(ceiling, ladderCap, presetCap)` holds |
+| **4** PMREM sigma | sigmaRadians warnings **2 → 0** |
+| **5** PMREM dispose | see D3 — the risk it carried did not materialise |
+| **6** draw ceiling | present, settles, both paths exercised |
+| **7 · 8 · 9** | `r.ok` guard present; door prompt hoisted; `dataset.state` and `psworked` gone |
+
+## D3. What the repairs broke — the one that could have
+
+`pmrem.dispose()` (repair 5) is the change with a real failure mode: the
+environment texture is produced *by* the generator, and disposing the
+generator too eagerly would leave `world.environment` pointing at freed
+GPU resources. Nothing would error; the campus would simply go matte.
+
+**Measured** — a mirror sphere lit by `world.environment` and nothing
+else, after the dispose:
+
+```
+environment: { present: true, isTexture: true, image: true, mapping: 306 }
+mean luminance: 76/255   → lit; the environment survived the dispose
+```
+
+**No repair introduced a defect this pass could find.** That is the
+headline of D3 and it is a negative result, reported as one.
+
+## D4. New findings
+
+### D4.1 CONFIRMED · P2 · `check-frame` settles before the campus does, and its ceiling is calibrated from that
+
+**File** `tools/check-frame.mjs`, the settle loop added by repair 6.
+
+**This entry was first written as PROBABLE, on evidence that the check
+"got the right answer this run". It did not.** The second half of the
+same experiment had not finished when that was written; when it did, it
+inverted the finding. Both readings are kept below because the wrong one
+is the more useful of the two.
+
+The loop waits for `__crowd().ready` and `crowdFill`, then for two
+12-second windows to agree within 2. Reproducing its exact sequence and
+then continuing to watch:
+
+```
+window 0:  737 draws · still arriving: true
+window 1: 1243 draws · still arriving: true
+window 2: 1243 draws · still arriving: false   ← check-frame stops here
+
+… kept waiting, campus reports arrival finished …
+                       1609 draws              ← the settled figure
+```
+
+**+366.** Two windows agreed at 1243 and the campus was not finished.
+
+**Root cause, and it is deeper than a missing guard.** The obvious fix —
+wait for `__preset().on === false` — is **not sufficient**, and this run
+proves it: `arriving` was already `false` at 1243. `arrivalState` tracks
+the **asset log**, and the campus keeps changing after the last asset
+lands, because the crowd keeps churning: bodies walk into buildings and
+out of them for the whole session, by design. There is no moment when
+this scene stops changing, so "two windows agreed" is luck, not
+convergence.
+
+**Impact.** `DRAW_CEILING = 1320` was derived from a **premature 1243**.
+The true settled figure is 1609. The gate is self-consistently wrong: it
+measures early, compares an early number to a ceiling built from an
+early number, and passes. A run that happens to wait longer reads 1609
+and fails against 1320 — a spurious failure on unchanged code. The gate
+is unstable in both directions.
+
+**It also invalidates numbers this document quotes.** Every draw-call
+figure taken today — 711, 723, 765, 803, 1239, 1243, 1491, 1609 — came
+from a method that never defined "settled" against a scene that never
+settles. §9.1's headline of ~1,239 should be read as *a* reading, not
+*the* reading. 1609 is the highest and the most-waited-for, reached
+independently twice; it is the best current estimate and is still not a
+proof.
+
+**Smallest safe fix** — the check cannot ask "has it stopped changing",
+because it never does. It has to ask a bounded question instead: hold
+the crowd fixed for the measurement (`__crowd` exposes the controls), or
+measure a fixed camera on a fixed frame count and report a distribution
+rather than a single median. Then re-derive the ceiling from whatever
+that produces.
+
+**Until then the ceiling should not be trusted**, and repair 10's
+"22.9%" — an A/B of 1609 against 1243 — is comparing a settled reading
+to a premature one and cannot be relied on either. That branch is
+unopened; it should stay unopened until the measurement is sound.
+
+**Regression test** — the run above: settle by the check's own rule,
+then keep waiting, and assert the two agree.
+
+### D4.2 CONFIRMED · P3 · `__preset()` reports `Infinity`, which is `null` across JSON
+
+**File** `index.html`, the `window.__preset` hook extended by repair 3.
+
+`ladderCap` and `presetCap` default to `Infinity`. Any structured-clone
+boundary — which is how a Playwright `evaluate` returns a value — turns
+that into `null`:
+
+```json
+{"dpr":1,"ceiling":1,"ladderCap":null,"presetCap":1}
+```
+
+The in-page invariant is still computed correctly; only the *reported*
+value is lossy. A future check asserting `ladderCap === Infinity` would
+fail against a working page.
+
+**Smallest safe fix** — report `null` deliberately, or a sentinel the
+hook documents. Do not change the internal value; `Infinity` is the
+right identity for "no cap".
+
+### D4.3 CONFIRMED · P3 · `tools/README.md` does not say `check-frame` is now a gate
+
+Repair 6 gave it two `process.exit(1)` paths. The README still lists it
+under *"Run by hand, and worth running"* with a one-line question and no
+mention that it now fails. Its own family rule — *"`check-*` asks a
+question and exits non-zero if the answer is wrong"* — became **more**
+true, and the table did not follow.
+
+## D5. Contracts that moved
+
+| contract | change | consumers checked |
+|---|---|---|
+| `window.__preset()` | +3 fields | additive; no tool destructured it strictly |
+| `check-css` | +`var()` resolution gate | passes on `main` |
+| `check-frame` | now exits non-zero | D4.3 |
+| `smoke` day/night | one check became two | passes on `main` |
+| `.nb-row` | `disabled` → `aria-disabled` | `check-a11y` green, axe clean |
+| `index.html` line numbers | shifted again | already noted at the top of this document |
+
+## D6. The question, re-answered for current `main`
+
+> **Is Pembroke hiding broken or stale behaviour behind fallbacks?**
+
+**The one place where the answer was provably yes is now closed.** §7.1 —
+two CSS custom properties read through `var()` fallbacks that made a
+missing token look like a design decision — is fixed *and gated*, so the
+same class of defect fails the build rather than shipping quietly.
+
+Boot is clean: no errors, no 404s, no unhandled rejections, and the only
+warnings left are one already-filed performance note.
+
+What replaced it is a subtler version of the same thing, and it is worth
+naming: **the risk has moved from the product into the gates.** D4.1 is a
+check that DOES measure the wrong moment and reports a number with full
+confidence — and the correction to it, mid-write, came from an
+experiment finishing after the conclusion had been drafted. Three times in one day a gate here has been found asserting
+something other than what it claimed — the a11y check that passed
+without testing, the clock check that pressed past its own target, and
+now a settle that can agree with itself while the campus is still
+arriving.
+
+The product is in good order. The instruments are the thing to keep
+auditing.
+
+---
+
+## D7. Resolution — where these findings stand on `main` @ `3a75031`
+
+This delta was written against `c0b6736`. Two merges have landed since
+(#129, and this document's own rebase onto it), and a finding is only
+worth keeping if its current status is stated. Re-checked at runtime,
+not from the diff.
+
+| finding | status on current `main` |
+|---|---|
+| **D4.1** settle fires early, ceiling calibrated from it | **RESOLVED — by withdrawal, not by repair.** `DRAW_CEILING` and both `process.exit(1)` paths are gone from `check-frame`; it is a diagnostic again. `tools/check-perf.mjs` replaces it with a stated workload, and §9.1 now carries the formal retraction of the 22.9% figure this entry flagged as unreliable |
+| **D4.2** `__preset()` reports `Infinity`, which crosses as `null` | **STILL OPEN. Re-measured on `3a75031`:** the page holds `ladderCap: "Infinity"`; a Playwright `evaluate` receives `{"ladderCap": null, "presetCap": 1}`. No tool asserts on it yet, so it remains P3 — a trap laid for the next probe, not a live defect |
+| **D4.3** README does not say `check-frame` is a gate | **INVERTED, and the same class of defect is live again.** `check-frame` is no longer a gate, so its row under *"Run by hand"* is correct once more — the entry was overtaken by #129 before it was ever true to fix. But `check-perf.mjs` merged with **no README row at all**, which is the identical failure: the table did not follow the tool. Corrected in this commit |
+
+**The D5 row for `check-frame` is also superseded**: it read *"now exits
+non-zero"*, which was true for one day. It exits zero again, and nothing
+in CI calls it.
+
+**What D4.1 became.** It is worth stating plainly, because the entry
+above reads like a bug report and the outcome was larger than one. The
+finding was that a gate measured at an undefined moment. The repair was
+not to find a better moment — there isn't one, the crowd churns for the
+whole session — but to stop asking the scene to hold still and specify
+the workload instead. Under that contract the same campus reads
+**stddev 0.5 across ninety frames** where the old method produced 711
+through 1609. That reframes this entire section's central complaint:
+**the instrument was not noisy, it was measuring different workloads.**
+The nine-hundred-call spread was never evidence about the renderer.
+
+**D6's closing claim survives the merge**, and is if anything better
+supported: the risk sat in the instruments, and the instrument that was
+found asserting something other than what it claimed has now been
+withdrawn rather than tuned into looking right.
