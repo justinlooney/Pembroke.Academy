@@ -8329,7 +8329,6 @@ function hipFootOf(root, loose){
   }
   return [h, feet[0] || null, feet];
 }
-const _lV3 = new THREE.Vector3();   /* framing: bone world positions */
 const _lq = new THREE.Quaternion(), _lD = new THREE.Quaternion();
 const _lW = new THREE.Quaternion(), _lP = new THREE.Quaternion();
 const _lL = new THREE.Quaternion(), _lV = new THREE.Vector3(), _lF = new THREE.Vector3();
@@ -15630,48 +15629,7 @@ function convoOpen(s){
      view renders exactly one draw call: the backdrop, with nobody in
      front of it. */
   g.updateMatrixWorld(true);
-  /* ── measured off the BONES, not off the mesh box ──────────────────
-     Box3.setFromObject on a SkinnedMesh takes the geometry's bounding
-     box and transforms it by the MESH's world matrix — and the mesh's
-     matrix knows nothing about the bones, which are what place and
-     scale a glTF body. This file already says so, thirty lines above,
-     where the same fact was breaking frustum culling:
-
-         a sphere of radius 1.1 around a figure 45.9 units tall
-
-     Culling was fixed by switching it off for this one figure. The
-     FRAMING below was left reading the same broken measurement, and it
-     decides the camera's distance and its aim. A box that is 1.1 units
-     tall where the figure is 45.9 makes `tall` meaningless, so
-     dist = fit / tan(fov/2) puts the lens somewhere unrelated to the
-     body — close enough for a 50 degree lens to stretch whatever is
-     nearest it, with the head out of frame above. Every close-up
-     screenshot taken today shows exactly that: the head cut off, the
-     torso drawn out.
-
-     The bones DO know where the body is: they are what the skin is
-     bound to, and their world positions are the figure. Falls back to
-     the mesh box only if a body somehow has no bones, which is the one
-     case where the old measurement was right. */
-  const bbox = new THREE.Box3();
-  let bones = 0;
-  g.traverse(o => {
-    if (!o.isBone) return;
-    bbox.expandByPoint(o.getWorldPosition(_lV3));
-    bones++;
-  });
-  /* Bones sit inside the body — the skull's bone is at its centre, the
-     foot's above the sole — so the span they enclose is short of the
-     real figure at both ends. A tenth of the span at the top clears the
-     crown and hair; the feet need less, since the ankle sits close to
-     the ground. Measured against the cast: bone span 36.3 on a body
-     that stands about 42 units, which is the 12% this restores. */
-  if (bones){
-    const span = bbox.max.y - bbox.min.y;
-    bbox.max.y += span * 0.10;
-    bbox.min.y -= span * 0.02;
-  }
-  const box = bones ? bbox : new THREE.Box3().setFromObject(g);
+  const box = new THREE.Box3().setFromObject(g);
   const tall = Math.max(1, box.max.y - box.min.y);
   /* Head to feet, not head and shoulders. This was framed at 0.46 of
      the figure's height around eye level, which is a portrait — and a
