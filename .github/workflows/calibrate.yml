@@ -1,0 +1,129 @@
+name: calibrate the performance ceiling
+
+# NOT A GATE, AND NEVER RUNS BY ITSELF.
+#
+# This is the run that produces a number for a human to set by hand. It
+# is workflow_dispatch only — no push trigger, no pull_request trigger —
+# because it costs an hour and a half of runner time and its output is a
+# recommendation, not a verdict. Nothing here can fail a build.
+#
+# WHY IT RUNS HERE, on an ordinary GitHub-hosted runner with no GPU.
+#
+# The rule for calibrating a gate is that the machine which calibrates
+# must match the machine that enforces. Every probe in this repository
+# launches Chromium with --enable-unsafe-swiftshader (tools/_harness.mjs)
+# because GitHub-hosted runners have no GPU — so the enforcing machine
+# IS a software rasterizer, and calibrating on one is not a compromise,
+# it is the procedure. check-perf.mjs declares that expectation as
+# ENFORCEMENT and refuses to recommend a ceiling anywhere that does not
+# match it, naming the field that differs.
+#
+# The records are uploaded rather than printed alone: the commit that
+# eventually sets P95_CEILING has to carry the provenance, and copying it
+# out of an artifact is how that happens without retyping numbers.
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'full (120 warm / 300 sample) or ci (30 / 90)'
+        type: choice
+        options: [full, ci]
+        default: full
+      runs:
+        description: 'independent browser launches — five is the minimum that calibrates'
+        default: '5'
+      both:
+        description: 'also run the ci profile afterwards, to see whether its p95 tracks full'
+        type: boolean
+        default: false
+
+concurrency:
+  group: calibrate-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PW_VERSION: '1.56.1'
+
+jobs:
+  calibrate:
+    runs-on: ubuntu-latest
+    # Five launches of the full profile is the expensive case. Measured
+    # at roughly 9.4 s/frame on a software rasterizer, 420 frames a
+    # launch, so ~66 minutes each — and the budget has to cover the case
+    # where the runner is slower than the box this was measured on.
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Same cache key and the same timings as the smoke job, for the
+      # same reason: an install that wedges should cost minutes and fail
+      # as itself, not drain a six-hour budget and report "cancelled".
+      - name: Cache the browser
+        id: browser
+        timeout-minutes: 5
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ env.PW_VERSION }}
+
+      - name: Install Playwright
+        timeout-minutes: 6
+        run: npm install --no-save --no-audit --no-fund playwright@${{ env.PW_VERSION }}
+
+      - name: Fetch the browser
+        if: steps.browser.outputs.cache-hit != 'true'
+        timeout-minutes: 8
+        run: npx playwright install --with-deps chromium
+
+      - name: System libraries for the cached browser
+        if: steps.browser.outputs.cache-hit == 'true'
+        timeout-minutes: 6
+        run: npx playwright install-deps chromium
+
+      # What the machine actually is, before anything is measured on it.
+      # The record carries this too; having it in the log means a reader
+      # scrolling the run can see what they are reading without opening
+      # the artifact.
+      - name: What is this runner?
+        run: |
+          echo "image     ${ImageOS:-unknown} · ${RUNNER_OS:-unknown} · ${RUNNER_ARCH:-unknown}"
+          echo "cpus      $(nproc)"
+          echo "memory    $(free -g | awk '/^Mem:/{print $2}') GB"
+          echo "kernel    $(uname -srm)"
+
+      - name: Calibrate
+        run: |
+          node tools/check-perf.mjs --calibrate \
+            --profile "${{ inputs.profile }}" \
+            --runs "${{ inputs.runs }}" \
+            --out "perf-records/${{ inputs.profile }}.json"
+
+      # The second half of the question the first half cannot answer.
+      # The ci profile is marked UNVALIDATED in check-perf.mjs because
+      # nobody has shown its p95 tracks the full profile's — and until
+      # somebody does, it must not be allowed to fail a build. This step
+      # is how that gets shown: same commit, same runner, both profiles,
+      # and the two p95 distributions to compare.
+      - name: And the short profile, for comparison
+        if: inputs.both && inputs.profile == 'full'
+        run: |
+          node tools/check-perf.mjs --calibrate \
+            --profile ci \
+            --runs "${{ inputs.runs }}" \
+            --out "perf-records/ci.json"
+
+      # always(): a timeout or a refusal still produced records worth
+      # keeping, and the refusal path is the one whose evidence is most
+      # likely to be wanted.
+      - name: Keep the records
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-records-${{ github.sha }}
+          path: perf-records/
+          if-no-files-found: warn
+          retention-days: 90
