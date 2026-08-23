@@ -4236,9 +4236,9 @@ const BENCH = q.has("bench");
    only: absent, nothing below it runs. */
 const RIGTRACE = q.get("rigtrace") || null;
 const RIGREST = q.has("rigrest");
-/* ?skin=2 or 3 — see tightenWeights. 0 or absent leaves the weights as
-   the files carry them. */
-const SKIN_TIGHTEN = +(q.get("skin") || 0) || 0;
+/* ?skin=N — see tightenWeights. 1 is the file as authored; the default
+   is 2, for the reason recorded there. */
+const SKIN_TIGHTEN = q.has("skin") ? (+q.get("skin") || 0) : 2;
 const RIGTRACE_FRAME = +(q.get("rigframe") || 8);
 /* WHY the ladder is not shedding, in words, for the frame after this
    one to report. The panel could always say which rung the campus was
@@ -8037,10 +8037,29 @@ function deshine(root){
    trades smear for creasing at the joints, which is why it is a dial
    and not a constant.
 
-   OFF unless asked for, because it is a judgement about how the cast
-   should look and not a defect being repaired — and because a flag is
-   what lets the same phone compare the same figure with and without it,
-   which is worth more than any measurement taken here. */
+   This was OFF by default, on the grounds that it is a judgement about
+   how the cast should look and not a defect being repaired. There is now
+   a measurement, and it says the second half of that was wrong.
+
+   probe-edge-stretch turns ONE bone 45 degrees from bind — no clip, no
+   retargeting — and measures every sampled edge against its own rest
+   length. An edge's length belongs to the mesh, not the pose. On char17:
+
+       ?skin=1 (as authored)   15 edges past 1.5x, worst 20.71x
+       ?skin=2                 13 edges past 1.5x, worst 10.34x
+
+   and all 15 of those edges have BOTH ends led by RightUpperArm — none
+   of them spans a seam, so none is the ordinary stretch of skin at a
+   joint. An edge inside one bone's own territory has no honest reason to
+   change length. Tightening halves the worst of it.
+
+   So the default is 2. ?skin=1 restores the file as authored, which is
+   what lets the same phone compare the same figure both ways.
+
+   Higher settings are not recommended and not measured: at 3 and above
+   the probe's own bind check fails — skinning at bind stops reproducing
+   the raw mesh — and readings taken past that point are not trustworthy,
+   for a reason not yet understood. */
 function tightenWeights(root, power){
   if (!(power > 1)) return;
   root.traverse(o => {

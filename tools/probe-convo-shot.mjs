@@ -19,6 +19,9 @@ import { resolve } from "node:path";
 
 const OUT = resolve(new URL("..", import.meta.url).pathname, ".shots");
 const NAME = process.argv[2] || "convo-shot";
+/* any argument beginning with & is appended to the page URL, so a flag
+ * under test can be photographed as well as measured */
+const EXTRA = process.argv.filter(a => a.startsWith("&")).join("");
 await mkdir(OUT, { recursive: true });
 
 const { origin, close } = await serve();
@@ -29,7 +32,7 @@ page.on("pageerror", e => console.log("  [pageerror] " + e.message.split("\n")[0
 page.on("console", m => { const t = m.text();
   if (/rests differ|labels its sides|could not lend/.test(t)) console.log("  [page] " + t); });
 
-await page.goto(`${origin}/index.html?crowd=12`, { waitUntil: "domcontentloaded" });
+await page.goto(`${origin}/index.html?crowd=12${EXTRA}`, { waitUntil: "domcontentloaded" });
 await page.waitForFunction(() => window.__app && window.__convo, null, { timeout: 240_000 });
 await page.waitForFunction(() => (window.__convo.named() || []).length > 0,
                            null, { timeout: 240_000 });

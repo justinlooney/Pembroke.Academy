@@ -86,7 +86,7 @@ const out = await page.evaluate(({ want, mode, uni }) => {
   if (uni) s.g.scale.set(1, 1, 1);
   s.g.updateMatrixWorld(true);
 
-  let posed, bind, posedWorld, drove = "", moved = null;
+  let posed, bind, posedWorld, bindWorld, drove = "", moved = null;
   if (mode === "synth"){
     /* No clip, no retarget, no animation. Start from the asset's own bind
      * pose and turn ONE bone by a known 45 deg. A sound rig barely changes
@@ -95,6 +95,7 @@ const out = await page.evaluate(({ want, mode, uni }) => {
      * POSE, which a clip-driven measurement cannot do. */
     m.skeleton.pose();
     bind = measure();
+    bindWorld = m.skeleton.bones.map(b => b ? b.matrixWorld.clone() : null);
     let hinge = null;
     m.skeleton.bones.forEach(b => { if (!hinge && /RightUpperArm|RightArm/i.test(b.name)) hinge = b; });
     if (!hinge) return { error: "no right upper arm bone to turn" };
@@ -119,6 +120,7 @@ const out = await page.evaluate(({ want, mode, uni }) => {
     posedWorld = m.skeleton.bones.map(b => b ? b.matrixWorld.clone() : null);
     m.skeleton.pose();
     bind = measure();
+    bindWorld = m.skeleton.bones.map(b => b ? b.matrixWorld.clone() : null);
     m.skeleton.update();
     drove = `clip "${s.g.userData.anim?.current}"`;
   }
@@ -203,6 +205,79 @@ const out = await page.evaluate(({ want, mode, uni }) => {
   })();
   /* the autopsy should follow the believable worst, not a sliver */
   if (worstRealAt >= 0) worstAt = worstRealAt;
+
+  /* ── seam edges are not tears ──────────────────────────────────────
+   * An edge from an armpit vertex to a ribcage vertex SHOULD stretch when
+   * the arm lifts: that is skin, and every character mesh does it. Only an
+   * edge whose two ends belong to the same part of the body has no honest
+   * reason to change length.
+   *
+   * This split is what the earlier readings were missing. They reported
+   * "the mesh is being pulled apart, 20x at the shoulder" from a vertex
+   * printed for ONE endpoint, while the other end sat on the torso.
+   *
+   * So classify each stretched edge by whether its endpoints share a
+   * dominant bone, and report the two counts separately. An INTERNAL edge
+   * at 20x is a defect. A SEAM edge at 20x is a shoulder. */
+  const leadOf = (v) => {
+    let best = 0, bj = -1;
+    for (let k = 0; k < 4; k++){
+      const w = wgt.getComponent(v, k);
+      if (w > best){ best = w; bj = idx.getComponent(v, k); }
+    }
+    return bj;
+  };
+  let seam = 0, internal = 0, worstInternal = 0, worstInternalAt = -1,
+      worstInternalRest = 0;
+  edges.forEach(([a, b2], n) => {
+    const r = bind[n], p = posed[n];
+    if (!(r > 1e-4) || r < medLen * 0.2) return;
+    const ratio = p / r;
+    if (!(ratio > 1.5 || ratio < 0.5)) return;
+    if (leadOf(a) !== leadOf(b2)){ seam++; return; }
+    internal++;
+    if (ratio > worstInternal){
+      worstInternal = ratio; worstInternalAt = a; worstInternalRest = r;
+    }
+  });
+  let worstInternalBone = "";
+  if (worstInternalAt >= 0)
+    worstInternalBone = m.skeleton.bones[leadOf(worstInternalAt)]?.name || "?";
+
+  /* ── is the skeleton's bind self-consistent? ───────────────────────
+   * At bind pose every bone's W_j . boneInverse_j must be the SAME matrix
+   * -- the group's world transform -- because W_j(bind) = G . B_j and
+   * boneInverse_j = B_j inverse, so the product is G for every j. Any bone
+   * that disagrees has a bind the rest of the skeleton does not share, and
+   * every vertex it influences is placed wrongly in proportion to its
+   * weight there.
+   *
+   * This is why ?skin=3 fails the bind check while the file's own weights
+   * pass it: soft weights dilute one bad bone below notice, and tightening
+   * concentrates it. Measured directly here, it needs no weights at all. */
+  const bindCheck = (() => {
+    const ref = new THREE.Matrix4().multiplyMatrices(bindWorld[0],
+                  m.skeleton.boneInverses[0]);
+    const refQ = new THREE.Quaternion(), refT = new THREE.Vector3(),
+          refS = new THREE.Vector3();
+    ref.decompose(refT, refQ, refS);
+    let worstAng = 0, worstBone = "", worstShift = 0;
+    for (let j = 1; j < m.skeleton.bones.length; j++){
+      const b = m.skeleton.bones[j];
+      if (!b || !bindWorld[j]) continue;
+      const P = new THREE.Matrix4().multiplyMatrices(bindWorld[j],
+                  m.skeleton.boneInverses[j]);
+      const q = new THREE.Quaternion(), t = new THREE.Vector3(),
+            sc = new THREE.Vector3();
+      P.decompose(t, q, sc);
+      const ang = refQ.angleTo(q) * 180 / Math.PI;
+      const shift = refT.distanceTo(t) / (refS.y || 1);   /* in bind units */
+      if (ang > worstAng){ worstAng = ang; worstBone = b.name; }
+      if (shift > worstShift) worstShift = shift;
+    }
+    return { ang: +worstAng.toFixed(3), bone: worstBone,
+             shift: +worstShift.toFixed(5) };
+  })();
 
   /* the still-bone guard described above */
   let stillWorst = 0, stillAt = -1, stillBone = "", stillChecked = 0;
@@ -343,10 +418,13 @@ const out = await page.evaluate(({ want, mode, uni }) => {
   return { sampled: edges.length, usable, stretched, worst: +worst.toFixed(2),
            worstBone, clip: s.g.userData.anim?.current, verts: pos.count,
            nBones, maxIdx, shortWeight, danglers, worstVert, spread, deltas,
-           medianScale, drove, breadth, uni,
+           medianScale, drove, breadth, uni, bindCheck,
            rawMean: +rawMean.toFixed(4), rawSpread: +rawSpread.toFixed(4), vsThree,
            medLen: +medLen.toFixed(6), slivers, realStretched, realUsable,
            worstReal: +worstReal.toFixed(2),
+           seam, internal, worstInternal: +worstInternal.toFixed(2),
+           worstInternalBone,
+           worstInternalRest: +(worstInternalRest / medLen).toFixed(2),
            stillWorst: +stillWorst.toFixed(4), stillBone, stillAt, stillChecked };
 }, { want: WANT, mode: MODE, uni: UNI });
 
@@ -370,12 +448,20 @@ else {
       + ` nothing rotated;\n      worst change among them `
       + `${(out.stillWorst * 100).toFixed(2)}%${out.stillBone ? ` (${out.stillBone})` : ""}`
       + ` — must be 0.00%\n`);
+  console.log(`    bind self-consistency: at bind every bone's W.boneInverse must be`);
+  console.log(`      the same matrix. Worst disagreement ${out.bindCheck.ang} deg`
+    + `${out.bindCheck.bone ? ` (${out.bindCheck.bone})` : ""}`
+    + `, offset ${out.bindCheck.shift} bind units\n`);
   console.log(`  typical (median) rest edge length: ${out.medLen}`);
   console.log(`  ALL edges      — stretched past 1.5x or under 0.5x:  ${out.stretched} of ${out.usable}`
     + `, worst ${out.worst}x`);
   console.log(`  of those, on sliver edges under a fifth of typical:  ${out.slivers}`);
   console.log(`  ORDINARY edges — stretched:  ${out.realStretched} of ${out.realUsable}`
     + `, worst ${out.worstReal}x   (dominant bone ${out.worstBone})`);
+  console.log(`    of those, SEAM edges (ends led by different bones):  ${out.seam}`);
+  console.log(`    of those, INTERNAL edges (both ends on one bone):    ${out.internal}`
+    + (out.internal ? `, worst ${out.worstInternal}x at ${out.worstInternalBone}`
+       + ` (rest length ${out.worstInternalRest}x the typical edge)` : ""));
   if (out.worstVert) console.log(`  worst edge's vertex is weighted: `
     + out.worstVert.map(p => `${p.bone} ${p.w}`).join(", "));
   console.log(`\n  skeleton has ${out.nBones} bones; highest skinIndex used is ${out.maxIdx}`);
@@ -414,11 +500,20 @@ else {
     console.log(`  Every ratio above divides by a rest length this same code produced,`);
     console.log(`  so with those checks failing the stretch figures describe the`);
     console.log(`  measurement and not the mesh. Do not quote them.`);
-  } else console.log(out.realStretched
-    ? `\n  ${out.realStretched} of ${out.realUsable} ORDINARY edges (${pct}%) change length`
-      + `\n  materially. The mesh IS being pulled apart, worst at ${out.worstBone}.`
-    : `\n  No ordinary edge changes length materially — the ${out.stretched} flagged above are`
-      + `\n  all degenerate slivers, where a ratio means nothing. The mesh is NOT being`
-      + `\n  pulled apart, and the shredded render is something other than deformation.`);
+  } else if (!out.realStretched){
+    console.log(`\n  No ordinary edge changes length materially — the ${out.stretched} flagged`);
+    console.log(`  above are all degenerate slivers, where a ratio means nothing.`);
+  } else if (!out.internal){
+    console.log(`\n  ${out.realStretched} of ${out.realUsable} ordinary edges (${pct}%) change`);
+    console.log(`  length materially, and every one of them SPANS A SEAM — its two ends`);
+    console.log(`  are led by different bones. Skin does that: lift an arm and the`);
+    console.log(`  armpit stretches. Nothing here shows the mesh being pulled apart.`);
+  } else {
+    console.log(`\n  ${out.internal} edge(s) with BOTH ends on ${out.worstInternalBone} change`);
+    console.log(`  length materially, worst ${out.worstInternal}x. An edge inside one bone's`);
+    console.log(`  own territory has no honest reason to change length, so this is a`);
+    console.log(`  real deformation fault — separate from the ${out.seam} seam edges,`);
+    console.log(`  which stretch because that is what skin at a joint does.`);
+  }
 }
 await browser.close(); await closeSrv();
