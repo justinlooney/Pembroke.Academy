@@ -4236,9 +4236,9 @@ const BENCH = q.has("bench");
    only: absent, nothing below it runs. */
 const RIGTRACE = q.get("rigtrace") || null;
 const RIGREST = q.has("rigrest");
-/* ?skin=2 or 3 — see tightenWeights. 0 or absent leaves the weights as
-   the files carry them. */
-const SKIN_TIGHTEN = +(q.get("skin") || 0) || 0;
+/* ?skin=N — see tightenWeights. 1 is the file as authored; the default
+   is 2, for the reason recorded there. */
+const SKIN_TIGHTEN = q.has("skin") ? (+q.get("skin") || 0) : 2;
 const RIGTRACE_FRAME = +(q.get("rigframe") || 8);
 /* WHY the ladder is not shedding, in words, for the frame after this
    one to report. The panel could always say which rung the campus was
@@ -8037,10 +8037,43 @@ function deshine(root){
    trades smear for creasing at the joints, which is why it is a dial
    and not a constant.
 
-   OFF unless asked for, because it is a judgement about how the cast
-   should look and not a defect being repaired — and because a flag is
-   what lets the same phone compare the same figure with and without it,
-   which is worth more than any measurement taken here. */
+   This was OFF by default, on the grounds that it is a judgement about
+   how the cast should look and not a defect being repaired. There is now
+   a measurement, and it says the second half of that was wrong.
+
+   probe-edge-stretch turns ONE bone 45 degrees from bind — no clip, no
+   retargeting — and measures every sampled edge against its own rest
+   length. An edge's length belongs to the mesh, not the pose. Measured
+   across four bodies, worst edge / count past 1.5x:
+
+                      as authored        at 2
+       char17 Dean    20.71x  15         10.34x  13
+       char2  Elowen   6.38x  10          3.41x  12
+       char6  Theo     4.68x  17          2.67x  20
+       char18 Merion   2.51x  10          2.27x  15
+
+   The worst case falls on every one of them, by about half on three. The
+   COUNT rises on three of the four: tightening trades a few more mild
+   stretches for a much smaller extreme, which is the right way round,
+   because the extreme is what shreds a jacket where a 2x stretch does
+   not show at all.
+
+   char17 is the outlier by three to eight times, which is why his is the
+   body that visibly shreds while the others photograph clean.
+
+   In every case, on every body, ALL of those edges have both ends led by
+   the same bone — none spans a seam. An armpit-to-ribcage edge SHOULD
+   lengthen when an arm lifts; an edge inside one bone's own territory has
+   no honest reason to change length at all. And in every case the bone is
+   in the upper torso: RightUpperArm, RightClavicle, Chest, Spine2.
+
+   So the default is 2. ?skin=1 restores the file as authored, which is
+   what lets the same phone compare the same figure both ways.
+
+   Higher settings are not recommended and not measured: at 3 and above
+   the probe's own bind check fails — skinning at bind stops reproducing
+   the raw mesh — and readings taken past that point are not trustworthy,
+   for a reason not yet understood. */
 function tightenWeights(root, power){
   if (!(power > 1)) return;
   root.traverse(o => {
@@ -15758,11 +15791,22 @@ function convoOpen(s){
      its work in the weight shift, the hands and the stance. You cannot
      see someone shift their weight if you cannot see their feet.
 
-     0.72 is the whole figure with air around it: the visible half-
-     height at this distance is 0.63 of his height, so he fills about
-     four fifths of the frame — enough to read a face on, with air left
-     at the top rather than dead space. */
-  const fit = tall * 0.63;
+     This said 0.63 gave "air left at the top rather than dead space".
+     Measured, it gave none. At 0.63 the visible half-height is exactly
+     0.63 of the body, and the aim point lifts the figure until the scalp
+     sits on the top edge: probe-convo-camera projects the topmost SKINNED
+     vertex at y = -2px on an 800px canvas. Two pixels over, every time,
+     and further out on any frame where the clip raises him.
+
+     It read as fine for as long as it did because every probe measured
+     the head BONE, which is inside the skull — world y 37.8 against a
+     scalp at 43.4, landing at a comfortable y = +88px while the actual
+     head was off the top of the picture.
+
+     0.70 pulls back about a tenth, which is roughly 4% of his height as
+     margin above the head and the same below the shoes. He still fills
+     most of the frame; the difference is that the head is now in it. */
+  const fit = tall * 0.70;
   const dist = fit / Math.tan((convoCam.fov * Math.PI / 180) / 2);
   /* Aimed BELOW his middle on purpose. Whatever the camera looks at
      lands at the centre of the screen, and the dialogue panel owns the
@@ -16785,7 +16829,13 @@ window.__sim = (steps = 900, dt = 1 / 30) => {
   return { steps, simulated: +(steps * dt).toFixed(1) };
 };
 window.__convo = { open: convoOpen, close: convoClose, on: () => !!convoView,
-                   named: () => students.filter(s => s.data) };
+                   named: () => students.filter(s => s.data),
+                   /* test/debug: the close-up renders through THIS camera, and
+                      it is not in convoScene, so a probe cannot find it by
+                      walking the graph. Every measurement of "the head is cut
+                      off" that searched for a camera silently fell back to the
+                      campus one and reported a whole body 14 pixels tall. */
+                   cam: () => convoCam, scene: () => convoScene };
 window.__interior = { open: (k) => openInterior(k), close: () => closeInterior() };   /* test/debug hook */
 
 /* ══════════════════════════════════════════════════════════════════

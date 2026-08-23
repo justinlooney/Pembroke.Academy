@@ -82,8 +82,21 @@ for (let visit = 1; visit <= (WANT ? 6 : 3); visit++){
           : new THREE.Vector3(0, 0, 1);
         toCam.y = 0; toCam.normalize();
         const deg = (v) => v ? +(Math.acos(Math.max(-1, Math.min(1, v.dot(toCam)))) * 180 / Math.PI).toFixed(1) : null;
+        /* THE RAW VECTORS, because two versions of this probe have now
+           reported something that was not a measurement — first a null
+           chest counted as a pass, then exactly 90.0 on all fourteen
+           rows across both sides of an A/B. A constant is not a reading,
+           and no more theories about why until the intermediates are on
+           screen. */
+        const v3 = (v) => v ? `[${v.x.toFixed(2)}, ${v.y.toFixed(2)}, ${v.z.toFixed(2)}]` : "null";
+        const camPos = cam ? cam.getWorldPosition(new THREE.Vector3()) : null;
         window.__convo.close();
-        res({ chestOff: deg(chest), feetOff: deg(feet), rotY: +(g.rotation.y * 180 / Math.PI).toFixed(1) });
+        res({ chestOff: deg(chest), feetOff: deg(feet),
+              rotY: +(g.rotation.y * 180 / Math.PI).toFixed(1),
+              raw: { camFound: !!cam, camPos: v3(camPos),
+                     gPos: v3(g.getWorldPosition(new THREE.Vector3())),
+                     ls: v3(ls), rs: v3(rs), chest: v3(chest),
+                     feet: v3(feet), toCam: v3(toCam) } });
       }, 2500));
     }, t.name);
     if (r) rows.push({ ...t, ...r });
@@ -92,6 +105,10 @@ for (let visit = 1; visit <= (WANT ? 6 : 3); visit++){
 }
 
 console.log(`\n  who              body     chest off   feet off   rotation.y`);
+for (const r of rows)
+  if (r.raw) console.log(`     raw  camFound=${r.raw.camFound} cam=${r.raw.camPos} g=${r.raw.gPos}` +
+                         `\n          ls=${r.raw.ls} rs=${r.raw.rs} chest=${r.raw.chest}` +
+                         ` feet=${r.raw.feet} toCam=${r.raw.toCam}`);
 for (const r of rows)
   console.log(`  ${String(r.name).padEnd(16)} ${String(r.body).padEnd(8)} ` +
               `${String(r.chestOff).padStart(9)}   ${String(r.feetOff).padStart(8)}   ${String(r.rotY).padStart(8)}` +
