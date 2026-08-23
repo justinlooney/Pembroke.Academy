@@ -9697,10 +9697,39 @@ function dressFigure(g, seed){
     if (what === "skin") o.material.color.setRGB(...WARDROBE.skin[tone]);
     else o.material.color = new THREE.Color(dress[what]);
   });
-  /* Breadth as well as height. Stature and build carry a silhouette
-     further than any colour does — at the far side of the quad they are
-     most of what tells two people apart. */
-  g.scale.x = g.scale.z = 0.93 + R(5) * 0.16;
+  /* Breadth used to be varied here too:
+
+         g.scale.x = g.scale.z = 0.93 + R(5) * 0.16;
+
+     a non-uniform scale on the figure group, which sits directly above
+     the skeleton. A bone rotation under a non-uniform scale is not a
+     rotation, it is a shear, and the shear grows with the angle — so it
+     was worst exactly where the rotations are biggest, at the shoulders
+     and the waist. Measured on char17 (breadth 1.067) by turning one
+     bone 45 degrees from bind, with no clip involved:
+
+         at rest    RightUpperArm  24.387, 22.857, 24.387
+         turned     RightUpperArm  23.637, 23.634, 24.385
+
+     3.4% of skew, propagating down to the forearm and the hand. A pure
+     rotation must not change scale.
+
+     There is no cheap place to put it back. Moving it onto the meshes
+     deletes it outright: three.js defaults a SkinnedMesh to
+     AttachedBindMode, which recomputes bindMatrixInverse from the mesh's
+     current matrixWorld every frame, so the mesh node's own transform
+     cancels out of the render. Measured through applyBoneTransform at
+     bind pose, that change made the body exactly 1.067x narrower — the
+     whole effect, gone. Baking it into geometry needs a cloned position
+     buffer per width, which is megabytes a figure against a 48MB
+     ceiling; scaling the bone rest offsets perturbs the very rests
+     lendClip retargets against.
+
+     So it goes. buildOf already varies STATURE by ±11%, and height reads
+     across a lawn better than width does — the thing this was for is
+     mostly still there, without shearing every joint in the cast to get
+     it. If breadth is wanted back, a few baked geometry buckets is the
+     way, not a scale above a skeleton. */
 }
 /* Every figure starts at a different point in its cycle. A crowd on one
    clip in lockstep is a chorus line, and it is the first thing the eye
