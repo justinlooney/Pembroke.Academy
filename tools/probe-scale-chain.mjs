@@ -56,7 +56,47 @@ const out = await page.evaluate((want) => {
      Math.abs(b.scale.z - 1) > 1e-4))
     .map(b => ({ bone: b.name, s: [b.scale.x, b.scale.y, b.scale.z].map(v => +v.toFixed(4)) }));
 
+  /* Does the mesh node's own transform reach the render at all?
+   * three.js defaults a SkinnedMesh to AttachedBindMode, which recomputes
+   * bindMatrixInverse from the CURRENT matrixWorld every frame. If that is
+   * on, matrixWorld and its inverse cancel and the node's transform has no
+   * effect on where the vertices land -- so scaling the mesh to vary a
+   * build would silently do nothing. The world box is the check that does
+   * not depend on my reading of the shader: it is measured through the
+   * skeleton, the same path the renderer uses. */
+  const box = new THREE.Box3().setFromObject(s.g);
+  const size = new THREE.Vector3(); box.getSize(size);
+
+  /* Box3 turned out to report the same size whether the breadth sits on
+   * the group or on the mesh, so it cannot answer this. Take the ground
+   * truth instead: applyBoneTransform is three.js's own documented way to
+   * get a skinned vertex, and matrixWorld puts it in the world. Measure
+   * the body's actual width and height that way. */
+  /* At BIND pose, so two runs are comparable: a clip caught at a different
+   * moment changes the width by more than any breadth setting does. */
+  m.skeleton.pose();
+  s.g.updateMatrixWorld(true);
+  const pos = m.geometry.attributes.position;
+  const v = new THREE.Vector3();
+  let lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+  const step = Math.max(1, Math.floor(pos.count / 4000));
+  for (let i = 0; i < pos.count; i += step){
+    v.fromBufferAttribute(pos, i);
+    m.applyBoneTransform(i, v);
+    v.applyMatrix4(m.matrixWorld);
+    const c = [v.x, v.y, v.z];
+    for (let a = 0; a < 3; a++){
+      if (c[a] < lo[a]) lo[a] = c[a];
+      if (c[a] > hi[a]) hi[a] = c[a];
+    }
+  }
+  const skinBox = [0, 1, 2].map(a => +(hi[a] - lo[a]).toFixed(3));
+
   return { chain, bchain, odd, bind: dec(m.bindMatrix),
+           bindMode: m.bindMode,
+           box: [size.x, size.y, size.z].map(v => +v.toFixed(3)),
+           wide: +(size.x / size.y).toFixed(4),
+           skinBox, skinWide: +(skinBox[0] / skinBox[1]).toFixed(4),
            inv0: dec(new THREE.Matrix4().copy(m.skeleton.boneInverses[0]).invert()),
            figureScale: [s.g.scale.x, s.g.scale.y, s.g.scale.z].map(v => +v.toFixed(4)) };
 }, WANT);
@@ -71,6 +111,18 @@ else {
   console.log(`\n  bindMatrix scale        ${out.bind.join(", ")}`);
   console.log(`  boneInverse[0] inverted ${out.inv0.join(", ")}`);
   console.log(`  student group scale     ${out.figureScale.join(", ")}`);
+  console.log(`  bindMode                ${out.bindMode}`
+    + (out.bindMode === "attached"
+       ? "   <- bindMatrixInverse is recomputed from matrixWorld every"
+         + "\n                          frame, so the mesh node's own transform cancels"
+         + "\n                          out and cannot change where a vertex lands"
+       : ""));
+  console.log(`  world box (Box3)        ${out.box.join(" x ")}  (width/height ${out.wide})`);
+  console.log(`  world box (skinned)     ${out.skinBox.join(" x ")}  (width/height ${out.skinWide})`);
+  console.log(`     measured through applyBoneTransform + matrixWorld, which is the`);
+  console.log(`     path the renderer uses. This is the one that answers whether a`);
+  console.log(`     breadth scale reaches the body. Measured at BIND pose, so two`);
+  console.log(`     runs are comparable.`);
   console.log(`\n  bones carrying a local scale of their own: `
     + (out.odd.length ? out.odd.map(o => `${o.bone} [${o.s.join(", ")}]`).join("; ") : "none"));
   console.log(`\n  A node whose x and z agree but whose y differs is the one shearing`);

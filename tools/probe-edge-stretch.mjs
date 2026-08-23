@@ -205,18 +205,38 @@ const out = await page.evaluate(({ want, mode, uni }) => {
   if (worstRealAt >= 0) worstAt = worstRealAt;
 
   /* the still-bone guard described above */
-  let stillWorst = 0, stillAt = -1, stillBone = "";
+  let stillWorst = 0, stillAt = -1, stillBone = "", stillChecked = 0;
   if (moved){
-    edges.forEach(([a], n) => {
+    /* An edge is still only if BOTH its endpoints are still, and an endpoint
+     * is still only if NONE of its four influences moved.
+     *
+     * This guard took three attempts and each wrong version accused the
+     * game of something it had not done. The first tested only the
+     * dominant bone, so it fired on vertices dominated by Spine2 that
+     * still carried 30% of the rotated arm. The second tested all four
+     * influences but only on the edge's FIRST endpoint, so it fired on a
+     * neck-to-shoulder edge whose far end was on the arm. Both reported
+     * hundreds of percent on unmodified code. */
+    const still = (v) => {
+      for (let k = 0; k < 4; k++){
+        if (wgt.getComponent(v, k) <= 1e-5) continue;
+        const b = m.skeleton.bones[idx.getComponent(v, k)];
+        if (b && moved.has(b)) return false;
+      }
+      return true;
+    };
+    edges.forEach(([a, b2], n) => {
       const r = bind[n], p = posed[n];
       if (!(r > 1e-4) || r < medLen * 0.2) return;
+      if (!still(a) || !still(b2)) return;
+      stillChecked++;
       let best = 0, bj = -1;
       for (let k = 0; k < 4; k++){
         const w = wgt.getComponent(a, k);
         if (w > best){ best = w; bj = idx.getComponent(a, k); }
       }
       const b = m.skeleton.bones[bj];
-      if (!b || moved.has(b)) return;          /* this one was rotated */
+      if (!b) return;
       const off = Math.abs(p / r - 1);
       if (off > stillWorst){ stillWorst = off; stillAt = a; stillBone = b.name; }
     });
@@ -327,7 +347,7 @@ const out = await page.evaluate(({ want, mode, uni }) => {
            rawMean: +rawMean.toFixed(4), rawSpread: +rawSpread.toFixed(4), vsThree,
            medLen: +medLen.toFixed(6), slivers, realStretched, realUsable,
            worstReal: +worstReal.toFixed(2),
-           stillWorst: +stillWorst.toFixed(4), stillBone, stillAt };
+           stillWorst: +stillWorst.toFixed(4), stillBone, stillAt, stillChecked };
 }, { want: WANT, mode: MODE, uni: UNI });
 
 if (out.error) console.log("  " + out.error);
@@ -343,9 +363,13 @@ else {
   console.log(`    my CPU skinning vs three.js applyBoneTransform, worst gap: `
     + (out.vsThree === null ? "unavailable" : out.vsThree));
   console.log(``);
-  if (out.stillAt >= 0 || out.stillBone)
-    console.log(`    still-bone guard: worst change on a vertex NOTHING rotated is `
-      + `${(out.stillWorst * 100).toFixed(2)}%  (${out.stillBone}) — must be 0.00%\n`);
+  if (out.stillChecked !== undefined && out.drove.includes("turned"))
+    /* the count is printed even when the guard passes: a guard that checked
+       nothing would otherwise pass silently, which is not a pass */
+    console.log(`    still-bone guard: ${out.stillChecked} edges with both ends on bones`
+      + ` nothing rotated;\n      worst change among them `
+      + `${(out.stillWorst * 100).toFixed(2)}%${out.stillBone ? ` (${out.stillBone})` : ""}`
+      + ` — must be 0.00%\n`);
   console.log(`  typical (median) rest edge length: ${out.medLen}`);
   console.log(`  ALL edges      — stretched past 1.5x or under 0.5x:  ${out.stretched} of ${out.usable}`
     + `, worst ${out.worst}x`);
@@ -377,13 +401,16 @@ else {
      778% and skinning at bind reproduced the raw mesh only to 96.3%. Both
      numbers were available; neither was consulted. */
   const bindOff = Math.abs(out.rawMean - 1) > 0.005 || out.rawSpread > 0.02;
-  const stillOff = out.stillBone && out.stillWorst > 0.001;
+  const stillOff = out.drove.includes("turned")
+    && (out.stillWorst > 0.001 || !out.stillChecked);
   if (bindOff || stillOff){
     console.log(`\n  NO VERDICT. The instrument failed its own checks:`);
     if (bindOff) console.log(`    skinning at bind did not reproduce the raw mesh`
       + ` (mean ${out.rawMean}, spread ${(out.rawSpread * 100).toFixed(2)}%)`);
-    if (stillOff) console.log(`    a vertex on ${out.stillBone}, which nothing rotated,`
-      + ` moved ${(out.stillWorst * 100).toFixed(2)}%`);
+    if (stillOff) console.log(out.stillChecked
+      ? `    a vertex on ${out.stillBone}, which nothing rotated,`
+        + ` moved ${(out.stillWorst * 100).toFixed(2)}%`
+      : `    the still-bone guard checked 0 edges, so it proved nothing`);
     console.log(`  Every ratio above divides by a rest length this same code produced,`);
     console.log(`  so with those checks failing the stretch figures describe the`);
     console.log(`  measurement and not the mesh. Do not quote them.`);
