@@ -23,11 +23,14 @@ const MODE = process.argv[3] === "synth" ? "synth" : "clip";
  * measuring — the controlled half of the A/B that tests whether that
  * scale is what tears the mesh. */
 const UNI = process.argv.includes("uniform");
+/* any argument beginning with & is appended to the page URL, so a flag
+ * under test can be measured by the same instrument */
+const EXTRA = process.argv.filter(a => a.startsWith("&")).join("");
 const { origin, close: closeSrv } = await serve();
 const browser = await launch();
 const page = await browser.newPage();
 page.on("pageerror", e => console.log("  [pageerror] " + e.message.split("\n")[0]));
-await page.goto(`${origin}/index.html?crowd=12`, { waitUntil: "domcontentloaded" });
+await page.goto(`${origin}/index.html?crowd=12${EXTRA}`, { waitUntil: "domcontentloaded" });
 await page.waitForFunction(() => window.__app && window.__students, null, { timeout: 240_000 });
 await page.waitForFunction((w) => (window.__students || [])
   .some(s => s.g?.userData?.figure === w && s.g?.userData?.anim?.current) ? true : null,
@@ -83,7 +86,7 @@ const out = await page.evaluate(({ want, mode, uni }) => {
   if (uni) s.g.scale.set(1, 1, 1);
   s.g.updateMatrixWorld(true);
 
-  let posed, bind, posedWorld, drove = "";
+  let posed, bind, posedWorld, drove = "", moved = null;
   if (mode === "synth"){
     /* No clip, no retarget, no animation. Start from the asset's own bind
      * pose and turn ONE bone by a known 45 deg. A sound rig barely changes
@@ -99,6 +102,11 @@ const out = await page.evaluate(({ want, mode, uni }) => {
       .setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 4));
     posed = measure();
     posedWorld = m.skeleton.bones.map(b => b ? b.matrixWorld.clone() : null);
+    /* Only the hinge and its descendants moved. Everything else MUST come
+     * back at exactly 1.000, and if it does not the instrument is lying —
+     * this is the guard, not a statistic. */
+    moved = new Set();
+    hinge.traverse(o => { if (o.isBone) moved.add(o); });
     m.skeleton.pose();
     m.skeleton.update();
     drove = `${hinge.name} turned 45 deg from bind — no clip involved`;
@@ -195,6 +203,25 @@ const out = await page.evaluate(({ want, mode, uni }) => {
   })();
   /* the autopsy should follow the believable worst, not a sliver */
   if (worstRealAt >= 0) worstAt = worstRealAt;
+
+  /* the still-bone guard described above */
+  let stillWorst = 0, stillAt = -1, stillBone = "";
+  if (moved){
+    edges.forEach(([a], n) => {
+      const r = bind[n], p = posed[n];
+      if (!(r > 1e-4) || r < medLen * 0.2) return;
+      let best = 0, bj = -1;
+      for (let k = 0; k < 4; k++){
+        const w = wgt.getComponent(a, k);
+        if (w > best){ best = w; bj = idx.getComponent(a, k); }
+      }
+      const b = m.skeleton.bones[bj];
+      if (!b || moved.has(b)) return;          /* this one was rotated */
+      const off = Math.abs(p / r - 1);
+      if (off > stillWorst){ stillWorst = off; stillAt = a; stillBone = b.name; }
+    });
+  }
+
   /* which bone owns the worst edge */
   let worstBone = "?";
   if (worstAt >= 0){
@@ -299,11 +326,13 @@ const out = await page.evaluate(({ want, mode, uni }) => {
            medianScale, drove, breadth, uni,
            rawMean: +rawMean.toFixed(4), rawSpread: +rawSpread.toFixed(4), vsThree,
            medLen: +medLen.toFixed(6), slivers, realStretched, realUsable,
-           worstReal: +worstReal.toFixed(2) };
+           worstReal: +worstReal.toFixed(2),
+           stillWorst: +stillWorst.toFixed(4), stillBone, stillAt };
 }, { want: WANT, mode: MODE, uni: UNI });
 
 if (out.error) console.log("  " + out.error);
 else {
+  if (EXTRA) console.log(`  page flags${EXTRA}`);
   console.log(`\n${WANT} · ${out.drove} · ${out.verts} verts · ${out.usable} edges measured`);
   console.log(`  figure group breadth scale ${out.breadth.join(", ")}`
     + (out.uni ? "  -> forced to 1, 1, 1 for this run" : "  (left as the game sets it)") + "\n");
@@ -314,6 +343,9 @@ else {
   console.log(`    my CPU skinning vs three.js applyBoneTransform, worst gap: `
     + (out.vsThree === null ? "unavailable" : out.vsThree));
   console.log(``);
+  if (out.stillAt >= 0 || out.stillBone)
+    console.log(`    still-bone guard: worst change on a vertex NOTHING rotated is `
+      + `${(out.stillWorst * 100).toFixed(2)}%  (${out.stillBone}) — must be 0.00%\n`);
   console.log(`  typical (median) rest edge length: ${out.medLen}`);
   console.log(`  ALL edges      — stretched past 1.5x or under 0.5x:  ${out.stretched} of ${out.usable}`
     + `, worst ${out.worst}x`);
@@ -338,7 +370,24 @@ else {
   console.log(`\n  An edge's length is a property of the MESH, not the pose. Skinning`);
   console.log(`  bends a body; it does not lengthen the cloth between two vertices.`);
   const pct = out.realUsable ? (out.realStretched / out.realUsable * 100).toFixed(2) : "0";
-  console.log(out.realStretched
+  /* The verdict is gated on the checks above, and says so rather than
+     printing a conclusion someone then has to retract by hand. An earlier
+     version of this probe reported "the mesh IS being pulled apart, 20x at
+     the shoulder" from a run where a vertex on an unrotated bone had moved
+     778% and skinning at bind reproduced the raw mesh only to 96.3%. Both
+     numbers were available; neither was consulted. */
+  const bindOff = Math.abs(out.rawMean - 1) > 0.005 || out.rawSpread > 0.02;
+  const stillOff = out.stillBone && out.stillWorst > 0.001;
+  if (bindOff || stillOff){
+    console.log(`\n  NO VERDICT. The instrument failed its own checks:`);
+    if (bindOff) console.log(`    skinning at bind did not reproduce the raw mesh`
+      + ` (mean ${out.rawMean}, spread ${(out.rawSpread * 100).toFixed(2)}%)`);
+    if (stillOff) console.log(`    a vertex on ${out.stillBone}, which nothing rotated,`
+      + ` moved ${(out.stillWorst * 100).toFixed(2)}%`);
+    console.log(`  Every ratio above divides by a rest length this same code produced,`);
+    console.log(`  so with those checks failing the stretch figures describe the`);
+    console.log(`  measurement and not the mesh. Do not quote them.`);
+  } else console.log(out.realStretched
     ? `\n  ${out.realStretched} of ${out.realUsable} ORDINARY edges (${pct}%) change length`
       + `\n  materially. The mesh IS being pulled apart, worst at ${out.worstBone}.`
     : `\n  No ordinary edge changes length materially — the ${out.stretched} flagged above are`

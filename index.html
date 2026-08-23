@@ -9666,8 +9666,31 @@ function dressFigure(g, seed){
   });
   /* Breadth as well as height. Stature and build carry a silhouette
      further than any colour does — at the far side of the quad they are
-     most of what tells two people apart. */
-  g.scale.x = g.scale.z = 0.93 + R(5) * 0.16;
+     most of what tells two people apart.
+
+     Applied to the MESHES, not to the figure group, and that distinction
+     is the whole point. This used to be `g.scale.x = g.scale.z = ...`,
+     a non-uniform scale sitting directly above the skeleton — and a bone
+     rotation under a non-uniform scale is not a rotation, it is a shear.
+     Measured on char17: turning one bone changed its own bind-delta scale
+     from 24.387, 22.857, 24.387 to 23.637, 23.634, 24.385, 3.4% of skew
+     that propagated down the arm to the forearm and the hand. The skew
+     grows with the angle, so it is worst exactly where the rotations are
+     biggest — the shoulders and the waist.
+
+     The meshes are siblings of the bone root, not descendants of it, so
+     scaling them squashes the finished, correctly-skinned body in its own
+     frame. Same silhouette, rigid skeleton. Bones are skipped: a mesh
+     parented to a hand is already carried by that hand's transform, and
+     scaling it here would apply the breadth to it twice. */
+  const breadth = 0.93 + R(5) * 0.16;
+  for (const o of (g.userData.meshes || [])){
+    let underBone = false;
+    for (let p = o.parent; p && p !== g; p = p.parent) if (p.isBone){ underBone = true; break; }
+    if (underBone) continue;
+    o.scale.x *= breadth;
+    o.scale.z *= breadth;
+  }
 }
 /* Every figure starts at a different point in its cycle. A crowd on one
    clip in lockstep is a chorus line, and it is the first thing the eye
