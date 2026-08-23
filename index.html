@@ -8043,15 +8043,29 @@ function deshine(root){
 
    probe-edge-stretch turns ONE bone 45 degrees from bind — no clip, no
    retargeting — and measures every sampled edge against its own rest
-   length. An edge's length belongs to the mesh, not the pose. On char17:
+   length. An edge's length belongs to the mesh, not the pose. Measured
+   across four bodies, worst edge / count past 1.5x:
 
-       ?skin=1 (as authored)   15 edges past 1.5x, worst 20.71x
-       ?skin=2                 13 edges past 1.5x, worst 10.34x
+                      as authored        at 2
+       char17 Dean    20.71x  15         10.34x  13
+       char2  Elowen   6.38x  10          3.41x  12
+       char6  Theo     4.68x  17          2.67x  20
+       char18 Merion   2.51x  10          2.27x  15
 
-   and all 15 of those edges have BOTH ends led by RightUpperArm — none
-   of them spans a seam, so none is the ordinary stretch of skin at a
-   joint. An edge inside one bone's own territory has no honest reason to
-   change length. Tightening halves the worst of it.
+   The worst case falls on every one of them, by about half on three. The
+   COUNT rises on three of the four: tightening trades a few more mild
+   stretches for a much smaller extreme, which is the right way round,
+   because the extreme is what shreds a jacket where a 2x stretch does
+   not show at all.
+
+   char17 is the outlier by three to eight times, which is why his is the
+   body that visibly shreds while the others photograph clean.
+
+   In every case, on every body, ALL of those edges have both ends led by
+   the same bone — none spans a seam. An armpit-to-ribcage edge SHOULD
+   lengthen when an arm lifts; an edge inside one bone's own territory has
+   no honest reason to change length at all. And in every case the bone is
+   in the upper torso: RightUpperArm, RightClavicle, Chest, Spine2.
 
    So the default is 2. ?skin=1 restores the file as authored, which is
    what lets the same phone compare the same figure both ways.
