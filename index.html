@@ -15777,11 +15777,22 @@ function convoOpen(s){
      its work in the weight shift, the hands and the stance. You cannot
      see someone shift their weight if you cannot see their feet.
 
-     0.72 is the whole figure with air around it: the visible half-
-     height at this distance is 0.63 of his height, so he fills about
-     four fifths of the frame — enough to read a face on, with air left
-     at the top rather than dead space. */
-  const fit = tall * 0.63;
+     This said 0.63 gave "air left at the top rather than dead space".
+     Measured, it gave none. At 0.63 the visible half-height is exactly
+     0.63 of the body, and the aim point lifts the figure until the scalp
+     sits on the top edge: probe-convo-camera projects the topmost SKINNED
+     vertex at y = -2px on an 800px canvas. Two pixels over, every time,
+     and further out on any frame where the clip raises him.
+
+     It read as fine for as long as it did because every probe measured
+     the head BONE, which is inside the skull — world y 37.8 against a
+     scalp at 43.4, landing at a comfortable y = +88px while the actual
+     head was off the top of the picture.
+
+     0.70 pulls back about a tenth, which is roughly 4% of his height as
+     margin above the head and the same below the shoes. He still fills
+     most of the frame; the difference is that the head is now in it. */
+  const fit = tall * 0.70;
   const dist = fit / Math.tan((convoCam.fov * Math.PI / 180) / 2);
   /* Aimed BELOW his middle on purpose. Whatever the camera looks at
      lands at the centre of the screen, and the dialogue panel owns the
@@ -16804,7 +16815,13 @@ window.__sim = (steps = 900, dt = 1 / 30) => {
   return { steps, simulated: +(steps * dt).toFixed(1) };
 };
 window.__convo = { open: convoOpen, close: convoClose, on: () => !!convoView,
-                   named: () => students.filter(s => s.data) };
+                   named: () => students.filter(s => s.data),
+                   /* test/debug: the close-up renders through THIS camera, and
+                      it is not in convoScene, so a probe cannot find it by
+                      walking the graph. Every measurement of "the head is cut
+                      off" that searched for a camera silently fell back to the
+                      campus one and reported a whole body 14 pixels tall. */
+                   cam: () => convoCam, scene: () => convoScene };
 window.__interior = { open: (k) => openInterior(k), close: () => closeInterior() };   /* test/debug hook */
 
 /* ══════════════════════════════════════════════════════════════════
