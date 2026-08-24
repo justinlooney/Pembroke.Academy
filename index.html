@@ -7308,7 +7308,22 @@ const CAST_FILES = {
   char15:  "assets/stu_char15.glb",     /* 200k tris, 0.59 verts a tri   */
   char16:  "assets/stu_char16.glb",     /* 200k tris, the fifth man      */
   char17:  "assets/stu_char17.glb",     /* 200k tris, the Dean herself   */
-  char18:  "assets/stu_char18.glb",     /* 200k tris, the professor      */
+  /* The professor, remade. stu_char18.glb is kept beside this until he
+     has been seen on the quad: his bones report as "plain" rather than
+     StudentProductionRig, and a naming mismatch does not error -- the
+     body loads, draws, and stands perfectly still.
+
+     He is bound in an A-POSE rather than the T-pose the rest of the cast
+     uses, which is the whole reason his skin holds together: one bone
+     turned 75 degrees from bind, the angle the clips actually use, tears
+     him least of any body here.
+
+         tearing 3.31x -> 1.88x     breadth 0.137 -> 0.218
+         200k tris -> 51,322        2.8MB -> 1.0MB
+
+     And he brings his own Idle, Talk, Walk and Run. Every other body in
+     this cast reports idle=null and borrows everything it does. */
+  char18:  "assets/stu_distinguished.glb",  /* 51k tris, the professor  */
 };
 /* ── who has to be here before the doors open ─────────────────────────
    Twelve rigged files is 31MB, all of it decoded on the main thread
