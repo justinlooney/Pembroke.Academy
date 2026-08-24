@@ -7276,7 +7276,17 @@ const CAST_FILES = {
      the scene audit as the largest single body on the campus. Nothing
      depended on her: she lent no motion and no student asked for her by
      name. Character 11 takes her place at 4.01MB and 200k. */
-  char2:   "assets/stu_char2.glb",      /* 200k tris, yellow sweater     */
+  /* Same student, remade. stu_char2.glb is kept beside this until she
+     has been seen walking on the quad: her bones report as "plain"
+     rather than StudentProductionRig, and a naming mismatch does not
+     error -- the body loads, draws, and stands perfectly still -- so
+     this swap has to be watched, not merely checked. Measured against
+     the body she replaces, one bone turned 75 degrees from bind, which
+     is the angle the clips actually use:
+         tearing 9.72x -> 2.27x     breadth 0.157 -> 0.211
+         200k tris -> 52,594        2.7MB -> 0.95MB
+     and she carries her own 1.07s walk. */
+  char2:   "assets/stu_sunny.glb",      /* 53k tris, yellow sweater      */
   /* ── char3 is gone ─────────────────────────────────────────────────
      Retired for her EXPORT, not her body: 4.72MB where the rest of the
      cast lands near 3.5, because 199,998 triangles came with 160,626
@@ -7959,11 +7969,31 @@ function bodyFor(k, looks, needs, spare){
    touched. The skater rides a board whose truck is metalness 0.98, and
    that one is right — it is a metal truck. */
 function deshine(root){
+  /* ── the gate that let nothing through ──────────────────────────────
+     This used to skip any mesh whose name or material name did not match
+     a list -- body, skin, head, hair, shirt, jean, shoe and so on. The
+     cast does not use those words. Measured live, after the campus had
+     finished with them:
+
+         char6    Character6Mesh / material       metal 1  rough 1
+         char17   Character1Mesh / Material_0     metal 1  rough 1
+         char18   Character17Mesh / Material_0    metal 1  rough 1
+         char2    char1 / Material_1              metal 1  rough 1 spec 1
+
+     Every body, metalness 1. The correction below has therefore never
+     run on a single student: the whole cast has been rendering as rough
+     metal, which under an environment map is dark, desaturated and lit
+     from nowhere. It cost nothing to write and did nothing at all, and
+     nothing reported that -- check-character prints the RAW file values
+     and says the campus correction is applied, and character-sheet
+     applies it unconditionally, so its pictures looked right whether or
+     not the campus agreed.
+
+     deshine has exactly one caller, on a cast body's own scene, where
+     every mesh IS the person. So there is nothing to gate against.
+     probe-finish reads these numbers back off the live material. */
   root.traverse(o => {
     if (!o.isMesh || !o.material) return;
-    const tag = canon(o.name) + " " + canon(o.material.name);
-    if (!/body|skin|head|hair|shirt|top|jacket|suit|short|pant|trouser|jean|shoe|sneaker|boot|eyelash|brow|scalp|avatar|mat$/i
-          .test(tag)) return;
     const m = o.material;
     if (typeof m.metalness === "number" && m.metalness > 0) m.metalness = 0;
     /* A floor, not a fixed value: most of this cast sits at 0.68-1.0

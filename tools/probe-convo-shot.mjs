@@ -66,18 +66,27 @@ await page.waitForFunction(() => (window.__convo.named() || []).length > 0,
 /* revisit until the pinned body turns up — attendance is a coin toss */
 if (WANT){
   let found = false;
-  for (let visit = 1; visit <= 8 && !found; visit++){
+  for (let visit = 1; visit <= 4 && !found; visit++){
+    /* WAIT within the visit rather than checking once. The named cast is
+     * not the whole deal: roamers arrive over the following minutes, so
+     * a single check straight after load sees only whoever was early.
+     * char2 came back "never dealt in 8 visits" that way while
+     * probe-attendance, sampling across three minutes, found her in two
+     * visits out of three. */
+    found = await page.waitForFunction((w) => (window.__convo.named() || [])
+      .some(s => s.g?.userData?.figure === w) ? true : null,
+      WANT, { timeout: 180_000, polling: 3000 }).then(() => true).catch(() => false);
+    if (found) break;
     const cast = await page.evaluate(() => (window.__convo.named() || [])
       .map(s => s.g?.userData?.figure));
-    if (cast.includes(WANT)){ found = true; break; }
-    console.log(`  visit ${visit}: no ${WANT} in [${cast.join(", ")}]`);
+    console.log(`  visit ${visit}: no ${WANT} after 3 min — saw [${cast.join(", ")}]`);
     await page.goto(`${origin}/index.html?crowd=12${EXTRA}`, { waitUntil: "domcontentloaded" });
     await page.waitForFunction(() => window.__app && window.__convo, null, { timeout: 240_000 });
     await page.waitForFunction(() => (window.__convo.named() || []).length > 0,
                                null, { timeout: 240_000 });
   }
   if (!found){
-    console.log(`  ${WANT} never dealt in 8 visits — nothing photographed.`);
+    console.log(`  ${WANT} never dealt in 4 visits of 3 minutes — nothing photographed.`);
     await browser.close(); await close(); process.exit(1);
   }
 }
