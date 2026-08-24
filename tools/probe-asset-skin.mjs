@@ -197,7 +197,75 @@ window.__skin = (url, deg) => new Promise((done) => loader.load(url, (g) => {
       vsThree = +gap.toFixed(6);
     }
 
+    /* ── how broad is this body, in the MESH? ───────────────────────
+     * The whole cast shares one skeleton, so the distance between the
+     * two shoulder JOINTS is identical for every student by
+     * construction -- measured live it came back 0.1465 for two
+     * different bodies, to four decimals. Bone spacing therefore cannot
+     * answer "his shoulders are too narrow"; only the mesh can.
+     *
+     * So: put the skeleton back at bind and measure the mesh's own
+     * width in a slab at shoulder height, against the body's height and
+     * against the width of its head. A body whose shoulders are barely
+     * wider than its head is narrow-shouldered as MODELLED, and no
+     * amount of skinning or retargeting work will broaden it. */
+    m.skeleton.pose();
+    root.updateMatrixWorld(true);
+    const armY = (() => {
+      const a = new THREE.Vector3();
+      hinge.getWorldPosition(a); return a.y;
+    })();
+    let headBone = null;
+    m.skeleton.bones.forEach(b => { if (!headBone && /head/i.test(b.name)) headBone = b; });
+    const headY = headBone
+      ? headBone.getWorldPosition(new THREE.Vector3()).y : armY;
+    const v = new THREE.Vector3();
+    let loY = Infinity, hiY = -Infinity;
+    for (let i = 0; i < pos.count; i += 7){
+      v.fromBufferAttribute(pos, i); m.applyBoneTransform(i, v); v.applyMatrix4(m.matrixWorld);
+      if (v.y < loY) loY = v.y;
+      if (v.y > hiY) hiY = v.y;
+    }
+    const tall = hiY - loY || 1;
+    /* TORSO vertices only. At bind these bodies stand in a T-pose, arms
+     * straight out sideways, so a slab at shoulder height cuts through
+     * both arms and measures the ARM SPAN — which is why a first attempt
+     * came back between 0.49 and 0.99 of body height, roughly Vitruvian
+     * and nowhere near a shoulder. Excluding vertices led by an arm bone
+     * leaves the torso, whose width at that height IS the shoulder. */
+    const armBone = new Set();
+    m.skeleton.bones.forEach((b, j) => {
+      if (/arm|hand|finger|thumb/i.test(b.name || "")) armBone.add(j);
+    });
+    const leadIdx = (i) => {
+      let best = 0, bj = -1;
+      for (let k = 0; k < 4; k++){
+        const w = wgt.getComponent(i, k);
+        if (w > best){ best = w; bj = idx.getComponent(i, k); }
+      }
+      return bj;
+    };
+    const band = (yc, frac, torsoOnly) => {
+      let lo = Infinity, hi = -Infinity, n = 0;
+      const half = tall * frac;
+      for (let i = 0; i < pos.count; i += 3){
+        if (torsoOnly && armBone.has(leadIdx(i))) continue;
+        v.fromBufferAttribute(pos, i); m.applyBoneTransform(i, v); v.applyMatrix4(m.matrixWorld);
+        if (Math.abs(v.y - yc) > half) continue;
+        n++;
+        if (v.x < lo) lo = v.x;
+        if (v.x > hi) hi = v.x;
+      }
+      return { w: hi > lo ? hi - lo : 0, n };
+    };
+    const sh = band(armY, 0.02, true);
+    const shoulderW = sh.w, shoulderN = sh.n;
+    const headW = band(headY, 0.02, false).w;
+
     done({ verts: pos.count, bones: m.skeleton.bones.length, hinge: hinge.name,
+           shoulder: +(shoulderW / tall).toFixed(4), shoulderN,
+           headW: +(headW / tall).toFixed(4),
+           shoulderPerHead: headW > 0 ? +(shoulderW / headW).toFixed(2) : null,
            usable, seam, internal, worst: +worst.toFixed(2), worstBone,
            stillChecked, stillWorst: +stillWorst.toFixed(4),
            rawMean: +rawMean.toFixed(4), rawSpread: +rawSpread.toFixed(4), vsThree });
@@ -225,7 +293,7 @@ console.log(`\nRight upper arm turned ${DEG} deg from bind — no clip, no campu
 console.log(`Edges with BOTH ends led by the same bone that change length past`);
 console.log(`1.5x. Seam edges are listed apart: an armpit-to-ribcage edge SHOULD`);
 console.log(`lengthen when an arm lifts, and only an internal one is a fault.\n`);
-console.log(`  body                internal   worst      at                 seam   of`);
+console.log(`  body                internal   worst      at                 shoulderW/height`);
 const rows = [];
 for (const f of files){
   const abs = resolve(ROOT, f);
@@ -245,11 +313,22 @@ for (const f of files){
   rows.push({ nm, ...r });
   console.log(`  ${nm.padEnd(20)} ${String(r.internal).padStart(6)}   ` +
     `${(r.worst + "x").padStart(7)}   ${(r.worstBone || "").padEnd(18)} ` +
-    `${String(r.seam).padStart(4)}   ${r.usable}`);
+    `${String(r.shoulder).padStart(7)}`);
 }
 if (rows.length){
   rows.sort((a, b) => b.worst - a.worst);
-  console.log(`\n  worst first: ${rows.map(r => r.nm + " " + r.worst + "x").join(", ")}`);
+  console.log(`\n  worst tearing first: ${rows.map(r => r.nm + " " + r.worst + "x").join(", ")}`);
+  const byW = rows.slice().sort((a, b) => a.shoulder - b.shoulder);
+  console.log(`\n  NARROWEST SHOULDERS first — mesh width at shoulder height, over the`);
+  console.log(`  body's own height, TORSO vertices only. A real adult is near 0.25.`);
+  console.log(`  ${byW.map(r => r.nm + " " + r.shoulder).join(", ")}`);
+  console.log(`\n  The cast shares one skeleton, so bone spacing is identical for every`);
+  console.log(`  student and cannot answer this — it is a fact about the MESH. A body`);
+  console.log(`  low on this list is narrow-shouldered as MODELLED, and no amount of`);
+  console.log(`  skinning or retargeting work will broaden it.`);
+  console.log(`\n  (head width is measured too but not reported: the head BONE sits at`);
+  console.log(`   the base of the skull, so a slab there cuts the neck and the ratio`);
+  console.log(`   came out at six to eight head-widths, which is not a shoulder.)`);
   console.log(`\n  Every check passed on the rows above: skinning at bind reproduces`);
   console.log(`  the raw mesh, the CPU sum agrees with three.js applyBoneTransform,`);
   console.log(`  and edges whose both ends sat on unrotated bones did not move.`);
