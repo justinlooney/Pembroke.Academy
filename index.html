@@ -7307,7 +7307,26 @@ const CAST_FILES = {
   char14:  "assets/stu_char14.glb",     /* 200k tris, the fourth man     */
   char15:  "assets/stu_char15.glb",     /* 200k tris, 0.59 verts a tri   */
   char16:  "assets/stu_char16.glb",     /* 200k tris, the fifth man      */
-  char17:  "assets/stu_char17.glb",     /* 200k tris, the Dean herself   */
+  /* The dean, remade. stu_char17.glb is kept beside this until she has
+     been seen on the quad. She is the largest single improvement in the
+     cast: char17 tore worse than any other body by a factor of two over
+     the next worst, and was the one that visibly shredded in every
+     close-up taken during this investigation.
+
+     Like the professor she is bound in an A-POSE rather than a T-pose,
+     which is why. One bone turned 75 degrees from bind, the angle the
+     clips actually use:
+
+         tearing 33.17x -> 3x      breadth 0.165 -> 0.221
+         200k tris -> 47,024       3.1MB -> 1.7MB
+
+     She brings QuickWalk, Run, SitToStand, StandToSit, Talk and Walk.
+     check-character and check-sitting both warn that her two sit
+     transitions carry root travel of about 0.5 and are not In Place --
+     if the seat machinery took them as they are, her feet would skate
+     across the lawn as she sat down. check-roles is what says whether
+     it does. */
+  char17:  "assets/stu_citysuit.glb",   /* 47k tris, the Dean herself    */
   /* The professor, remade. stu_char18.glb is kept beside this until he
      has been seen on the quad: his bones report as "plain" rather than
      StudentProductionRig, and a naming mismatch does not error -- the
