@@ -8974,10 +8974,36 @@ function rolesOf(k, src){
      body whose abilities were asserted instead of measured. Everything
      below is measurement, which is what let the authored characters
      join without anybody adding a line. */
+  /* ── a body's OWN clip names are worth reading ──────────────────────
+     The paragraph above retired name-trusting along with walker, and it
+     was right to: a LENT clip is named after the file it came out of,
+     and deriving a job from that is guesswork.
+
+     A body's own clip is different. Whoever built the body named it, and
+     the professor arrives carrying Idle, Talk, Walk and Run. Measurement
+     read his Talk -- ten seconds of standing and gesturing -- as a GAIT,
+     because talking shifts your weight and that scores past the cadence
+     line, so he would have crossed the quad gesturing. It also cannot
+     give him his own Talk as his talk role at all: that slot only takes
+     a clip lendClip wrote the job onto, so a body that arrives able to
+     talk gets lent somebody else's talking anyway.
+
+     So: names decide for a body's own clips, measurement still decides
+     for everything lent. A name is only read when it says one of these
+     four things plainly; anything else falls through to the cadence. */
+  const intentOf = (c) => {
+    if (!c.userData?.own) return null;             /* lent: measure it */
+    const n = (c.name || "").toLowerCase();
+    if (/\bidle\b|^idle|standing/.test(n)) return "idle";
+    if (/talk|speak|gesture|convers/.test(n))  return "talk";
+    if (/walk|run|jog|sprint|stride/.test(n))  return "gait";
+    if (/sit|seat|chair/.test(n))              return "seat";
+    return null;
+  };
   const scored = src.animations
     .filter(c => c.duration > 0.2)                 /* an eye-blink is not a clip */
     .map(c => ({ name: c.name, cadence: (c.userData?.cycles || 0) / c.duration,
-                 role: c.userData?.role || null }));
+                 role: c.userData?.role || null, intent: intentOf(c) }));
   /* The seat clips are excluded from GAITS as well as from still, and
      the reason arrived from a phone: "sometimes people move in the
      seated position". A retargeted sit-down swings the thigh once,
@@ -8987,8 +9013,9 @@ function rolesOf(k, src){
      crossing the lawn folded into a chair. A clip the seat machinery
      claims is never also a way of getting somewhere. */
   const notSeat = (c) => !sit.seated.has(c.name) && c.name !== sit.rise && c.name !== sit.sit;
-  const gaits = scored.filter(c => c.role === "gait" ||
-                                   (!c.role && c.cadence > 0.45 && notSeat(c)))
+  const gaits = scored.filter(c => c.intent ? c.intent === "gait"
+                                 : (c.role === "gait" ||
+                                    (!c.role && c.cadence > 0.45 && notSeat(c))))
                       .map(c => c.name);
   /* A seated clip barely swings a thigh, so it scores as "still" and
      would otherwise be handed straight to idle — leaving a student
@@ -9006,7 +9033,8 @@ function rolesOf(k, src){
      every body in the cast — see LOOSE_CLIPS. Withdrawing the donor is
      what fixed that; this makes the slot it filled one that only a
      body's own animation can fill. */
-  const still = scored.filter(c => !c.role && c.cadence <= 0.45 && notSeat(c))
+  const still = scored.filter(c => c.intent ? c.intent === "idle"
+                                 : (!c.role && c.cadence <= 0.45 && notSeat(c)))
                       .map(c => c.name);
   /* No idle is not a fault, it is a fact about the download: a body
      with nothing to do when standing simply never stops walking. That
@@ -9014,7 +9042,10 @@ function rolesOf(k, src){
   /* Talk is declared, never derived: it exists only as a lent clip
      with the job written on it, and deriving it would be the same
      second-opinion mistake the seat roles just gave up. */
-  const talk = src.animations.find(c => c.userData?.role === "talk")?.name || null;
+  /* A body's own talk clip wins over a lent one: it was authored for
+     this body and needs no retargeting to reach it. */
+  const talk = scored.find(c => c.intent === "talk")?.name
+            || src.animations.find(c => c.userData?.role === "talk")?.name || null;
   const roles = { gaits, idle: still[0] || null, start: null, talk,
                   seat: sit.seat, rise: sit.rise, riseFrom: sit.riseFrom,
                   sit: sit.sit, sitTo: sit.sitTo };
@@ -9538,6 +9569,13 @@ function lendSitDown(){
   let castReady = 0;
   const arrive = (k, g) => {
     castLib[k] = g;
+    /* Mark what the body brought with it, before a single clip is lent.
+       After the lend its own animations and the borrowed ones sit in one
+       list, and only this flag can tell them apart -- which matters
+       because their NAMES mean different things. A lent clip is named
+       after the file it came out of; a body's own clip was named by
+       whoever made the body. */
+    for (const c of (g.animations || [])) (c.userData ||= {}).own = true;
     deshine(g.scene);
     sharpen(g.scene);
     tightenWeights(g.scene, SKIN_TIGHTEN);
