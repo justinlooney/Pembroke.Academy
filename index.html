@@ -7305,7 +7305,57 @@ const CAST_FILES = {
   char10:  "assets/stu_char10.glb",     /* 200k tris, walker's successor */
   char11:  "assets/stu_char11.glb",     /* 200k tris, hero's successor   */
   char14:  "assets/stu_char14.glb",     /* 200k tris, the fourth man     */
-  char15:  "assets/stu_char15.glb",     /* 200k tris, 0.59 verts a tri   */
+  /* The student in the red shirt, remade -- and the FIRST swap here
+     that makes a core number worse. stu_char15.glb is kept beside this
+     like the other four.
+
+     Same student, plainly: the red graphic tee, the denim shorts, the
+     long hair with the top-knot, the black-and-white sneakers. The
+     waist bag reads as a shoulder bag now, which is the only visible
+     difference.
+
+     One bone turned 75 degrees from bind, the angle the clips actually
+     use:
+
+         breadth 0.1159 -> 0.1977   (+71%)
+         200k tris -> 45,084        3.13MB -> 1.30MB
+         TEARING 3.30x -> 8.27x     (2.5x WORSE)
+
+     WHAT SHE FIXES. char15 had the NARROWEST SHOULDERS OF ANY BODY ON
+     THIS CAMPUS -- 0.1159 of her own height against the 0.25 of a real
+     adult, narrower than the fourteen-body cast's next narrowest by a
+     clear margin. Narrow shoulders is the complaint this whole
+     investigation started from, and it is a fact about the MESH that no
+     skinning work can reach. At 0.1977 she is no longer the outlier.
+     This is the largest breadth gain of the five swaps.
+
+     WHAT SHE COSTS. Tearing goes the wrong way, by two and a half
+     times, and tearing is the other half of what this investigation
+     exists to fix. Measured against the cast as it now stands, 8.27x
+     would make her the THIRD WORST body here, behind only char14
+     (16.54x) and char11 (14.82x). The four swaps before this one all
+     improved or held it.
+
+     She is A-POSE bound, like the professor, the dean and barndoor --
+     so 75 degrees is more rotation than her clips ask of her and the
+     figure above is conservative. But it is conservative in exactly the
+     same way for char15's replacement candidates and for the professor,
+     who came in at 1.88x on the identical measure. The A-pose does not
+     excuse it; her weights are loose.
+
+     The shipped ?skin=2 tightening is MEASURED to roughly halve these
+     numbers on the four bodies it was measured on. It has NOT been
+     measured on this one, and probe-asset-skin reads authored weights
+     only, so both figures above are pre-tightening and the ratio
+     between them is what stands.
+
+     She brings QuickWalk, Run, SitToStand, StandChat, Talk, Walk and
+     WalkToSit -- seven clips, more than any other body here -- but no
+     Idle of her own. check-character warns that SitToStand travels 0.49
+     and WalkToSit travels 3.81; the second is a walk-then-sit and
+     genuinely crosses ground. prepareClips runs inPlaceClip over both
+     at load, and probe-inplace is what says whether that reached her. */
+  char15:  "assets/stu_urbanfree.glb",   /* 45k tris, the red shirt       */
   /* The man in the sunglasses, remade. stu_char16.glb is kept beside
      this, as the other three replacements are. Like them his bones
      report as "plain" rather than StudentProductionRig, and a naming
