@@ -23,7 +23,7 @@
  * with anim.current === null is a bind pose and says nothing about the
  * retarget, so that is reported rather than quietly photographed. */
 import { serve, launch } from "./_harness.mjs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const OUT = resolve(new URL("..", import.meta.url).pathname, ".shots");
@@ -299,8 +299,25 @@ if (shot) console.log(`  framing:     ${shot.worst <= 1 ? "whole figure is in th
                      + `  (worst corner ${shot.worst} of the half-frame, measured at the shutter${
                          fit && Math.abs(shot.worst - fit.fill) > 0.1 ? `, ${fit.fill} when the camera was placed — she moved` : ""})`);
 await mkdir(OUT, { recursive: true });
-/* 120s, not the 30s default: the campus never goes idle, and a
- * screenshot that races the render loop times out on the first try. */
-await page.screenshot({ path: resolve(OUT, `${NAME}.png`), timeout: 120_000 });
+/* CAPTURE THROUGH CDP, NOT page.screenshot.
+ *
+ * page.screenshot on this page takes FIFTEEN TO TWENTY SECONDS, and the
+ * campus keeps running for every one of them. Measured across one call:
+ * 19.4s wall, 22.8s of page time, and the figure walked 11 world units
+ * -- a quarter of the standoff -- so the frame that actually got
+ * sampled was nothing like the frame that had just been measured. That
+ * is why "whole figure is in the picture, measured at the shutter"
+ * appeared over a photograph of char15 cut in half at the left edge,
+ * TWICE, with the projection maths correct both times.
+ *
+ * Page.captureScreenshot over a CDP session, same page, same moment:
+ * 6.7s, and the figure moved 0.00 units across it. So the measurement
+ * above now describes the picture below.
+ *
+ *     PW  capture 14899ms   figure moved 7.89 units
+ *     CDP capture  6737ms   figure moved 0.00 units                    */
+const cdp = await page.context().newCDPSession(page);
+const { data } = await cdp.send("Page.captureScreenshot", { format: "png" });
+await writeFile(resolve(OUT, `${NAME}.png`), Buffer.from(data, "base64"));
 console.log(`  -> .shots/${NAME}.png  (found on visit ${visits})`);
 await browser.close(); await closeSrv();
