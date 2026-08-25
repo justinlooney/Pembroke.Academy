@@ -22,15 +22,37 @@ const { origin, close: closeSrv } = await serve();
 const browser = await launch();
 const page = await browser.newPage();
 page.on("pageerror", e => console.log("  [pageerror] " + e.message.split("\n")[0]));
-await page.goto(`${origin}/index.html?crowd=12`, { waitUntil: "domcontentloaded" });
-await page.waitForFunction(() => window.__app && window.__students, null, { timeout: 240_000 });
-if (WANT.length)
-  await page.waitForFunction((w) => w.every(k => (window.__students || [])
-    .some(s => s.g?.userData?.figure === k)) ? true : null,
-    WANT, { timeout: 240_000, polling: 3000 }).catch(() => {});
-else await page.waitForTimeout(90_000);
+/* Attendance is BOTH slow and a deal, and getting either half wrong
+ * loses the body.
+ *
+ * Slow: the crowd ramps for minutes after load, and it ramps in an
+ * order. Dumped every thirty seconds, a visit reads faculty only at
+ * 40s, the same three at 90s, and does not produce char16 until 150s.
+ * A probe that samples at 60s concludes he is not on this campus.
+ *
+ * A deal: he may then not be dealt on that visit at all -- probe-
+ * attendance found char5 absent from every window it sampled -- and no
+ * amount of further waiting produces someone the deal passed over.
+ *
+ * So: wait long enough for the ramp, and if the deal went the other way,
+ * reload and draw again. */
+const VISITS = +(process.env.VISITS || 6);
+let rows = [], visits = 0;
+for (let v = 1; v <= VISITS; v++){
+  visits = v;
+  await page.goto(`${origin}/index.html?crowd=12`, { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__app && window.__students, null, { timeout: 240_000 });
+  if (WANT.length)
+    await page.waitForFunction((w) => w.every(k => (window.__students || [])
+      .some(s => s.g?.userData?.figure === k)) ? true : null,
+      WANT, { timeout: 240_000, polling: 3000 }).catch(() => {});
+  else await page.waitForTimeout(180_000);
+  rows = await readClips(WANT);
+  if (rows.length && (!WANT.length || WANT.every(k => rows.some(r => r.k === k)))) break;
+  if (v < VISITS) console.log(`  visit ${v}: ${WANT.length ? WANT.filter(k => !rows.some(r => r.k === k)).join(", ") + " not dealt" : "nobody with clips"} — going round again`);
+}
 
-const rows = await page.evaluate((want) => {
+async function readClips(want){ return page.evaluate((want) => {
   const out = [], seen = new Set();
   for (const s of (window.__students || [])){
     const k = s.g?.userData?.figure;
@@ -61,14 +83,25 @@ const rows = await page.evaluate((want) => {
     }
   }
   return out;
-}, WANT);
+}, want); }
 
-if (!rows.length) console.log("  no bodies with clips turned up");
+const missing = WANT.filter(k => !rows.some(r => r.k === k));
 console.log(`\n  body     role   clip                              x/z travel in the LIVE clip`);
 for (const r of rows)
   console.log(`  ${r.k.padEnd(8)} ${r.role.padEnd(6)} ${r.name.slice(0, 32).padEnd(33)} ${String(r.travel).padStart(8)}`);
 const moving = rows.filter(r => r.travel > 1e-4);
-console.log(moving.length
+/* NO VERDICT on an empty table. The first version of this printed the
+ * all-clear when nothing had been measured at all, because zero rows
+ * means zero moving rows -- an absent body reads exactly like a pinned
+ * one. Whoever was asked for has to have actually turned up. */
+if (!rows.length)
+  console.log(`\n  NO VERDICT — nobody with clips turned up in ${visits} visit(s).`
+    + `\n  Nothing was measured, which is not the same as nothing moving.`);
+else if (missing.length)
+  console.log(`\n  NO VERDICT — ${missing.join(", ")} never dealt in ${visits} visit(s).`
+    + `\n  ${rows.length} clip(s) were read off the bodies that did turn up`
+    + `\n  and ${moving.length ? moving.length + " still travel" : "none of them travel"}, but the body asked about is not among them.`);
+else console.log(moving.length
   ? `\n  ${moving.length} clip(s) still travel after loading — those feet will skate.`
   : `\n  Every live clip reads zero: inPlaceClip pinned them all at load, so`
     + `\n  the travel the file carries never reaches the campus.`);

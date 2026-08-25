@@ -7306,7 +7306,61 @@ const CAST_FILES = {
   char11:  "assets/stu_char11.glb",     /* 200k tris, hero's successor   */
   char14:  "assets/stu_char14.glb",     /* 200k tris, the fourth man     */
   char15:  "assets/stu_char15.glb",     /* 200k tris, 0.59 verts a tri   */
-  char16:  "assets/stu_char16.glb",     /* 200k tris, the fifth man      */
+  /* The man in the sunglasses, remade. stu_char16.glb is kept beside
+     this until he has been seen on the quad: like the other three
+     replacements his bones report as "plain" rather than
+     StudentProductionRig, and a naming mismatch does not error -- the
+     body loads, draws, and stands perfectly still.
+
+     He is unmistakably the same student: the white tee with the dark
+     print, the dark jeans, the beard, the wristbands, the grey
+     sneakers. That matters, because char16 is not a body the campus
+     could re-dress -- one mesh, one material, nothing the wardrobe can
+     tint -- so a replacement that merely looked similar would have
+     retired a face rather than remade it.
+
+     One bone turned 75 degrees from bind, the angle the clips actually
+     use:
+
+         tearing 4.36x -> 4.30x     breadth 0.1521 -> 0.2234
+         200k tris -> 48,085        2.67MB -> 0.98MB
+
+     THE TEARING IS THE ONE NUMBER THAT DOES NOT MOVE, and that is worth
+     saying plainly rather than rounding into the win. The other three
+     swaps cut it by a factor of two to eleven; this one cuts it by one
+     and a half percent. He is bound in an A-POSE like the professor and
+     the dean, so 75 degrees is far more rotation than his clips ask of
+     him and the figure above is conservative -- but the professor came
+     in at 1.88x on the same conservative measure and this man does not,
+     so his weights are simply looser than theirs. He arrives mid-pack,
+     where he already was.
+
+     What does move is his SHOULDERS, by 47%, and that is the number
+     this swap is actually for. Narrow shoulders was the complaint that
+     started the whole investigation -- "his shoulders are too narrow,
+     the arms sit at a bad angle, the shirt looks collapsed" -- and it
+     is a fact about the MESH, which no amount of skinning work can
+     reach. char16 was not an outlier at 0.1521: he sat seventh of the
+     fourteen bodies in play, in the middle of a cast that runs from
+     0.1159 to 0.2217 against the 0.25 of a real adult. The cast is
+     narrow-shouldered nearly all the way down, and he was ordinary
+     within it.
+
+     At 0.2234 he is now the BROADEST body on this campus, ahead of the
+     other three replacements (0.2109, 0.2182, 0.2207) and of char5, the
+     man the complaint was originally made about, at 0.2217.
+
+     He brings Idle, LookBackSit, Run, SitToStand, Talk and Walk, so he
+     is the second body here with an idle of his own.
+
+     check-character warns that LookBackSit and SitToStand carry root
+     travel of 0.58 and 0.55 and are not In Place -- the same warning
+     the dean drew, and moot for the same reason: prepareClips runs
+     inPlaceClip over every clip at load, and probe-inplace reads the
+     live tracks at exactly zero. It also calls his 0.67s Run "a seated
+     loop", which it called the professor's Run too, and which
+     check-sitting disagrees with. */
+  char16:  "assets/stu_barndoor.glb",   /* 48k tris, the man in shades   */
   /* The dean, remade. stu_char17.glb is kept beside this until she has
      been seen on the quad. She is the largest single improvement in the
      cast: char17 tore worse than any other body by a factor of two over
