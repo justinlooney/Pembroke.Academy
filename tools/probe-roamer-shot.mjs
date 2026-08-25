@@ -100,6 +100,7 @@ await page.evaluate((w) => {
   const place = () => {
     const s = (window.__students || []).find(s => s.g?.userData?.figure === w);
     if (!s?.g) return;
+    window.__followed = s.g;
     box.setFromObject(s.g);
     box.getCenter(mid);
     const tall = box.max.y - box.min.y;
@@ -253,11 +254,39 @@ if (!running) console.log(`  NO CLIP EVER STARTED with the camera on him — the
                           + `\n  says nothing about the retarget.`);
 console.log(`  roles:       talk=${who.roles.talk}  idle=${who.roles.idle}  gaits=[${who.roles.gaits.join(", ")}]`);
 const fit = await page.evaluate(() => window.__clearView());
-if (fit) console.log(`  framing:     ${fit.fill <= 0.82 ? "fits the frame" : "DOES NOT FIT — the figure is cut off"}`
-                     + `, ${fit.turn >= 0 ? (fit.turn ? `clear from ${fit.turn * 45}° round` : "clear head-on")
-                        : `STILL BLOCKED by ${fit.blockedBy} from all 8 angles`}`
-                     + `  (worst corner ${fit.fill}, standoff ${fit.dist})`);
 await page.waitForTimeout(600);   /* let the moved camera settle before capture */
+
+/* MEASURE THE FRAME THAT IS ABOUT TO BE CAPTURED, not the one the
+ * search settled on.
+ *
+ * The search reported "fits the frame, worst corner 0.79" over a
+ * picture with the figure cut in half at the left edge. The projection
+ * maths was not wrong -- camera aspect, canvas rect and the NDC-to-page
+ * mapping all agree to four decimals. What was wrong was WHEN: the
+ * number came from the fit search, and the figure is walking, so by the
+ * time the shutter opened it was somewhere else. A framing claim is
+ * about a photograph, so it has to be read off the photograph's own
+ * frame. */
+const shot = await page.evaluate(() => {
+  const THREE = window.__app.THREE, cam = window.__app.camera;
+  const s = (window.__students || []).find(s => s.g === window.__followed);
+  if (!s?.g) return null;
+  const box = new THREE.Box3().setFromObject(s.g), v = new THREE.Vector3();
+  cam.updateMatrixWorld(true);
+  let worst = 0;
+  for (let i = 0; i < 8; i++){
+    v.set(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y,
+          i & 4 ? box.max.z : box.min.z).project(cam);
+    worst = Math.max(worst, Math.abs(v.x), Math.abs(v.y));
+  }
+  return { worst: +worst.toFixed(2) };
+});
+if (fit) console.log(`  sight line:  ${fit.turn >= 0 ? (fit.turn ? `clear from ${fit.turn * 45}° round` : "clear head-on")
+                        : `STILL BLOCKED by ${fit.blockedBy} from all 8 angles`}`
+                     + `  (standoff ${fit.dist})`);
+if (shot) console.log(`  framing:     ${shot.worst <= 1 ? "whole figure is in the picture" : "CUT OFF — part of the figure is outside the frame"}`
+                     + `  (worst corner ${shot.worst} of the half-frame, measured at the shutter${
+                         fit && Math.abs(shot.worst - fit.fill) > 0.1 ? `, ${fit.fill} when the camera was placed — she moved` : ""})`);
 await mkdir(OUT, { recursive: true });
 /* 120s, not the 30s default: the campus never goes idle, and a
  * screenshot that races the render loop times out on the first try. */
