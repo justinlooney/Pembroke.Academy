@@ -66,29 +66,110 @@ if (!found){
   await browser.close(); await closeSrv(); process.exit(1);
 }
 
-const who = await page.evaluate((w) => {
+/* FOLLOW him for a few seconds rather than placing the camera once.
+ *
+ * The first version set camera.position and lookAt in a single
+ * evaluate, disabled OrbitControls, and photographed the aerial view
+ * of the quad it started on -- the campus writes the camera back every
+ * frame (controls.update at the bottom of the loop, plus the sector
+ * flight lerp), so a one-shot placement lasts exactly until the next
+ * rAF. Disabling controls does not help, because the flight sets
+ * camera.position directly.
+ *
+ * ?bench would hand the camera over, but it also freezes every student
+ * where they stand, which is the opposite of what a picture of a body
+ * in motion needs.
+ *
+ * So this pins the camera from a rAF of its own, ahead of nothing and
+ * behind everything: whatever the campus did to the camera this frame
+ * is overwritten before it is drawn. The target is the figure's own
+ * moving centre, so it is a follow camera, not a fixed one -- he walks,
+ * and a camera parked where he was is a picture of a lawn.
+ *
+ * Getting close also un-freezes him: detailPass switches a figure's
+ * mixer off past k/ANIMATE_PX from the camera, which is why the
+ * one-shot version reported "NOTHING playing" -- it read the animation
+ * state of a figure that was still a hundred units away. */
+await page.evaluate((w) => {
   const THREE = window.__app.THREE, cam = window.__app.camera;
+  const ctl = window.__app.controls;
+  const mid = new THREE.Vector3(), fwd = new THREE.Vector3(),
+        up = new THREE.Vector3(0, 1, 0), q = new THREE.Quaternion();
+  const box = new THREE.Box3();
+  const place = () => {
+    const s = (window.__students || []).find(s => s.g?.userData?.figure === w);
+    if (!s?.g) return;
+    box.setFromObject(s.g);
+    box.getCenter(mid);
+    const tall = box.max.y - box.min.y;
+    fwd.set(0, 0, 1).applyQuaternion(s.g.getWorldQuaternion(q));
+    cam.position.copy(mid).addScaledVector(fwd, tall * 1.05)
+       .addScaledVector(up, tall * 0.15);
+    cam.lookAt(mid);
+    if (ctl) ctl.target.copy(mid);
+    window.__follow = { tall: +tall.toFixed(2),
+                        dist: +cam.position.distanceTo(mid).toFixed(1) };
+  };
+  /* Run LAST, by going through the same function the campus does.
+   *
+   * A rAF of its own is not last: the loop's own rAF was registered
+   * first, so each frame is [campus updates and draws][probe moves the
+   * camera], and the move is undone before it is ever drawn. Setting
+   * the camera from outside the loop has the same fate.
+   *
+   * Nor is moving the camera alone enough even inside the loop.
+   * OrbitControls.update() does not read camera.position, it WRITES
+   * it -- from a spherical offset it keeps around its own target. So a
+   * probe that sets position and target got the direction it asked for
+   * and the campus's zoom: an aerial shot of the quad, correctly
+   * centred on a student too far away to make out.
+   *
+   * Wrapping update() puts the placement after the controls have had
+   * their say and before the renderer draws, which is the one moment
+   * in the frame where the camera is ours. */
+  if (ctl){ const orig = ctl.update.bind(ctl); ctl.update = (...a) => { const r = orig(...a); place(); return r; }; }
+  place();
+}, WANT);
+
+/* NOW wait for a clip, with the camera already on him.
+ *
+ * The order matters and both other orders are wrong. Waiting for a clip
+ * BEFORE moving the camera is the gate that cost six blank visits:
+ * detailPass holds the mixer of any figure past k/ANIMATE_PX, so a
+ * student who is plainly on the quad reads as having nothing running
+ * until something looks at him. Not waiting at all is the other
+ * failure: the body exists some seconds before the campus has lent it
+ * anything, and a shot taken then is a bind pose with every role null,
+ * which is exactly the picture this tool exists to not take.
+ *
+ * With the camera already on him, detailPass hands his mixer back and
+ * the wait is short. */
+const running = await page.waitForFunction((w) => {
   const s = (window.__students || []).find(s => s.g?.userData?.figure === w);
-  const box = new THREE.Box3().setFromObject(s.g);
-  const mid = box.getCenter(new THREE.Vector3());
-  const tall = box.max.y - box.min.y;
-  /* Stand off in front of the figure at its own scale, a little above
-   * the waist, so the framing is the same whatever size the campus
-   * scaled this body to. */
-  const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(s.g.getWorldQuaternion(new THREE.Quaternion()));
-  cam.position.copy(mid).addScaledVector(fwd, tall * 1.15).add(new THREE.Vector3(0, tall * 0.18, 0));
-  cam.lookAt(mid);
-  if (window.__app.controls) window.__app.controls.enabled = false;
-  const a = s.g.userData.anim;
-  return { body: w, clip: a?.current?.getClip?.().name ?? null,
+  return s?.g?.userData?.anim?.current ? true : null;
+}, WANT, { timeout: 90_000, polling: 1000 }).then(() => true).catch(() => false);
+await page.waitForTimeout(2500);   /* and past the clip's first frames */
+
+const who = await page.evaluate((w) => {
+  const s = (window.__students || []).find(s => s.g?.userData?.figure === w);
+  const a = s?.g?.userData?.anim;
+  /* anim.current is the clip's NAME, a string -- not an AnimationAction.
+   * Reading it as an action and asking for getClip() returned undefined
+   * for every body, so the first version of this reported "NOTHING
+   * playing, this is a bind pose" over a photograph of a student
+   * plainly mid-stride. */
+  return { body: w, clip: a?.current ?? null,
+           animate: !!s?.g?.userData?.animate,
            roles: { talk: a?.roles?.talk ?? null, idle: a?.roles?.idle ?? null,
                     gaits: a?.roles?.gaits ?? [] } };
 }, WANT);
 
 console.log(`\n  on the quad: ${who.body}`);
-console.log(`  playing:     ${who.clip ?? "NOTHING — this is a bind pose, not a retargeted one"}`);
+console.log(`  playing:     ${who.clip ?? "NOTHING — this is a bind pose, not a retargeted one"}`
+            + `${who.clip && !who.animate ? "  (but detailPass has his mixer held)" : ""}`);
+if (!running) console.log(`  NO CLIP EVER STARTED with the camera on him — the picture below`
+                          + `\n  says nothing about the retarget.`);
 console.log(`  roles:       talk=${who.roles.talk}  idle=${who.roles.idle}  gaits=[${who.roles.gaits.join(", ")}]`);
-await page.waitForTimeout(1500);
 await mkdir(OUT, { recursive: true });
 /* 120s, not the 30s default: the campus never goes idle, and a
  * screenshot that races the render loop times out on the first try. */
