@@ -94,7 +94,8 @@ await page.evaluate((w) => {
   const THREE = window.__app.THREE, cam = window.__app.camera;
   const ctl = window.__app.controls;
   const mid = new THREE.Vector3(), fwd = new THREE.Vector3(),
-        up = new THREE.Vector3(0, 1, 0), q = new THREE.Quaternion();
+        up = new THREE.Vector3(0, 1, 0), q = new THREE.Quaternion(),
+        corner = new THREE.Vector3();
   const box = new THREE.Box3();
   const place = () => {
     const s = (window.__students || []).find(s => s.g?.userData?.figure === w);
@@ -103,12 +104,51 @@ await page.evaluate((w) => {
     box.getCenter(mid);
     const tall = box.max.y - box.min.y;
     fwd.set(0, 0, 1).applyQuaternion(s.g.getWorldQuaternion(q));
-    cam.position.copy(mid).addScaledVector(fwd, tall * 1.05)
-       .addScaledVector(up, tall * 0.15);
-    cam.lookAt(mid);
+    /* FIT the figure, do not assume a standoff fits it.
+     *
+     * A fixed tall * 1.05 framed two bodies and cut a third in half at
+     * the left edge of the canvas. lookAt(mid) puts the box CENTRE at
+     * the middle of the frame, which says nothing about whether the
+     * rest of the body is inside it: the campus canvas is a fraction of
+     * the window, its aspect is nothing like square, and a walking
+     * figure is wider than a standing one. Guessing a larger constant
+     * would have framed this one and cut the next.
+     *
+     * So project all eight corners of her own bounding box, and step
+     * back until every one is inside the frame with a margin. The
+     * numbers are reported, so a picture that could not be framed says
+     * so rather than looking like a body that walked out of shot. */
+    fwd.applyAxisAngle(up, window.__viewTurn || 0);
+    /* FIT the figure, do not assume a standoff fits it.
+     *
+     * A fixed tall * 1.05 framed two bodies and cut a third in half at
+     * the left edge of the canvas. lookAt(mid) puts the box CENTRE at
+     * the middle of the frame, which says nothing about whether the
+     * rest of the body is inside it: the campus canvas is a fraction of
+     * the window, its aspect is nothing like square, and a walking
+     * figure is wider than a standing one. Guessing a larger constant
+     * would have framed this one and cut the next. So project all eight
+     * corners of her own bounding box and step back until every one is
+     * inside the frame with a margin. */
+    let far = tall * 1.05, worst = 0;
+    for (let attempt = 0; attempt < 12; attempt++){
+      cam.position.copy(mid).addScaledVector(fwd, far).addScaledVector(up, tall * 0.15);
+      cam.lookAt(mid);
+      cam.updateMatrixWorld(true);
+      worst = 0;
+      for (let i = 0; i < 8; i++){
+        corner.set(i & 1 ? box.max.x : box.min.x,
+                   i & 2 ? box.max.y : box.min.y,
+                   i & 4 ? box.max.z : box.min.z).project(cam);
+        worst = Math.max(worst, Math.abs(corner.x), Math.abs(corner.y));
+      }
+      if (worst <= 0.82) break;
+      far *= worst / 0.75;
+    }
     if (ctl) ctl.target.copy(mid);
     window.__follow = { tall: +tall.toFixed(2),
-                        dist: +cam.position.distanceTo(mid).toFixed(1) };
+                        dist: +cam.position.distanceTo(mid).toFixed(1),
+                        fill: +worst.toFixed(2), turn: window.__viewTurn || 0 };
   };
   /* Run LAST, by going through the same function the campus does.
    *
@@ -128,6 +168,48 @@ await page.evaluate((w) => {
    * their say and before the renderer draws, which is the one moment
    * in the frame where the camera is ours. */
   if (ctl){ const orig = ctl.update.bind(ctl); ctl.update = (...a) => { const r = orig(...a); place(); return r; }; }
+
+  /* IN FRAME IS NOT IN SIGHT.
+   *
+   * The fit check above passed on a photograph of a tree trunk. Every
+   * corner of the body's box was inside the frustum and the body was
+   * behind a trunk the whole time — projection cannot see occluders, so
+   * a tool that stops at "it fits" will keep producing pictures of
+   * scenery and calling them verified.
+   *
+   * So cast one ray from the camera to the figure and ask what it hits
+   * FIRST. If the answer is not the figure, turn a third of the way
+   * round the quad and ask again. Eight of those cover the circle; the
+   * standoff refits at each because a trunk in the way is often a wall
+   * a step later. */
+  /* setFromCamera, not set(origin, dir): Sprite.raycast reads
+   * raycaster.camera and throws without it, and only setFromCamera
+   * fills it in. Filtering sprites out of the RESULTS is too late — the
+   * throw happens during the traversal. Casting through NDC (0,0) is
+   * the same ray anyway, because lookAt(mid) put the figure's centre at
+   * the middle of the picture. */
+  const ray = new THREE.Raycaster();
+  const centre = new THREE.Vector2(0, 0);
+  window.__clearView = () => {
+    const s = (window.__students || []).find(s => s.g?.userData?.figure === w);
+    if (!s?.g) return null;
+    const isMine = (o) => { for (let n = o; n; n = n.parent) if (n === s.g) return true; return false; };
+    for (let step = 0; step < 8; step++){
+      window.__viewTurn = step * Math.PI / 4;
+      place();
+      box.setFromObject(s.g); box.getCenter(mid);
+      cam.updateMatrixWorld(true);
+      ray.setFromCamera(centre, cam);
+      ray.far = cam.position.distanceTo(mid) * 1.4;
+      const hit = ray.intersectObject(window.__app.world, true)
+                     .find(h => h.object.visible && h.object.type !== "Sprite");
+      if (!hit || isMine(hit.object))
+        return { turn: step, blockedBy: null, ...window.__follow };
+      var last = hit.object.name || hit.object.type;
+    }
+    window.__viewTurn = 0; place();
+    return { turn: -1, blockedBy: last || "something", ...window.__follow };
+  };
   place();
 }, WANT);
 
@@ -170,6 +252,12 @@ console.log(`  playing:     ${who.clip ?? "NOTHING — this is a bind pose, not 
 if (!running) console.log(`  NO CLIP EVER STARTED with the camera on him — the picture below`
                           + `\n  says nothing about the retarget.`);
 console.log(`  roles:       talk=${who.roles.talk}  idle=${who.roles.idle}  gaits=[${who.roles.gaits.join(", ")}]`);
+const fit = await page.evaluate(() => window.__clearView());
+if (fit) console.log(`  framing:     ${fit.fill <= 0.82 ? "fits the frame" : "DOES NOT FIT — the figure is cut off"}`
+                     + `, ${fit.turn >= 0 ? (fit.turn ? `clear from ${fit.turn * 45}° round` : "clear head-on")
+                        : `STILL BLOCKED by ${fit.blockedBy} from all 8 angles`}`
+                     + `  (worst corner ${fit.fill}, standoff ${fit.dist})`);
+await page.waitForTimeout(600);   /* let the moved camera settle before capture */
 await mkdir(OUT, { recursive: true });
 /* 120s, not the 30s default: the campus never goes idle, and a
  * screenshot that races the render loop times out on the first try. */
