@@ -7304,7 +7304,48 @@ const CAST_FILES = {
   char9:   "assets/stu_char9.glb",      /* 200k tris, 12.3 bytes a tri   */
   char10:  "assets/stu_char10.glb",     /* 200k tris, walker's successor */
   char11:  "assets/stu_char11.glb",     /* 200k tris, hero's successor   */
-  char14:  "assets/stu_char14.glb",     /* 200k tris, the fourth man     */
+  /* The letterman jacket, remade -- and the best swap of the six on
+     both numbers at once. stu_char14.glb is kept beside this as the
+     others are.
+
+     Same student: the black-and-cream varsity jacket with the Pembroke
+     P, the grey hoodie under it, the jeans, the white sneakers.
+
+     One bone turned 75 degrees from bind, the angle the clips actually
+     use:
+
+         tearing 16.54x -> 6.63x    breadth 0.1176 -> 0.2639
+         200k tris -> 43,371        2.88MB -> 1.16MB
+
+     He was the WORST REMAINING BODY IN THE CAST for tearing after the
+     five swaps that came before -- 16.54x, second only to the dean's
+     33.17x across the whole investigation -- and he lands mid-pack.
+
+     And his shoulders are the headline. 0.2639 is the FIRST BODY ON
+     THIS CAMPUS to reach the 0.25 that a real adult measures; every
+     other body, replacements included, sits under it. He was also the
+     second narrowest before the swap at 0.1176, so this is a gain of
+     124%, the largest of the six by some distance.
+
+     He is the smallest body here at 43,371 triangles, and the whole
+     cast is now under 1.3MB a head where it was near 3.
+
+     One oddity worth recording rather than smoothing over: his worst
+     edge is at HIPS, where every other body in this cast tears at a
+     Spine, Clavicle or Arm. The probe turns a shoulder, so a hip-
+     weighted edge stretching furthest means the jacket hem is carrying
+     weight from a bone that is not moving much. It is well inside the
+     range the cast lives in and is not a fault -- but it is a different
+     shape of fault from everyone else's, and if the jacket ever looks
+     wrong at the waist, that is where to look.
+
+     He brings Run, SitToStand, StandToSit, Talk and Walk, and no Idle
+     of his own. check-character warns his two sit transitions travel
+     0.65 and 0.51 and calls his 0.67s Run "a seated loop" -- the third
+     body it has said that of, and wrong all three times. prepareClips
+     runs inPlaceClip at load; probe-inplace is what says whether that
+     reached him. */
+  char14:  "assets/stu_letterman.glb",   /* 43k tris, the letterman       */
   /* The student in the red shirt, remade -- and the FIRST swap here
      that makes a core number worse. stu_char15.glb is kept beside this
      like the other four.
