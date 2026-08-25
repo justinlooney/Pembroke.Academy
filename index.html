@@ -7298,7 +7298,50 @@ const CAST_FILES = {
      Character 15 replaces her at 3.96MB and 118,304 vertices. */
   char4:   "assets/stu_char4.glb",      /* 200k tris, the lightest yet   */
   char5:   "assets/stu_char5.glb",      /* 200k tris, the first man      */
-  char6:   "assets/stu_char6.glb",      /* 200k tris, the lightest, 2.99 */
+  /* char6, remade -- and the only swap here whose counterpart was not
+     obvious from the clothes. stu_char6.glb is kept beside this as the
+     others are.
+
+     Every swap before this one matched its body exactly: yellow sweater
+     for yellow sweater, red shirt for red shirt, letterman for
+     letterman. This body wears a white button-down and light jeans and
+     NOBODY in the cast wears that, so it was put to the person who
+     supplied it rather than guessed. char6 was the answer: white top,
+     dark trousers, the same silhouette if not the same shirt.
+
+     Recording that because the numbers would have argued for a
+     different body. char5 is a near-twin of this one on both measures
+     (4.78x/0.2217 against 4.66x/0.2323) and char7 has the face and
+     build. Measurement cannot tell you who somebody IS, and this is the
+     one question in this whole investigation it had no business
+     answering.
+
+     One bone turned 75 degrees from bind, the angle the clips actually
+     use:
+
+         tearing 7.45x -> 4.66x     breadth 0.1337 -> 0.2323
+         200k tris -> 36,138        2.55MB -> 0.79MB
+
+     36,138 triangles and 0.79MB make him the smallest and lightest body
+     on this campus by a clear margin -- a seventieth of the triangles
+     the first authored character cost.
+
+     char6 was the body the crowd leaned on hardest: he is dealt on
+     nearly every visit, where seven of the fourteen are dealt on almost
+     none (see the note beside char14). So of all the swaps so far this
+     is the one a visitor is most likely to actually see.
+
+     Like the letterman his worst edge is at HIPS rather than a Spine,
+     Clavicle or Arm -- the second body to show that shape, and both are
+     from this same source. Noted beside char14 as well.
+
+     He brings Run, SitToStand, StandChat, StandToSit and Walk. No Talk
+     of his own, so he is lent one as the cast always has been.
+     check-character warns his sit transitions travel 0.56 and 0.51 and
+     calls his 0.67s Run "a seated loop" -- the fourth body it has said
+     that of. probe-inplace is what says whether any of it reaches the
+     quad. */
+  char6:   "assets/stu_blueeyed.glb",   /* 36k tris, the smallest body   */
   char7:   "assets/stu_char7.glb",      /* 200k tris, the third man      */
   char8:   "assets/stu_char8.glb",      /* 200k tris, the sixth woman    */
   char9:   "assets/stu_char9.glb",      /* 200k tris, 12.3 bytes a tri   */
