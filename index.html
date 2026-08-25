@@ -7276,7 +7276,17 @@ const CAST_FILES = {
      the scene audit as the largest single body on the campus. Nothing
      depended on her: she lent no motion and no student asked for her by
      name. Character 11 takes her place at 4.01MB and 200k. */
-  char2:   "assets/stu_char2.glb",      /* 200k tris, yellow sweater     */
+  /* Same student, remade. stu_char2.glb is kept beside this until she
+     has been seen walking on the quad: her bones report as "plain"
+     rather than StudentProductionRig, and a naming mismatch does not
+     error -- the body loads, draws, and stands perfectly still -- so
+     this swap has to be watched, not merely checked. Measured against
+     the body she replaces, one bone turned 75 degrees from bind, which
+     is the angle the clips actually use:
+         tearing 9.72x -> 2.27x     breadth 0.157 -> 0.211
+         200k tris -> 52,594        2.7MB -> 0.95MB
+     and she carries her own 1.07s walk. */
+  char2:   "assets/stu_sunny.glb",      /* 53k tris, yellow sweater      */
   /* ── char3 is gone ─────────────────────────────────────────────────
      Retired for her EXPORT, not her body: 4.72MB where the rest of the
      cast lands near 3.5, because 199,998 triangles came with 160,626
@@ -7295,10 +7305,171 @@ const CAST_FILES = {
   char10:  "assets/stu_char10.glb",     /* 200k tris, walker's successor */
   char11:  "assets/stu_char11.glb",     /* 200k tris, hero's successor   */
   char14:  "assets/stu_char14.glb",     /* 200k tris, the fourth man     */
-  char15:  "assets/stu_char15.glb",     /* 200k tris, 0.59 verts a tri   */
-  char16:  "assets/stu_char16.glb",     /* 200k tris, the fifth man      */
-  char17:  "assets/stu_char17.glb",     /* 200k tris, the Dean herself   */
-  char18:  "assets/stu_char18.glb",     /* 200k tris, the professor      */
+  /* The student in the red shirt, remade -- and the FIRST swap here
+     that makes a core number worse. stu_char15.glb is kept beside this
+     like the other four.
+
+     Same student, plainly: the red graphic tee, the denim shorts, the
+     long hair with the top-knot, the black-and-white sneakers. The
+     waist bag reads as a shoulder bag now, which is the only visible
+     difference.
+
+     One bone turned 75 degrees from bind, the angle the clips actually
+     use:
+
+         breadth 0.1159 -> 0.1977   (+71%)
+         200k tris -> 45,084        3.13MB -> 1.30MB
+         TEARING 3.30x -> 8.27x     (2.5x WORSE)
+
+     WHAT SHE FIXES. char15 had the NARROWEST SHOULDERS OF ANY BODY ON
+     THIS CAMPUS -- 0.1159 of her own height against the 0.25 of a real
+     adult, narrower than the fourteen-body cast's next narrowest by a
+     clear margin. Narrow shoulders is the complaint this whole
+     investigation started from, and it is a fact about the MESH that no
+     skinning work can reach. At 0.1977 she is no longer the outlier.
+     This is the largest breadth gain of the five swaps.
+
+     WHAT SHE COSTS. Tearing goes the wrong way, by two and a half
+     times, and tearing is the other half of what this investigation
+     exists to fix. Measured against the cast as it now stands, 8.27x
+     would make her the THIRD WORST body here, behind only char14
+     (16.54x) and char11 (14.82x). The four swaps before this one all
+     improved or held it.
+
+     She is A-POSE bound, like the professor, the dean and barndoor --
+     so 75 degrees is more rotation than her clips ask of her and the
+     figure above is conservative. But it is conservative in exactly the
+     same way for char15's replacement candidates and for the professor,
+     who came in at 1.88x on the identical measure. The A-pose does not
+     excuse it; her weights are loose.
+
+     The shipped ?skin=2 tightening is MEASURED to roughly halve these
+     numbers on the four bodies it was measured on. It has NOT been
+     measured on this one, and probe-asset-skin reads authored weights
+     only, so both figures above are pre-tightening and the ratio
+     between them is what stands.
+
+     She brings QuickWalk, Run, SitToStand, StandChat, Talk, Walk and
+     WalkToSit -- seven clips, more than any other body here -- but no
+     Idle of her own. check-character warns that SitToStand travels 0.49
+     and WalkToSit travels 3.81; the second is a walk-then-sit and
+     genuinely crosses ground. prepareClips runs inPlaceClip over both
+     at load, and probe-inplace is what says whether that reached her. */
+  char15:  "assets/stu_urbanfree.glb",   /* 45k tris, the red shirt       */
+  /* The man in the sunglasses, remade. stu_char16.glb is kept beside
+     this, as the other three replacements are. Like them his bones
+     report as "plain" rather than StudentProductionRig, and a naming
+     mismatch does not error -- the body loads, draws, and stands
+     perfectly still.
+
+     He does not. Photographed on the quad by probe-roamer-shot, in the
+     campus's own light, walking on his OWN Walk with talk=Talk,
+     idle=Idle and gaits=[Run, Walk, Jogging]: shoulders wide, arms
+     hanging, shirt draping, nothing shredded. He was dealt on the
+     eleventh visit of twelve -- see the note on attendance below.
+
+     He is unmistakably the same student: the white tee with the dark
+     print, the dark jeans, the beard, the wristbands, the grey
+     sneakers. That matters, because char16 is not a body the campus
+     could re-dress -- one mesh, one material, nothing the wardrobe can
+     tint -- so a replacement that merely looked similar would have
+     retired a face rather than remade it.
+
+     One bone turned 75 degrees from bind, the angle the clips actually
+     use:
+
+         tearing 4.36x -> 4.30x     breadth 0.1521 -> 0.2234
+         200k tris -> 48,085        2.67MB -> 0.98MB
+
+     THE TEARING IS THE ONE NUMBER THAT DOES NOT MOVE, and that is worth
+     saying plainly rather than rounding into the win. The other three
+     swaps cut it by a factor of two to eleven; this one cuts it by one
+     and a half percent. He is bound in an A-POSE like the professor and
+     the dean, so 75 degrees is far more rotation than his clips ask of
+     him and the figure above is conservative -- but the professor came
+     in at 1.88x on the same conservative measure and this man does not,
+     so his weights are simply looser than theirs. He arrives mid-pack,
+     where he already was.
+
+     What does move is his SHOULDERS, by 47%, and that is the number
+     this swap is actually for. Narrow shoulders was the complaint that
+     started the whole investigation -- "his shoulders are too narrow,
+     the arms sit at a bad angle, the shirt looks collapsed" -- and it
+     is a fact about the MESH, which no amount of skinning work can
+     reach. char16 was not an outlier at 0.1521: he sat seventh of the
+     fourteen bodies in play, in the middle of a cast that runs from
+     0.1159 to 0.2217 against the 0.25 of a real adult. The cast is
+     narrow-shouldered nearly all the way down, and he was ordinary
+     within it.
+
+     At 0.2234 he is now the BROADEST body on this campus, ahead of the
+     other three replacements (0.2109, 0.2182, 0.2207) and of char5, the
+     man the complaint was originally made about, at 0.2217.
+
+     He brings Idle, LookBackSit, Run, SitToStand, Talk and Walk, so he
+     is the second body here with an idle of his own.
+
+     check-character warns that LookBackSit and SitToStand carry root
+     travel of 0.58 and 0.55 and are not In Place -- the same warning
+     the dean drew, and moot for the same reason: prepareClips runs
+     inPlaceClip over every clip at load, and probe-inplace reads the
+     live tracks at exactly zero. It also calls his 0.67s Run "a seated
+     loop", which it called the professor's Run too, and which
+     check-sitting disagrees with.
+
+     ── AND A LARGER THING, NOT FIXED HERE ─────────────────────────────
+     Photographing him took ELEVEN visits of four minutes. The ten that
+     failed did not see a thin crowd; they saw the same crowd:
+
+         char18, char17, char6, char4 in ten visits of eleven
+         char2 in six, char7 in four, char5 in one
+         char16 in one, and NOBODY ELSE AT ALL
+
+     Fourteen bodies are in ROAMING. Seven of them -- char8, char9,
+     char10, char11, char14, char15 and, but for one visit, char16 --
+     did not appear once in forty-odd minutes of campus. This is the
+     same shape as the char5 attendance finding that had an entire
+     investigation drawing conclusions from char17, and it is worth
+     more than any single swap: half the cast is downloaded, decoded,
+     kept in memory, and almost never seen. Wants probe-attendance and
+     a look at how the deal picks, not a guess from here. */
+  char16:  "assets/stu_barndoor.glb",   /* 48k tris, the man in shades   */
+  /* The dean, remade. stu_char17.glb is kept beside this until she has
+     been seen on the quad. She is the largest single improvement in the
+     cast: char17 tore worse than any other body by a factor of two over
+     the next worst, and was the one that visibly shredded in every
+     close-up taken during this investigation.
+
+     Like the professor she is bound in an A-POSE rather than a T-pose,
+     which is why. One bone turned 75 degrees from bind, the angle the
+     clips actually use:
+
+         tearing 33.17x -> 3x      breadth 0.165 -> 0.221
+         200k tris -> 47,024       3.1MB -> 1.7MB
+
+     She brings QuickWalk, Run, SitToStand, StandToSit, Talk and Walk.
+     check-character and check-sitting both warn that her two sit
+     transitions carry root travel of about 0.5 and are not In Place --
+     if the seat machinery took them as they are, her feet would skate
+     across the lawn as she sat down. check-roles is what says whether
+     it does. */
+  char17:  "assets/stu_citysuit.glb",   /* 47k tris, the Dean herself    */
+  /* The professor, remade. stu_char18.glb is kept beside this until he
+     has been seen on the quad: his bones report as "plain" rather than
+     StudentProductionRig, and a naming mismatch does not error -- the
+     body loads, draws, and stands perfectly still.
+
+     He is bound in an A-POSE rather than the T-pose the rest of the cast
+     uses, which is the whole reason his skin holds together: one bone
+     turned 75 degrees from bind, the angle the clips actually use, tears
+     him least of any body here.
+
+         tearing 3.31x -> 1.88x     breadth 0.137 -> 0.218
+         200k tris -> 51,322        2.8MB -> 1.0MB
+
+     And he brings his own Idle, Talk, Walk and Run. Every other body in
+     this cast reports idle=null and borrows everything it does. */
+  char18:  "assets/stu_distinguished.glb",  /* 51k tris, the professor  */
 };
 /* ── who has to be here before the doors open ─────────────────────────
    Twelve rigged files is 31MB, all of it decoded on the main thread
@@ -7959,11 +8130,31 @@ function bodyFor(k, looks, needs, spare){
    touched. The skater rides a board whose truck is metalness 0.98, and
    that one is right — it is a metal truck. */
 function deshine(root){
+  /* ── the gate that let nothing through ──────────────────────────────
+     This used to skip any mesh whose name or material name did not match
+     a list -- body, skin, head, hair, shirt, jean, shoe and so on. The
+     cast does not use those words. Measured live, after the campus had
+     finished with them:
+
+         char6    Character6Mesh / material       metal 1  rough 1
+         char17   Character1Mesh / Material_0     metal 1  rough 1
+         char18   Character17Mesh / Material_0    metal 1  rough 1
+         char2    char1 / Material_1              metal 1  rough 1 spec 1
+
+     Every body, metalness 1. The correction below has therefore never
+     run on a single student: the whole cast has been rendering as rough
+     metal, which under an environment map is dark, desaturated and lit
+     from nowhere. It cost nothing to write and did nothing at all, and
+     nothing reported that -- check-character prints the RAW file values
+     and says the campus correction is applied, and character-sheet
+     applies it unconditionally, so its pictures looked right whether or
+     not the campus agreed.
+
+     deshine has exactly one caller, on a cast body's own scene, where
+     every mesh IS the person. So there is nothing to gate against.
+     probe-finish reads these numbers back off the live material. */
   root.traverse(o => {
     if (!o.isMesh || !o.material) return;
-    const tag = canon(o.name) + " " + canon(o.material.name);
-    if (!/body|skin|head|hair|shirt|top|jacket|suit|short|pant|trouser|jean|shoe|sneaker|boot|eyelash|brow|scalp|avatar|mat$/i
-          .test(tag)) return;
     const m = o.material;
     if (typeof m.metalness === "number" && m.metalness > 0) m.metalness = 0;
     /* A floor, not a fixed value: most of this cast sits at 0.68-1.0
@@ -8929,10 +9120,36 @@ function rolesOf(k, src){
      body whose abilities were asserted instead of measured. Everything
      below is measurement, which is what let the authored characters
      join without anybody adding a line. */
+  /* ── a body's OWN clip names are worth reading ──────────────────────
+     The paragraph above retired name-trusting along with walker, and it
+     was right to: a LENT clip is named after the file it came out of,
+     and deriving a job from that is guesswork.
+
+     A body's own clip is different. Whoever built the body named it, and
+     the professor arrives carrying Idle, Talk, Walk and Run. Measurement
+     read his Talk -- ten seconds of standing and gesturing -- as a GAIT,
+     because talking shifts your weight and that scores past the cadence
+     line, so he would have crossed the quad gesturing. It also cannot
+     give him his own Talk as his talk role at all: that slot only takes
+     a clip lendClip wrote the job onto, so a body that arrives able to
+     talk gets lent somebody else's talking anyway.
+
+     So: names decide for a body's own clips, measurement still decides
+     for everything lent. A name is only read when it says one of these
+     four things plainly; anything else falls through to the cadence. */
+  const intentOf = (c) => {
+    if (!c.userData?.own) return null;             /* lent: measure it */
+    const n = (c.name || "").toLowerCase();
+    if (/\bidle\b|^idle|standing/.test(n)) return "idle";
+    if (/talk|speak|gesture|convers/.test(n))  return "talk";
+    if (/walk|run|jog|sprint|stride/.test(n))  return "gait";
+    if (/sit|seat|chair/.test(n))              return "seat";
+    return null;
+  };
   const scored = src.animations
     .filter(c => c.duration > 0.2)                 /* an eye-blink is not a clip */
     .map(c => ({ name: c.name, cadence: (c.userData?.cycles || 0) / c.duration,
-                 role: c.userData?.role || null }));
+                 role: c.userData?.role || null, intent: intentOf(c) }));
   /* The seat clips are excluded from GAITS as well as from still, and
      the reason arrived from a phone: "sometimes people move in the
      seated position". A retargeted sit-down swings the thigh once,
@@ -8942,8 +9159,9 @@ function rolesOf(k, src){
      crossing the lawn folded into a chair. A clip the seat machinery
      claims is never also a way of getting somewhere. */
   const notSeat = (c) => !sit.seated.has(c.name) && c.name !== sit.rise && c.name !== sit.sit;
-  const gaits = scored.filter(c => c.role === "gait" ||
-                                   (!c.role && c.cadence > 0.45 && notSeat(c)))
+  const gaits = scored.filter(c => c.intent ? c.intent === "gait"
+                                 : (c.role === "gait" ||
+                                    (!c.role && c.cadence > 0.45 && notSeat(c))))
                       .map(c => c.name);
   /* A seated clip barely swings a thigh, so it scores as "still" and
      would otherwise be handed straight to idle — leaving a student
@@ -8961,7 +9179,8 @@ function rolesOf(k, src){
      every body in the cast — see LOOSE_CLIPS. Withdrawing the donor is
      what fixed that; this makes the slot it filled one that only a
      body's own animation can fill. */
-  const still = scored.filter(c => !c.role && c.cadence <= 0.45 && notSeat(c))
+  const still = scored.filter(c => c.intent ? c.intent === "idle"
+                                 : (!c.role && c.cadence <= 0.45 && notSeat(c)))
                       .map(c => c.name);
   /* No idle is not a fault, it is a fact about the download: a body
      with nothing to do when standing simply never stops walking. That
@@ -8969,7 +9188,10 @@ function rolesOf(k, src){
   /* Talk is declared, never derived: it exists only as a lent clip
      with the job written on it, and deriving it would be the same
      second-opinion mistake the seat roles just gave up. */
-  const talk = src.animations.find(c => c.userData?.role === "talk")?.name || null;
+  /* A body's own talk clip wins over a lent one: it was authored for
+     this body and needs no retargeting to reach it. */
+  const talk = scored.find(c => c.intent === "talk")?.name
+            || src.animations.find(c => c.userData?.role === "talk")?.name || null;
   const roles = { gaits, idle: still[0] || null, start: null, talk,
                   seat: sit.seat, rise: sit.rise, riseFrom: sit.riseFrom,
                   sit: sit.sit, sitTo: sit.sitTo };
@@ -9493,6 +9715,13 @@ function lendSitDown(){
   let castReady = 0;
   const arrive = (k, g) => {
     castLib[k] = g;
+    /* Mark what the body brought with it, before a single clip is lent.
+       After the lend its own animations and the borrowed ones sit in one
+       list, and only this flag can tell them apart -- which matters
+       because their NAMES mean different things. A lent clip is named
+       after the file it came out of; a body's own clip was named by
+       whoever made the body. */
+    for (const c of (g.animations || [])) (c.userData ||= {}).own = true;
     deshine(g.scene);
     sharpen(g.scene);
     tightenWeights(g.scene, SKIN_TIGHTEN);

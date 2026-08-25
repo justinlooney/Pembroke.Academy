@@ -23,6 +23,17 @@ const MODE = process.argv[3] === "synth" ? "synth" : "clip";
  * measuring — the controlled half of the A/B that tests whether that
  * scale is what tears the mesh. */
 const UNI = process.argv.includes("uniform");
+/* --deg=N is the angle synth mode turns the bone through. 45 was an
+ * arbitrary choice and it understated the problem: these bodies are
+ * bound in a T-pose and probe-convo-shot measures the arms sitting 65 to
+ * 80 degrees below level while a clip plays, so the rotation the skin
+ * actually takes is nearly twice what was being tested. */
+const DEG = +((process.argv.find(a => a.startsWith("--deg=")) || "").slice(6)) || 45;
+/* --assist=F puts fraction F of the turn on the CLAVICLE and the rest on
+ * the upper arm, so the arm ends up pointing the same way but no single
+ * joint bends as far. That is the shoulder-assist idea, measured before
+ * it is built. F of 0 is today: the whole bend in one hinge. */
+const ASSIST = +((process.argv.find(a => a.startsWith("--assist=")) || "").slice(9)) || 0;
 /* any argument beginning with & is appended to the page URL, so a flag
  * under test can be measured by the same instrument */
 const EXTRA = process.argv.filter(a => a.startsWith("&")).join("");
@@ -36,7 +47,7 @@ await page.waitForFunction((w) => (window.__students || [])
   .some(s => s.g?.userData?.figure === w && s.g?.userData?.anim?.current) ? true : null,
   WANT, { timeout: 300_000 }).catch(() => {});
 
-const out = await page.evaluate(({ want, mode, uni }) => {
+const out = await page.evaluate(({ want, mode, uni, deg, assist }) => {
   const THREE = window.__app.THREE;
   const s = (window.__students || []).find(x => x.g?.userData?.figure === want);
   if (!s) return { error: `${want} is not out today` };
@@ -96,21 +107,37 @@ const out = await page.evaluate(({ want, mode, uni }) => {
     m.skeleton.pose();
     bind = measure();
     bindWorld = m.skeleton.bones.map(b => b ? b.matrixWorld.clone() : null);
-    let hinge = null;
+    let hinge = null, clav = null;
     m.skeleton.bones.forEach(b => { if (!hinge && /RightUpperArm|RightArm/i.test(b.name)) hinge = b; });
+    m.skeleton.bones.forEach(b => { if (!clav && /RightClavicle|RightShoulder/i.test(b.name)) clav = b; });
     if (!hinge) return { error: "no right upper arm bone to turn" };
-    hinge.quaternion.multiply(new THREE.Quaternion()
-      .setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 4));
+    if (assist > 0 && !clav) return { error: "no clavicle to assist with" };
+    const axis = new THREE.Vector3(1, 0, 0);
+    const whole = deg * Math.PI / 180;
+    if (assist > 0){
+      /* the clavicle takes its share, the upper arm the remainder — the
+       * hand ends up in the same place either way, which is the point:
+       * this changes how the bend is DISTRIBUTED, not the pose. */
+      clav.quaternion.multiply(new THREE.Quaternion()
+        .setFromAxisAngle(axis, whole * assist));
+      hinge.quaternion.multiply(new THREE.Quaternion()
+        .setFromAxisAngle(axis, whole * (1 - assist)));
+    } else {
+      hinge.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(axis, whole));
+    }
     posed = measure();
     posedWorld = m.skeleton.bones.map(b => b ? b.matrixWorld.clone() : null);
     /* Only the hinge and its descendants moved. Everything else MUST come
      * back at exactly 1.000, and if it does not the instrument is lying —
      * this is the guard, not a statistic. */
     moved = new Set();
-    hinge.traverse(o => { if (o.isBone) moved.add(o); });
+    (assist > 0 ? clav : hinge).traverse(o => { if (o.isBone) moved.add(o); });
     m.skeleton.pose();
     m.skeleton.update();
-    drove = `${hinge.name} turned 45 deg from bind — no clip involved`;
+    drove = `${deg} deg from bind`
+      + (assist > 0 ? ` split ${Math.round(assist * 100)}% onto ${clav.name},`
+          + ` ${Math.round((1 - assist) * 100)}% on ${hinge.name}`
+        : ` all on ${hinge.name}`) + ` — no clip involved`;
   } else {
     posed = measure();
     /* Snapshot the ANIMATED bone matrices now. skeleton.pose() below wipes
@@ -426,7 +453,7 @@ const out = await page.evaluate(({ want, mode, uni }) => {
            worstInternalBone,
            worstInternalRest: +(worstInternalRest / medLen).toFixed(2),
            stillWorst: +stillWorst.toFixed(4), stillBone, stillAt, stillChecked };
-}, { want: WANT, mode: MODE, uni: UNI });
+}, { want: WANT, mode: MODE, uni: UNI, deg: DEG, assist: ASSIST });
 
 if (out.error) console.log("  " + out.error);
 else {

@@ -32,6 +32,11 @@ for (let visit = 1; visit <= 6; visit++){
   await page.goto(`${origin}/index.html?crowd=12`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => window.__app && window.__convo, null, { timeout: 240_000 });
   await page.waitForFunction(() => (window.__convo.named() || []).length > 0, null, { timeout: 240_000 });
+  /* wait WITHIN the visit: roamers arrive over the following minutes, so
+     checking once straight after load only ever sees whoever was early */
+  await page.waitForFunction((w) => (window.__convo.named() || [])
+    .some(s => s.g?.userData?.figure === w) ? true : null,
+    WANT, { timeout: 180_000, polling: 3000 }).catch(() => {});
   const cast = await page.evaluate(() => window.__convo.named()
     .map(s => ({ name: s.data?.name, body: s.g?.userData?.figure })));
   target = cast.find(c => c.body === WANT);
