@@ -195,8 +195,13 @@ await page.evaluate((w) => {
     const s = (window.__students || []).find(s => s.g?.userData?.figure === w);
     if (!s?.g) return null;
     const isMine = (o) => { for (let n = o; n; n = n.parent) if (n === s.g) return true; return false; };
-    for (let step = 0; step < 8; step++){
-      window.__viewTurn = step * Math.PI / 4;
+    /* Try head-on first, then the smallest turn either way, and only
+     * then the rear. Stepping 0,45,90,... in index order reaches 315
+     * (a near-front view over the other shoulder) LAST, after 180 — so
+     * a body with one bush in front of it got photographed from
+     * directly behind while a clear three-quarter view sat untried. */
+    for (const deg of [0, -45, 45, -90, 90, -135, 135, 180]){
+      window.__viewTurn = deg * Math.PI / 180;
       place();
       box.setFromObject(s.g); box.getCenter(mid);
       cam.updateMatrixWorld(true);
@@ -204,12 +209,15 @@ await page.evaluate((w) => {
       ray.far = cam.position.distanceTo(mid) * 1.4;
       const hit = ray.intersectObject(window.__app.world, true)
                      .find(h => h.object.visible && h.object.type !== "Sprite");
+      /* __follow is spread FIRST. Spreading it last put its own `turn`
+       * (radians, for the camera) over the reported one (degrees, for
+       * a person), and the angle printed as 141.3716694115407. */
       if (!hit || isMine(hit.object))
-        return { turn: step, blockedBy: null, ...window.__follow };
+        return { ...window.__follow, deg, blockedBy: null };
       var last = hit.object.name || hit.object.type;
     }
     window.__viewTurn = 0; place();
-    return { turn: -1, blockedBy: last || "something", ...window.__follow };
+    return { ...window.__follow, deg: null, blockedBy: last || "something" };
   };
   place();
 }, WANT);
@@ -281,8 +289,11 @@ const shot = await page.evaluate(() => {
   }
   return { worst: +worst.toFixed(2) };
 });
-if (fit) console.log(`  sight line:  ${fit.turn >= 0 ? (fit.turn ? `clear from ${fit.turn * 45}° round` : "clear head-on")
-                        : `STILL BLOCKED by ${fit.blockedBy} from all 8 angles`}`
+if (fit) console.log(`  sight line:  ${fit.deg === null
+                        ? `STILL BLOCKED by ${fit.blockedBy} from all 8 angles`
+                        : fit.deg === 0 ? "clear head-on"
+                        : fit.deg === 180 ? "clear only from BEHIND — every front angle was blocked"
+                        : `clear from ${fit.deg > 0 ? "+" : ""}${fit.deg}° round`}`
                      + `  (standoff ${fit.dist})`);
 if (shot) console.log(`  framing:     ${shot.worst <= 1 ? "whole figure is in the picture" : "CUT OFF — part of the figure is outside the frame"}`
                      + `  (worst corner ${shot.worst} of the half-frame, measured at the shutter${
