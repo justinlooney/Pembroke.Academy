@@ -7377,7 +7377,41 @@ const CAST_FILES = {
      that of. probe-inplace is what says whether any of it reaches the
      quad. */
   char6:   "assets/stu_blueeyed.glb",   /* 36k tris, the smallest body   */
-  char7:   "assets/stu_char7.glb",      /* 200k tris, the third man      */
+  /* char7, remade -- the largest breadth gain of any swap here, bought
+     with the largest tearing loss. stu_char7.glb is kept beside this.
+
+     Same man: the tan suit, the open white shirt, the brown loafers.
+
+     One bone turned 75 degrees from bind:
+
+         breadth 0.1215 -> 0.2457   (+102%)
+         tearing 2.02x -> 4.68x     (2.3x WORSE)
+         200k tris -> 43,086        2.62MB -> 0.75MB
+         DECODED TEXTURE 16.00MB -> 21.33MB
+
+     Both halves are the biggest of their kind on this branch and they
+     point opposite ways, so this is a trade and not a win.
+
+     char7 was the NARROWEST MAN in the cast at 0.1215 -- a suit
+     jacket, which should be the broadest thing a body wears, sitting
+     narrower than every woman here. At 0.2457 he is now second only to
+     the letterman. That is what a suit is supposed to look like.
+
+     He was also the SECOND CLEANEST body in the cast at 2.02x, so
+     there was more to lose here than anywhere else, and 4.68x loses
+     it. He lands mid-pack.
+
+     One difference in shape worth keeping: only 8 of his edges pass
+     the threshold against char7's 28. FEWER edges move, but the worst
+     one moves twice as far. That is the opposite of char5, whose 129
+     edges all move a little. A concentrated fault and a diffuse one
+     read differently on a body, and the single worst-edge number
+     cannot tell them apart.
+
+     He brings Run, SitToStand, StandToSit, Talk and Walk -- his own
+     Talk, where before this work every student borrowed one. No idle.
+     0.75MB is the smallest download of any body on this campus. */
+  char7:   "assets/stu_urbanelegance.glb", /* 43k tris, the tan suit    */
   char8:   "assets/stu_char8.glb",      /* 200k tris, the sixth woman    */
   /* char9, remade. stu_char9.glb is kept beside this as the others are.
 
@@ -7814,7 +7848,7 @@ const CAST_MB = {
                      smaller to download and LARGER on the GPU, so one
                      number cannot stand for both. */
                   char2: 1.00, char4: 2.67, char5: 0.86, char6: 0.79,
-                  char7: 2.62, char8: 2.73, char9: 0.87, char10: 0.80,
+                  char7: 0.75, char8: 2.73, char9: 0.87, char10: 0.80,
                   char11: 1.10, char14: 1.16, char15: 1.30, char16: 0.98,
                   char17: 1.79, char18: 1.03 };
 /* What each body costs in DECODED TEXTURE, which is the quantity the
@@ -7836,7 +7870,7 @@ const CAST_MB = {
  * here stops matching its file. */
 const CAST_VRAM_MB = {
   char2: 21.33, char4: 16.00, char5: 21.33, char6: 21.33,
-  char7: 16.00, char8: 16.00, char9: 21.33, char10: 21.33,
+  char7: 21.33, char8: 16.00, char9: 21.33, char10: 21.33,
   char11: 21.33, char14: 21.33, char15: 21.33, char16: 21.33,
   char17: 21.33, char18: 21.33 };
 /* Measured, not guessed: these are the six bodies with a shirt mesh the
