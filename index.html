@@ -7344,7 +7344,40 @@ const CAST_FILES = {
   char6:   "assets/stu_blueeyed.glb",   /* 36k tris, the smallest body   */
   char7:   "assets/stu_char7.glb",      /* 200k tris, the third man      */
   char8:   "assets/stu_char8.glb",      /* 200k tris, the sixth woman    */
-  char9:   "assets/stu_char9.glb",      /* 200k tris, 12.3 bytes a tri   */
+  /* char9, remade. stu_char9.glb is kept beside this as the others are.
+
+     Same student: the loose white top, the white shorts, the long dark
+     hair. Her heels are gone -- this body's feet read bare, or in
+     something the colour of skin. Recorded because it is the second
+     swap to change what a student is wearing rather than remake it, and
+     barefoot on a lawn is a choice somebody may not have meant to make.
+
+     One bone turned 75 degrees from bind, the angle the clips actually
+     use:
+
+         breadth 0.1436 -> 0.2169   (+51%)
+         200k tris -> 42,812        2.58MB -> 0.87MB
+         tearing 2.61x -> 3.00x     (15% WORSE)
+
+     The tearing goes the wrong way, and it is worth saying so even
+     though the gap is small. char9 was ALREADY one of the cleanest
+     bodies in the cast at 2.61x -- there was very little to win here,
+     and this trade buys +51% shoulder breadth for 15% more stretch. It
+     is the same shape of trade as urbanfree, at a fifth of the size.
+
+     What is not small is the breadth: 0.1436 was the third narrowest
+     body on this campus.
+
+     She brings HandbagWalk, Run, SitToStand, StandChat, StandToSit and
+     Walk, and takes StandChat as an IDLE of her own -- by measurement
+     rather than by name, as char6 and char15 did, since intentOf does
+     not match "StandChat".
+
+     check-character warns both sit transitions travel 0.5, and calls
+     her 0.67s Run "a seated loop" -- the sixth body it has said that
+     of. probe-inplace is the only thing that can say whether the travel
+     reaches the quad. */
+  char9:   "assets/stu_summersmile.glb", /* 43k tris, the girl in white  */
   /* char10, remade -- and the cleanest body ever measured on this
      campus. stu_char10.glb is kept beside this as the others are.
 
