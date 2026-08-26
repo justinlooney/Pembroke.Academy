@@ -7345,7 +7345,43 @@ const CAST_FILES = {
   char7:   "assets/stu_char7.glb",      /* 200k tris, the third man      */
   char8:   "assets/stu_char8.glb",      /* 200k tris, the sixth woman    */
   char9:   "assets/stu_char9.glb",      /* 200k tris, 12.3 bytes a tri   */
-  char10:  "assets/stu_char10.glb",     /* 200k tris, walker's successor */
+  /* char10, remade -- and the cleanest body ever measured on this
+     campus. stu_char10.glb is kept beside this as the others are.
+
+     THIS ONE CHANGES HOW SHE LOOKS, which none of the eight before it
+     did. Every previous swap matched its counterpart's clothes:
+     yellow sweater for yellow sweater, red shirt for red shirt,
+     letterman for letterman. char10 wears a white tee and blue jeans;
+     this body wears a black tank and charcoal jeans. She was named as
+     the target by description -- "a female in blue jeans and white
+     shirt" -- so the student is right and the wardrobe is deliberate,
+     but a visitor who knew her will see a different person, not the
+     same person remade. Recorded so nobody later reads the swap as a
+     like-for-like and wonders when her shirt changed.
+
+     One bone turned 75 degrees from bind, the angle the clips actually
+     use:
+
+         tearing 6.43x -> 1.82x     breadth 0.1532 -> 0.2182
+         200k tris -> 42,372        2.77MB -> 0.80MB
+
+     1.82x IS THE LOWEST TEARING OF ANY BODY THAT HAS EVER STOOD ON
+     THIS CAMPUS, under the professor's 1.88x, and only FIVE of her
+     edges stretch past the threshold at all -- the fewest of the
+     nineteen bodies measured. char10 was the worst body left after the
+     outliers went, so the cast's ceiling comes down again with her.
+
+     She brings her own IDLE, 8.79 seconds of it -- the fifth body with
+     one, where before this work not one body in the cast had an idle
+     of its own and every student borrowed the same loop.
+
+     check-character warns SitToStand travels 0.47 and WalkToSit
+     travels 3.99. The second is the largest travel figure any body has
+     carried into this campus; it is a walk-then-sit and genuinely
+     crosses ground. prepareClips runs inPlaceClip at load, and
+     probe-inplace is the only thing that can say whether that reached
+     her. */
+  char10:  "assets/stu_warmsmile.glb",   /* 42k tris, the cleanest body   */
   /* char11, remade -- and with her the LAST of the four bodies this
      investigation ever measured above 10x. stu_char11.glb is kept
      beside this as the others are.
