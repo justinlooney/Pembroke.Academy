@@ -7759,16 +7759,51 @@ const CAST_FILES = {
    is down to the loiterers and the skater, who are there because
    nothing else can stand in for what they do. */
 const CAST_MB = {
-                  /* Every authored body at 1024 textures: 2.55 to 3.51MB,
-                     where they were 2.99 to 4.72. The download is the smaller
-                     half of that change — each also went from 63.8MB of
-                     decoded texture to 16.0, and it is the 16 a phone feels.
-                     These numbers gate the on-screen ceiling, so they are
-                     measured from the files rather than remembered. */
-                  char2: 2.77, char4: 2.67, char5: 2.81, char6: 2.55,
-                  char7: 2.62, char8: 2.73, char9: 2.58, char10: 2.77,
-                  char11: 3.51, char14: 2.88, char15: 3.13, char16: 2.67,
-                  char17: 3.28, char18: 2.96 };
+                  /* What a body costs to DOWNLOAD. MEASURED from the
+                     files, and re-measured by check-vram.mjs, which
+                     exists because this table rotted once already.
+
+                     Ten bodies were replaced and not one of these
+                     numbers moved with them, so the wave below spent
+                     two to three times what the files actually cost.
+                     The faculty alone claimed 6.24MB of an 8.8MB wave,
+                     leaving 2.56MB, and exactly ONE body in the stale
+                     table was small enough to fit that gap. Twenty-one
+                     measured visits opened with the same three people
+                     and seven of the fourteen bodies appeared in none
+                     of them; char14 went forty-eight minutes unseen.
+                     That was not the random draw. It was this table.
+
+                     Decoded texture is a DIFFERENT quantity and lives
+                     in CAST_VRAM_MB below — the replacements are
+                     smaller to download and LARGER on the GPU, so one
+                     number cannot stand for both. */
+                  char2: 1.00, char4: 2.67, char5: 2.81, char6: 0.79,
+                  char7: 2.62, char8: 2.73, char9: 0.87, char10: 0.80,
+                  char11: 1.10, char14: 1.16, char15: 1.30, char16: 0.98,
+                  char17: 1.79, char18: 1.03 };
+/* What each body costs in DECODED TEXTURE, which is the quantity the
+   on-screen ceiling actually spends.
+ *
+ * This was one constant, BODY_VRAM_MB = 16.0, and that was true when
+ * every body carried three 1024x1024 maps. The replacements carry a
+ * single 2048x2048 -- fewer maps, more pixels: 21.33MB against 16.0,
+ * a third more each, and a smaller download at the same time. So the
+ * two axes moved in OPPOSITE directions on the same swap, and a flat
+ * constant could not see it.
+ *
+ * Three heavy bodies is 64MB against a 48MB ceiling. roomOnScreen
+ * never evicts -- it only refuses the next body -- so once three are
+ * out the breach lasts the visit. That is the phone this ceiling was
+ * built for, holding a third more than it believes.
+ *
+ * Per body, therefore, and measured. check-vram.mjs fails if any row
+ * here stops matching its file. */
+const CAST_VRAM_MB = {
+  char2: 21.33, char4: 16.00, char5: 16.00, char6: 21.33,
+  char7: 16.00, char8: 16.00, char9: 21.33, char10: 21.33,
+  char11: 21.33, char14: 21.33, char15: 21.33, char16: 21.33,
+  char17: 21.33, char18: 21.33 };
 /* Measured, not guessed: these are the six bodies with a shirt mesh the
    wardrobe can find. See the note above about the ten that have none. */
 /* Nobody. The last dressable body was walker and he is retired, so the
@@ -7883,17 +7918,27 @@ function onScreenBodies(){
   }
   return out;
 }
+/* Per body, from CAST_VRAM_MB. This summed a flat BODY_VRAM_MB for
+   every body, which was right while the whole cast carried 1024 maps
+   and silently wrong the moment one of them did not: a 2048 body is
+   21.33MB and was being charged 16, so three of them read as 48 while
+   costing 64. BODY_VRAM_MB survives only as the fallback for a body
+   with no row, and check-vram fails if any body needs it. */
+function bodyVramMB(k){ return CAST_VRAM_MB[k] ?? BODY_VRAM_MB; }
 function onScreenMB(bodies){
   let mb = 0;
-  for (const k of (bodies || onScreenBodies())) mb += BODY_VRAM_MB;
+  for (const k of (bodies || onScreenBodies())) mb += bodyVramMB(k);
   return mb;
 }
 /* Is there room to draw this body as well? Already on screen costs
-   nothing more. */
+   nothing more.
+   Note this only ever REFUSES the next body; it does not evict. So an
+   over-budget campus stays over budget for the visit, which is why the
+   sum above has to be right going in rather than corrected later. */
 function roomOnScreen(k, bodies){
   const now = bodies || onScreenBodies();
   if (now.has(k)) return true;
-  return onScreenMB(now) + BODY_VRAM_MB <= ON_SCREEN_MB;
+  return onScreenMB(now) + bodyVramMB(k) <= ON_SCREEN_MB;
 }
 function drawFirstWave(){
   /* Nobody: every body on this campus roams now. The skater was the
@@ -16522,6 +16567,8 @@ window.__castFiles = CAST_FILES;
    weighs, so a harness can check the limit rather than trust it. */
 window.__onScreenCap = ON_SCREEN_MB;
 window.__castMB = CAST_MB;
+window.__castVramMB = CAST_VRAM_MB;
+window.__bodyVramMB = BODY_VRAM_MB;
 window.__bodyVram = BODY_VRAM_MB;
 
 /* ══════════════════════════════════════════════════════════════════

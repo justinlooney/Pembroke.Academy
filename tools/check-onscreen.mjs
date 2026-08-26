@@ -76,8 +76,17 @@ const peak = await page.evaluate(async (secs) => {
       const f = s.g.userData && s.g.userData.figure;
       if (f) b.add(f);
     }
+    /* CHARGE DECODED TEXTURE, not download bytes.
+     * This summed __castMB, which is what a body costs to FETCH — and
+     * compared it to ON_SCREEN_MB, which is a ceiling on what a body
+     * costs on the GPU. Two different quantities that happened to be
+     * called MB. It reported a 48MB ceiling comfortably holding 2.82MB
+     * while the same two bodies were really holding 42.7, so the one
+     * tool watching this ceiling could not have caught it going over.
+     * __castVramMB is the quantity roomOnScreen actually spends. */
     let mb = 0;
-    for (const k of b) mb += (window.__castMB || {})[k] || 0;
+    for (const k of b) mb += (window.__castVramMB || {})[k] ??
+                             (window.__bodyVramMB || 16);
     return { mb: +mb.toFixed(2), n: b.size, who: [...b].sort().join("+") };
   };
   for (let t = 0; t < secs; t++){
