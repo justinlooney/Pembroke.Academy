@@ -7297,7 +7297,42 @@ const CAST_FILES = {
      pairs of students could not be drawn and all six were hers.
      Character 15 replaces her at 3.96MB and 118,304 vertices. */
   char4:   "assets/stu_char4.glb",      /* 200k tris, the lightest yet   */
-  char5:   "assets/stu_char5.glb",      /* 200k tris, the first man      */
+  /* char5, remade -- and the first swap here that buys nothing on
+     either quality measure. stu_char5.glb is kept beside this.
+
+     Same student: the slate tee, the black shorts, the backpack, the
+     grey-and-white trainers.
+
+     One bone turned 75 degrees from bind:
+
+         tearing 4.78x -> 4.99x     (4% WORSE)
+         breadth 0.2217 -> 0.2243   (+1%, inside the noise)
+         200k tris -> 44,234        2.81MB -> 0.86MB
+         DECODED TEXTURE 16.00MB -> 21.33MB   (a third MORE)
+
+     Worth being plain about, because he is the body the whole
+     investigation started from -- the phone photograph of narrow
+     shoulders and a collapsed shirt was HIM. Measurement never agreed:
+     char5 came out at 0.2217 breadth, already the broadest man in the
+     cast, and 4.78x tearing, comfortably mid-pack. There was very
+     little here to repair, and this body does not repair it. Breadth
+     moves 1%, which is noise, and tearing moves 4% the wrong way.
+
+     He also has 129 INTERNAL EDGES past the threshold against char5's
+     9 -- by far the most of any body measured. No single edge goes far
+     (4.99x is ordinary here) but a great many of them move, which is a
+     different failure shape from a body with one bad shoulder. Like
+     the letterman and blueeyed his worst edge is at HIPS.
+
+     What it does buy is weight: 44,234 triangles for 200,000 and
+     0.86MB for 2.81MB. But note the last line above -- on the GPU it
+     costs a THIRD MORE, because a single 2048 map is heavier than
+     three 1024s. That trade is now visible instead of invisible, and
+     it is the trade, not a win.
+
+     He brings Idle, Run, SitToStand, StandToSit and Walk -- his own
+     idle, the seventh body to have one. */
+  char5:   "assets/stu_smilingstudent.glb", /* 44k tris, the backpack   */
   /* char6, remade -- and the only swap here whose counterpart was not
      obvious from the clothes. stu_char6.glb is kept beside this as the
      others are.
@@ -7778,7 +7813,7 @@ const CAST_MB = {
                      in CAST_VRAM_MB below — the replacements are
                      smaller to download and LARGER on the GPU, so one
                      number cannot stand for both. */
-                  char2: 1.00, char4: 2.67, char5: 2.81, char6: 0.79,
+                  char2: 1.00, char4: 2.67, char5: 0.86, char6: 0.79,
                   char7: 2.62, char8: 2.73, char9: 0.87, char10: 0.80,
                   char11: 1.10, char14: 1.16, char15: 1.30, char16: 0.98,
                   char17: 1.79, char18: 1.03 };
@@ -7800,7 +7835,7 @@ const CAST_MB = {
  * Per body, therefore, and measured. check-vram.mjs fails if any row
  * here stops matching its file. */
 const CAST_VRAM_MB = {
-  char2: 21.33, char4: 16.00, char5: 16.00, char6: 21.33,
+  char2: 21.33, char4: 16.00, char5: 21.33, char6: 21.33,
   char7: 16.00, char8: 16.00, char9: 21.33, char10: 21.33,
   char11: 21.33, char14: 21.33, char15: 21.33, char16: 21.33,
   char17: 21.33, char18: 21.33 };
