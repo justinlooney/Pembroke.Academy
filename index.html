@@ -7346,7 +7346,44 @@ const CAST_FILES = {
   char8:   "assets/stu_char8.glb",      /* 200k tris, the sixth woman    */
   char9:   "assets/stu_char9.glb",      /* 200k tris, 12.3 bytes a tri   */
   char10:  "assets/stu_char10.glb",     /* 200k tris, walker's successor */
-  char11:  "assets/stu_char11.glb",     /* 200k tris, hero's successor   */
+  /* char11, remade -- and with her the LAST of the four bodies this
+     investigation ever measured above 10x. stu_char11.glb is kept
+     beside this as the others are.
+
+     Same student: the white patterned camisole with the thin straps,
+     the blue jeans, the long strawberry-blonde hair. The sandals are
+     sneakers now, which is the only visible change. char10 is the only
+     other body who could have been meant -- also a white top over blue
+     jeans -- but hers is a fitted tee and her hair is dark brown, and
+     the camisole settles it.
+
+     One bone turned 75 degrees from bind, the angle the clips actually
+     use:
+
+         tearing 14.82x -> 2.21x    breadth 0.1654 -> 0.2139
+         200k tris -> 42,652        3.51MB -> 1.10MB
+
+     A 6.7-fold reduction, second only to the dean's eleven, and it
+     clears the last of the outliers: the cast opened this work with
+     char17 at 33.17x, char14 at 16.54x, char11 at 14.82x and char2 at
+     9.72x, and all four are now replaced. Nothing left on this campus
+     tears above 7x.
+
+     2.21x is also the second cleanest body here, behind only the
+     professor's 1.88x.
+
+     Unlike the letterman and blueeyed her worst edge is at a SHOULDER,
+     which is where the rest of the cast tears -- so the hip-weighted
+     shape those two showed is not a property of this source in
+     general.
+
+     She brings LookBackSit, Run, SitToStand, Walk and a WalkingWoman
+     stride of her own. No idle and no talk, so she is lent both, as
+     most of the cast is. check-character warns her two sit transitions
+     travel 0.58 and 0.49 and calls her 0.67s Run "a seated loop" --
+     the fifth body it has said that of. probe-inplace is what says
+     whether any of it reaches the quad. */
+  char11:  "assets/stu_gardengaze.glb",  /* 43k tris, the camisole       */
   /* The letterman jacket, remade -- and the best swap of the six on
      both numbers at once. stu_char14.glb is kept beside this as the
      others are.
