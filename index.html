@@ -4239,6 +4239,34 @@ const RIGREST = q.has("rigrest");
 /* ?skin=N — see tightenWeights. 1 is the file as authored; the default
    is 2, for the reason recorded there. */
 const SKIN_TIGHTEN = q.has("skin") ? (+q.get("skin") || 0) : 2;
+/* ── and per body, because one power does not suit them all ──────────
+   The default above was chosen from a four-body table, and every body
+   in that table was one of the ORIGINALS. Measured across the cast as
+   it stands now -- twelve replacements and two survivors -- power 2 is
+   the wrong choice for six of the fourteen, and for one of them it is
+   a disaster:
+
+     body            skin=1   skin=2   skin=3     ships
+     smilingstudent   4.99    10.38    15.40        1
+     barndoor         4.30     4.39     5.81        1
+     distinguished    1.88     3.02     4.25        1
+     gardengaze       2.21     2.74     3.57        1
+     warmsmile        1.82     1.99     2.17        1
+     urbanfree        8.27     5.00     3.30        3
+     urbanelegance    4.68     3.43     2.51        3
+
+   Tightening pulls each vertex towards its dominant bone. That helps a
+   body whose weights are spread too far and HURTS one whose weights
+   are already tight, which is why it cuts the letterman in half and
+   doubles smilingstudent. char5 as shipped was the worst body on this
+   campus at 10.38x -- worse than anything the original cast ever
+   measured except char17 -- and it was the tightening doing it, not
+   the model.
+
+   Per body, therefore. ?skin=N still overrides everything, which is
+   how the table was measured. */
+const CAST_SKIN = { char5: 1, char16: 1, char18: 1, char11: 1, char10: 1,
+                    char15: 3, char7: 3 };
 const RIGTRACE_FRAME = +(q.get("rigframe") || 8);
 /* WHY the ladder is not shedding, in words, for the frame after this
    one to report. The panel could always say which rung the campus was
@@ -10084,7 +10112,10 @@ function lendSitDown(){
     deshine(g.scene);
     capTextures(g.scene);
     sharpen(g.scene);
-    tightenWeights(g.scene, SKIN_TIGHTEN);
+    /* the body's own power if it has one, and only when the visitor has
+       not asked for a specific one with ?skin= */
+    tightenWeights(g.scene, q.has("skin") ? SKIN_TIGHTEN
+                                          : (CAST_SKIN[k] ?? SKIN_TIGHTEN));
     /* Measured before they are pinned in place, for every body that
        walks — the gait count is what both paces playback and tells a
        walk cycle from a standing loop. */
