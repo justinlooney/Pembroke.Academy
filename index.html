@@ -7861,18 +7861,25 @@ const CAST_MB = {
  * two axes moved in OPPOSITE directions on the same swap, and a flat
  * constant could not see it.
  *
- * Three heavy bodies is 64MB against a 48MB ceiling. roomOnScreen
- * never evicts -- it only refuses the next body -- so once three are
- * out the breach lasts the visit. That is the phone this ceiling was
- * built for, holding a third more than it believes.
+ * Three of them was 64MB against a 48MB ceiling. roomOnScreen never
+ * evicts -- it only refuses the next body -- so that breach lasted the
+ * whole visit, on the phone this ceiling exists to protect.
  *
- * Per body, therefore, and measured. check-vram.mjs fails if any row
- * here stops matching its file. */
+ * THESE ARE POST-CAP NUMBERS. capTextures shrinks any map over TEX_CAP
+ * at load, so a 2048 body reaches the GPU as 1024 and costs 5.33MB
+ * rather than 21.33. The replacements are therefore now the CHEAPEST
+ * bodies on this campus -- a third of what the three-1024 originals
+ * cost -- which is the exact opposite of where this started.
+ *
+ * Per body, and measured against what LOADS rather than what the file
+ * holds. check-vram.mjs reads TEX_CAP and applies it before comparing:
+ * a version that compared against the file would fail every capped
+ * body and tell you to write the wrong number in here. */
 const CAST_VRAM_MB = {
-  char2: 21.33, char4: 16.00, char5: 21.33, char6: 21.33,
-  char7: 21.33, char8: 16.00, char9: 21.33, char10: 21.33,
-  char11: 21.33, char14: 21.33, char15: 21.33, char16: 21.33,
-  char17: 21.33, char18: 21.33 };
+  char2:  5.33, char4: 16.00, char5:  5.33, char6:  5.33,
+  char7:  5.33, char8: 16.00, char9:  5.33, char10: 5.33,
+  char11: 5.33, char14: 5.33, char15: 5.33, char16: 5.33,
+  char17: 5.33, char18: 5.33 };
 /* Measured, not guessed: these are the six bodies with a shirt mesh the
    wardrobe can find. See the note above about the ten that have none. */
 /* Nobody. The last dressable body was walker and he is retired, so the
@@ -8588,6 +8595,54 @@ function tightenWeights(root, power){
       else out[o4] = 1;              /* a vertex with no influence at all */
     }
     o.geometry.setAttribute("skinWeight", new THREE.BufferAttribute(out, 4));
+  });
+}
+/* ── the texture cap ──────────────────────────────────────────────────
+   Every replacement body arrived carrying ONE 2048x2048 map where the
+   originals carried three 1024s. Fewer maps, more pixels: 21.33MB
+   against 16.0 with the mip chain, so a cast that got smaller to
+   DOWNLOAD got a third larger on the GPU, on a campus whose crowd is
+   gated by exactly that number. Two bodies now fill a ceiling that used
+   to hold three.
+
+   Nothing here was shrinking them. The quality ladder drops shadows,
+   antialiasing and the crowd size; sharpen() sets anisotropy; no pass
+   on this campus has ever looked at a texture's dimensions.
+
+   So this does, once, at load. A body is 40 to 90 pixels tall crossing
+   the quad, and the close-up frames it at about 600 -- a 1024 map is
+   already more texels than either can show, and 2048 was never being
+   resolved on any screen this runs on.
+
+   ?tex=N sets the cap; ?tex=0 turns it off, which is how the pictures
+   that justified the default were taken. The downscale is a canvas
+   draw, so it costs one paint per texture at load and nothing after. */
+const TEX_CAP = q.has("tex") ? (+q.get("tex") || 0) : 1024;
+function capTextures(root){
+  if (!(TEX_CAP > 0)) return;
+  const done = new Map();
+  root.traverse(o => {
+    if (!o.isMesh || !o.material) return;
+    const m = o.material;
+    for (const k of ["map", "normalMap", "roughnessMap", "metalnessMap",
+                     "specularIntensityMap", "emissiveMap", "aoMap"]){
+      const t = m[k]; const img = t && t.image;
+      if (!img || !img.width) continue;
+      const big = Math.max(img.width, img.height);
+      if (big <= TEX_CAP) continue;
+      if (done.has(t.uuid)){ m[k] = done.get(t.uuid); continue; }
+      const sc = TEX_CAP / big;
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(img.width * sc));
+      c.height = Math.max(1, Math.round(img.height * sc));
+      /* drawImage does the filtering; the browser's own downsampler is
+         better than anything worth hand-rolling here and it is what the
+         page already relies on for every other canvas texture. */
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      t.image = c;
+      t.needsUpdate = true;
+      done.set(t.uuid, t);
+    }
   });
 }
 function sharpen(root){
@@ -10027,6 +10082,7 @@ function lendSitDown(){
        whoever made the body. */
     for (const c of (g.animations || [])) (c.userData ||= {}).own = true;
     deshine(g.scene);
+    capTextures(g.scene);
     sharpen(g.scene);
     tightenWeights(g.scene, SKIN_TIGHTEN);
     /* Measured before they are pinned in place, for every body that

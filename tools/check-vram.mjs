@@ -72,6 +72,11 @@ const vramMB = vramTable
 const flatVram = +grab(/const BODY_VRAM_MB = ([\d.]+)/, "BODY_VRAM_MB")[1];
 const onScreenCap = +grab(/const ON_SCREEN_MB = [^|]*\|\| ([\d.]+)/, "ON_SCREEN_MB")[1];
 const firstWave = +grab(/const FIRST_WAVE_MB = ([\d.]+)/, "FIRST_WAVE_MB")[1];
+/* capTextures shrinks anything over TEX_CAP at load, so what a file
+ * carries and what the GPU holds are no longer the same number. The
+ * table has to match what is LOADED — comparing it to the file would
+ * fail every capped body and tell you to write the wrong figure in. */
+const texCap = +grab(/const TEX_CAP = .*: ([\d.]+);/, "TEX_CAP")[1];
 
 const PAGE = `<!doctype html><meta charset="utf-8">
 <script type="importmap">{"imports":{
@@ -87,7 +92,7 @@ const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
  * bufferViews by hand does not work here — these files are meshopt
  * compressed, and a naive PNG header read off a compressed view
  * returns dimensions like 55537x49104. */
-window.__vram = (url) => new Promise((done) => loader.load(url, (g) => {
+window.__vram = (url, cap) => new Promise((done) => loader.load(url, (g) => {
   const maps = new Map();
   g.scene.traverse(o => {
     const m = o.material; if (!m) return;
@@ -99,8 +104,14 @@ window.__vram = (url) => new Promise((done) => loader.load(url, (g) => {
     }
   });
   const list = [...maps.values()];
-  done({ maps: list,
-         mb: list.reduce((a, t) => a + t.w * t.h * 4 * (4/3), 0) / 1048576 });
+  const capped = list.map(t => {
+    const big = Math.max(t.w, t.h);
+    if (!cap || big <= cap) return t;
+    const sc = cap / big;
+    return { ...t, w: Math.round(t.w * sc), h: Math.round(t.h * sc), shrunk: true };
+  });
+  const bytes = (a) => a.reduce((n, t) => n + t.w * t.h * 4 * (4/3), 0) / 1048576;
+  done({ maps: list, capped, native: bytes(list), mb: bytes(capped) });
 }, undefined, (e) => done({ err: String(e && e.message || e) })));
 </script>`;
 
@@ -121,10 +132,12 @@ await page.waitForFunction(() => !!window.__vram, null, { timeout: 30000 });
 const rows = [];
 for (const [k, path] of Object.entries(castFiles)){
   const bytes = (await stat(resolve(ROOT, path))).size / 1e6;
-  const r = await page.evaluate((u) => window.__vram(u), `${origin}/${path}`);
+  const r = await page.evaluate(([u, c]) => window.__vram(u, c), [`${origin}/${path}`, texCap]);
   if (r.err){ console.log(`  ${k}: WILL NOT LOAD — ${r.err}`); continue; }
-  rows.push({ k, path, bytes, vram: r.mb,
-              dims: r.maps.map(m => `${m.w}x${m.h}`).join("+") || "none" });
+  rows.push({ k, path, bytes, vram: r.mb, native: r.native,
+              dims: r.capped.map(m => `${m.w}x${m.h}`).join("+") || "none",
+              was: r.maps.map(m => `${m.w}x${m.h}`).join("+") || "none",
+              shrunk: r.capped.some(m => m.shrunk) });
 }
 await browser.close(); await closeSrv();
 
@@ -140,14 +153,17 @@ for (const r of rows){
               (off ? "   <-- WRONG" : ""));
 }
 
-console.log(`\n  DECODED TEXTURE — what roomOnScreen spends, ${onScreenCap}MB on screen\n`);
-console.log(`  body     texture              real MB   charged`);
+console.log(`\n  DECODED TEXTURE — what roomOnScreen spends, ${onScreenCap}MB on screen`);
+console.log(`  (capTextures caps every map at ${texCap}, so this is what LOADS, not what the file holds)\n`);
+console.log(`  body     texture        as loaded   charged   in the file`);
 for (const r of rows){
   const claim = vramMB ? vramMB[r.k] : flatVram;
   const off = claim === undefined || Math.abs(claim - r.vram) > TOL_VRAM;
   if (off) bad++;
-  console.log(`  ${r.k.padEnd(8)} ${r.dims.padEnd(20)} ${r.vram.toFixed(2).padStart(7)}` +
-              `   ${String(claim ?? "—").padStart(7)}` + (off ? "   <-- WRONG" : ""));
+  console.log(`  ${r.k.padEnd(8)} ${r.dims.padEnd(14)} ${r.vram.toFixed(2).padStart(9)}` +
+              `   ${String(claim ?? "—").padStart(7)}` +
+              `   ${(r.shrunk ? `${r.was} ${r.native.toFixed(1)}MB` : "—").padStart(20)}` +
+              (off ? "   <-- WRONG" : ""));
 }
 
 /* HOW MANY PEOPLE THE CEILING ACTUALLY HOLDS.
