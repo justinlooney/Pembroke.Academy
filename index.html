@@ -7440,7 +7440,34 @@ const CAST_FILES = {
      Talk, where before this work every student borrowed one. No idle.
      0.75MB is the smallest download of any body on this campus. */
   char7:   "assets/stu_urbanelegance.glb", /* 43k tris, the tan suit    */
-  char8:   "assets/stu_char8.glb",      /* 200k tris, the sixth woman    */
+  /* char8, remade -- the last of the fourteen. stu_char8.glb is kept
+     beside this.
+
+     Same student: the denim shorts, the white sneakers, the long dark
+     hair. Her striped tank is a plain white crop now and she has
+     gained a backpack -- the third swap to change what somebody wears
+     rather than remake them.
+
+     Measured at the power she actually ships at, which is the only
+     figure worth quoting:
+
+         breadth 0.1616 -> 0.1982   (+23%)
+         tearing 2.26x -> 4.25x     (1.9x WORSE)
+         200k tris -> 42,541        2.73MB -> 0.99MB
+         GPU TEXTURE 16.00MB -> 5.33MB
+
+     char8 was one of the two CLEANEST bodies on this campus, so there
+     was almost nothing to win on tearing and this trade gives some of
+     it back. 106 of her edges pass the threshold against char8's 13 --
+     the diffuse shape, like char5, rather than one bad joint.
+
+     Her best power is 2, the global default, so she needs no CAST_SKIN
+     row: 4.34x at 1, 4.25x at 2, 6.16x at 3.
+
+     She brings SEVEN clips -- Idle, LookBackSit, Run, SitToStand, Talk,
+     Walk and a WalkingWoman stride -- her own idle AND her own talk,
+     which only the professor had managed before. */
+  char8:   "assets/stu_campusconfidence.glb", /* 43k tris, jean shorts */
   /* char9, remade. stu_char9.glb is kept beside this as the others are.
 
      Same student: the loose white top, the white shorts, the long dark
@@ -7876,7 +7903,7 @@ const CAST_MB = {
                      smaller to download and LARGER on the GPU, so one
                      number cannot stand for both. */
                   char2: 1.00, char4: 2.67, char5: 0.86, char6: 0.79,
-                  char7: 0.75, char8: 2.73, char9: 0.87, char10: 0.80,
+                  char7: 0.75, char8: 0.99, char9: 0.87, char10: 0.80,
                   char11: 1.10, char14: 1.16, char15: 1.30, char16: 0.98,
                   char17: 1.79, char18: 1.03 };
 /* What each body costs in DECODED TEXTURE, which is the quantity the
@@ -7905,7 +7932,7 @@ const CAST_MB = {
  * body and tell you to write the wrong number in here. */
 const CAST_VRAM_MB = {
   char2:  5.33, char4: 16.00, char5:  5.33, char6:  5.33,
-  char7:  5.33, char8: 16.00, char9:  5.33, char10: 5.33,
+  char7:  5.33, char8:  5.33, char9:  5.33, char10: 5.33,
   char11: 5.33, char14: 5.33, char15: 5.33, char16: 5.33,
   char17: 5.33, char18: 5.33 };
 /* Measured, not guessed: these are the six bodies with a shirt mesh the

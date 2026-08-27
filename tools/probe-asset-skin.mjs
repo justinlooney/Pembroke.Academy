@@ -38,7 +38,8 @@ const PORT = 8137;
 const argv = process.argv.slice(2);
 const DEG = +(argv.find(a => /^\d+(\.\d+)?$/.test(a)) || 75);
 /* --skin=N applies the campus's own tightenWeights before measuring.
- * 1 (or absent) is the file as authored; the campus ships 2. */
+ * 1 (or absent) is the file as authored; each body's shipped power is
+ * in CAST_SKIN, and check-skin.mjs is what keeps that table honest. */
 const TIGHTEN = +((argv.find(a => a.startsWith("--skin=")) || "").split("=")[1] || 1);
 let files = argv.filter(a => a.endsWith(".glb"));
 if (!files.length)
@@ -67,12 +68,17 @@ window.__skin = (url, deg, tighten) => new Promise((done) => loader.load(url, (g
     root.traverse(o => { if (!m && o.isSkinnedMesh) m = o; });
     if (!m) return done({ err: "no SkinnedMesh" });
     /* THE SAME TIGHTENING THE CAMPUS SHIPS, applied before measuring.
-     * This probe read authored weights only, which is what the file
-     * holds and NOT what any visitor sees: index.html runs
-     * tightenWeights at power 2 on every body at load. So every figure
-     * this tool has ever printed was the un-shipped version of that
-     * body, and the four-body table the default was chosen from is the
-     * only place the shipped weights were ever measured. */
+     *
+     * This probe read AUTHORED weights, which is what the file holds
+     * and not what any visitor sees: index.html runs tightenWeights on
+     * every body at load. So every figure this tool printed described a
+     * version of that body nobody has ever looked at, and the numbers
+     * that justified a dozen swaps were all the un-shipped ones.
+     *
+     * It is not a small correction. char5 measures 4.99x authored and
+     * 10.38x at the power the campus used to ship for him -- the
+     * tightening was more than doubling the tearing it exists to
+     * reduce, and CAST_SKIN was written to stop it. */
     if (tighten > 1){
       const a = m.geometry.attributes.skinWeight;
       const out = new Float32Array(a.count * 4);
