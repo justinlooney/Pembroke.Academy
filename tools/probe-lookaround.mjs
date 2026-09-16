@@ -43,61 +43,63 @@ console.log(`\n  Turning on the spot, ${STEPS} steps through 360 degrees.\n`);
 console.log("   yaw    draws   triangles   visible/total   background");
 console.log("  " + "─".repeat(60));
 
-const rows = await page.evaluate(async (steps) => {
-  const app = window.__app, w = window.__walker;
-  const out = [];
-  for (let i = 0; i < steps; i++){
-    const yaw = (i / steps) * Math.PI * 2;
-    if (w) w.h = yaw;
-    /* let the camera follow the heading and the frame settle */
+/* THROUGH THE PAGE, not the element. locator.screenshot() waits for the
+   element to be "stable" before it fires, and a canvas that is being
+   animated is never stable — the first attempt at this probe timed out
+   after twenty seconds without printing a single row. A page screenshot
+   is a CDP capture of the viewport, which in walk mode IS the canvas,
+   and is closer to what the visitor actually sees anyway. */
+const measure = async (yaw) => {
+  await page.evaluate(async (y) => {
+    if (window.__walker) window.__walker.h = y;
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-    await new Promise(r => setTimeout(r, 120));
-    const inf = app.renderer.info;
-    /* what the renderer decided to draw, counted the way it decides:
-       every mesh tested against the frustum this frame */
-    let total = 0, visible = 0;
-    const frustum = new app.THREE.Frustum().setFromProjectionMatrix(
-      new app.THREE.Matrix4().multiplyMatrices(
+  }, yaw);
+  await page.waitForTimeout(220);
+  const inf = await page.evaluate(() => {
+    const app = window.__app, THREE = app.THREE;
+    const frustum = new THREE.Frustum().setFromProjectionMatrix(
+      new THREE.Matrix4().multiplyMatrices(
         app.camera.projectionMatrix, app.camera.matrixWorldInverse));
+    let total = 0, visible = 0; const gone = [];
     app.world.traverse(o => {
       if (!o.isMesh || !o.visible) return;
       total++;
-      if (!o.frustumCulled) { visible++; return; }
+      if (!o.frustumCulled){ visible++; return; }
       if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
       const s = (o.boundingSphere || o.geometry.boundingSphere).clone();
       s.applyMatrix4(o.matrixWorld);
       if (frustum.intersectsSphere(s)) visible++;
+      else if (o.geometry.boundingSphere.radius > 300) gone.push(o.name || "(unnamed)");
     });
-    out.push({ yaw: Math.round(yaw * 180 / Math.PI), draws: inf.render.calls,
-               tris: inf.render.triangles, visible, total });
-  }
-  return out;
-}, STEPS);
-
-/* how much of the picture is the clear colour — a black screen, measured */
-for (const r of rows){
-  await page.evaluate((yaw) => { if (window.__walker) window.__walker.h = yaw * Math.PI / 180; },
-                      r.yaw);
-  await page.waitForTimeout(150);
-  const shot = await page.locator("canvas").first().screenshot();
-  const dark = await page.evaluate(async (b64) => {
+    const r = app.renderer.info.render;
+    return { draws: r.calls, tris: r.triangles, visible, total, gone: [...new Set(gone)].slice(0, 4) };
+  });
+  const png = await page.screenshot({ type: "png" });
+  const black = await page.evaluate(async (b64) => {
     const img = new Image();
     await new Promise(ok => { img.onload = ok; img.src = "data:image/png;base64," + b64; });
     const c = document.createElement("canvas");
-    c.width = Math.min(img.width, 300); c.height = Math.min(img.height, 200);
+    c.width = 300; c.height = 200;
     const g = c.getContext("2d"); g.drawImage(img, 0, 0, c.width, c.height);
     const d = g.getImageData(0, 0, c.width, c.height).data;
-    let black = 0;
+    let dark = 0;
     for (let i = 0; i < d.length; i += 4)
-      if (d[i] < 12 && d[i + 1] < 12 && d[i + 2] < 12) black++;
-    return (black / (d.length / 4) * 100);
-  }, shot.toString("base64"));
-  r.black = dark;
+      if (d[i] < 14 && d[i + 1] < 14 && d[i + 2] < 14) dark++;
+    return dark / (d.length / 4) * 100;
+  }, png.toString("base64"));
+  return { yaw: Math.round(yaw * 180 / Math.PI), ...inf, black };
+};
+
+const rows = [];
+for (let i = 0; i < STEPS; i++){
+  const r = await measure((i / STEPS) * Math.PI * 2);
+  rows.push(r);
   console.log(`  ${String(r.yaw).padStart(4)}°  ${String(r.draws).padStart(6)}` +
               `   ${(r.tris / 1e6).toFixed(2).padStart(7)}M` +
               `   ${String(r.visible).padStart(5)}/${String(r.total).padEnd(6)}` +
-              `   ${dark.toFixed(1).padStart(6)}%` +
-              (dark > 40 ? "   <-- BLACK" : ""));
+              `   ${r.black.toFixed(1).padStart(6)}%` +
+              (r.black > 40 ? "   <-- BLACK" : "") +
+              (r.gone.length ? "   culled: " + r.gone.join(", ") : ""));
 }
 
 const worst = rows.reduce((a, b) => (b.black > a.black ? b : a), rows[0]);
