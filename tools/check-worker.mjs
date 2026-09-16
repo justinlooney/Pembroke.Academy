@@ -13,8 +13,7 @@
  * browser and the Worker still agree about who exists and what they
  * may ask for.
  *
- * The last section runs the PAGE's stream reader — lifted out of
- * index.html by source — against the bytes this Worker produces, so
+ * The last section imports the page's shared stream reader and runs it against the bytes this Worker produces, so
  * the two halves of the wire contract are checked against each other
  * rather than each against its own assumptions.
  *
@@ -24,6 +23,8 @@
  * minutes of software rasterising, so the parts that are pure logic
  * had better not.
  */
+import { AI_POLICY } from "../assets/app/ai-policy.mjs";
+import { aiReadStream } from "../assets/app/ai-stream.mjs";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -95,8 +96,8 @@ step("a well-formed body passes", validate(GOOD) === null, String(validate(GOOD)
 const status = async (req, env = ENV) => (await worker.fetch(req, env)).status;
 step("a foreign origin is refused",
      await status(post(GOOD, { headers: { origin: "https://evil.test", "content-type": "application/json" } })) === 403);
-step("localhost is allowed for development",
-     await status(new Request("https://gw.test/health", { method: "GET", headers: { origin: "http://localhost:8099" } }), { ...ENV, ...sse() }) === 200);
+step("localhost is allowed only with the development opt-in",
+     await status(new Request("https://gw.test/health", { method: "GET", headers: { origin: "http://localhost:8099" } }), { ...ENV, ALLOW_LOCALHOST: "1", ...sse() }) === 200);
 step("GET /chat is not a thing",
      await status(new Request("https://gw.test/chat", { method: "GET", headers: { origin: ORIGIN } })) === 404);
 step("the kill switch answers 503",
@@ -255,7 +256,7 @@ step("cutting a stream also cancels the inference behind it",
 
 const neverStarts = await status(post(GOOD),
   { ...ENV, AI: { run: async () => { throw new Error("model unavailable"); } } });
-step("a provider that never opens a stream is a 502, not a hang", neverStarts === 502, `${neverStarts}`);
+step("a provider startup rejection returns 502", neverStarts === 502, `${neverStarts}`);
 
 const dribbled = await raced({ AI_IDLE_MS: "5000", AI_TOTAL_MS: "60" }, ['data: {"response":"hi"}\n\n']);
 step("a stream that never finishes hits the total deadline",
@@ -296,8 +297,7 @@ step("nobody the Worker calls faculty is called a student on the campus",
        : studied.length ? `${studied.join(", ")} — no role: on the campus record, so the student sentence is used`
        : `${TEACHES.map(([id]) => id).join(", ")} each carry their own role`);
 
-const policy = page.match(/const AI_POLICY = \{([\s\S]*?)\n\};/);
-const clientIntents = new Set([...(policy?.[1] || "").matchAll(/"([a-z_]+)"/g)].map(m => m[1]));
+const clientIntents = new Set(Object.values(AI_POLICY).flat());
 const docIntents = new Set([...WORKER_SRC
   .matchAll(/"(open_[a-z_]+|point_to_location|end_conversation|explain_concept|review_schedule|none)"/g)]
   .map(m => m[1]).filter(x => x !== "none"));
@@ -306,26 +306,7 @@ step("the Worker documents no intent the governor would not recognise", ungovern
      ungoverned.length ? ungoverned.join(", ") + " — proposed by the server, discarded by the browser"
                        : `${docIntents.size} intents, all present in AI_POLICY`);
 
-/* ── 6. the browser's half of the stream contract ─────────────────
-   Not a grep for a `throw`. The page's own reader is lifted out of
-   index.html by source and run, unmodified, against the bytes the
-   Worker actually produces, including the two streams section 4 just
-   proved are reported as empty. index.html is one 16k-line document
-   with no module
-   boundary, so "lifted out by source" is the only way to execute a
-   function from it without a browser; the markers below are the
-   comments that already delimit these three functions. If someone
-   renames them this check goes red rather than quiet, which is the
-   correct failure. */
-const slice = (from, to) => {
-  const a = page.indexOf(from), b = page.indexOf(to, a);
-  if (a < 0 || b < 0) throw new Error(`could not find the client reader in index.html (${from})`);
-  return page.slice(a, b);
-};
-const readerSrc = slice("function aiPeekDialogue(raw){", "/* ── the providers:")
-                + slice("function aiParse(raw){", "/* ── the capability policy");
-const aiReadStream = new Function("AI", readerSrc + "\nreturn aiReadStream;")({ diag: {} });
-
+/* The browser imports this same reader; exercise it against gateway bytes. */
 const asBrowser = async (...chunks) => {
   const res = await worker.fetch(post(GOOD), { ...ENV, ...sse(...chunks) });
   if (res.status !== 200) throw new Error(`expected a stream, got ${res.status} ${await res.text()}`);

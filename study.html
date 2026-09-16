@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#142033">
+  <title>Study · Pembroke Academy</title>
+  <link rel="stylesheet" href="./assets/app/study.css">
+  <script type="module" src="./assets/app/study-page.mjs"></script>
+</head>
+<body>
+  <a class="skip" href="#lesson">Skip to lesson</a>
+  <header>
+    <div><a class="brand" href="./index.html">Pembroke Academy</a><p>Study at your own pace</p></div>
+    <nav id="learning-entry" aria-label="Learning and progress"><a href="./index.html">Explore campus</a></nav>
+  </header>
+  <main>
+    <aside aria-label="Course selection">
+      <label for="course">Course</label><select id="course"></select>
+      <p id="availability"></p><p id="course-progress"></p>
+      <nav id="lessons" aria-label="Lessons"></nav>
+    </aside>
+    <article id="lesson" tabindex="-1"><h1>Start learning</h1><p>Loading your lessons…</p><noscript>Enable JavaScript to open lessons and grade practice. No 3D graphics are needed.</noscript></article>
+  </main>
+  <footer>Course seals are self-reported. Lesson mastery reflects passed checks and required practice. Progress is stored in this browser; export a backup to keep a copy.</footer>
+</body>
+</html>

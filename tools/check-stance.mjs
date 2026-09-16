@@ -34,7 +34,7 @@ import { resolve, extname, sep } from "node:path";
 
 const ROOT = resolve(new URL("..", import.meta.url).pathname);
 const PORT = 8367;
-const MIME = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
+const MIME = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css",
                ".glb": "model/gltf-binary", ".png": "image/png",
                ".woff2": "font/woff2", ".json": "application/json" };
 

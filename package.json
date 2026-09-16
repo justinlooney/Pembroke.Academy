@@ -1,0 +1,13 @@
+{
+  "name": "pembroke-academy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test tools/reliability.test.mjs && node tools/check-worker.mjs && node tools/check-css.mjs && node tools/check-materials.mjs",
+    "test:learning": "node tools/check-learning.mjs",
+    "test:ledger": "node tools/check-ledger.mjs"
+  },
+  "devDependencies": { "playwright": "1.56.1", "axe-core": "4.10.3" }
+}

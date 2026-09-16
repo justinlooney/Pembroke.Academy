@@ -30,7 +30,7 @@ import { resolve, extname, sep } from "node:path";
 const ROOT = resolve(new URL("..", import.meta.url).pathname);
 const OUT = resolve(ROOT, ".shots");
 const PORT = 8301;
-const MIME = { ".html": "text/html", ".js": "text/javascript",
+const MIME = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript",
                ".glb": "model/gltf-binary", ".png": "image/png",
                ".json": "application/json" };
 

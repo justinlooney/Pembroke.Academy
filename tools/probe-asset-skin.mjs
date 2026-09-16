@@ -58,7 +58,7 @@ if (!files.length)
     .filter(f => /^stu_.*\.glb$/.test(f)).sort()
     .map(f => "assets/" + f);
 
-const MIME = { ".glb": "model/gltf-binary", ".js": "text/javascript",
+const MIME = { ".glb": "model/gltf-binary", ".js": "text/javascript", ".mjs": "text/javascript",
                ".wasm": "application/wasm", ".bin": "application/octet-stream" };
 
 const PAGE = `<!doctype html><meta charset="utf-8">

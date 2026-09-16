@@ -1,10 +1,5 @@
 node_modules/
 smoke-*.png
-# left behind by installing playwright to run the smoke test locally.
-# CI installs it with --no-save, so the project deliberately has no
-# manifest of its own — there is nothing to build here.
-package.json
-package-lock.json
 __pycache__/
 
 # Character sheets and probe renders — regenerate with tools/character-sheet.mjs

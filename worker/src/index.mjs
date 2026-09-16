@@ -83,8 +83,8 @@ const str = (v, max) => typeof v === "string" && v.length > 0 && v.length <= max
 
 /* ── validation: strict schema, everything else 400 ── */
 export function validate(body){
-  if (!body || typeof body !== "object") return "bad body";
-  if (!CHARACTERS[body.characterId]) return "unknown character";
+  if (!body || typeof body !== "object" || Array.isArray(body)) return "bad body";
+  if (typeof body.characterId !== "string" || !Object.hasOwn(CHARACTERS, body.characterId)) return "unknown character";
   if (!str(body.message, CAPS.message)) return "bad message";
   if ("model" in body || "system" in body) return "client may not choose models or prompts";
   const h = body.history ?? [];
@@ -279,7 +279,20 @@ const cors = (origin) => ({
 
 function originOk(req, env){
   const o = req.headers.get("origin") || "";
-  return o === env.ALLOWED_ORIGIN || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o) ? o : null;
+  return o === env.ALLOWED_ORIGIN || env.ALLOW_LOCALHOST === "1" && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o) ? o : null;
+}
+
+/** An abort request alone cannot bound a provider that ignores its signal. */
+export async function startProvider(run, controller, timeoutMs = 30000){
+  let timer, expired = false;
+  const work = Promise.resolve().then(run);
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => { expired = true; controller.abort(); reject(new Error("provider startup deadline")); }, timeoutMs);
+  });
+  // Race observes rejections; dispose a stream that arrives after the response has failed.
+  work.then(async stream => { if (expired) { try { await stream?.cancel?.(); } catch {} } }, () => {});
+  try { return await Promise.race([work, deadline]); }
+  finally { clearTimeout(timer); }
 }
 
 export default {
@@ -318,13 +331,13 @@ export default {
     const ch = CHARACTERS[body.characterId];
     const messages = [
       { role: "system", content: systemPrompt(body.characterId, body.context || {}) },
-      ...(body.history || []),
+      ...(body.history || []).map(({ role, content }) => ({ role, content })),
       { role: "user", content: body.message },
     ];
     const ctrl = new AbortController();
-    const timeout = setTimeout(() => ctrl.abort(), 30000);
     try {
-      const stream = await provider.run(env, MODELS[ch.cls], messages, BUDGET[ch.cls], ctrl.signal);
+      const stream = await startProvider(() => provider.run(env, MODELS[ch.cls], messages, BUDGET[ch.cls], ctrl.signal), ctrl, Number(env.AI_STARTUP_MS) || 30000);
+      if (!stream || typeof stream.pipeTo !== "function") throw new Error("provider did not open a stream");
       /* overridable so an operator can tighten them without a code
          change, and so the tests can watch a deadline expire in
          milliseconds instead of minutes */
@@ -340,10 +353,6 @@ export default {
       return new Response(t.readable, { headers: { ...C, "content-type": "application/x-ndjson" } });
     } catch(e){
       return new Response("provider unavailable", { status: 502, headers: C });
-    } finally {
-      /* the stream outlives this handler; this timeout guards startup
-         only — the transform's own two clocks guard everything after */
-      clearTimeout(timeout);
     }
   },
 };

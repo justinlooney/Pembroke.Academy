@@ -37,7 +37,7 @@ const FROM = opt("from", 72);          /* how far the viewer stands off */
 const EYE = opt("eye", 34);            /* walk-mode eye height */
 if (files.length < 2){ console.error("give two .glb files"); process.exit(1); }
 
-const MIME = { ".html": "text/html", ".js": "text/javascript", ".glb": "model/gltf-binary" };
+const MIME = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".glb": "model/gltf-binary" };
 const srv = createServer(async (req, res) => {
   const u = decodeURIComponent(req.url.split("?")[0]).slice(1);
   const p = u.startsWith("m/") ? files[+u.slice(2)] : resolve(ROOT, u || "index.html");
