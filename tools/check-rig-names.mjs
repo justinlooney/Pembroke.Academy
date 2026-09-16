@@ -13,12 +13,6 @@
  * shipped a statue and had to diagnose it in a browser. three.js does
  * not warn; it resolves what it can and drops the rest.
  *
- * And the wardrobe finds a shirt by name too, so a mesh nobody thought
- * to name leaves that student in factory colours for good. Ten of
- * sixteen bodies here own nothing the wardrobe can dress, which is a
- * fact about their files rather than a bug, but it is worth knowing
- * which is which.
- *
  * Complicating both: GLTFLoader rewrites every name on the way in.
  * PropertyBinding.sanitizeNodeName strips [ ] . : / and turns
  * whitespace into underscores, so mixamorig:LeftFoot arrives as
@@ -158,18 +152,8 @@ window.__names = (url) => new Promise((done) => {
       ["spine (breathe)",    count(/spine|chest/) >= 1],
     ];
 
-    const tagOf = (m) => {
-      const tag = canon(m.node) + " " + canon(m.mat);
-      return /hair|beard|scalp|brow|eyelash/i.test(tag) ? "hair"
-           : /shirt|top|jacket|suit|hoodie|sweater/i.test(tag) ? "shirt"
-           : /short|pant|trouser|jean|bottom|denim/i.test(tag) ? "shorts"
-           : /shoe|sneaker|boot|footwear|canvas/i.test(tag) ? "sneakers"
-           : /body|skin|head/i.test(tag) ? "skin" : null;
-    };
-
     done({ bones: bones.length, flavour, sample: bones.slice(0, 8),
-           suffixed, dupes, ambiguous, clips, findable,
-           meshes: meshes.map(m => ({ ...m, tag: tagOf(m) })) });
+           suffixed, dupes, ambiguous, clips, findable, meshes });
   }, undefined, (e) => done({ err: String(e).slice(0, 120) }));
 });
 </script>`;
@@ -225,11 +209,15 @@ for (const f of bodies){
   console.log("\nthe bones the campus looks for by name");
   console.log("  " + r.findable.map(([w, ok]) => (ok ? "OK " : "-- ") + w).join("   "));
 
-  console.log("\nmeshes and what the wardrobe makes of them");
+  /* Still printed, and no longer judged. This column used to say which
+     wardrobe slot each mesh fell into and "— not dressable" when none
+     did; the wardrobe is deleted, so there is no slot to fall into and
+     nothing about a single unnamed mesh is a fault. The names stay
+     because they are what a rig question is usually asked with. */
+  console.log("\nmeshes and materials");
   for (const m of r.meshes)
     console.log(`  ${(m.node || "(unnamed)").slice(0, 26).padEnd(28)}` +
-                `${(m.mat || "(unnamed)").slice(0, 26).padEnd(28)}` +
-                (m.tag || "— not dressable"));
+                `${(m.mat || "(unnamed)").slice(0, 26)}`);
 }
 console.log("\n" + "═".repeat(70));
 console.log(dead ? `${dead} clip(s) animate nothing at all` : "every clip binds to something");

@@ -69,36 +69,29 @@ Practically: pose the armature in a plain T- or A-pose, `Pose ▸ Apply ▸
 Apply Pose as Rest Pose`, re-bind, and export from that. Don't leave a
 posed layer live at export time.
 
-## 3. Separate materials, or the wardrobe can't dress them.
+## 3. One mesh and one material is fine.
 
-Current report for your hero:
+This section used to be the opposite. It said **"Separate materials, or
+the wardrobe can't dress them"**, and it asked you to split a body up
+and name the pieces `shirt`, `jean`, `sneaker` and so on, so the campus
+could tint them at runtime.
 
-    wardrobe can tint: NOTHING
-    1 mesh(es) · 1 material
+That machinery is gone. It existed so that three or four bodies could
+fill a quad of twenty without everyone looking like a clone — one body
+on the lawn twice, wearing different shirts, reading as two students.
+The cast is fourteen authored people now, each with their clothes in
+their own texture, and a body goes out at most once per visit. A dresser
+whose job is to make one body look like several has nothing to do.
 
-The campus tints a student's shirt, shorts, sneakers, hair and skin at
-runtime — that is how eleven bodies fill a quad of twenty-something
-students without anyone looking like a clone. With one mesh and one
-material there is nothing to tint independently, so a second copy of
-your hero is **literally the same student twice**, which is exactly the
-twinning you told me you don't want. It is the reason she can be a
-named character but can't join the repeat crowd.
+So: **do not split your character up on the campus's account.** Every
+body in the cast today is a single mesh on a single material, and the
+last one to arrive measured better than most of what came before it.
+If you are splitting materials for your own reasons — a swappable
+jacket, a team colour — that is your call and the campus does not mind
+either way.
 
-The fix is naming, not geometry. Split into separate materials (or at
-minimum separate primitives) and name them so the classifier finds them.
-It matches on the mesh name **and** the material name, case-insensitive:
-
-| slot     | any of these words in the name |
-|----------|--------------------------------|
-| hair     | hair, beard, moustache, scalp, brow, eyelash |
-| shirt    | shirt, top, jacket, suit, hoodie, sweater |
-| shorts   | short, pant, trouser, jean, bottom, denim |
-| sneakers | shoe, sneaker, boot, footwear, canvas |
-| skin     | body, skin, head |
-
-So a material called `shirt_cotton` works; one called `Material.001`
-does not. Five slots found is full marks — check the `wardrobe can
-tint:` line.
+`check-character.mjs` no longer reports a `wardrobe can tint:` line,
+and no longer warns about a body that has nothing nameable.
 
 ## 4. Weight. Aim under 2MB.
 
@@ -224,12 +217,11 @@ see:
 
 - [ ] `sides:` with **no** `← MIRRORED`
 - [ ] `rest vs bind pose: median 0°`
-- [ ] `wardrobe can tint: hair, shirt, shorts, sneakers, skin` (5/5)
 - [ ] under 2MB
 - [ ] all 14 core bones present, no missing list
 - [ ] at least a walk and an idle, both In Place
 - [ ] **not** the KTX2 build
 
-Hit all seven and the body drops straight into `CAST_FILES` and
+Hit all six and the body drops straight into `CAST_FILES` and
 `ROAMING` and joins the crowd. Your hero currently hits two of them,
 which is a good deal better than most of what has arrived here.

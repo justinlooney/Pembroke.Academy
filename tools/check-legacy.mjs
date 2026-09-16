@@ -13,10 +13,6 @@
  * This asks each one whether it still does work, on the live campus,
  * per body:
  *
- *   WARDROBE   dressFigure tints a mesh only if it can NAME it — shirt,
- *              jean, sneaker and so on. The cast was already down to
- *              CAST_DRESSABLE = [] before this branch; this counts the
- *              meshes it can actually find now.
  *   DESHINE    metalness 1 in the file, 0 after the campus corrects it.
  *              This one was the largest find of the whole investigation
  *              and it is worth knowing it still fires on new bodies.
@@ -28,6 +24,12 @@
  * A mechanism that fires for nobody is a candidate for deletion. A
  * mechanism that fires for one body is a candidate for being replaced
  * by fixing that body.
+ *
+ * It has already claimed one. The WARDROBE was measured here across
+ * four visits, found to name zero meshes on every body in the cast, and
+ * is now deleted along with dressFigure — so the column that counted
+ * what it could tint is gone too. A check that reports on a mechanism
+ * nobody can call is the same dead weight it was written to find.
  */
 import { serve, launch, ROOT } from "./_harness.mjs";
 import { readFile } from "node:fs/promises";
@@ -51,10 +53,10 @@ page.on("pageerror", e => console.log("  [pageerror] " + e.message.split("\n")[0
  *
  * The deal shows a subset and the crowd ramps for minutes, so a single
  * visit saw ten of fourteen and the four it missed varied run to run.
- * A tool that concluded "the wardrobe is dead" from that was making a
- * claim about bodies it had never looked at, and one that FAILED on it
- * would fail on ordinary campus behaviour. So: revisit, accumulate, and
- * stop as soon as every body has been seen once. */
+ * A tool that concluded "this repair is dead" from that would be making
+ * a claim about bodies it had never looked at, and one that FAILED on
+ * it would fail on ordinary campus behaviour. So: revisit, accumulate,
+ * and stop as soon as every body has been seen once. */
 const VISITS = +(process.env.VISITS || 4);
 const byBody = new Map();
 for (let v = 1; v <= VISITS; v++){
@@ -71,20 +73,15 @@ for (let v = 1; v <= VISITS; v++){
 const rows = [...byBody.values()].sort((a, b) => a.k.localeCompare(b.k));
 
 function readBodies(){ return page.evaluate(() => {
-  const canon = (s) => (s || "").replace(/[^a-z0-9]/gi, "").toLowerCase();
-  /* dressFigure matches moustache AND mustache. Missing the second
-   * spelling would report the wardrobe dead over a body it can tint. */
-  const NAMED = /hair|beard|moustache|mustache|scalp|brow|eyelash|shirt|top|jacket|suit|hoodie|sweater|short|pant|trouser|jean|bottom|denim|shoe|sneaker|boot|footwear|canvas|body|skin|head/i;
   const out = [], seen = new Set();
   for (const s of (window.__students || [])){
     const g = s.g, k = g?.userData?.figure;
     if (!k || seen.has(k)) continue; seen.add(k);
-    let named = 0, meshes = 0, metal = 0, big = 0, tex = 0;
+    let meshes = 0, metal = 0, big = 0, tex = 0;
     const done = new Set();
     g.traverse(o => {
       if (!o.isMesh || !o.material) return;
       meshes++;
-      if (NAMED.test(canon(o.name) + " " + canon(o.material.name))) named++;
       if ((o.material.metalness ?? 0) > 0.01) metal++;
       /* the runtime's own list, read off the page, so this cannot scan a
        * narrower set than capTextures and call an uncapped map capped */
@@ -95,7 +92,7 @@ function readBodies(){ return page.evaluate(() => {
         big = Math.max(big, Math.max(img.width, img.height));
       }
     });
-    out.push({ k, meshes, named, metal, big, tex });
+    out.push({ k, meshes, metal, big, tex });
   }
   return out;
 }); }
@@ -103,15 +100,14 @@ await browser.close(); await closeSrv();
 
 if (!rows.length){ console.log("  nobody on the quad — nothing measured"); process.exit(1); }
 
-console.log(`\n  body     meshes  wardrobe can name   metalness > 0   largest map   tighten`);
-let anyNamed = 0, anyMetal = 0, anyCapped = 0, noTighten = 0;
+console.log(`\n  body     meshes   metalness > 0   largest map   tighten`);
+let anyMetal = 0, anyCapped = 0, noTighten = 0;
 for (const r of rows){
   const power = perBody[r.k] ?? globalPower;
-  anyNamed += r.named; anyMetal += r.metal;
+  anyMetal += r.metal;
   if (r.big > texCap) anyCapped++;
   if (power <= 1) noTighten++;
   console.log(`  ${r.k.padEnd(8)} ${String(r.meshes).padStart(6)}` +
-              `   ${String(r.named).padStart(17)}` +
               `   ${String(r.metal).padStart(13)}` +
               `   ${(r.big + "px").padStart(11)}` +
               `   ${String(power).padStart(7)}${power <= 1 ? "  (none)" : ""}`);
@@ -119,18 +115,15 @@ for (const r of rows){
 
 /* WHAT WAS NOT LOOKED AT. The campus deliberately shows a subset, so a
  * verdict drawn from one visit describes the bodies that turned up and
- * nothing else — and "the wardrobe is dead" is exactly the kind of
- * claim that must not be made about bodies nobody inspected. */
+ * nothing else. "This repair no longer fires" is exactly the kind of
+ * claim that must not be made about bodies nobody inspected — it is how
+ * the wardrobe was retired, and it took four visits to earn it. */
 const missing = Object.keys(castFiles).filter(k => !rows.some(r => r.k === k));
 console.log(`\n  ${rows.length} of ${Object.keys(castFiles).length} bodies seen.`);
 if (missing.length)
   console.log(`  NOT MEASURED: ${missing.join(", ")} — the verdicts below`
               + `\n  describe the bodies above and no others.\n`);
 else console.log(`  every body in the cast was measured.\n`);
-console.log(anyNamed
-  ? `  WARDROBE  still finds ${anyNamed} nameable mesh(es) — dressFigure does work.`
-  : `  WARDROBE  finds NOTHING to tint on any body. dressFigure walks every`
-    + `\n            mesh of every figure and colours none of them. Dead.`);
 console.log(anyMetal
   ? `  DESHINE   ${anyMetal} material(s) still read metalness > 0 — IT IS NOT WORKING.`
   : `  DESHINE   every material reads metalness 0. Still doing its job, and`
@@ -146,7 +139,8 @@ console.log(noTighten
  * WORKING" over a broken deshine and exited 0, which would have left a
  * check-* tool green through the single largest regression this
  * investigation ever found. The repairs that must still fire fail the
- * run; the wardrobe being dead is a report, not a fault. */
+ * run; a repair found doing nothing is a report, not a fault — it is a
+ * candidate for deletion, and that is a decision for a person. */
 const broken = [];
 if (anyMetal) broken.push(`deshine (${anyMetal} material(s) above metalness 0)`);
 if (anyCapped) broken.push(`capTextures (${anyCapped} body(s) over ${texCap}px)`);
