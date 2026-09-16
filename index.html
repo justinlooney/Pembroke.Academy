@@ -7343,7 +7343,72 @@ const CAST_FILES = {
      and weights. She alone set the on-screen ceiling: at 8.0MB six
      pairs of students could not be drawn and all six were hers.
      Character 15 replaces her at 3.96MB and 118,304 vertices. */
-  char4:   "assets/stu_char4.glb",      /* 200k tris, the lightest yet   */
+  /* The last body on this campus that had never been replaced, and the
+     only one that arrived with NO CLIPS AT ALL -- 200,000 triangles of
+     a woman who could not walk, roaming on borrowed motion entirely.
+     stu_char4.glb is kept beside this until she has been seen on the
+     quad.
+
+     AS SHIPPED, at the power CAST_SKIN gives her, one upper arm turned
+     75 degrees from bind -- and for the first time on this campus the
+     two arms have to be reported separately, for the reason below:
+
+         LEFT ARM (a complete chain, as the rest of the cast has)
+             tearing 2.38x -> 2.61x     stretched edges 10 -> 27
+             breadth 0.1506 -> 0.2127   (+41%)
+         RIGHT ARM (no elbow below it)
+             tearing 2.31x -> 2.81x     stretched edges 13 -> 54
+             breadth 0.1506 -> 0.1698   (+13%)
+
+         200k tris -> 42,820        2.67MB -> 0.78MB
+         DECODED TEXTURE 16.00MB -> 5.33MB
+         skin reach 0.46 -> 0.26 figure-heights from the spine
+         NO CLIPS -> five of her own
+
+     Read the left column. She is an ordinary body there -- 2.61x sits
+     under char5's 2.69x and nowhere near char15's shipped 5.00x -- and
+     0.2127 takes her from the NARROWEST mesh in the cast by a clear
+     margin to within noise of the broadest man on it. The body she
+     replaces measured 0.1506 whichever arm you turned, because she was
+     simply built narrow; this one is not.
+
+     ── SHE IS MISSING THREE BONES, all on the right ──────────────────
+     RightLeg, RightForeArm and RightHand are absent: her hierarchy runs
+     RightUpLeg -> RightFoot and RightShoulder -> RightArm, with no knee
+     and no elbow on that side. Twenty bones where the rest of the cast
+     carries twenty-four.
+
+     This is how she arrived, not something the courier did to her. Her
+     five animations carry 40 channels each -- 20 bones times rotation
+     and translation -- and that count was read off the merged download
+     before any tool in this repository had touched it.
+
+     It is also why the right column exists at all. probe-asset-skin has
+     only ever turned the RIGHT upper arm, so on a symmetrical rig the
+     side was a detail nobody had to think about; on this one it is the
+     one arm with nothing below the shoulder, and a reading taken there
+     is a fact about that arm rather than about the body. --side=left
+     was added to the probe for this and defaults to right, so every
+     figure recorded above this line still means what it said.
+
+     What it actually costs on the quad, checked rather than assumed:
+       - her own clips were authored FOR this rig and her weights follow
+         it, so the right knee and elbow bend by blend where the others
+         bend by joint. Photographed walking, front and side, both legs
+         read as legs.
+       - check-rig-names reports "-- hands x2" against her. passingTime
+         scores how far the hands sit from the centre line when it picks
+         the frame a student holds while standing; with one hand found
+         it charges for one arm instead of two. Less discriminating, not
+         broken -- every other bone that code looks for by name is here.
+       - BORROWED motion is the real exposure: a lent clip driving
+         mixamorig:RightLeg finds nothing to drive. She is the body on
+         this campus that needs the least of it -- her own gait, her own
+         run, her own sit-down and stand-up, her own way of standing and
+         talking.
+     If she ever reads stiff down one side in a lent clip, this is why,
+     and a re-export from Meshy with a complete rig is the fix. */
+  char4:   "assets/stu_blueelegance.glb", /* 43k tris, blue top, white skirt */
   /* char5, remade -- and the first swap here that buys nothing on
      either quality measure. stu_char5.glb is kept beside this.
 
@@ -7921,7 +7986,7 @@ const CAST_MB = {
                      in CAST_VRAM_MB below — the replacements are
                      smaller to download and LARGER on the GPU, so one
                      number cannot stand for both. */
-                  char2: 1.00, char4: 2.67, char5: 0.86, char6: 0.79,
+                  char2: 1.00, char4: 0.78, char5: 0.86, char6: 0.79,
                   char7: 0.75, char8: 0.99, char9: 0.87, char10: 0.80,
                   char11: 1.10, char14: 1.16, char15: 1.30, char16: 0.98,
                   char17: 1.79, char18: 1.03 };
@@ -7950,7 +8015,7 @@ const CAST_MB = {
  * a version that compared against the file would fail every capped
  * body and tell you to write the wrong number in here. */
 const CAST_VRAM_MB = {
-  char2:  5.33, char4: 16.00, char5:  5.33, char6:  5.33,
+  char2:  5.33, char4:  5.33, char5:  5.33, char6:  5.33,
   char7:  5.33, char8:  5.33, char9:  5.33, char10: 5.33,
   char11: 5.33, char14: 5.33, char15: 5.33, char16: 5.33,
   char17: 5.33, char18: 5.33 };
@@ -9622,8 +9687,26 @@ function rolesOf(k, src){
     const n = (c.name || "").toLowerCase();
     if (/\bidle\b|^idle|standing/.test(n)) return "idle";
     if (/talk|speak|gesture|convers/.test(n))  return "talk";
-    if (/walk|run|jog|sprint|stride/.test(n))  return "gait";
+    /* SEAT BEFORE GAIT, and the order is the whole point. These tests
+       return on the first hit, and a clip called "Walk_to_Sit" says
+       walk before it says sit -- so the sit-down came back as a GAIT
+       and went into the walk cycles, where the state machine is
+       entitled to pick it to cross a lawn with. A student walking the
+       quad folded into a chair, for eight and a third seconds.
+
+       There is already a guard against exactly this, notSeat() below,
+       written after a retargeted "Stand To Sit" scored past the cadence
+       line. It cannot help here: it only screens clips that FELL
+       THROUGH to measurement, and a name that returns "gait" never
+       reaches it. Found on char4, whose sit-down is the first on this
+       campus to lead with the word walk -- but live already on char10
+       and char15, whose WalkToSit sat in their gaits unnoticed.
+
+       Nothing legitimate loses by this. Only a name carrying both words
+       changes hands, and a clip that mentions sitting at all is not a
+       way of getting somewhere. */
     if (/sit|seat|chair/.test(n))              return "seat";
+    if (/walk|run|jog|sprint|stride/.test(n))  return "gait";
     return null;
   };
   const scored = src.animations

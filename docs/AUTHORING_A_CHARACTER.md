@@ -185,6 +185,38 @@ it and the figure moonwalks.
 
 ---
 
+## If it arrives as one file per animation
+
+Meshy and Mixamo both hand out a character that way: five downloads,
+each a complete copy of the body with one clip on it. Merging them the
+obvious way does not give you one student with five clips — it gives
+you five students, four of them invisible.
+
+`gltf-transform merge` puts each input in a Scene of its own, and
+three.js loads the default scene and nothing else. So four of the five
+meshes never draw, four of the five clips drive bones that never reach
+the page, and nothing errors. The last body to arrive this way was
+357.91MB of GPU texture for one woman.
+
+    gltf-transform merge *_withSkin.glb blue.merged.glb
+    node tools/fold-anim-copies.mjs blue.merged.glb
+    gltf-transform prune     blue.merged.glb blue.pruned.glb
+    gltf-transform simplify  blue.pruned.glb blue.thin.glb --ratio 0.62 --error 0.003
+    gltf-transform optimize  blue.thin.glb   yourname_web.glb \
+      --compress meshopt --texture-compress webp --texture-size 1024 \
+      --simplify false --join false
+
+`fold-anim-copies.mjs` keeps the first copy and retargets the other
+clips onto it by bone name. **It is not `flatten-scenes.mjs`** — that
+one folds every scene's roots together, which is right for a dozen
+different trees and would stack five identical bodies in one spot here.
+
+Two numbers to set rather than copy. `--ratio` should land you near
+43,000 triangles, which is where the cast sits: divide 43000 by what
+`gltf-transform inspect` reports per copy. `--texture-size 1024` is not
+optional — one 1024 map is 5.33MB decoded and one 8192 map is 357.91MB,
+and the on-screen ceiling is 48MB for everybody drawn at once.
+
 ## The checklist
 
 Run `node tools/check-character.mjs assets/your_file.glb` and want to
