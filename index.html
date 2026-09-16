@@ -3796,6 +3796,59 @@ const stageEl = document.getElementById("stage");
 const wingEl  = document.getElementById("campus-wing");
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
+/* ── when the GPU takes the context away ─────────────────────────────
+   Reported from a phone as "intermittent black on screen", with a
+   diagnostics panel that had nothing whatever to say about it: 52fps,
+   every asset in, the ladder down one rung, and a screen going dark
+   anyway. Every number on that panel described a campus that was fine.
+
+   THIS IS NOT A RESCUE. three.js already does the part that matters:
+   its own webglcontextlost handler calls preventDefault(), which is the
+   only thing that makes a browser willing to restore the context at
+   all, and its webglcontextrestored re-initialises the renderer. That
+   machinery works, and the intermittence is the evidence — a context
+   that was lost and never came back would be black and stay black.
+
+   What was missing is the REPORT. A lost context makes render() return
+   early, so the screen goes dark and no error is thrown, nothing fails
+   a check, and the only trace is a console.log on a device with no
+   console. Indistinguishable, from the outside, from a bug in this
+   file. So: count it, name it on the panel, and say it out loud once.
+
+   Two things are done beyond counting, both defensive. The composer's
+   render targets are three.js's to re-create but their SIZE is ours, so
+   resize() runs; and the shadow map is asked for again, because it is
+   held rather than redrawn for most of a visit and a held map does not
+   survive the context it lived in.
+
+   The cause is not here. A browser drops a context under GPU memory
+   pressure, and the phone that reported this had fifty-three tabs open.
+   What this buys is a panel that says so instead of a black rectangle
+   that could be anything. */
+const GL_CTX = { lost: 0, restored: 0, lostAt: 0, darkMs: 0, down: false };
+renderer.domElement.addEventListener("webglcontextlost", () => {
+  GL_CTX.lost++; GL_CTX.down = true; GL_CTX.lostAt = performance.now();
+  console.warn("campus: WebGL context lost (" + GL_CTX.lost + ") — the screen is "
+             + "dark until the browser hands it back");
+  /* Once per visit. A context that is thrashing would otherwise stack
+     toasts over a screen the visitor already cannot see. */
+  if (GL_CTX.lost === 1) try {
+    toast("The graphics card blinked",
+          "Your browser took the 3D view back for a moment — usually memory pressure "
+        + "from other tabs. It should return by itself.", "#f59e0b", 6000);
+  } catch {}
+});
+renderer.domElement.addEventListener("webglcontextrestored", () => {
+  GL_CTX.restored++; GL_CTX.down = false;
+  GL_CTX.darkMs += performance.now() - GL_CTX.lostAt;
+  /* three.js has re-initialised the renderer by the time this runs; what
+     it cannot know is the size this campus wants its targets at, or that
+     the shadow map is normally held rather than redrawn. */
+  try { resize(); } catch {}
+  renderer.shadowMap.needsUpdate = true;
+  console.info("campus: WebGL context restored after "
+             + ((performance.now() - GL_CTX.lostAt) / 1000).toFixed(1) + "s dark");
+});
 /* THE PIXEL RATIO, IN ONE PLACE.
    Three things have an opinion: the device (its ceiling, capped at 2 —
    beyond that nobody can see the difference and everybody pays for
@@ -13838,6 +13891,31 @@ function dbgUpdate(now, dt, raw){
         : "  no shadows") +
       (rung ? "\n       quality rung " + rung + "/" + LADDER.length +
               " — given up to hold " + FPS_WANT + "fps" : "") + "\n" +
+    /* ── the two facts a black screen needs and nothing reported ──────
+       LOST counts the context going away. It is silent by design in
+       three.js — render() returns early, nothing throws, nothing fails
+       — so without this line a visitor watching the screen go dark and
+       a panel saying 52fps are describing the same instant and cannot
+       both be believed.
+
+       BUFFER is the other half, and it is here to tell two different
+       faults apart from one screenshot. A campus drawing into part of
+       the window looks identical whether the context blinked or the
+       drawing buffer is simply the wrong shape — a stage-sized canvas
+       stretched over a walk-mode window, say. One of those is a driver
+       under pressure and the other is a bug in this file, and the
+       numbers separate them: buffer should be the CSS size times the
+       pixel ratio, and anything else is ours. */
+    (GL_CTX.lost
+      ? "gl     context lost " + GL_CTX.lost + "x, restored " + GL_CTX.restored +
+        "  " + (GL_CTX.down ? "— DARK NOW"
+                            : (GL_CTX.darkMs / 1000).toFixed(1) + "s dark total") + "\n"
+      : "") +
+    (() => { const d = renderer.domElement, r = renderer.getPixelRatio();
+             const want = Math.round(d.clientWidth * r) + "x" + Math.round(d.clientHeight * r);
+             const got  = d.width + "x" + d.height;
+             return "buffer " + got + "  css " + d.clientWidth + "x" + d.clientHeight +
+                    (got === want ? "" : "   MISMATCH — wants " + want) + "\n"; })() +
     /* Why the ladder is where it is, and what the screen lost getting
        there. Both lines are about the same two minutes: the ladder is
        holding BECAUSE assets are decoding, and the assets decoding are
