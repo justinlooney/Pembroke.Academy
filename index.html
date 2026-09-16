@@ -4266,7 +4266,26 @@ const SKIN_TIGHTEN = q.has("skin") ? (+q.get("skin") || 0) : 2;
    Per body, therefore. ?skin=N still overrides everything, which is
    how the table was measured. */
 const CAST_SKIN = { char5: 1, char16: 1, char18: 1, char11: 1, char10: 1,
-                    char15: 3, char7: 3 };
+                    char15: 2, char7: 2 };
+/* char15 and char7 measure BEST at power 3 -- 3.30x and 2.51x, against
+   5.00x and 3.43x at 2 -- and they ship at 2 anyway.
+ *
+ * The note on SKIN_TIGHTEN above says readings at 3 and above are not
+ * trustworthy because the probe's own bind check fails there. Asked
+ * directly, that probe reports every check passing at 3. It cannot do
+ * otherwise: the check compares skinning at BIND against the raw mesh,
+ * and at bind every bone transform is identity, so the weighted sum
+ * reproduces the base position whatever the weights are. Tightening
+ * cannot move it. The guard is insensitive to the thing it was cited
+ * as evidence about, so it passing says nothing.
+ *
+ * That leaves a documented warning and no measurement able to test it.
+ * Taking the better number would be trusting a reading the file says
+ * not to trust, on the strength of a check that cannot fail. Power 2
+ * is measured, trusted, and still a large improvement on the authored
+ * weights for both (8.27x and 4.68x). The 1.70x and 0.92x left on the
+ * table are recoverable by anyone who works out what goes wrong at 3
+ * and builds a guard that can see it. */
 const RIGTRACE_FRAME = +(q.get("rigframe") || 8);
 /* WHY the ladder is not shedding, in words, for the frame after this
    one to report. The panel could always say which rung the campus was
@@ -8055,7 +8074,26 @@ function onScreenBodies(){
    21.33MB and was being charged 16, so three of them read as 48 while
    costing 64. BODY_VRAM_MB survives only as the fallback for a body
    with no row, and check-vram fails if any body needs it. */
-function bodyVramMB(k){ return CAST_VRAM_MB[k] ?? BODY_VRAM_MB; }
+/* MEASURED at load, not read from a table.
+ *
+ * CAST_VRAM_MB holds what a body costs at the SHIPPED cap, and that was
+ * wrong the moment TEX_CAP became a query parameter: under ?tex=0 a
+ * replacement body really holds 21.33MB while this charged it 5.33, so
+ * the ceiling would admit nine of them and the campus would sit at four
+ * times its budget in exactly the mode somebody opens to compare
+ * texture quality. A static table cannot describe a runtime-configurable
+ * quantity.
+ *
+ * So capTextures reports what it left behind, per body, and that is
+ * what the ceiling spends. It is correct at every cap without anybody
+ * maintaining it, which is the property the last three tables in this
+ * file all lacked. CAST_VRAM_MB stays as the shipped-cap expectation
+ * that check-vram compares against; BODY_VRAM_MB remains the fallback
+ * for a body that somehow reached the ceiling before it was measured. */
+const bodyVram = new Map();
+function bodyVramMB(k){
+  return bodyVram.get(k) ?? CAST_VRAM_MB[k] ?? BODY_VRAM_MB;
+}
 function onScreenMB(bodies){
   let mb = 0;
   for (const k of (bodies || onScreenBodies())) mb += bodyVramMB(k);
@@ -8672,17 +8710,44 @@ function tightenWeights(root, power){
    ?tex=N sets the cap; ?tex=0 turns it off, which is how the pictures
    that justified the default were taken. The downscale is a canvas
    draw, so it costs one paint per texture at load and nothing after. */
+/* ONE list, because a checker that scans a different set of slots from
+   the thing it checks reports a cap that is not firing as firing. */
+const TEX_SLOTS = ["map", "normalMap", "roughnessMap", "metalnessMap",
+                   "specularIntensityMap", "emissiveMap", "aoMap"];
 const TEX_CAP = q.has("tex") ? (+q.get("tex") || 0) : 1024;
+/* Returns the decoded megabytes this body will hold AFTER capping, so
+   the on-screen ceiling can charge what is really there rather than
+   what a table remembers. Counts each texture once: the cast shares one
+   map across its slots and charging it per slot would quadruple it. */
 function capTextures(root){
-  if (!(TEX_CAP > 0)) return;
-  const done = new Map();
+  const done = new Map(), seen = new Map();
+  const measure = () => {
+    let mb = 0;
+    for (const [, t] of seen){
+      const img = t.image;
+      if (img && img.width) mb += img.width * img.height * 4 * (4 / 3);
+    }
+    return mb / 1048576;
+  };
+  if (!(TEX_CAP > 0)){
+    /* still measure: ?tex=0 is the mode the ceiling most needs the
+       truth in, because every body is at its full native size there */
+    root.traverse(o => {
+      if (!o.isMesh || !o.material) return;
+      for (const k of TEX_SLOTS){
+        const t = o.material[k];
+        if (t && t.image && t.image.width) seen.set(t.uuid, t);
+      }
+    });
+    return measure();
+  }
   root.traverse(o => {
     if (!o.isMesh || !o.material) return;
     const m = o.material;
-    for (const k of ["map", "normalMap", "roughnessMap", "metalnessMap",
-                     "specularIntensityMap", "emissiveMap", "aoMap"]){
+    for (const k of TEX_SLOTS){
       const t = m[k]; const img = t && t.image;
       if (!img || !img.width) continue;
+      seen.set(t.uuid, t);
       const big = Math.max(img.width, img.height);
       if (big <= TEX_CAP) continue;
       if (done.has(t.uuid)){ m[k] = done.get(t.uuid); continue; }
@@ -8699,6 +8764,7 @@ function capTextures(root){
       done.set(t.uuid, t);
     }
   });
+  return measure();
 }
 function sharpen(root){
   const aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy() || 1);
@@ -10137,7 +10203,7 @@ function lendSitDown(){
        whoever made the body. */
     for (const c of (g.animations || [])) (c.userData ||= {}).own = true;
     deshine(g.scene);
-    capTextures(g.scene);
+    bodyVram.set(k, capTextures(g.scene));
     sharpen(g.scene);
     /* the body's own power if it has one, and only when the visitor has
        not asked for a specific one with ?skin= */
@@ -16751,6 +16817,8 @@ window.__castFiles = CAST_FILES;
 window.__onScreenCap = ON_SCREEN_MB;
 window.__castMB = CAST_MB;
 window.__castVramMB = CAST_VRAM_MB;
+window.__bodyVramLive = () => Object.fromEntries(bodyVram);
+window.__texSlots = TEX_SLOTS;
 window.__bodyVramMB = BODY_VRAM_MB;
 window.__bodyVram = BODY_VRAM_MB;
 

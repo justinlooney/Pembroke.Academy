@@ -96,8 +96,12 @@ window.__vram = (url, cap) => new Promise((done) => loader.load(url, (g) => {
   const maps = new Map();
   g.scene.traverse(o => {
     const m = o.material; if (!m) return;
+    /* EXACTLY the slots capTextures visits. This probe capped alphaMap,
+     * which the runtime never touches, and skipped specularIntensityMap,
+     * which it does — so a body using either would have been given a
+     * CAST_VRAM_MB value that did not describe what the page uploads. */
     for (const slot of ["map","normalMap","roughnessMap","metalnessMap",
-                        "emissiveMap","aoMap","alphaMap"]){
+                        "specularIntensityMap","emissiveMap","aoMap"]){
       const t = m[slot]; const img = t && t.image;
       if (!img || !img.width) continue;
       maps.set(t.uuid, { slot, w: img.width, h: img.height });
@@ -130,10 +134,17 @@ await page.goto(`${origin}/__vram`, { waitUntil: "domcontentloaded" });
 await page.waitForFunction(() => !!window.__vram, null, { timeout: 30000 });
 
 const rows = [];
+const failedToLoad = [];
 for (const [k, path] of Object.entries(castFiles)){
   const bytes = (await stat(resolve(ROOT, path))).size / 1e6;
   const r = await page.evaluate(([u, c]) => window.__vram(u, c), [`${origin}/${path}`, texCap]);
-  if (r.err){ console.log(`  ${k}: WILL NOT LOAD — ${r.err}`); continue; }
+  if (r.err){
+    /* A body that will not load was printed and then dropped from rows,
+     * so neither table compared it and the first-wave model counted the
+     * survivors. A missing or corrupt GLB could leave this green. */
+    console.log(`  ${k}: WILL NOT LOAD — ${r.err}`);
+    failedToLoad.push(k); continue;
+  }
   rows.push({ k, path, bytes, vram: r.mb, native: r.native,
               dims: r.capped.map(m => `${m.w}x${m.h}`).join("+") || "none",
               was: r.maps.map(m => `${m.w}x${m.h}`).join("+") || "none",
@@ -141,7 +152,7 @@ for (const [k, path] of Object.entries(castFiles)){
 }
 await browser.close(); await closeSrv();
 
-let bad = 0;
+let bad = failedToLoad.length;
 console.log(`\n  DOWNLOAD — what drawFirstWave spends, ${firstWave}MB a wave\n`);
 console.log(`  body     file                        real MB   CAST_MB`);
 for (const r of rows){
@@ -157,13 +168,19 @@ console.log(`\n  DECODED TEXTURE — what roomOnScreen spends, ${onScreenCap}MB 
 console.log(`  (capTextures caps every map at ${texCap}, so this is what LOADS, not what the file holds)\n`);
 console.log(`  body     texture        as loaded   charged   in the file`);
 for (const r of rows){
+  /* A MISSING ROW IS ALWAYS WRONG, even when the fallback happens to
+   * match. char4 really costs 16MB, which is exactly BODY_VRAM_MB, so
+   * dropping her row would have passed this check while the per-body
+   * table silently stopped covering her. */
+  const missingRow = vramMB && vramMB[r.k] === undefined;
   const claim = vramMB ? vramMB[r.k] : flatVram;
-  const off = claim === undefined || Math.abs(claim - r.vram) > TOL_VRAM;
+  const off = missingRow || claim === undefined
+              || Math.abs(claim - r.vram) > TOL_VRAM;
   if (off) bad++;
   console.log(`  ${r.k.padEnd(8)} ${r.dims.padEnd(14)} ${r.vram.toFixed(2).padStart(9)}` +
               `   ${String(claim ?? "—").padStart(7)}` +
               `   ${(r.shrunk ? `${r.was} ${r.native.toFixed(1)}MB` : "—").padStart(20)}` +
-              (off ? "   <-- WRONG" : ""));
+              (off ? (missingRow ? "   <-- NO ROW" : "   <-- WRONG") : ""));
 }
 
 /* HOW MANY PEOPLE THE CEILING ACTUALLY HOLDS.
@@ -208,7 +225,18 @@ const fac = ["char18", "char17"].filter(k => castFiles[k]);
 const board = (mbOf) => {
   const spent = fac.reduce((a, k) => a + (mbOf(k) ?? 9), 0);
   const room = firstWave - spent;
-  const fit = rows.filter(r => !fac.includes(r.k) && (mbOf(r.k) ?? 9) <= room);
+  /* CUMULATIVE, as drawFirstWave spends it: it adds each body it takes
+   * to `spent` and tests the next against what is left. Testing every
+   * body independently against the full remaining room counts three
+   * bodies as fitting when only one of them can, so the starvation
+   * guard below could pass over a wave that is still starved. */
+  let left = room; const fit = [];
+  for (const r of rows){
+    if (fac.includes(r.k)) continue;
+    const cost = mbOf(r.k) ?? 9;
+    if (cost > left) continue;
+    fit.push(r); left -= cost;
+  }
   return { spent, room, fit };
 };
 const believed = board((k) => castMB[k]);
@@ -230,6 +258,9 @@ if (believed.fit.length < 3){
               ` wave was built to have.`);
 }
 
-console.log(bad ? `\n  ${bad} number(s) in index.html no longer match the files.`
+if (failedToLoad.length)
+  console.log(`\n  ${failedToLoad.length} body(s) would not load: ${failedToLoad.join(", ")}.`
+              + `\n  Nothing can be said about the budgets while a body is missing.`);
+console.log(bad ? `\n  ${bad} problem(s) — index.html no longer matches the files.`
                 : `\n  Both tables match the files.`);
 process.exit(bad ? 1 : 0);

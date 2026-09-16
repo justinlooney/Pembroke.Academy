@@ -34,7 +34,20 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const POWERS = [1, 2, 3];
+/* 1 and 2 only, and that is a deliberate ceiling rather than an
+ * oversight. The note beside SKIN_TIGHTEN says readings at 3 and above
+ * are not trustworthy. The probe reports every check passing at 3, but
+ * it cannot do otherwise: its guard compares skinning at BIND against
+ * the raw mesh, and at bind every bone transform is identity, so the
+ * weighted sum reproduces the base position whatever the weights are.
+ * Tightening cannot move it, so the guard is insensitive to exactly the
+ * thing it would need to detect.
+ *
+ * Measuring a power this campus will not ship, with an instrument that
+ * cannot validate it, only produces a "best" nobody should act on —
+ * char15 and char7 both read better at 3 and ship at 2 for that reason.
+ * Raise this to include 3 when there is a guard that can fail at 3. */
+const POWERS = [1, 2];
 
 const src = await readFile(resolve(ROOT, "index.html"), "utf8");
 const castFiles = Object.fromEntries(
@@ -68,7 +81,17 @@ console.log(`\n  body     ${POWERS.map(p => `skin=${p}`.padStart(8)).join("")}` 
             `     best   ships`);
 for (const k of Object.keys(castFiles)){
   const row = worstAt[k];
-  if (!row){ console.log(`  ${k.padEnd(8)} NOT MEASURED`); bad++; continue; }
+  /* EVERY power, not merely one. A body was treated as measured as soon
+   * as a single invocation produced a row for it, so if one run dropped
+   * it -- a load error, a gated verdict -- the reducer compared against
+   * undefined, defaulted best to the first power, and could pass a
+   * shipped power it had never compared. Three readings or none. */
+  const missing = POWERS.filter(p => !(row && row[p] > 0));
+  if (missing.length){
+    console.log(`  ${k.padEnd(8)} NOT MEASURED at power ${missing.join(", ")}` +
+                ` — no verdict for this body`);
+    bad++; continue;
+  }
   const best = POWERS.reduce((a, p) => (row[p] < row[a] ? p : a), POWERS[0]);
   const ships = perBody[k] ?? globalPower;
   const off = ships !== best;
@@ -83,6 +106,7 @@ const shipped = Object.keys(castFiles)
   .filter(k => worstAt[k])
   .map(k => worstAt[k][perBody[k] ?? globalPower]);
 console.log(`\n  worst body as shipped: ${Math.max(...shipped).toFixed(2)}x`);
-console.log(bad ? `\n  ${bad} body(s) are not tightened at their best power.`
-                : `\n  Every body ships at the best of ${POWERS.join(", ")}.`);
+console.log(bad ? `\n  ${bad} body(s) are not tightened at their best TRUSTED power.`
+                : `\n  Every body ships at the best of ${POWERS.join(", ")}` +
+                  ` — the powers this campus trusts.`);
 process.exit(bad ? 1 : 0);
