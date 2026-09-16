@@ -84,7 +84,7 @@ window.__sheet = (url) => new Promise((done) => {
 
     /* Facts worth having beside the picture, none of them a verdict. */
     let tris = 0, meshes = 0, images = 0, spike = 0;
-    const mats = new Set(), slots = {}, finish = [];
+    const mats = new Set(), finish = [];
     root.traverse(o => {
       if (!o.isMesh) return;
       meshes++;
@@ -114,13 +114,6 @@ window.__sheet = (url) => new Promise((done) => {
           ior: m.ior == null ? null : +m.ior.toFixed(2),
         });
       }
-      const tag = canon(o.name) + " " + canon(o.material?.name);
-      const what = /hair|beard|scalp|brow|eyelash/i.test(tag) ? "hair"
-                 : /shirt|top|jacket|suit|hoodie|sweater/i.test(tag) ? "shirt"
-                 : /short|pant|trouser|jean|bottom|denim/i.test(tag) ? "shorts"
-                 : /shoe|sneaker|boot|footwear|canvas/i.test(tag) ? "sneakers"
-                 : /body|skin|head/i.test(tag) ? "skin" : null;
-      if (what) slots[what] = (slots[what] || 0) + 1;
     });
 
     /* The campus corrects two material faults at load — metalness on a
@@ -235,15 +228,13 @@ window.__sheet = (url) => new Promise((done) => {
       }
     });
 
-    const dressable = ["shirt","shorts","sneakers","hair"].filter(k => slots[k]);
     document.getElementById("facts").textContent =
       url.split("/").pop() + "\\n" +
       Math.round(tris).toLocaleString() + " triangles · " + meshes + " meshes · " +
       mats.size + " materials · " + images + " texture maps\\n" +
       "clips: " + (gl.animations.map(c => (c.name||"?") + " " + c.duration.toFixed(2) + "s")
                      .join(", ") || "none") + "\\n" +
-      "wardrobe can tint: " + (dressable.join(", ") || "nothing — this body is always the same") +
-      "\\nfinish: " + [...new Map(finish.map(f => [f.mat, f])).values()]
+      "finish: " + [...new Map(finish.map(f => [f.mat, f])).values()]
         .map(f => f.mat + "  rough " + f.rough + (f.roughMap ? "+map" : "") +
                   "  metal " + f.metal + (f.metalMap ? "+map" : "") +
                   (f.spec == null ? "" : "  spec " + f.spec + (f.specMap ? "+map" : "")) +

@@ -972,38 +972,38 @@ try {
                      null, { timeout: 180_000 })
     .catch(() => console.log("  ..   some bodies never arrived; judging what did"));
   const c = await crowdPage.evaluate(() => {
-    const out = { ...window.__crowd(), shirts: new Set(), skins: new Set(),
-                  builds: new Set(), bodies: new Set(), dressable: new Set(),
-                  tinted: 0 };
+    /* The shirt colours, complexions and "dressable" list that stood
+       here went with the wardrobe. They counted what dressFigure had
+       tinted, and dressFigure is deleted — every one of them could only
+       ever have read zero, which is the shape of reporting that teaches
+       its reader to skip the line.
+
+       STATURE is what is left of "are these two figures different", and
+       reading it needed fixing on the way past. This counted
+       fig.scale.x, and that is the OUTER group, which prepFigure leaves
+       at 1 and always has: the requested height goes onto the inner
+       root as root.scale.setScalar(height / span). So "builds" has read
+       exactly 1 for every cohort this suite has ever judged, beside the
+       two colour counts that read 0 — three numbers, none of them
+       measuring anything.
+
+       userData.height is the number prepFigure was actually asked for,
+       CAST_HEIGHT[body] x buildOf(seed), so distinct values of it are
+       distinct people-sized people. */
+    const out = { ...window.__crowd(), builds: new Set(), bodies: new Set() };
     window.__app.world.children.forEach(fig => {
       if (!fig.userData?.anim) return;                /* not one of the walkers */
-      out.builds.add(fig.scale.x.toFixed(3));
+      if (fig.userData.height) out.builds.add(fig.userData.height.toFixed(1));
       out.bodies.add(fig.userData.figure);
-      fig.traverse(o => {
-        if (!o.isSkinnedMesh) return;
-        /* the same both-places read the wardrobe does: the walker names
-           its nodes, the other two name their materials */
-        const tag = (o.name || "") + " " + (o.material.name || "");
-        const hex = o.material.color.getHexString();
-        if (/shirt|top|jacket|suit|hoodie|sweater/i.test(tag)){
-          out.shirts.add(hex); out.tinted++;
-          /* which BODIES can be dressed, not how many meshes — the
-             number that explains a low colour count */
-          out.dressable.add(fig.userData.figure);
-        }
-        if (/body|skin/i.test(tag)) out.skins.add(hex);
-      });
     });
-    return { ...out, shirts: out.shirts.size, skins: out.skins.size,
-             builds: out.builds.size, bodies: [...out.bodies].sort().join("+"),
-             dressable: [...out.dressable].sort().join("+") || "none" };
+    return { ...out, builds: out.builds.size,
+             bodies: [...out.bodies].sort().join("+") };
   }).catch(() => null);
   /* Which bodies actually decoded on THIS runner. The cohort checks
-     below judge casting and wardrobe variety, and both are functions of
-     who arrived: a software rasterizer that decodes two of six
-     dressable bodies before every timeout fills the quad with two
-     people's copies, and the checks then fail the code for the
-     machine's slowness — this exact run has now happened, with the
+     below judge casting, and that is a function of who arrived: a
+     software rasterizer that decodes two of fourteen bodies before
+     every timeout fills the quad with two people's copies, and the
+     checks then fail the code for the machine's slowness — this exact run has now happened, with the
      same commit passing beside it on a faster runner. A body that
      ERRORED still fails hard below; a body that is merely still
      decoding when the suite loses patience is not a bug in the campus.
@@ -1160,21 +1160,10 @@ try {
        reach ? `${reach.reached}/${reach.total} nodes reachable` +
                (reach.orphaned ? `, ${reach.orphaned} with no way out` : "")
              : "could not read the waypoint graph");
-  /* When this goes red the useful question is never "why so few
-     colours" — it is "who is out there". Only six of the sixteen
-     bodies own a shirt mesh the wardrobe can find; the rest are either
-     colourless or a scan whose clothes and skin are one mesh on one
-     material, and no palette can touch those. So a quad filled from a
-     wave that happens to contain one dressable body caps at one
-     colour per figure of that body, and reads as a colour bug when it
-     is a casting bug. Print who could be dressed. */
-  /* The colour-variety check that stood here is retired. It counted
-     shirts, complexions and builds to catch "one person fourteen
-     times" — a real failure, and one the check above now catches
-     directly and exactly, by name. What was left after that was a
-     count of which BODIES happened to decode on this runner: it went
-     red at two shirt colours because ariel and walker were the only
-     dressable pair present, which says nothing about the wardrobe.
+  /* The colour-variety check that stood here is retired, and now so is
+     the wardrobe it measured. It counted shirts, complexions and builds
+     to catch "one person fourteen times" — a real failure, and one the
+     check above now catches directly and exactly, by name.
 
      A check that can only fail for reasons other than its purpose
      teaches its reader to ignore it. The cohort is still printed,
@@ -1223,8 +1212,7 @@ try {
                 : "could not watch the campus");
   if (cohortJudged)
   step("the cohort is varied", !!c && c.bodies.split("+").length >= 1,
-       c ? `${c.bodies}; ${c.shirts} shirt colour(s), ${c.skins} complexion(s), ` +
-           `${c.builds} build(s); dressable: ${c.dressable}`
+       c ? `${c.bodies}; ${c.builds} distinct stature(s)`
          : "could not read the cohort");
 
   /* ── can you actually tap somebody? ──────────────────────────────

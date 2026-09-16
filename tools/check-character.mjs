@@ -49,11 +49,14 @@
  * The honest summary: no measurement here has yet been found that
  * predicts a bad retarget. Render it and look at it.
  *
- * DRESSABLE, ideally. The wardrobe tints a student's shirt, shorts,
- * shoes, hair and skin — that is most of what makes a crowd read as
- * people rather than copies. It finds them by NAME, on the mesh or on
- * its material, either will do. Ten of the cast own nothing it can
- * find and wear their factory colours for ever.
+ * DRESSABLE is no longer asked for, and this used to be the section
+ * that asked. The wardrobe tinted a student's shirt, shorts, shoes,
+ * hair and skin, finding them by name on the mesh or the material —
+ * which is why a body arriving as one mesh on one material got a
+ * warning here. It is deleted: the cast is fourteen authored people
+ * with their clothes in the texture, and no-twins keeps each of them
+ * out on the lawn only once. One mesh and one material is the normal
+ * shape of a body now, not a shortcoming.
  *
  * LIGHT, and the number that matters is not the one people watch.
  * Triangles are nearly free; images are not:
@@ -147,22 +150,12 @@ function canonBone(raw){
   s = s.replace(/^mixamorig\\d*/i, "").replace(/[^a-z0-9]/gi, "").toLowerCase();
   return s ? s.replace(/^spine0(\\d)$/, "spine$1") : null;
 }
-/* the wardrobe's, likewise */
-const canon = (s) => (s || "").toLowerCase();
-function slotOf(meshName, matName){
-  const tag = canon(meshName) + " " + canon(matName);
-  return /hair|beard|moustache|mustache|scalp|brow|eyelash/i.test(tag) ? "hair"
-       : /shirt|top|jacket|suit|hoodie|sweater/i.test(tag) ? "shirt"
-       : /short|pant|trouser|jean|bottom|denim/i.test(tag) ? "shorts"
-       : /shoe|sneaker|boot|footwear|canvas/i.test(tag) ? "sneakers"
-       : /body|skin|head/i.test(tag) ? "skin" : null;
-}
 const CORE = ["hips","spine","leftupleg","leftleg","leftfoot",
               "rightupleg","rightleg","rightfoot","neck","head",
               "leftarm","leftforearm","rightarm","rightforearm"];
 
 window.__check = (url) => new Promise((done) => loader.load(url, (g) => {
-  const out = { clips: [], slots: [], missing: [], rest: null };
+  const out = { clips: [], missing: [], rest: null };
   const root = g.scene;
   root.updateMatrixWorld(true);
 
@@ -220,15 +213,6 @@ window.__check = (url) => new Promise((done) => loader.load(url, (g) => {
       out.sides = { left: +lx.toFixed(3), right: +rx.toFixed(3) };
     }
   }
-
-  /* what the wardrobe can find */
-  const slots = new Set();
-  root.traverse(o => {
-    if (!o.isMesh) return;
-    const s = slotOf(o.name, o.material && o.material.name);
-    if (s) slots.add(s);
-  });
-  out.slots = [...slots].sort();
 
   /* the clips: what they are, and whether they travel */
   let hips = null, foot = null;
@@ -332,10 +316,6 @@ for (const f of files){
                 "sitting down correctly with both arms over its head. The campus detects " +
                 "and compensates, but fix it in the source and there is nothing to detect");
   }
-  console.log(`  wardrobe can tint: ${r.slots.length ? r.slots.join(", ") : "NOTHING"}`);
-  if (!r.slots.length)
-    warn.push("no mesh or material named for the wardrobe — it wears its factory colours for ever, so a second copy is the same student twice");
-
   if (!r.clips.length) warn.push("no animation at all");
   for (const c of r.clips){
     const kind = c.first === undefined ? "?"
@@ -352,12 +332,12 @@ for (const f of files){
   for (const w of warn) console.log("  ! " + w);
   for (const x of note) console.log("  · " + x);
   /* A summary of what it CAN do, not a grade. Every body here draws
-     and walks; they differ in whether the wardrobe can dress them and
-     whether a clip can be lent to them, and those are the two things
-     worth knowing before making another one. */
+     and walks; what they differ in is whether a clip can be lent to
+     them, which is the thing worth knowing before making another one.
+     "dressable (n/5 slots)" stood here beside it until the wardrobe was
+     deleted — there is nothing left for a named garment mesh to do. */
   const can = [
     bad.length ? "does not load properly" : "loads and draws",
-    r.slots.length ? `dressable (${r.slots.length}/5 slots)` : "plain colours only",
     r.dialect === "unrecognised" || r.missing.length
       ? "cannot be lent clips" : "can be lent clips",
     (disk.mb ?? 0) + "MB",

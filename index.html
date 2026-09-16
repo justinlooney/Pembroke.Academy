@@ -8140,15 +8140,12 @@ const CAST_VRAM_MB = {
   char7:  5.33, char8:  5.33, char9:  5.33, char10: 5.33,
   char11: 5.33, char14: 5.33, char15: 5.33, char16: 5.33,
   char17: 5.33, char18: 5.33 };
-/* Measured, not guessed: these are the six bodies with a shirt mesh the
-   wardrobe can find. See the note above about the ten that have none. */
-/* Nobody. The last dressable body was walker and he is retired, so the
-   wardrobe now has nothing to tint — which costs this campus nothing,
-   because the author does not want the dresser and the authored cast
-   is ten distinct people rather than one body in ten shirts.
-   drawFirstWave reads this list and simply finds it empty; ripping out
-   dressFigure and its tinting is still a separate change. */
-const CAST_DRESSABLE = [];
+/* ── CAST_DRESSABLE is gone, with the wardrobe ─────────────────────
+   It named the bodies whose shirts could be tinted, and it had been
+   the empty list for some time. Its own comment said drawFirstWave
+   read it; nothing read it. An empty list nobody consults, explaining
+   itself at length, is the most expensive kind of dead code — it costs
+   a reader the time to find out it does nothing. */
 /* Which models read as women across a lawn. A fact about the MODEL —
    which one to dress a student in — and nothing more.
  *
@@ -10522,132 +10519,42 @@ function lendSitDown(){
    Materials multiply their colour into the texture, so this tints what
    is already there rather than painting over it: the fabric weave, the
    creases and the shading in the map all survive. */
-const WARDROBE = {
-  /* Complexion is the first thing you read about a person at any
-     distance, so it varies most. These are multipliers against a fair
-     base texture — above 1 lightens, below 1 deepens — written in linear
-     light, which is where the shader does the multiplication. */
-  skin: [[1.06, 1.03, 1.00], [0.97, 0.90, 0.82], [0.86, 0.73, 0.60],
-         [0.71, 0.56, 0.43], [0.56, 0.41, 0.30], [0.43, 0.30, 0.21],
-         [0.33, 0.23, 0.16], [0.92, 0.79, 0.66]],
-  hair:     ["#2b1b12", "#4a2c1a", "#12100f", "#6b4a2a", "#8a6a3a", "#5a5a5a",
-             "#1a1410", "#7a5a30", "#3a2418", "#c9a15a"],
-  shirt:    ["#4a6fa5", "#8c4a4a", "#3f7a5a", "#d8d2c4", "#5a4a7a", "#c88a3a",
-             "#2f3b4a", "#a34f6d", "#6a8a4a", "#b8b0a0", "#3a5a6a", "#7a3a4a",
-             "#e0dcd2", "#334a3a", "#9a5a2a", "#4a4a5a"],
-  shorts:   ["#2f3542", "#4a4438", "#3a4a5a", "#5a4038", "#38424a", "#6a6252",
-             "#22262e", "#7a7264", "#3d3a44"],
-  sneakers: ["#e8e4dc", "#2b2b2b", "#b04a3a", "#4a5a8a", "#8a8a7a", "#c8c2b4"],
-};
-/* Blonde on a deep complexion is a real person, but it is rare enough
-   that a campus generating it one time in ten looks arbitrary rather
-   than diverse. Past this tone, hair comes from the dark end. */
-const DARK_HAIR = 6;
-/* Shirts are DEALT, not rolled — the same argument nextBody makes about
-   bodies, and for a more visible reason. A shirt is the largest block of
-   colour on a student, so two of them in the same one, twenty feet
-   apart on the same lawn, reads as the copy-paste it is. Sixteen
-   independent rolls across six dressed students land on a repeat more
-   often than not; sixteen cards dealt off a shuffled deck cannot until
-   the deck runs out.
-   Drawn lazily, at the first shirt mesh a body turns out to have, so the
-   ten bodies with nothing the wardrobe can dress do not burn cards they
-   will never wear. */
-let shirtDeck = [];
-function nextShirt(){
-  if (!shirtDeck.length){
-    shirtDeck = WARDROBE.shirt.slice();
-    for (let i = shirtDeck.length - 1; i > 0; i--){
-      const j = Math.floor(Math.random() * (i + 1));
-      [shirtDeck[i], shirtDeck[j]] = [shirtDeck[j], shirtDeck[i]];
-    }
-  }
-  return shirtDeck.pop();
-}
-function dressFigure(g, seed){
-  /* A proper hash, not seed modulo length: with an integer seed and a
-     handful of palettes, arithmetic that simple walks the lists in step
-     and every third student ends up in the same outfit. */
-  const R = (salt) => {
-    const s = Math.sin(seed * 127.1 + salt * 311.7 + 1.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-  const pick = (list, salt) => list[Math.floor(R(salt) * list.length)];
-  const tone = Math.floor(R(0) * WARDROBE.skin.length);
-  const hair = tone >= 4 ? WARDROBE.hair[Math.floor(R(1) * DARK_HAIR)]
-                         : pick(WARDROBE.hair, 1);
-  const dress = { hair, shirt: null,      /* dealt below, on first sight */
-                  shorts: pick(WARDROBE.shorts, 3), sneakers: pick(WARDROBE.sneakers, 4) };
-  g.traverse(o => {
-    if (!o.isMesh || !o.material) return;
-    /* Every body names its parts somewhere, but not in the same place.
-       The Mixamo walker names the nodes (Ch42_Shirt); the Ready Player
-       Me avatar and Oreizo name the materials (Wolf3D_Outfit_Top,
-       Shirt.001) and leave the nodes as Object_11. Read both, or two of
-       the three bodies silently keep their factory outfit — which looks
-       exactly like the wardrobe working, since they are different
-       people to begin with. */
-    const tag = canon(o.name) + " " + canon(o.material.name);
-    /* A beard follows the hair. One of these bodies carries its
-       moustache on its own material, and a blond crop over a black
-       moustache is not a person, it is a bug. */
-    const what = /hair|beard|moustache|mustache|scalp|brow|eyelash/i.test(tag) ? "hair"
-               /* "suit" because the skater's clothing is one mesh named
-                  male_casualsuit06 — a whole outfit rather than a
-                  shirt, but it is the garment, and leaving it out left
-                  him in his factory colours on every visit. Not
-                  "outfit": Wolf3D names both halves that way, and this
-                  branch is tested before the trousers, so it would put
-                  Outfit_Bottom in a shirt colour. */
-               : /shirt|top|jacket|suit|hoodie|sweater/i.test(tag) ? "shirt"
-               : /short|pant|trouser|jean|bottom|denim/i.test(tag) ? "shorts"
-               : /shoe|sneaker|boot|footwear|canvas/i.test(tag) ? "sneakers"
-               : /body|skin|head/i.test(tag) ? "skin" : null;
-    if (!what) return;                     /* eyes and eyelashes are left alone */
-    /* Clone first. SkeletonUtils shares materials between clones, so
-       tinting in place would dress the entire cohort identically — and
-       the mistake is invisible until the second figure is built. */
-    o.material = o.material.clone();
-    /* One card for the whole body: Oreizo carries two shirt meshes, and
-       a second draw would put this student in a two-tone top. */
-    if (what === "shirt" && dress.shirt === null) dress.shirt = nextShirt();
-    if (what === "skin") o.material.color.setRGB(...WARDROBE.skin[tone]);
-    else o.material.color = new THREE.Color(dress[what]);
-  });
-  /* Breadth used to be varied here too:
+/* ── the WARDROBE is gone, and so is dressFigure ──────────────────────
+   It tinted a student's hair, shirt, shorts, sneakers and complexion
+   from five palettes, dealing shirts off a shuffled deck so two people
+   twenty feet apart could not wear the same one. It was the reason this
+   campus could put one body on the lawn twice and have it read as two
+   students, and for a cast of three or four bodies that was the whole
+   difference between a crowd and a copy-paste.
 
-         g.scale.x = g.scale.z = 0.93 + R(5) * 0.16;
+   It tints NOTHING now, and that is not a guess. It finds a garment by
+   NAME — the node's or the material's — and the fourteen bodies in
+   CAST_FILES are each a single mesh called char1 wearing a single
+   material called Material_1. Read straight out of the GLB JSON, across
+   the whole cast:
 
-     a non-uniform scale on the figure group, which sits directly above
-     the skeleton. A bone rotation under a non-uniform scale is not a
-     rotation, it is a shear, and the shear grows with the angle — so it
-     was worst exactly where the rotations are biggest, at the shoulders
-     and the waist. Measured on char17 (breadth 1.067) by turning one
-     bone 45 degrees from bind, with no clip involved:
+       total meshes the wardrobe can name: 0
 
-         at rest    RightUpperArm  24.387, 22.857, 24.387
-         turned     RightUpperArm  23.637, 23.634, 24.385
+   So every visitor since the cast was replaced has run a hash, five
+   palette lookups and a full traverse of every figure built, to change
+   the colour of nothing at all.
 
-     3.4% of skew, propagating down to the forearm and the hand. A pure
-     rotation must not change scale.
+   The cast outgrew it rather than broke it. Fourteen authored bodies
+   are fourteen people already, each with its own clothes baked into one
+   texture, and no-twins keeps each of them unique without help. A
+   dresser that exists to make one body look like several has no work
+   left when there are already several.
 
-     There is no cheap place to put it back. Moving it onto the meshes
-     deletes it outright: three.js defaults a SkinnedMesh to
-     AttachedBindMode, which recomputes bindMatrixInverse from the mesh's
-     current matrixWorld every frame, so the mesh node's own transform
-     cancels out of the render. Measured through applyBoneTransform at
-     bind pose, that change made the body exactly 1.067x narrower — the
-     whole effect, gone. Baking it into geometry needs a cloned position
-     buffer per width, which is megabytes a figure against a 48MB
-     ceiling; scaling the bone rest offsets perturbs the very rests
-     lendClip retargets against.
+   What went with it: WARDROBE's five palettes, DARK_HAIR, the shirt
+   deck and nextShirt(), dressFigure() and its two call sites, and
+   CAST_DRESSABLE above. What did NOT go is the note about breadth and
+   shear, which lived inside dressFigure and is a fact about skeletons
+   rather than about clothes — it is beside buildOf now, where the next
+   person tempted to vary build will find it.
 
-     So it goes. buildOf already varies STATURE by ±11%, and height reads
-     across a lawn better than width does — the thing this was for is
-     mostly still there, without shearing every joint in the cast to get
-     it. If breadth is wanted back, a few baked geometry buckets is the
-     way, not a scale above a skeleton. */
-}
+   If a future body arrives with named garment meshes and the campus
+   wants them tinted, this is in the history; it is eighty lines and it
+   worked. It is not worth carrying until then. */
 /* Every figure starts at a different point in its cycle. A crowd on one
    clip in lockstep is a chorus line, and it is the first thing the eye
    picks up — before the faces, before the clothes. */
@@ -10824,6 +10731,43 @@ function makeRoamer(g, startKey, extra, forceGait){
 }
 /* Stature varies more between people than anything else you can read
    across a lawn, so it is the first thing the seed decides. */
+/* ── STATURE varies here. BREADTH must not. ───────────────────────────
+   This note followed the wardrobe's deletion rather than going with it,
+   because what it records is a fact about skeletons, not about clothes,
+   and the next person to think "the cast could use some variety in
+   build" will come here.
+
+   Breadth was varied once, beside the tinting:
+
+       g.scale.x = g.scale.z = 0.93 + R(5) * 0.16;
+
+   a non-uniform scale on the figure group, which sits directly above
+   the skeleton. A bone rotation under a non-uniform scale is not a
+   rotation, it is a SHEAR, and the shear grows with the angle — so it
+   was worst exactly where the rotations are biggest, at the shoulders
+   and the waist. Measured on char17 (breadth 1.067) by turning one bone
+   45 degrees from bind, with no clip involved:
+
+       at rest    RightUpperArm  24.387, 22.857, 24.387
+       turned     RightUpperArm  23.637, 23.634, 24.385
+
+   3.4% of skew, propagating down to the forearm and the hand. A pure
+   rotation must not change scale.
+
+   There is no cheap place to put it back. Moving it onto the meshes
+   deletes it outright: three.js defaults a SkinnedMesh to
+   AttachedBindMode, which recomputes bindMatrixInverse from the mesh's
+   current matrixWorld every frame, so the mesh node's own transform
+   cancels out of the render — measured through applyBoneTransform at
+   bind pose, that change made the body exactly 1.067x narrower, the
+   whole effect gone. Baking it into geometry needs a cloned position
+   buffer per width, which is megabytes a figure against a 48MB ceiling;
+   scaling the bone rest offsets perturbs the very rests lendClip
+   retargets against.
+
+   So: stature only. ±11% of height reads across a lawn better than
+   width does anyway. If breadth is wanted back, a few baked geometry
+   buckets is the way, not a scale above a skeleton. */
 function buildOf(seed){
   const s = Math.sin(seed * 74.3 + 9.1) * 43758.5453;
   return 0.89 + (s - Math.floor(s)) * 0.22;           /* ±11% of height */
@@ -10957,16 +10901,20 @@ function buildCast(){
     if (!k) return;                      /* nothing loaded YET — the
        second pass will build them once the late wave lands, which is
        what lets the first wave be small enough to arrive quickly */
-    /* Dressed off this visit's seed, so Elowen is not wearing the same
-       shirt she wore last time either. Her name, her lines and where
-       she is going are hers; her clothes are not. The FACULTY dress off
-       a fixed seed instead: the same person wears the same clothes,
-       or "changed into a different character" comes back as a report
-       about wardrobe. */
+    /* Built off this visit's seed, so Elowen is not exactly the height
+       she was last time. Her name, her lines and where she is going are
+       hers; her stature is drawn. The FACULTY build off a FIXED seed
+       instead: the dean is the same height every visit, because a
+       professor who is a little taller on Tuesday comes back as
+       "changed into a different character".
+
+       This seed used to feed the wardrobe as well as buildOf, and the
+       faculty's fixed seed was really about clothes. The wardrobe is
+       gone; the argument survives it unchanged, because stature reads
+       across a lawn the same way a shirt colour did. */
     const seed = (st.tier ?? 2) <= 1 ? 9000 + i * 7 : VISIT + i * 101;
     const g = prepFigure(k, CAST_HEIGHT[k] * buildOf(seed), plan.live, plan.pose || 0);
     if (!g) return;
-    if (ROAMING.includes(k)) dressFigure(g, seed);
     CAST_USED.add(st.name);   /* built — this name is spoken for */
     /* The plan asked for a POSE; the body says which of its clips that
        is. A missing one is null rather than a name nothing answers to,
@@ -11314,7 +11262,6 @@ function addExtra(n){
   const seed = VISIT + n * 37;
   const g = prepFigure(k, CAST_HEIGHT[k] * buildOf(seed), false);
   if (!g) return false;
-  dressFigure(g, seed);
   const persona = AUTHORED.includes(k)
     ? adoptPersona(CAST_FEM.has(k) ? "f" : "m") : null;
   g.userData.crowd = !persona;           /* test/debug: not one of the named */
