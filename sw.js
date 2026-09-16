@@ -45,7 +45,7 @@
  * engine and the stylesheet are re-precached by every install with
  * cache:"reload", so they track releases despite living in the depot.
  */
-const VERSION = "pembroke-v151";
+const VERSION = "pembroke-v152";
 /* v3 stays even though this release removes assets. Re-versioning the
    depot is a blunt instrument: it throws away every model a returning
    visitor holds — all ~85MB of a campus they already walked — to
@@ -239,9 +239,14 @@ async function cacheFirst(req, cacheName){
 async function networkFirst(req, cacheName, timeoutMs = NAVIGATION_TIMEOUT_MS){
   const cache = await caches.open(cacheName);
   const url = new URL(req.url);
-  // Never return index.html for a missing module, study page, or an intentional 404.
+  const base = new URL(self.registration.scope);
+  const documentPath = req.mode !== "navigate" ? null
+    : url.pathname === base.pathname || url.pathname === new URL("index.html", base).pathname ? "./index.html"
+    : url.pathname === new URL("study.html", base).pathname ? "./study.html" : null;
+  // Exact cached URLs are safe. Only known document routes may fall back to a
+  // query-free shell; an unknown path must never masquerade as the campus.
   const fallback = async () => await cache.match(req) ||
-    (req.mode === "navigate" ? await cache.match(url.pathname.endsWith("study.html") ? "./study.html" : "./index.html") : undefined);
+    (documentPath ? await cache.match(documentPath) : undefined);
   const ctrl = new AbortController();
   let timer;
   try {
@@ -258,6 +263,9 @@ async function networkFirst(req, cacheName, timeoutMs = NAVIGATION_TIMEOUT_MS){
   } catch (err) {
     const hit = await fallback();
     if (hit) return savedResponse(hit, req);
+    if (req.mode === "navigate" && !documentPath)
+      return new Response("This page is unavailable offline. Reconnect and try its original address.",
+        { status: 503, headers: { "content-type": "text/plain; charset=utf-8" } });
     throw err;
   } finally { clearTimeout(timer); }
 }

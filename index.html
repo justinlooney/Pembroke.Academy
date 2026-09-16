@@ -2197,7 +2197,7 @@ import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v151";
+const BUILD = "pembroke-v152";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -15659,7 +15659,7 @@ const Journey = (() => {
     academics:  { declaredMajorId: null, declaredAt: null },
     registration: { term: null, registeredCourseIds: [], completedAt: null },
   });
-  let state = normalizeJourney(readJSON(storage, LS_JOURNEY, null));
+  let state = normalizeJourney(readJSON(storage, LS_JOURNEY, null), done);
   const subs = [];
   const save = () => { try { storage.setItem(LS_JOURNEY, JSON.stringify(state)); } catch (_) {} };
   const emit = () => subs.forEach(f => { try { f(state); } catch (_) {} });

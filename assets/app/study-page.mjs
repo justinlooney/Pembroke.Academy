@@ -20,7 +20,10 @@ function mastery(id, n){
 function current(){
   const params = new URLSearchParams(location.hash.slice(1));
   const requested = params.get("course"), id = COURSES.some(c => c.id === requested) ? requested : "MATH101", list = sections(id);
-  return { id: COURSES.some(c => c.id === id) ? id : "MATH101", n: params.get("lesson") || list.find(s => state[id]?.[s.n] !== 2)?.n || list[0]?.n };
+  const resume = readJSON(storage, KEYS.resume, null);
+  const requestedLesson = list.find(s => s.n === params.get("lesson"));
+  const savedLesson = resume?.courseId === id ? list.find(s => s.n === resume.n) : null;
+  return { id, n: requestedLesson?.n || savedLesson?.n || list.find(s => state[id]?.[s.n] !== 2)?.n || list[0]?.n };
 }
 const route = (id, n) => `#${new URLSearchParams({ course: id, ...(n ? { lesson: n } : {}) })}`;
 courseSelect.innerHTML = COURSES.map(c => `<option value="${c.id}">${c.code} · ${c.title}${sections(c.id).length ? "" : " · Syllabus only"}</option>`).join("");

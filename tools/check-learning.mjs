@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import { resolve } from "node:path";
-import { mkdir } from "node:fs/promises";
 import { serve, launch } from "./_harness.mjs";
 import { STUDY } from "../assets/app/course-study.mjs";
 import { MATH201_PSET } from "../assets/app/problem-sets.mjs";
@@ -10,7 +9,7 @@ try {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: "block" });
   const page = await context.newPage(), errors = [], requests = [];
   page.on("pageerror", e => errors.push(e.message)); page.on("request", r => requests.push(r.url()));
-  await page.goto(server.origin + "/study.html");
+  await page.goto(server.origin + "/study.html#course=MATH101&lesson=does-not-exist");
   await page.waitForSelector("#knowledge");
   assert.match(await page.locator("h1").innerText(), /Expressions and substitution/);
   await page.locator("#knowledge button").click();
@@ -24,6 +23,12 @@ try {
   assert.match(await page.locator("#mastery").innerText(), /mastered/);
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("pembroke.study")).MATH101.x["1.1"].kc), 1);
   console.log("ok — complete and resume an introductory lesson without WebGL");
+  await page.goto(server.origin + "/study.html#course=MATH101&lesson=1.2");
+  await page.waitForSelector("#knowledge");
+  await page.goto(server.origin + "/study.html#course=MATH101&lesson=does-not-exist");
+  await page.waitForSelector("#knowledge");
+  assert.match(await page.locator("h1").innerText(), /Linear equations/);
+  console.log("ok — invalid lesson links open a valid saved or first lesson");
   await page.locator("#course").selectOption("CS101"); await page.waitForFunction(() => location.hash.includes("CS101"));
   await page.waitForFunction(() => document.getElementById("lesson").textContent.includes("Syllabus only"));
   await page.goto(server.origin + "/study.html#course=MATH201&lesson=1.1"); await page.waitForSelector("#knowledge");
@@ -53,13 +58,28 @@ try {
   await Promise.all([page.waitForNavigation(), page.locator("[data-import]").click()]);
   await page.waitForSelector("#knowledge"); assert.match(await page.locator("#mastery").innerText(), /mastered/);
   console.log("ok — backup download, validated preview, replacement and reload preserve mastery");
+  const newer = await context.newPage();
+  await newer.goto(server.origin + "/study.html#course=MATH101&lesson=1.2");
+  await newer.waitForSelector("#knowledge");
+  const second = STUDY.MATH101.units[0].sections[1];
+  for (let i = 0; i < second.qs.length; i++) await newer.locator(`input[name=kc${i}][value="${second.qs[i].a}"]`).check();
+  await newer.locator("#knowledge button").click();
+  assert.match(await newer.locator("#mastery").innerText(), /mastered/);
+  const beforeImport = await newer.evaluate(() => localStorage.getItem("pembroke.study"));
+  await page.getByRole("button", { name: "Progress & backup" }).click();
+  await page.locator("#progress-file").setInputFiles(backupPath);
+  await page.waitForFunction(() => !document.querySelector("[data-import]").hidden);
+  await page.locator("[data-import]").click();
+  assert.match(await page.locator("[data-preview]").innerText(), /another tab/);
+  assert.equal(await newer.evaluate(() => localStorage.getItem("pembroke.study")), beforeImport);
+  assert.equal(await newer.evaluate(() => localStorage.getItem("pembroke.progress.import-journal.v1")), null);
+  await newer.close(); await page.reload(); await page.waitForSelector("#knowledge");
+  console.log("ok — an old tab cannot replace newly earned mastery through backup import");
   await page.addScriptTag({ path: resolve("node_modules/axe-core/axe.min.js") });
   const violations = await page.evaluate(async () => (await axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] } })).violations.map(v => ({ id: v.id, nodes: v.nodes.map(n => n.target) })));
   assert.deepEqual(violations, []);
-  await mkdir(".shots", { recursive: true }); await page.screenshot({ path: ".shots/study-desktop.png", fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
-  await page.screenshot({ path: ".shots/study-mobile.png", fullPage: true });
   assert.equal(requests.some(url => /\.(glb|spz)(\?|$)|vendor\/three/.test(url)), false);
   assert.deepEqual(errors, []);
   console.log("ok — accessible desktop/mobile layout, no campus model or Three.js requests");
@@ -84,6 +104,10 @@ try {
   await offline.setOffline(true); await cached.reload(); await cached.waitForSelector("#knowledge");
   assert.match(await cached.locator("body").innerText(), /Viewing a saved copy/);
   assert.match(await cached.locator("h1").innerText(), /Expressions and substitution/);
+  const missing = await cached.goto(server.origin + "/nested/study.html");
+  assert.equal(missing.status(), 503);
+  assert.match(await cached.locator("body").innerText(), /unavailable offline/);
+  assert.equal(await cached.locator("#knowledge").count(), 0);
   await offline.close();
   console.log("ok — real service-worker installation preserves foreign caches and supports offline lessons");
 

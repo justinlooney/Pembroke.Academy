@@ -2,7 +2,7 @@
 
 Every file here is a script you can run by hand. Nothing is a build
 step you have to know about before editing the site, and nothing
-imports anything else except `_harness.mjs`.
+requires an application build. Pure tests import the shared application modules directly.
 
 Each script carries its own header explaining what it is for and what
 it found the day it was written. This file answers only the question a
@@ -15,7 +15,7 @@ which four without reading all thirty-eight.
 
 ## The harness
 
-`_harness.mjs` is the only shared module. It holds the static server,
+`_harness.mjs` is the shared browser-test module. It holds the static server,
 the Chromium launch, the boot wait and the reporter that twenty-two
 probes each used to carry a copy of:
 
@@ -56,14 +56,15 @@ Write a new probe against this, not against a copy of the last one.
 | job | script | what it refuses to let through |
 |---|---|---|
 | `cache-version` | `check-sw-version.sh` | an asset changed in place without an `ASSETS_V` bump — visitors keep the old file forever |
-| `gateway` | `check-worker.mjs` | the Worker's request contract, without spending a token of inference |
+| `gateway` | `reliability.test.mjs`, `check-worker.mjs` | progress, cache, grading and Worker contracts, without spending inference |
+| `learning` | `check-learning.mjs` | the WebGL-free study route, restoration, backup conflicts, accessibility and offline behavior |
 | `smoke` | `check-rig-names.mjs` | a character whose bone or clip names do not line up |
 | | `check-css.mjs` | a utility class with no rule, or a selector naming a class nobody creates |
 | | `smoke.mjs` | the visit itself — ignite, read the ledger, walk, enter, leave, run the clock to night |
 | `figures` | `check-breath.mjs` | a standing figure that drifts off its mark |
 | | `check-roles.mjs` | a lent clip that landed on the wrong role |
 | | `check-stance.mjs` | somebody parked in a pose a person does not hold |
-| `ledger` | `check-ledger.mjs` | the ledger's own arithmetic |
+| `ledger` | `check-ledger.mjs`, `check-campus-learning.mjs` | legal seals, restore safety, practice routing and shared grading |
 | `a11y` | `check-a11y.mjs` | the campus becoming unusable without a mouse |
 | `owner` | `check-owner.mjs` | two things claiming the keyboard, or an async continuation acting out of turn |
 | `opening` | `check-opening.mjs` | the first twenty seconds regressing |

@@ -30,6 +30,4 @@ try {
   assert.match(await page.locator("#jmodal-body").innerText(), /Expressions and substitution/);
   assert.equal(await page.locator("#jmodal-body canvas").count(), 1);
   console.log("ok — new introductory lessons and extracted figures work in the campus");
-  await page.locator("#jmodal-close").click().catch(() => page.keyboard.press("Escape"));
-  await page.screenshot({ path: ".shots/campus-review.png" });
 } finally { await browser.close(); server.close(); }

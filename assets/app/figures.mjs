@@ -31,7 +31,7 @@ const ST_VIZ = {
     const x = -3.6 + 7.2 * t;
     g.strokeStyle = "#f8fafc"; g.setLineDash([5, 4]); g.beginPath();
     g.moveTo(m.mx(x), 0); g.lineTo(m.mx(x), H); g.stroke(); g.setLineDash([]);
-    const hitsA = (x >= -2 - 2.2 && x <= 2.2 * 2.2 - 2) ? 1 : 1;   /* y = x²−2: always one */
+    const hitsA = x >= -2.2 && x <= 2.2 ? 1 : 0;                 /* the drawn domain of y = x²−2 */
     const hitsB = x + 2 > 0 ? 2 : (x + 2 === 0 ? 1 : 0);           /* x = y²−2 */
     out.textContent = `at x = ${x.toFixed(1)}: gold curve ${hitsA} crossing — a function · blue curve ${hitsB} — ${hitsB > 1 ? "NOT a function" : hitsB === 1 ? "so far so good" : "no crossings"}`;
   },

@@ -67,7 +67,12 @@ try {
                        : `${MALFORMED.length} shapes booted, Object.prototype clean`);
 
   /* ── 2. the order of a seal is not the visitor's to claim ───────── */
-  await page.evaluate(() => localStorage.removeItem("pembroke.registrar.journey"));
+  // Seed storage before boot, so the in-memory ledger and stale-tab snapshots
+  // describe the same fixture. Mutating storage after boot simulates a conflict.
+  await page.evaluate(() => {
+    localStorage.removeItem("pembroke.registrar.journey");
+    localStorage.setItem("pembroke.registrar.completed", "[]");
+  });
   await page.reload({ waitUntil: "domcontentloaded", timeout: 90_000 });
   if (!await booted()) throw new Error("the page did not come back after clearing the ledger");
 
@@ -75,7 +80,6 @@ try {
     const click = async id => { document.querySelector(`[data-mark="${id}"]`)?.click();
                                 await new Promise(r => setTimeout(r, 120)); };
     const read = () => JSON.parse(localStorage.getItem("pembroke.registrar.completed") || "[]");
-    localStorage.setItem("pembroke.registrar.completed", "[]");
     await click("AI450");   const reverse  = read().length;   /* the capstone, first */
     await click("MATH120"); const midChain = read().length;   /* prerequisite unsealed */
     const order = ["MATH101","MATH120","MATH201","MATH202","MATH301",
