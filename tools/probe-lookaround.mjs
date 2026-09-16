@@ -35,9 +35,40 @@ await page.waitForFunction(() => window.__app && (window.__students || []).lengt
                            null, { timeout: 240_000 });
 await page.waitForTimeout(20_000);
 
+/* ── DAYLIGHT, ASSERTED, BECAUSE THIS PROBE ALREADY LIED ONCE ────────
+   The first run of this reported a 63-point swing in "background" and
+   named four headings BLACK. It was measuring the NIGHT SKY. The campus
+   follows the visitor's wall clock, the probe ran at 23:00, and looking
+   across an open quad at midnight is dark for the best of reasons.
+   Every draw count and frustum count in that run was identical between
+   the "black" headings and the clear ones, which should have been the
+   tell and instead read as "drawn but invisible".
+
+   So the sky is now a controlled variable rather than whatever hour the
+   probe happens to run at. The mode cycles on `n` and the control names
+   itself in its own title; press until it says day, and refuse to
+   report anything if it never gets there. A dark reading at night is
+   not a finding, and a probe that cannot tell the two apart is worse
+   than no probe. */
+const modeIs = (want) => page.evaluate((w) =>
+  new RegExp("Time of day: " + w + "\\b").test(
+    document.getElementById("daynight")?.title || ""), want);
+for (let i = 0; i < 8 && !(await modeIs("day")); i++){
+  await page.keyboard.press("n");
+  await page.waitForTimeout(700);
+}
+if (!await modeIs("day")){
+  console.log("\n  could not reach DAY — refusing to measure darkness at night\n");
+  await browser.close(); await close(); process.exit(1);
+}
+await page.waitForFunction(() => window.__visual === "day", null, { timeout: 30_000 })
+  .catch(() => {});
+const sky = await page.evaluate(() => window.__visual);
+
 /* into walk mode, where looking about is what a visitor does */
 await page.evaluate(() => document.getElementById("walkbtn")?.click());
 await page.waitForTimeout(4000);
+console.log(`\n  sky: ${sky}`);
 
 console.log(`\n  Turning on the spot, ${STEPS} steps through 360 degrees.\n`);
 console.log("   yaw    draws   triangles   visible/total   background");
