@@ -66,6 +66,26 @@ const RETIRED = [
   "./assets/cathedral2.glb",
   "./assets/vendor/spark/spark.module.min.js",
   "./assets/vendor/three-mesh-bvh/index.module.js",
+  /* The whole original cast, replaced body by body and deleted together
+     once the last of them had a successor. 39.9MB across fourteen files,
+     and every one of them is sitting in the depot of anybody who has
+     walked this campus since — cacheFirst stops ASKING for a file that
+     no longer exists, which means the old bytes are never evicted by
+     the deletion alone. That is the whole reason this list exists. */
+  "./assets/stu_char2.glb",
+  "./assets/stu_char4.glb",
+  "./assets/stu_char5.glb",
+  "./assets/stu_char6.glb",
+  "./assets/stu_char7.glb",
+  "./assets/stu_char8.glb",
+  "./assets/stu_char9.glb",
+  "./assets/stu_char10.glb",
+  "./assets/stu_char11.glb",
+  "./assets/stu_char14.glb",
+  "./assets/stu_char15.glb",
+  "./assets/stu_char16.glb",
+  "./assets/stu_char17.glb",
+  "./assets/stu_char18.glb",
 ];
 /* Files whose BYTES changed at a URL the depot already holds. This is
    the one case neither VERSION nor RETIRED covers, and it is the one

@@ -41,6 +41,17 @@ const DEG = +(argv.find(a => /^\d+(\.\d+)?$/.test(a)) || 75);
  * 1 (or absent) is the file as authored; each body's shipped power is
  * in CAST_SKIN, and check-skin.mjs is what keeps that table honest. */
 const TIGHTEN = +((argv.find(a => a.startsWith("--skin=")) || "").split("=")[1] || 1);
+/* --side=left turns the OTHER upper arm. It exists because this probe
+ * has only ever turned the right one, and a body finally turned up
+ * whose rig is not symmetrical: blueelegance ships without RightLeg,
+ * RightForeArm or RightHand, so the arm this measures is the one arm
+ * on the campus with no elbow below it. Her 2.81x and 54 stretched
+ * edges are then a fact about THAT ARM, and reading them as a fact
+ * about the body would be the same mistake as reading an authored
+ * number as a shipped one. Default is right, so every figure already
+ * recorded still means what it said. */
+const SIDE = (argv.find(a => a.startsWith("--side=")) || "").split("=")[1] === "left"
+  ? "left" : "right";
 let files = argv.filter(a => a.endsWith(".glb"));
 if (!files.length)
   files = readdirSync(resolve(ROOT, "assets"))
@@ -60,7 +71,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
 
-window.__skin = (url, deg, tighten) => new Promise((done) => loader.load(url, (g) => {
+window.__skin = (url, deg, tighten, side) => new Promise((done) => loader.load(url, (g) => {
   try {
     const root = g.scene;
     root.updateMatrixWorld(true);
@@ -136,13 +147,14 @@ window.__skin = (url, deg, tighten) => new Promise((done) => loader.load(url, (g
 
     /* the shoulder, across the vocabularies this cast uses */
     let hinge = null;
+    const want = new RegExp(side);
     m.skeleton.bones.forEach(b => {
       if (hinge) return;
       const n = (b.name || "").toLowerCase();
       if (/fore|lower/.test(n)) return;
-      if (/right/.test(n) && /(upperarm|arm)/.test(n)) hinge = b;
+      if (want.test(n) && /(upperarm|arm)/.test(n)) hinge = b;
     });
-    if (!hinge) return done({ err: "no right upper arm bone" });
+    if (!hinge) return done({ err: "no " + side + " upper arm bone" });
     hinge.quaternion.multiply(new THREE.Quaternion()
       .setFromAxisAngle(new THREE.Vector3(1, 0, 0), deg * Math.PI / 180));
     const posed = measure();
@@ -317,7 +329,8 @@ page.on("pageerror", e => console.log("  [pageerror] " + e.message.split("\n")[0
 await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "domcontentloaded" });
 await page.waitForFunction(() => !!window.__skin, null, { timeout: 20000 });
 
-console.log(`\nRight upper arm turned ${DEG} deg from bind — no clip, no campus.`);
+console.log(`\n${SIDE === "left" ? "Left" : "Right"} upper arm turned ${DEG} deg ` +
+            `from bind — no clip, no campus.`);
 console.log(`Edges with BOTH ends led by the same bone that change length past`);
 console.log(`1.5x. Seam edges are listed apart: an armpit-to-ribcage edge SHOULD`);
 console.log(`lengthen when an arm lifts, and only an internal one is a fault.\n`);
@@ -327,7 +340,8 @@ for (const f of files){
   const abs = resolve(ROOT, f);
   if (!existsSync(abs)){ console.log(`  ${basename(f).padEnd(20)} NOT FOUND`); continue; }
   const url = "/" + relative(ROOT, abs).split(sep).join("/");
-  const r = await page.evaluate(([u, d, t]) => window.__skin(u, d, t), [url, DEG, TIGHTEN]);
+  const r = await page.evaluate(([u, d, t, sd]) => window.__skin(u, d, t, sd),
+                                [url, DEG, TIGHTEN, SIDE]);
   const nm = basename(f).replace(/^stu_|\.glb$/g, "");
   if (r.err){ console.log(`  ${nm.padEnd(20)} ${r.err}`); continue; }
   const bad = Math.abs(r.rawMean - 1) > 0.005 || r.rawSpread > 0.02

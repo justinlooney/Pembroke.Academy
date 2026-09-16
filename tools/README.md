@@ -111,7 +111,8 @@ which is why they are not gates.
 | `build-css.sh` | `assets/site.css` — compiled utilities plus the `@font-face` rules |
 | `optimize-assets.sh` | decimate + meshopt + WebP, in proportion to how close the visitor gets |
 | `decimate.py` | the Blender half of that (welds scan seams first) |
-| `flatten-scenes.mjs` | folds a multi-scene GLB into one scene |
+| `flatten-scenes.mjs` | folds a multi-scene GLB into one scene — a collection of DIFFERENT models |
+| `fold-anim-copies.mjs` | folds a merge of ONE character exported once per animation back into one body |
 | `thin-character.mjs` | drops the tongue, the teeth, the eyelashes nobody can see |
 | `mixamo-plan.py` · `mixamo-to-glb.py` | Mixamo FBX downloads → one web-ready character |
 | `inspect-rig.py` | says what is actually inside a character file |
@@ -127,8 +128,8 @@ Two families, and the split is meaningful:
 
 - **`check-*`** — asks a question and exits non-zero if the answer is
   wrong. Changes nothing. Safe to run at any time.
-- **a bare verb** (`weigh`, `decimate`, `flatten-scenes`, `vendor-three`,
-  `make-assets`, `optimize-assets`, `thin-character`, `mixamo-plan`,
+- **a bare verb** (`weigh`, `decimate`, `flatten-scenes`, `fold-anim-copies`,
+  `vendor-three`, `make-assets`, `optimize-assets`, `thin-character`, `mixamo-plan`,
   `build-css`) — does something. Assume it writes.
 
 `character-sheet.mjs` and `inspect-rig.py` are inspectors named as
