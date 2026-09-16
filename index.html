@@ -3841,11 +3841,40 @@ renderer.domElement.addEventListener("webglcontextlost", () => {
 renderer.domElement.addEventListener("webglcontextrestored", () => {
   GL_CTX.restored++; GL_CTX.down = false;
   GL_CTX.darkMs += performance.now() - GL_CTX.lostAt;
-  /* three.js has re-initialised the renderer by the time this runs; what
-     it cannot know is the size this campus wants its targets at, or that
-     the shadow map is normally held rather than redrawn. */
-  try { resize(); } catch {}
-  renderer.shadowMap.needsUpdate = true;
+  /* three.js has re-initialised the renderer by the time this runs, and
+     it reallocates every render target it owns. What it CANNOT do is
+     refill one: a target whose pixels were drawn once and then kept
+     comes back allocated and blank, and the thing that drew them is
+     usually gone. Everything below is one of those.
+     (Review found two of the three. They are listed by what is lost.) */
+  try { resize(); } catch {}                 /* the size of the composer's targets */
+  renderer.shadowMap.needsUpdate = true;     /* held, not redrawn, for most of a visit */
+  /* THE ENVIRONMENT. world.environment is a PMREM texture on a render
+     target and its generator was disposed the instant it was built, so
+     three.js has an empty target and no way to fill it. Left alone, the
+     campus returns from a restore with every PBR surface stripped of
+     its image-based lighting — flatter and darker, and nothing to say
+     why. convoScene borrows the same texture, so it goes too. */
+  try {
+    world.environment?.dispose?.();
+    world.environment = buildEnvironment();
+    if (convoScene) convoScene.environment = world.environment;
+  } catch (e){ console.warn("campus: could not rebuild the environment", e); }
+  /* THE CONVERSATION BACKDROP. convoRT holds one frame of the quad,
+     rendered once by convoOpen and never again, sitting behind the
+     student as convoScene.background. Lose the context mid-conversation
+     and that is a black rectangle. Redrawn here from where the camera
+     stands now — a slightly different view of the same quad, quarter
+     size and blurred, which nobody can tell from the original and
+     everybody can tell from black. */
+  try {
+    if (convoView && convoRT && convoScene){
+      renderer.setRenderTarget(convoRT);
+      renderer.render(world, camera);
+      renderer.setRenderTarget(null);
+      convoScene.background = convoRT.texture;
+    }
+  } catch (e){ console.warn("campus: could not redraw the conversation backdrop", e); }
   console.info("campus: WebGL context restored after "
              + ((performance.now() - GL_CTX.lostAt) / 1000).toFixed(1) + "s dark");
 });
@@ -3891,7 +3920,16 @@ stageEl.appendChild(labelRenderer.domElement);
 
 const world = new THREE.Scene();
 /* image-based lighting: glass, water and paint pick up a real environment */
-const pmrem = new THREE.PMREMGenerator(renderer);
+/* A FUNCTION, because this has to be buildable twice.
+   The texture below lives on a render target, and a lost GL context
+   destroys its pixels — three.js reallocates the target on restore but
+   has nothing to fill it with, because the generator that drew it was
+   disposed the moment it was built. So the campus would come back from a
+   restore with every PBR surface stripped of its image-based lighting,
+   and nothing would say why. Same failure as the held shadow map, one
+   scene graph over. */
+function buildEnvironment(){
+  const pmrem = new THREE.PMREMGenerator(renderer);
 /* 0.04, not 0.06, and the number is derived rather than tuned. r170's
    PMREMGenerator blurs with at most MAX_SAMPLES = 20 taps:
 
@@ -3920,13 +3958,19 @@ const pmrem = new THREE.PMREMGenerator(renderer);
    moving by a pixel — the sharpest thing an environment can do. On
    the surfaces the campus is actually built from it is a peak of 5
    and no brightness shift. */
-world.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-/* The generator is scaffolding, not the product: it holds a ping-pong
-   render target, the LOD plane geometry and three materials, and the
-   texture above outlives all of it. Disposed once the environment
-   exists, which is what three's own documented usage does — this had
-   been held for the whole session since the day IBL was added. */
-pmrem.dispose();
+  const tex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  /* The generator is scaffolding, not the product: it holds a ping-pong
+     render target, the LOD plane geometry and three materials, and the
+     texture above outlives all of it. Disposed once the environment
+     exists, which is what three's own documented usage does — this had
+     been held for the whole session since the day IBL was added.
+     Building a fresh one per call is the price of being able to call
+     this again after a context loss, and it is paid twice a visit at
+     most. */
+  pmrem.dispose();
+  return tex;
+}
+world.environment = buildEnvironment();
 world.environmentIntensity = 0.55;
 const camera = new THREE.PerspectiveCamera(46, 1, 2, 6000);
 /* Stand back further on a tall screen. Even at the widened fov, portrait
@@ -13911,8 +13955,20 @@ function dbgUpdate(now, dt, raw){
         "  " + (GL_CTX.down ? "— DARK NOW"
                             : (GL_CTX.darkMs / 1000).toFixed(1) + "s dark total") + "\n"
       : "") +
+    /* FLOOR, because that is what the renderer does: setSize writes
+       canvas.width = Math.floor(width * _pixelRatio). Rounding here
+       disagrees with it at every fractional ratio — 915 CSS pixels at
+       dpr 1.5 is 1372 in the canvas and 1373 by Math.round — and a
+       MISMATCH printed over a perfectly healthy buffer is worse than
+       printing nothing at all, because this line exists to send the
+       next investigation one way or the other.
+       (getDrawingBufferSize() would floor correctly and detect nothing:
+       it reports _width x _pixelRatio, the renderer's own arithmetic,
+       which agrees with canvas.width by construction. The question here
+       is whether the buffer fits the box the canvas is DISPLAYED in,
+       so the comparison has to come off clientWidth.) */
     (() => { const d = renderer.domElement, r = renderer.getPixelRatio();
-             const want = Math.round(d.clientWidth * r) + "x" + Math.round(d.clientHeight * r);
+             const want = Math.floor(d.clientWidth * r) + "x" + Math.floor(d.clientHeight * r);
              const got  = d.width + "x" + d.height;
              return "buffer " + got + "  css " + d.clientWidth + "x" + d.clientHeight +
                     (got === want ? "" : "   MISMATCH — wants " + want) + "\n"; })() +
