@@ -32,7 +32,7 @@ const ROOT = resolve(new URL("..", import.meta.url).pathname);
 const PORT = 8351;
 const WATCH = (+process.argv.find(a => /^\d+$/.test(a)) || 60) * 1000;
 const BODY = process.argv.slice(2).find(a => !/^\d+$/.test(a)) || "walker";
-const MIME = { ".html":"text/html", ".js":"text/javascript", ".css":"text/css",
+const MIME = { ".html":"text/html", ".js":"text/javascript", ".mjs":"text/javascript", ".css":"text/css",
   ".glb":"model/gltf-binary", ".png":"image/png", ".jpg":"image/jpeg",
   ".svg":"image/svg+xml", ".json":"application/json", ".webp":"image/webp" };
 const server = createServer(async (req, res) => {

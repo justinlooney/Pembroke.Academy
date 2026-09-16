@@ -28,7 +28,7 @@ const OUT = resolve(ROOT, ".shots");
    verify a larger edit to it. */
 let PORT = 0;
 const BODY = process.argv[2] || "walker";
-const MIME = { ".html":"text/html", ".js":"text/javascript", ".css":"text/css",
+const MIME = { ".html":"text/html", ".js":"text/javascript", ".mjs":"text/javascript", ".css":"text/css",
   ".glb":"model/gltf-binary", ".png":"image/png", ".jpg":"image/jpeg",
   ".svg":"image/svg+xml", ".json":"application/json", ".webp":"image/webp" };
 const server = createServer(async (req, res) => {

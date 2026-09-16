@@ -39,7 +39,7 @@ const ROOT = resolve(new URL("..", import.meta.url).pathname);
    tools/_harness.mjs, because this probe is not in CI and I cannot
    verify a larger edit to it. */
 let PORT = 0;
-const MIME = { ".html": "text/html", ".js": "text/javascript",
+const MIME = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript",
                ".glb": "model/gltf-binary", ".png": "image/png",
                ".json": "application/json" };
 const pick = process.argv.slice(2).filter(a => !a.startsWith("-"));

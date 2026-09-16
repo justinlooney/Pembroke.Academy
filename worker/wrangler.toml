@@ -11,12 +11,15 @@ compatibility_date = "2026-08-01"
 binding = "AI"
 
 [vars]
-# The ONE origin allowed to talk to this gateway (plus localhost dev).
+# The ONE origin allowed to talk to this gateway (localhost requires an explicit development opt-in).
 ALLOWED_ORIGIN = "https://justinlooney.github.io"
 # Kill switch: set to "0" (wrangler deploy --var AI_ENABLED:0, or the
 # dashboard) and every request answers 503 while the campus falls back
 # to canned dialogue. No redeploy of the site needed.
 AI_ENABLED = "1"
+ALLOW_LOCALHOST = "0"
+# Local development only: wrangler dev --var ALLOW_LOCALHOST:1
+# AI_STARTUP_MS = "30000"
 # The stream's two clocks, in milliseconds — how long a live stream may
 # go silent, and how long it may run at all. Optional: the code carries
 # the same defaults, and these exist so an operator can tighten them

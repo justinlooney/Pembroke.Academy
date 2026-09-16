@@ -80,7 +80,7 @@ import { resolve, extname, sep, basename, relative } from "node:path";
 
 const ROOT = resolve(new URL("..", import.meta.url).pathname);
 const PORT = 8385;
-const MIME = { ".html": "text/html", ".js": "text/javascript",
+const MIME = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript",
                ".glb": "model/gltf-binary", ".gltf": "model/gltf+json",
                ".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp",
                ".bin": "application/octet-stream" };

@@ -45,7 +45,7 @@
  * engine and the stylesheet are re-precached by every install with
  * cache:"reload", so they track releases despite living in the depot.
  */
-const VERSION = "pembroke-v150";
+const VERSION = "pembroke-v152";
 /* v3 stays even though this release removes assets. Re-versioning the
    depot is a blunt instrument: it throws away every model a returning
    visitor holds — all ~85MB of a campus they already walked — to
@@ -121,7 +121,11 @@ async function plain(res){
 }
 
 // The page itself — small, and needed before anything else can happen.
-const SHELL_FILES = ["./", "./index.html"];
+const SHELL_FILES = ["./", "./index.html", "./study.html",
+  ...["courses.mjs", "course-study.mjs", "intro-math.mjs", "problem-sets.mjs", "figures.mjs", "grading.mjs",
+    "progress.mjs", "progress-ui.mjs", "ai-policy.mjs", "ai-stream.mjs", "study-page.mjs", "study.css"]
+    .map(f => "./assets/app/" + f)];
+const NAVIGATION_TIMEOUT_MS = 5000;
 
 /* Precache one URL, or fail the install. Failing is the point: see below. */
 async function keep(cache, url){
@@ -191,7 +195,7 @@ self.addEventListener("activate", (e) => {
      the era when VERSION prefixed both — one last flush, never again */
   e.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter((k) => k !== SHELL && k !== DEPOT)
+    await Promise.all(keys.filter((k) => /^pembroke-(?:v\d+|assets-v\d+)-(?:shell|depot)$/.test(k) && k !== SHELL && k !== DEPOT)
                           .map((k) => caches.delete(k)));
     /* and inside the depot we keep, drop the files that were retired.
 
@@ -232,17 +236,46 @@ async function cacheFirst(req, cacheName){
   return res;
 }
 
-async function networkFirst(req, cacheName){
+async function networkFirst(req, cacheName, timeoutMs = NAVIGATION_TIMEOUT_MS){
   const cache = await caches.open(cacheName);
+  const url = new URL(req.url);
+  const base = new URL(self.registration.scope);
+  const documentPath = req.mode !== "navigate" ? null
+    : url.pathname === base.pathname || url.pathname === new URL("index.html", base).pathname ? "./index.html"
+    : url.pathname === new URL("study.html", base).pathname ? "./study.html" : null;
+  // Exact cached URLs are safe. Only known document routes may fall back to a
+  // query-free shell; an unknown path must never masquerade as the campus.
+  const fallback = async () => await cache.match(req) ||
+    (documentPath ? await cache.match(documentPath) : undefined);
+  const ctrl = new AbortController();
+  let timer;
   try {
-    const res = await plain(await fetch(req));
-    if (res && res.ok) cache.put(req, res.clone()).catch(() => {});
+    const res = await Promise.race([
+      fetch(req, { signal: ctrl.signal, cache: "no-cache" }).then(plain),
+      new Promise((_, reject) => { timer = setTimeout(() => { ctrl.abort(); reject(new Error("network deadline")); }, timeoutMs); })
+    ]);
+    if ([500, 502, 503, 504].includes(res.status)){
+      const hit = await fallback();
+      if (hit) return savedResponse(hit, req);
+    }
+    if (res.ok) cache.put(req, res.clone()).catch(() => {});
     return res;
   } catch (err) {
-    const hit = await cache.match(req) || await cache.match("./index.html");
-    if (hit) return hit;
+    const hit = await fallback();
+    if (hit) return savedResponse(hit, req);
+    if (req.mode === "navigate" && !documentPath)
+      return new Response("This page is unavailable offline. Reconnect and try its original address.",
+        { status: 503, headers: { "content-type": "text/plain; charset=utf-8" } });
     throw err;
-  }
+  } finally { clearTimeout(timer); }
+}
+async function savedResponse(hit, req){
+  if (req.mode !== "navigate") return hit;
+  const html = await hit.text();
+  const note = '<aside role="status" style="position:fixed;bottom:0;left:0;right:0;z-index:100000;background:#172b3a;color:#fff;padding:8px;text-align:center;font:14px system-ui">Viewing a saved copy of Pembroke. The live site could not be reached.</aside>';
+  const headers = new Headers(hit.headers);
+  headers.delete("content-length"); headers.delete("content-encoding");
+  return new Response(html.replace("</body>", note + "</body>"), { status: hit.status, headers });
 }
 
 self.addEventListener("fetch", (e) => {
@@ -255,6 +288,10 @@ self.addEventListener("fetch", (e) => {
   /* the page itself: always prefer the network so a fresh deploy lands,
      but fall back to the cached campus when there is no connection */
   if (req.mode === "navigate"){
+    e.respondWith(networkFirst(req, SHELL));
+    return;
+  }
+  if (url.pathname.includes("/assets/app/")){
     e.respondWith(networkFirst(req, SHELL));
     return;
   }

@@ -33,7 +33,7 @@ import { resolve, extname, sep, basename } from "node:path";
 const ROOT = "/home/user/Pembroke.Academy";
 const SETTLE = (+process.argv[2] || 240) * 1000;
 const PORT = 8211;
-const MIME = { ".html":"text/html", ".js":"text/javascript", ".css":"text/css",
+const MIME = { ".html":"text/html", ".js":"text/javascript", ".mjs":"text/javascript", ".css":"text/css",
   ".glb":"model/gltf-binary", ".png":"image/png", ".jpg":"image/jpeg",
   ".svg":"image/svg+xml", ".json":"application/json", ".webp":"image/webp" };
 const server = createServer(async (req, res) => {

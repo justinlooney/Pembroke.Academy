@@ -280,13 +280,15 @@ try {
      Injected here because the product cannot reach the state on its
      own yet, and the day it can is the day this must already hold. */
   const stub = await page.evaluate(() => {
+    const original = window.__study.STUDY.MATH101;
     window.__study.STUDY.MATH101 = { units: [] };          /* keyed, no lectures */
     window.__journey.reset();
     const q = window.__quest();
     const r = { keyed: !!window.__study.STUDY.MATH101,
                 lectures: window.__study.hasLectures("MATH101"),
                 id: q.id || null, sector: q.sector || null };
-    delete window.__study.STUDY.MATH101;
+    if (original) window.__study.STUDY.MATH101 = original;
+    else delete window.__study.STUDY.MATH101;
     return r;
   });
   step("a course keyed with no lectures is not called teachable",
