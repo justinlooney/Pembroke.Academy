@@ -7279,6 +7279,26 @@ const students = [];
    his single-mesh scan could never be dressed. Retired when the
    authored characters raised the bar.                                  */
 const CAST_FILES = {
+  /* ── the fourteen bodies they replaced are DELETED ─────────────────
+     Every block below that says a stu_charN.glb "was kept beside this"
+     is describing a file that is no longer in the tree. All fourteen
+     went together once the last of them was replaced: 39.9MB of bodies
+     nothing pointed at, sitting in assets/ where the service worker
+     would happily have cached them for anybody who asked — and nobody
+     asks, which is exactly why they were invisible.
+
+     Their URLs are named in RETIRED in sw.js, and that list is what
+     makes a deletion reach a returning visitor at all: cacheFirst
+     simply stops requesting a file that has gone, so without it the
+     bytes sit on their disk forever.
+
+     Nothing is lost. Each one is a command away:
+
+         git checkout 2332fbd -- assets/stu_char4.glb
+
+     The reasoning in each block is left as written, in the past tense,
+     because it records why a swap was made and that does not stop
+     being true when the old file goes. */
   /* ── walker is gone ────────────────────────────────────────────────
      The body this campus was built on, and the last one here that came
      out of Blender rather than out of a character pipeline. Retired
@@ -7323,7 +7343,7 @@ const CAST_FILES = {
      the scene audit as the largest single body on the campus. Nothing
      depended on her: she lent no motion and no student asked for her by
      name. Character 11 takes her place at 4.01MB and 200k. */
-  /* Same student, remade. stu_char2.glb is kept beside this until she
+  /* Same student, remade. stu_char2.glb was kept beside this until she
      has been seen walking on the quad: her bones report as "plain"
      rather than StudentProductionRig, and a naming mismatch does not
      error -- the body loads, draws, and stands perfectly still -- so
@@ -7346,8 +7366,12 @@ const CAST_FILES = {
   /* The last body on this campus that had never been replaced, and the
      only one that arrived with NO CLIPS AT ALL -- 200,000 triangles of
      a woman who could not walk, roaming on borrowed motion entirely.
-     stu_char4.glb is kept beside this until she has been seen on the
-     quad.
+     stu_char4.glb was kept beside this and is deleted with the other
+     thirteen. She is the one body in the cast whose replacement has NOT
+     yet been watched on a real quad -- she passed every check and was
+     photographed walking, front and side, but that is not the same
+     thing. If she is wrong out there, the old body comes back with
+     `git checkout 2332fbd -- assets/stu_char4.glb`.
 
      AS SHIPPED, at the power CAST_SKIN gives her, one upper arm turned
      75 degrees from bind -- and for the first time on this campus the
@@ -7410,7 +7434,7 @@ const CAST_FILES = {
      and a re-export from Meshy with a complete rig is the fix. */
   char4:   "assets/stu_blueelegance.glb", /* 43k tris, blue top, white skirt */
   /* char5, remade -- and the first swap here that buys nothing on
-     either quality measure. stu_char5.glb is kept beside this.
+     either quality measure. stu_char5.glb was kept beside this.
 
      Same student: the slate tee, the black shorts, the backpack, the
      grey-and-white trainers.
@@ -7446,7 +7470,7 @@ const CAST_FILES = {
      idle, the seventh body to have one. */
   char5:   "assets/stu_smilingstudent.glb", /* 44k tris, the backpack   */
   /* char6, remade -- and the only swap here whose counterpart was not
-     obvious from the clothes. stu_char6.glb is kept beside this as the
+     obvious from the clothes. stu_char6.glb was kept beside this as the
      others are.
 
      Every swap before this one matched its body exactly: yellow sweater
@@ -7490,7 +7514,7 @@ const CAST_FILES = {
      quad. */
   char6:   "assets/stu_blueeyed.glb",   /* 36k tris, the smallest body   */
   /* char7, remade -- the largest breadth gain of any swap here, bought
-     with the largest tearing loss. stu_char7.glb is kept beside this.
+     with the largest tearing loss. stu_char7.glb was kept beside this.
 
      Same man: the tan suit, the open white shirt, the brown loafers.
 
@@ -7524,7 +7548,7 @@ const CAST_FILES = {
      Talk, where before this work every student borrowed one. No idle.
      0.75MB is the smallest download of any body on this campus. */
   char7:   "assets/stu_urbanelegance.glb", /* 43k tris, the tan suit    */
-  /* char8, remade -- the last of the fourteen. stu_char8.glb is kept
+  /* char8, remade -- the last of the fourteen. stu_char8.glb was kept
      beside this.
 
      Same student: the denim shorts, the white sneakers, the long dark
@@ -7552,7 +7576,7 @@ const CAST_FILES = {
      Walk and a WalkingWoman stride -- her own idle AND her own talk,
      which only the professor had managed before. */
   char8:   "assets/stu_campusconfidence.glb", /* 43k tris, jean shorts */
-  /* char9, remade. stu_char9.glb is kept beside this as the others are.
+  /* char9, remade. stu_char9.glb was kept beside this as the others are.
 
      Same student: the loose white top, the white shorts, the long dark
      hair. Her heels are gone -- this body's feet read bare, or in
@@ -7587,7 +7611,7 @@ const CAST_FILES = {
      reaches the quad. */
   char9:   "assets/stu_summersmile.glb", /* 43k tris, the girl in white  */
   /* char10, remade -- and the cleanest body ever measured on this
-     campus. stu_char10.glb is kept beside this as the others are.
+     campus. stu_char10.glb was kept beside this as the others are.
 
      THIS ONE CHANGES HOW SHE LOOKS, which none of the eight before it
      did. Every previous swap matched its counterpart's clothes:
@@ -7624,8 +7648,8 @@ const CAST_FILES = {
      her. */
   char10:  "assets/stu_warmsmile.glb",   /* 42k tris, the cleanest body   */
   /* char11, remade -- and with her the LAST of the four bodies this
-     investigation ever measured above 10x. stu_char11.glb is kept
-     beside this as the others are.
+     investigation ever measured above 10x. stu_char11.glb was kept
+     beside this as the others were.
 
      Same student: the white patterned camisole with the thin straps,
      the blue jeans, the long strawberry-blonde hair. The sandals are
@@ -7662,7 +7686,7 @@ const CAST_FILES = {
      whether any of it reaches the quad. */
   char11:  "assets/stu_gardengaze.glb",  /* 43k tris, the camisole       */
   /* The letterman jacket, remade -- and the best swap of the six on
-     both numbers at once. stu_char14.glb is kept beside this as the
+     both numbers at once. stu_char14.glb was kept beside this as the
      others are.
 
      Same student: the black-and-cream varsity jacket with the Pembroke
@@ -7704,7 +7728,7 @@ const CAST_FILES = {
      reached him. */
   char14:  "assets/stu_letterman.glb",   /* 43k tris, the letterman       */
   /* The student in the red shirt, remade -- and the FIRST swap here
-     that makes a core number worse. stu_char15.glb is kept beside this
+     that makes a core number worse. stu_char15.glb was kept beside this
      like the other four.
 
      Same student, plainly: the red graphic tee, the denim shorts, the
@@ -7754,8 +7778,8 @@ const CAST_FILES = {
      genuinely crosses ground. prepareClips runs inPlaceClip over both
      at load, and probe-inplace is what says whether that reached her. */
   char15:  "assets/stu_urbanfree.glb",   /* 45k tris, the red shirt       */
-  /* The man in the sunglasses, remade. stu_char16.glb is kept beside
-     this, as the other three replacements are. Like them his bones
+  /* The man in the sunglasses, remade. stu_char16.glb was kept beside
+     this, as the other three replacements were. Like them his bones
      report as "plain" rather than StudentProductionRig, and a naming
      mismatch does not error -- the body loads, draws, and stands
      perfectly still.
@@ -7832,7 +7856,7 @@ const CAST_FILES = {
      kept in memory, and almost never seen. Wants probe-attendance and
      a look at how the deal picks, not a guess from here. */
   char16:  "assets/stu_barndoor.glb",   /* 48k tris, the man in shades   */
-  /* The dean, remade. stu_char17.glb is kept beside this until she has
+  /* The dean, remade. stu_char17.glb was kept beside this until she has
      been seen on the quad. She is the largest single improvement in the
      cast: char17 tore worse than any other body by a factor of two over
      the next worst, and was the one that visibly shredded in every
@@ -7852,7 +7876,7 @@ const CAST_FILES = {
      across the lawn as she sat down. check-roles is what says whether
      it does. */
   char17:  "assets/stu_citysuit.glb",   /* 47k tris, the Dean herself    */
-  /* The professor, remade. stu_char18.glb is kept beside this until he
+  /* The professor, remade. stu_char18.glb was kept beside this until he
      has been seen on the quad: his bones report as "plain" rather than
      StudentProductionRig, and a naming mismatch does not error -- the
      body loads, draws, and stands perfectly still.

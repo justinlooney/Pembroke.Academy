@@ -10,7 +10,21 @@
  * this waited four minutes on `window.THREE`, which the page does not
  * expose — so the hook is asserted here in seconds, with the names
  * printed beside the reading, rather than guessed at and waited on. */
-import { serve, launch } from "./_harness.mjs";
+import { serve, launch, ROOT } from "./_harness.mjs";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+
+/* THE BODIES THE CAMPUS ACTUALLY CASTS, read off CAST_FILES rather than
+ * written down here. Four were named by hand -- stu_char17, stu_char2,
+ * stu_char15, stu_char18 -- and all four were replaced and then deleted,
+ * which would have left this probe loading nothing and reporting four
+ * bodies' worth of silence. The same rot that CAST_MB and BODY_VRAM_MB
+ * both suffered, in a tool rather than a table. */
+const castFiles = Object.values(Object.fromEntries(
+  [...(await readFile(resolve(ROOT, "index.html"), "utf8"))
+     .match(/const CAST_FILES = \{([\s\S]*?)\n\};/)[1]
+     .matchAll(/^\s*(char\d+):\s*"([^"]+)"/gm)].map(m => [m[1], m[2]])));
+
 const { origin, close } = await serve();
 const browser = await launch();
 const page = await browser.newPage();
@@ -26,7 +40,7 @@ try {
   await browser.close(); await close(); process.exit(1);
 }
 
-const out = await page.evaluate(async () => {
+const out = await page.evaluate(async (bodies) => {
   const THREE = window.__app.THREE;
   const { GLTFLoader } =
     await import("./assets/vendor/three/examples/jsm/loaders/GLTFLoader.js");
@@ -72,8 +86,6 @@ const out = await page.evaluate(async () => {
   const donors = ["assets/clip_talkstand.glb", "assets/clip_walkf_1.glb",
                   "assets/clip_sitidle.glb", "assets/clip_standup.glb",
                   "assets/clip_jog.glb", "assets/clip_sit.glb"];
-  const bodies = ["assets/stu_char17.glb", "assets/stu_char2.glb",
-                  "assets/stu_char15.glb", "assets/stu_char18.glb"];
   for (const u of [...donors, ...bodies]){
     try {
       const g = await load(u);
@@ -86,7 +98,7 @@ const out = await page.evaluate(async () => {
     } catch (e){ rows.push({ file: u, error: String(e).slice(0, 90) }); }
   }
   return rows;
-});
+}, castFiles);
 
 console.log("\narm droop at REST — 0 deg = straight out (T-pose), 90 deg = hanging down\n");
 let unmatched = null;
