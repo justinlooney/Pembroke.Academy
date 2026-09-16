@@ -37,6 +37,10 @@ const ROOT = resolve(new URL("..", import.meta.url).pathname);
 const PORT = 8137;
 const argv = process.argv.slice(2);
 const DEG = +(argv.find(a => /^\d+(\.\d+)?$/.test(a)) || 75);
+/* --skin=N applies the campus's own tightenWeights before measuring.
+ * 1 (or absent) is the file as authored; each body's shipped power is
+ * in CAST_SKIN, and check-skin.mjs is what keeps that table honest. */
+const TIGHTEN = +((argv.find(a => a.startsWith("--skin=")) || "").split("=")[1] || 1);
 let files = argv.filter(a => a.endsWith(".glb"));
 if (!files.length)
   files = readdirSync(resolve(ROOT, "assets"))
@@ -56,13 +60,37 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
 
-window.__skin = (url, deg) => new Promise((done) => loader.load(url, (g) => {
+window.__skin = (url, deg, tighten) => new Promise((done) => loader.load(url, (g) => {
   try {
     const root = g.scene;
     root.updateMatrixWorld(true);
     let m = null;
     root.traverse(o => { if (!m && o.isSkinnedMesh) m = o; });
     if (!m) return done({ err: "no SkinnedMesh" });
+    /* THE SAME TIGHTENING THE CAMPUS SHIPS, applied before measuring.
+     *
+     * This probe read AUTHORED weights, which is what the file holds
+     * and not what any visitor sees: index.html runs tightenWeights on
+     * every body at load. So every figure this tool printed described a
+     * version of that body nobody has ever looked at, and the numbers
+     * that justified a dozen swaps were all the un-shipped ones.
+     *
+     * It is not a small correction. char5 measures 4.99x authored and
+     * 10.38x at the power the campus used to ship for him -- the
+     * tightening was more than doubling the tearing it exists to
+     * reduce, and CAST_SKIN was written to stop it. */
+    if (tighten > 1){
+      const a = m.geometry.attributes.skinWeight;
+      const out = new Float32Array(a.count * 4);
+      for (let i = 0; i < a.count; i++){
+        const w = [a.getX(i), a.getY(i), a.getZ(i), a.getW(i)]
+          .map(v => Math.pow(Math.max(0, v), tighten));
+        const sum = w[0] + w[1] + w[2] + w[3], o4 = i * 4;
+        if (sum > 1e-8) for (let c = 0; c < 4; c++) out[o4 + c] = w[c] / sum;
+        else out[o4] = 1;
+      }
+      m.geometry.setAttribute("skinWeight", new THREE.BufferAttribute(out, 4));
+    }
     const geo = m.geometry, idx = geo.attributes.skinIndex,
           wgt = geo.attributes.skinWeight, pos = geo.attributes.position,
           index = geo.index;
@@ -299,7 +327,7 @@ for (const f of files){
   const abs = resolve(ROOT, f);
   if (!existsSync(abs)){ console.log(`  ${basename(f).padEnd(20)} NOT FOUND`); continue; }
   const url = "/" + relative(ROOT, abs).split(sep).join("/");
-  const r = await page.evaluate(([u, d]) => window.__skin(u, d), [url, DEG]);
+  const r = await page.evaluate(([u, d, t]) => window.__skin(u, d, t), [url, DEG, TIGHTEN]);
   const nm = basename(f).replace(/^stu_|\.glb$/g, "");
   if (r.err){ console.log(`  ${nm.padEnd(20)} ${r.err}`); continue; }
   const bad = Math.abs(r.rawMean - 1) > 0.005 || r.rawSpread > 0.02

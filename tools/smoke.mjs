@@ -1035,18 +1035,28 @@ try {
      stopped because the ceiling said so passes, whatever the count. */
   const outOf = bodiesHere.filter(a => a.ok).length;
   const room = await crowdPage.evaluate(() => {
-    /* The ceiling counts DECODED TEXTURE now, not file bytes. Every
-       authored body is three 1024-square maps — 16MB a head, whatever
-       its file happens to compress to — so a file-size reading would
-       have discriminated between bodies that cost the GPU the same. */
-    const cap = window.__onScreenCap, per = window.__bodyVram || 16;
+    /* The ceiling counts DECODED TEXTURE, and it counts it PER BODY.
+       This charged a flat 16MB a head, which was true while every body
+       was three 1024-square maps and silently wrong the moment one of
+       them was not. The replacement cast is a single 2048 map capped
+       to 1024 at load — 5.33MB — so nine of them cost 47.97MB and this
+       read 144MB, failing a campus that was comfortably inside its
+       ceiling and reporting the incoherent "9 bodies drawn, 144MB of
+       48MB" on the line above while doing it.
+
+       CAST_VRAM_MB is the table roomOnScreen actually spends, so it is
+       the one to read. __bodyVram survives as the fallback for a body
+       with no row, exactly as it does in the campus. */
+    const cap = window.__onScreenCap, fallback = window.__bodyVram || 16;
+    const table = window.__castVramMB || {};
+    const per = (k) => table[k] ?? fallback;
     const drawn = new Set();
     for (const s of window.__students){
       if (s.inside || !s.g || !s.g.visible) continue;
       const f = s.g.userData && s.g.userData.figure;
       if (f) drawn.add(f);
     }
-    const used = drawn.size * per;
+    const used = [...drawn].reduce((a, k) => a + per(k), 0);
     /* Anybody loaded, not drawn, and with room to have been drawn.
        Only bodies the crowd can DEAL: the skater used to be in
        CAST_FILES and was never one of them, and counting him as a
@@ -1055,7 +1065,7 @@ try {
        ROAMING is what keeps the next fixture from doing it again. */
     const spare = (window.__roaming || [])
       .filter(k => window.__castLib[k] && !drawn.has(k))
-      .filter(() => used + per <= cap + 1e-9);
+      .filter(k => used + per(k) <= cap + 1e-9);
     return { cap, used: +used.toFixed(2), n: drawn.size, spare };
   }).catch(() => null);
   if (cohortJudged)
