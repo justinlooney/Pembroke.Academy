@@ -332,13 +332,39 @@ try {
        `${panel.people} people (${panel.reachable} on the quad), ${panel.places} places`);
   step("and the keyboard lands in it", panel.focusInside);
 
-  /* every named person the ray could reach must have a control here */
-  const covered = await page.evaluate(() => {
+  /* every named person the ray could reach must have a control here.
+   *
+   * WAITED FOR, not sampled, and the distinction is the whole check.
+   * window.__students is the live roster; the list is a RENDERING of it
+   * that nearbyRender redraws on a 1500ms interval. So somebody who
+   * stepped out of a building a second ago is visible to the ray and
+   * legitimately not in the DOM yet, and reading both in one tick and
+   * demanding they agree tests the phase of a timer.
+   *
+   * It duly failed on CI — "8 on the quad · no control for Prof. Merion",
+   * one person out of eight, the panel having listed 7 a moment
+   * earlier — and passed on the SAME COMMIT in a parallel run four
+   * minutes later. A campus that puts more people out faster makes it
+   * likelier without making it a fault; the professor gets his control
+   * at the next tick either way.
+   *
+   * Polling for agreement is not a weaker check. "Everybody out there
+   * gets a control" is the property worth having, and a person who
+   * never gets one still fails this — it just takes nine seconds, six
+   * refreshes, to say so. What it stops doing is failing the campus for
+   * being asked half a tick too early. */
+  const readCoverage = () => page.evaluate(() => {
     const named = window.__students.filter(s => s.data?.name && s.g?.visible).map(s => s.data.name);
     const listed = [...document.querySelectorAll("#nb-people .nb-row:not([aria-disabled]) .nb-name")]
       .map(e => e.textContent);
     return { missing: named.filter(n => !listed.includes(n)), named: named.length };
   });
+  let covered = await readCoverage();
+  const settleBy = Date.now() + 9000;          /* six refreshes at 1500ms */
+  while (covered.missing.length && Date.now() < settleBy){
+    await page.waitForTimeout(500);
+    covered = await readCoverage();
+  }
   step("everyone the pointer could reach has a control too",
        covered.named > 0 && covered.missing.length === 0,
        covered.named === 0 ? "nobody was out on the quad — this proved nothing"
