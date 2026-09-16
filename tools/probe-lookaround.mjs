@@ -122,7 +122,16 @@ const measure = async (deg) => {
     const r = app.renderer.info.render;
     return { draws: r.calls, tris: r.triangles, visible, total, gone: [...new Set(gone)].slice(0, 4) };
   });
-  const png = await page.screenshot({ type: "png" });
+  /* THE PICTURE IS THE OPTIONAL PART. A screenshot on a software
+     rasterizer under load times out sometimes — it has now killed this
+     probe twice, both times on a late step, both times discarding every
+     row already collected. The frustum and draw numbers are the part
+     that cannot be got any other way; the black percentage is
+     corroboration. So a failed capture costs THAT ROW its percentage
+     and nothing else. */
+  let png = null;
+  try { png = await page.screenshot({ type: "png", timeout: 45_000 }); }
+  catch { return { yaw: Math.round(deg), ...inf, black: null }; }
   const black = await page.evaluate(async (b64) => {
     const img = new Image();
     await new Promise(ok => { img.onload = ok; img.src = "data:image/png;base64," + b64; });
@@ -145,13 +154,21 @@ for (let i = 0; i < STEPS; i++){
   console.log(`  ${String(r.yaw).padStart(4)}°  ${String(r.draws).padStart(6)}` +
               `   ${(r.tris / 1e6).toFixed(2).padStart(7)}M` +
               `   ${String(r.visible).padStart(5)}/${String(r.total).padEnd(6)}` +
-              `   ${r.black.toFixed(1).padStart(6)}%` +
-              (r.black > 40 ? "   <-- BLACK" : "") +
+              `   ${r.black === null ? "     ?" : r.black.toFixed(1).padStart(6)}%` +
+              (r.black !== null && r.black > 40 ? "   <-- BLACK" : "") +
               (r.gone.length ? "   culled: " + r.gone.join(", ") : ""));
 }
 
-const worst = rows.reduce((a, b) => (b.black > a.black ? b : a), rows[0]);
-const best  = rows.reduce((a, b) => (b.black < a.black ? b : a), rows[0]);
+const shot = rows.filter(r => r.black !== null);
+if (!shot.length){
+  console.log(`\n  no heading was photographed — frustum numbers above stand alone\n`);
+  await browser.close(); await close(); process.exit(0);
+}
+if (shot.length < rows.length)
+  console.log(`\n  ${rows.length - shot.length} of ${rows.length} heading(s) went unphotographed` +
+              ` — the verdict below covers the rest`);
+const worst = shot.reduce((a, b) => (b.black > a.black ? b : a), shot[0]);
+const best  = shot.reduce((a, b) => (b.black < a.black ? b : a), shot[0]);
 console.log(`\n  darkest ${worst.black.toFixed(1)}% at ${worst.yaw}° ` +
             `(${worst.draws} draws, ${worst.visible}/${worst.total} in frustum)`);
 console.log(`  clearest ${best.black.toFixed(1)}% at ${best.yaw}° ` +
