@@ -61,8 +61,17 @@ if (!await modeIs("day")){
   console.log("\n  could not reach DAY — refusing to measure darkness at night\n");
   await browser.close(); await close(); process.exit(1);
 }
-await page.waitForFunction(() => window.__visual === "day", null, { timeout: 30_000 })
-  .catch(() => {});
+/* NOT best-effort. Swallowing this timeout would let the probe run on
+   with the control claiming day and the render still night — which is
+   exactly the failure that produced the last false reproduction, now
+   dressed as a passing assertion. The title and window.__visual are two
+   different claims; both have to hold. */
+try {
+  await page.waitForFunction(() => window.__visual === "day", null, { timeout: 30_000 });
+} catch {
+  console.log("\n  control says day, the render never agreed — refusing to measure\n");
+  await browser.close(); await close(); process.exit(1);
+}
 const sky = await page.evaluate(() => window.__visual);
 
 /* into walk mode, where looking about is what a visitor does */
@@ -80,11 +89,19 @@ console.log("  " + "─".repeat(60));
    after twenty seconds without printing a single row. A page screenshot
    is a CDP capture of the viewport, which in walk mode IS the canvas,
    and is closer to what the visitor actually sees anyway. */
-const measure = async (yaw) => {
-  await page.evaluate(async (y) => {
-    if (window.__walker) window.__walker.h = y;
+/* DEGREES. walker.h is consumed as degrees — `const hr = walker.h *
+   Math.PI / 180` in the walk step, and again in the minimap — and the
+   first version of this set it in radians off a 0..2π loop. So the
+   advertised 360-degree sweep turned the camera through 6.28 DEGREES,
+   every row measured the same heading, and the differences between rows
+   were whatever changed on its own while the probe stood still.
+   Caught in review. It is the second way this probe lied about the same
+   measurement, after photographing the night sky. */
+const measure = async (deg) => {
+  await page.evaluate(async (d) => {
+    if (window.__walker) window.__walker.h = d;
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-  }, yaw);
+  }, deg);
   await page.waitForTimeout(220);
   const inf = await page.evaluate(() => {
     const app = window.__app, THREE = app.THREE;
@@ -118,12 +135,12 @@ const measure = async (yaw) => {
       if (d[i] < 14 && d[i + 1] < 14 && d[i + 2] < 14) dark++;
     return dark / (d.length / 4) * 100;
   }, png.toString("base64"));
-  return { yaw: Math.round(yaw * 180 / Math.PI), ...inf, black };
+  return { yaw: Math.round(deg), ...inf, black };
 };
 
 const rows = [];
 for (let i = 0; i < STEPS; i++){
-  const r = await measure((i / STEPS) * Math.PI * 2);
+  const r = await measure((i / STEPS) * 360);
   rows.push(r);
   console.log(`  ${String(r.yaw).padStart(4)}°  ${String(r.draws).padStart(6)}` +
               `   ${(r.tris / 1e6).toFixed(2).padStart(7)}M` +
