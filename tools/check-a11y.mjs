@@ -38,11 +38,14 @@ const audit = async (page, label) => {
   const v = await page.evaluate(async () => {
     const r = await axe.run(document, { resultTypes: ["violations"],
       runOnly: { type: "tag", values: ["wcag2a","wcag2aa","wcag21a","wcag21aa"] } });
-    return r.violations.map(x => ({ id: x.id, impact: x.impact, n: x.nodes.length }));
+    return r.violations.map(x => ({ id: x.id, impact: x.impact, n: x.nodes.length,
+      nodes: x.nodes.map(n => ({ target: n.target, summary: n.failureSummary })) }));
   });
   step(`axe finds nothing to fix — ${label}`, v.length === 0,
        v.length ? v.map(x => `${x.id} ×${x.n} (${x.impact})`).join(", ")
                 : "wcag2a + wcag2aa + wcag21a + wcag21aa, violations only");
+  for (const violation of v) for (const node of violation.nodes)
+    note(`${violation.id}: ${node.target.join(", ")} — ${node.summary}`);
 };
 
 /* the same generous boot the ledger probe uses, for the same reason:
@@ -58,11 +61,46 @@ const visit = async (opts) => {
   return v;
 };
 
+/* The live sky follows the clock. A night-only run missed dark daylight
+   lettering against the legend's dark shadow. Exercise both presets,
+   with the legend actually showing rather than hidden by walk mode. */
+const auditSkies = async (page, label) => {
+  await page.waitForFunction(() => !document.getElementById("arrival"), null,
+    { timeout: 90_000 });
+  if (await page.evaluate(() => window.__walker.on)) await page.keyboard.press("f");
+  for (const mode of ["day", "night"]){
+    const control = page.locator("#daynight");
+    for (let i = 0; i < 5 && await control.getAttribute("title") !== `Time of day: ${mode} (N to change)`; i++)
+      await page.keyboard.press("n");
+    /* Switching the sky recompiles materials on the software renderer;
+       give it the same breathing room as loading the campus. */
+    await page.waitForFunction(wantDay => {
+      const legend = document.getElementById("campus-legend");
+      return document.body.classList.contains("day") === wantDay &&
+        !document.body.classList.contains("walkmode") &&
+        getComputedStyle(legend).opacity === "1";
+    }, mode === "day", { timeout: 90_000, polling: 250 });
+    await page.locator("#campus-legend").evaluate(el =>
+      el.scrollIntoView({ block: "center", behavior: "instant" }));
+    const visible = await page.locator("#campus-legend .text-slate-300").evaluateAll(labels =>
+      labels.filter(el => {
+        const r = el.getBoundingClientRect();
+        return el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) &&
+          r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth;
+      }).length);
+    const selected = await control.getAttribute("title");
+    step(`all four legend labels are visible — ${label}, ${mode}`,
+      visible === 4 && selected === `Time of day: ${mode} (N to change)`,
+      `${visible}/4 visible; selected ${selected}`);
+    await audit(page, `${label}, ${mode}`);
+  }
+};
+
 try {
   /* ── 1. a keyboard can see where it is ──────────────────────────── */
   const first = await visit({});
   const { page } = first;
-  await audit(page, "the campus");
+  await auditSkies(page, "the campus");
 
   /* Two passes, because "does it have an outline" is the wrong
      question. Half this HUD wears a box-shadow as decoration, and the
@@ -270,30 +308,6 @@ try {
            : `${r.count} controls, none overlapping`);
   railStep("desktop", await page.evaluate(RAIL));
 
-  /* and a phone, which reports the coarse pointer outright, is covered
-     by the media query rather than by the class */
-  const phone = await visit(devices["Pixel 5"]);
-
-  /* Asked FIRST, before the touchpad check puts the page into walk
-     mode, because the rail a visitor arrives to is the one that has to
-     be usable — and asked here at all because on the desktop alone it
-     passed against a build where the sound button sat exactly on top
-     of the walk button. The rail is only redefined below 1023px, so
-     the fault lived entirely inside a block the desktop never reads.
-     A check at one viewport says nothing about the others. */
-  railStep("Pixel 5", await phone.page.evaluate(RAIL));
-
-  const padPhone = await phone.page.evaluate(() => {
-    document.body.classList.add("walkmode");
-    return { coarse: matchMedia("(any-pointer: coarse)").matches,
-             shown: getComputedStyle(document.getElementById("touchpad")).display };
-  });
-  await audit(phone.page, "the campus on a Pixel 5");
-  await phone.ctx.close();
-  step("a phone gets one from the media query, before any touch happens",
-       padPhone.coarse && padPhone.shown !== "none",
-       `any-pointer:coarse ${padPhone.coarse} · #touchpad display ${padPhone.shown}`);
-
   /* ── 4. asking for stillness gets stillness ─────────────────────── */
   /* Count what is running rather than name it. A list of selectors
      goes stale the first time somebody adds an animation, and would
@@ -454,6 +468,35 @@ try {
 
   const busy = await page.evaluate(census);
   await first.ctx.close();          /* see the note on open() */
+
+  /* Only start the phone after releasing the desktop's WebGL context.
+     Keeping both campuses rendering made the phone's sky switch time
+     out on the software renderer; each must get its own turn. */
+  const phone = await visit(devices["Pixel 5"]);
+
+  /* Asked FIRST, before the touchpad check puts the page into walk
+     mode, because the rail a visitor arrives to is the one that has to
+     be usable — and asked here at all because on the desktop alone it
+     passed against a build where the sound button sat exactly on top
+     of the walk button. The rail is only redefined below 1023px, so
+     the fault lived entirely inside a block the desktop never reads.
+     A check at one viewport says nothing about the others. */
+  railStep("Pixel 5", await phone.page.evaluate(RAIL));
+  await auditSkies(phone.page, "the campus on a Pixel 5");
+
+  /* A phone reports the coarse pointer outright, so its movement pad
+     comes from the media query rather than the touched class. */
+  const padPhone = await phone.page.evaluate(() => {
+    document.body.classList.add("walkmode");
+    return { coarse: matchMedia("(any-pointer: coarse)").matches,
+             shown: getComputedStyle(document.getElementById("touchpad")).display };
+  });
+  await audit(phone.page, "the campus on a Pixel 5");
+  await phone.ctx.close();
+  step("a phone gets one from the media query, before any touch happens",
+       padPhone.coarse && padPhone.shown !== "none",
+       `any-pointer:coarse ${padPhone.coarse} · #touchpad display ${padPhone.shown}`);
+
   const calm = await visit({ reducedMotion: "reduce" });
   const quiet = await calm.page.evaluate(census);
   await calm.ctx.close();

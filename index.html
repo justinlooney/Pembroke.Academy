@@ -884,6 +884,11 @@ body.diagnosing #campus-wing-intro{opacity:0;pointer-events:none;}
   text-shadow:0 1px 2px rgba(4,8,16,.9), 0 0 16px rgba(4,8,16,.7);
 }
 #campus-legend, #campus-hints{ font-weight:500; }
+/* These labels keep a dark shadow over the 3D scene in either theme.
+   The wing's daylight text override must not make the letters dark
+   too: dark blue on that shadow measured only 1.76:1 on a phone. */
+body.day #campus-legend .text-slate-300,
+body.day #campus-hints .text-slate-300{color:#cbd5e1;}
 /* Both are bottom-anchored at opposite margins and neither had a
    width, so on a mid-width stage the hints ran left until they were
    printing through "Great Library · Pure Mathematics". Capped, and
