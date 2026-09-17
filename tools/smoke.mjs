@@ -201,6 +201,13 @@ try {
   /* the engine publishes its hooks once ignition completes */
   await page.waitForFunction(() => window.__app && window.__walker, null, { timeout: 120_000 });
   step("engine ignites", true);
+  const guarded = await page.evaluate(() => {
+    const passes = __app.composer.passes;
+    const guard = passes.findIndex(p => p.material?.name === "PembrokeFiniteColor" && p.enabled);
+    const spatial = passes.findIndex(p => p.constructor.name === "UnrealBloomPass" || p.constructor.name === "SMAAPass");
+    return guard > 0 && spatial > guard;
+  });
+  step("invalid scene colors are contained before bloom and anti-aliasing", guarded);
 
   /* the workspace renders the full catalogue and a live ledger */
   const shelf = await page.evaluate(() => ({
@@ -780,11 +787,13 @@ try {
        invalidated and not recompilable would actually fail. */
     await new Promise(ok => requestAnimationFrame(() => requestAnimationFrame(ok)));
     return { rungs: window.__rung(), draws: window.__app.renderer.info.render.calls,
+             finite: window.__app.composer.passes.some(p => p.material?.name === "PembrokeFiniteColor" && p.enabled),
              steps: out };
   }).catch(e => ({ err: String(e).split("\n")[0] }));
   step("the campus still draws with every quality rung given up",
        !shed.err && shed.rungs >= 5 && shed.draws > 0,
        shed.err || `shed ${shed.rungs} rungs, still drawing at ${shed.draws} calls`);
+  step("color protection survives every quality rung", !shed.err && shed.finite);
 
 
   /* ── the returning visit ─────────────────────────────────────────

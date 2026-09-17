@@ -60,6 +60,8 @@ Write a new probe against this, not against a copy of the last one.
 | `learning` | `check-learning.mjs`, `check-academy.mjs` | WebGL-free lessons, catalog discovery, Python traces and assessment, restoration, backup conflicts, accessibility and offline behavior |
 | `smoke` | `check-rig-names.mjs` | a character whose bone or clip names do not line up |
 | | `check-css.mjs` | a utility class with no rule, or a selector naming a class nobody creates |
+| | `check-postprocessing.mjs` | invalid HDR highlights spreading into black rectangles; retains normal lighting, bloom and alpha across portrait/landscape/desktop sizes |
+| | `check-repair-counter.mjs` | full-resolution repair counts, NaN/Inf/range categories, odd edges, debug-only cost and failed-readback recovery |
 | | `smoke.mjs` | the visit itself — ignite, read the ledger, walk, enter, leave, run the clock to night |
 | `figures` | `check-breath.mjs` | a standing figure that drifts off its mark |
 | | `check-retarget.mjs` | borrowed motion folding an arm or compensating against the wrong parent pose |
@@ -71,6 +73,15 @@ Write a new probe against this, not against a copy of the last one.
 | `owner` | `check-owner.mjs` | two things claiming the keyboard, or an async continuation acting out of turn |
 | `opening` | `check-opening.mjs` | the first twenty seconds regressing |
 | `sound` | `check-sound.mjs` | the campus making a sound nobody asked for — or none when asked |
+
+With `?debug`, the `repair` lines count pixels changed by the finite-color
+guard in full-resolution snapshots taken at most twice per second. `NaN`,
+`Inf` and finite `range` counts can overlap; `repair` counts each affected
+pixel once. Peaks retain evidence after turning away. Ordinary frames can
+contain finite clamping, so range repairs alone do not confirm the NaN
+hypothesis. Zero sampled NaNs do not rule out a spike between samples.
+Readback failures say `unavailable`, not zero. Counting allocates no GPU
+targets and performs no extra draws or readbacks without `?debug`.
 
 Three more workflows are path-triggered rather than universal, and are
 authoring pipelines rather than gates:
