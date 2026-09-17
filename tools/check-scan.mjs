@@ -93,7 +93,11 @@ const out = await page.evaluate(() => new Promise((done) => {
     /* Precondition: a frame has been drawn. If the app has not rendered
        yet the buffer is uniformly black and the scan says so — which
        would make every assertion below pass for the wrong reason. */
-    if (!/clean/.test(before)){
+    /* Anchored: the dark report now also contains the word "clean" when
+       only one axis is holed ("across clean"), so a loose match would
+       accept a frame that already has a hole as the clean baseline and
+       every assertion below would pass against the wrong reference. */
+    if (!/^scan\s+clean\b/.test(before)){
       if (++tries > 120) return done({ fail: "never got a clean frame: " + before.trim() });
       return step(n);
     }
