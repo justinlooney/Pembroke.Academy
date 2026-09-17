@@ -105,18 +105,18 @@ const out = await page.evaluate(() => new Promise((done) => {
       results.push({ case: "untouched", got: before.trim() });
       blank(0, 0, W, Math.floor(H * 0.4));                 /* GL y=0 is the BOTTOM */
       results.push({ case: "bottom 40%", got: window.__scanDark().trim(),
-                     want: /down 3[89]%|down 4[01]%/, wantEdge: /up from bottom/ });
+                     want: /V 3[89]%|V 4[01]%/, wantEdge: /V \d+% from bottom/ });
       return step(1);
     }
     if (n === 1){
       blank(0, Math.floor(H * 0.75), W, H - Math.floor(H * 0.75));
       results.push({ case: "top 25%", got: window.__scanDark().trim(),
-                     want: /down 2[456]%/, wantEdge: /down from top/ });
+                     want: /V 2[456]%/, wantEdge: /V \d+% from top/ });
       return step(2);
     }
     blank(0, 0, Math.floor(W * 0.6), H);
     results.push({ case: "left 60%", got: window.__scanDark().trim(),
-                   want: /across 6[01]%|across 59%/, wantEdge: /in from left/ });
+                   want: /H 6[01]%|H 59%/, wantEdge: /H \d+% from left/ });
     done({ results, buffer: W + "x" + H });
     } catch (e){ done({ fail: "threw in frame " + n + ": " + (e && e.stack || e) }); }
   });
