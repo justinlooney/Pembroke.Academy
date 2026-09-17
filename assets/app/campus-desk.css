@@ -1,0 +1,32 @@
+#academy-desk{color:#e8ede8;margin:0 0 32px;padding:0 0 26px;border-bottom:1px solid #3d4a4d}
+#academy-desk .desk-kicker{color:#c8b589;font-size:10px;letter-spacing:.2em;text-transform:uppercase;margin:0 0 14px}
+#academy-desk h2{font:500 clamp(34px,3.2vw,50px)/1.02 "Cormorant Garamond",Georgia,serif;letter-spacing:-.02em;margin:0 0 18px}
+#academy-desk h2 em{color:#d8bf86;font-weight:400}
+#academy-desk .desk-intro{font-size:13px;line-height:1.8;color:#b9c6ca;max-width:390px;margin:0 0 22px}
+.desk-resume{display:flex;align-items:center;justify-content:space-between;gap:16px;background:linear-gradient(130deg,#213f3d,#182b31);border:1px solid #51665c;border-radius:12px;padding:20px}
+.desk-resume span:first-child{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:#bfdbce}
+.desk-resume h3{font:500 23px/1.2 "Cormorant Garamond",Georgia,serif;margin:7px 0;color:#fff3d8}
+.desk-resume p{font-size:11px;color:#bfcccb;margin:0}
+.desk-resume button{flex:none;background:#ebd7ac;color:#182b2b;border:1px solid #ebd7ac;border-radius:5px;padding:12px;font-size:12px;font-weight:600;min-height:44px}
+.desk-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:26px 0 10px}
+.desk-heading h3{font:500 22px "Cormorant Garamond",Georgia,serif;margin:0}
+.desk-heading a{font-size:11px;color:#e4c992;text-decoration:underline;text-underline-offset:4px;white-space:nowrap}
+.desk-course{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:14px 0;border-bottom:1px solid #334347;color:inherit;background:none}
+.desk-course>span:nth-child(2){flex:1;min-width:0}
+.desk-course strong{display:block;font:500 20px/1.2 "Cormorant Garamond",Georgia,serif;margin:4px 0;color:#f5ead3}
+.desk-course small{font-size:9px;letter-spacing:.07em;color:#c0cbc8;text-transform:uppercase}
+.desk-course>span:nth-child(2)>span{font-size:10px;color:#b3c3c5}
+.desk-symbol{width:46px;height:53px;display:grid;place-items:center;border:1px solid #596057;border-radius:4px;background:linear-gradient(145deg,#364b45,#1d3037);color:#e0cb9d;font:italic 22px Georgia,serif;white-space:nowrap;flex:none}
+.desk-explore{display:flex;flex-wrap:wrap;gap:12px;margin:20px 0 12px}
+.desk-explore button{font-size:11px;min-height:44px;padding:9px 12px;border:1px solid #586765;border-radius:5px;color:#dde8e0;background:#182b32}
+#academy-desk .desk-note{font-size:10px;line-height:1.7;color:#b3c3c5;margin:0}
+#academy-desk button{cursor:pointer;transition:filter .15s}
+#academy-desk button:hover{filter:brightness(1.2)}
+#academy-desk :focus-visible{outline:3px solid #89d4e8;outline-offset:4px}
+@media(max-width:480px){.desk-resume{align-items:flex-start;flex-direction:column}
+.desk-resume button{width:100%}
+.desk-heading{flex-wrap:wrap}
+.desk-course{gap:10px}
+}
+@media(prefers-reduced-motion:reduce){#academy-desk button{transition:none}
+}

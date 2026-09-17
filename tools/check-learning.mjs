@@ -29,7 +29,7 @@ try {
   await page.waitForSelector("#knowledge");
   assert.match(await page.locator("h1").innerText(), /Linear equations/);
   console.log("ok — invalid lesson links open a valid saved or first lesson");
-  await page.locator("#course").selectOption("CS101"); await page.waitForFunction(() => location.hash.includes("CS101"));
+  await page.locator("#course").selectOption("CS201"); await page.waitForFunction(() => location.hash.includes("CS201"));
   await page.waitForFunction(() => document.getElementById("lesson").textContent.includes("Syllabus only"));
   await page.goto(server.origin + "/study.html#course=MATH201&lesson=1.1"); await page.waitForSelector("#knowledge");
   const calculus = STUDY.MATH201.units[0].sections[0];

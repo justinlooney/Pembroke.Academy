@@ -1,3 +1,4 @@
+import { drawProgramTrace } from "./programming-lab.mjs";
 function stAxes(g, W, H, X0, X1, Y0, Y1){
   const mx = x => (x - X0) / (X1 - X0) * W, my = y => H - (y - Y0) / (Y1 - Y0) * H;
   g.clearRect(0, 0, W, H);
@@ -16,6 +17,7 @@ function stCurve(g, m, fn, x0, x1, color){
 }
 /* each viz kind: (canvas, slider01, readoutEl, color) → redraw(t) */
 const ST_VIZ = {
+  pythontrace: drawProgramTrace,
   /* the vertical line test, live: a parabola that always passes and a
      sideways parabola that fails wherever the line crosses it twice */
   vline(cv, t, out, color){

@@ -1,6 +1,8 @@
 import { INTRO_MATH } from "./intro-math.mjs";
+import { INTRO_CS } from "./intro-cs.mjs";
 const STUDY = {
   MATH101: INTRO_MATH,
+  CS101: INTRO_CS,
   MATH201: { lectures: "Twenty-eight lectures in five units — functions to the Fundamental Theorem.",
   /* grading policy, configurable per course — the gradebook reads this */
   grading: [ ["Homework", "homework", 20], ["Knowledge checks", "quizzes", 10],

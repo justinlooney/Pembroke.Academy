@@ -57,7 +57,7 @@ Write a new probe against this, not against a copy of the last one.
 |---|---|---|
 | `cache-version` | `check-sw-version.sh` | an asset changed in place without an `ASSETS_V` bump — visitors keep the old file forever |
 | `gateway` | `reliability.test.mjs`, `retarget.test.mjs`, `check-worker.mjs` | progress, cache, grading, arm motion and Worker contracts, without spending inference |
-| `learning` | `check-learning.mjs` | the WebGL-free study route, restoration, backup conflicts, accessibility and offline behavior |
+| `learning` | `check-learning.mjs`, `check-academy.mjs` | WebGL-free lessons, catalog discovery, Python traces and assessment, restoration, backup conflicts, accessibility and offline behavior |
 | `smoke` | `check-rig-names.mjs` | a character whose bone or clip names do not line up |
 | | `check-css.mjs` | a utility class with no rule, or a selector naming a class nobody creates |
 | | `smoke.mjs` | the visit itself — ignite, read the ledger, walk, enter, leave, run the clock to night |
@@ -66,7 +66,7 @@ Write a new probe against this, not against a copy of the last one.
 | | `check-mobility.mjs` | Jun permanently parked or travelling with a paused walking animation |
 | | `check-roles.mjs` | a lent clip that landed on the wrong role |
 | | `check-stance.mjs` | somebody parked in a pose a person does not hold |
-| `ledger` | `check-ledger.mjs`, `check-campus-learning.mjs` | legal seals, restore safety, practice routing and shared grading |
+| `ledger` | `check-ledger.mjs`, `check-campus-learning.mjs` | legal seals, restore safety, practice routing, shared grading and real campus learning-desk controls |
 | `a11y` | `check-a11y.mjs` | the campus becoming unusable without a mouse |
 | `owner` | `check-owner.mjs` | two things claiming the keyboard, or an async continuation acting out of turn |
 | `opening` | `check-opening.mjs` | the first twenty seconds regressing |

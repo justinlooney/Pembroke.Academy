@@ -11,7 +11,7 @@ npm ci
 python3 -m http.server 8099
 ```
 
-Open `http://localhost:8099/` for the campus or `http://localhost:8099/study.html` to learn directly. Serve over HTTP rather than opening files from disk; native ES modules and service workers need a web origin. GitHub Pages hosts the static site. The optional character-AI gateway is a separate Cloudflare Worker.
+Open `http://localhost:8099/` for the campus or `http://localhost:8099/study.html` to learn directly. The campus learning desk opens lessons without enrollment; `study.html#catalog` is the searchable course library. Serve over HTTP rather than opening files from disk; native ES modules and service workers need a web origin. GitHub Pages hosts the static site. The optional character-AI gateway is a separate Cloudflare Worker.
 
 ## Check a change
 
@@ -31,7 +31,9 @@ bash tools/check-sw-version.sh origin/main
 
 - MATH 101 has **Unit I only**: three introductory lessons, worked examples, practice, feedback and homework. Later units are not yet offered.
 - MATH 201 has 28 lessons. Sections with a problem set require passed knowledge checks and 75% of graded answers earned before full solutions are revealed. Other sections require all knowledge checks to pass.
-- The other ten catalog courses currently contain syllabi only. Registration shows availability before enrollment.
+- CS 101 has **Unit I only**: four lessons on Python values/assignment, conditionals/boundaries, loops/invariants, and functions/contracts. Each includes a fixed execution trace, worked example, practice, knowledge check and homework. The lab is not a general Python interpreter. Later units are not yet offered.
+- The other nine catalog courses currently contain syllabi only. The course library distinguishes available lessons from syllabus previews and displays actual lesson mastery.
+- Pembroke is a self-directed learning environment, not an accredited university. Its virtual faculty and campus story are fictional; completion does not confer academic credit or a degree.
 - Course seals are self-reported. They remain separate from lesson mastery and are still used by the registrar's prerequisite workflow.
 
 Both views use the existing `pembroke.*` browser-storage keys. Typed restoration repairs invalid fields individually, drops course seals with missing prerequisites, clears journey milestones after a missing prerequisite stage, and recovers mastery from completed checks and practice evidence. Registration validates its prerequisites against the restored seals; registered courses do not themselves have to be sealed. A failed write stays in memory, displays a warning and remains available for export; it is not durable until saving succeeds. **Progress & backup** offers retry, versioned JSON export, and a validated preview before replacement. Exports include study, seals, journey, character memories and the last lesson; they can include application details and conversation memories. They exclude AI connection settings. A persistent undo journal recovers an interrupted import before progress loaders run. Keep a backup before clearing browser data or moving devices. Use one tab for editing progress at a time. A detected conflict blocks both saves and imports until reload; retry never overwrites the newer tab. Export unsaved work before reloading. Direct storage fixtures must be seeded before page boot, like an imported or older saved record.
@@ -39,9 +41,11 @@ Both views use the existing `pembroke.*` browser-storage keys. Typed restoration
 ## Code boundaries
 
 - `index.html`: campus rendering, simulation, registrar and campus lesson UI.
-- `assets/app/courses.mjs`, `course-study.mjs`, `intro-math.mjs`, `problem-sets.mjs`: authored catalog and learning content.
+- `assets/app/courses.mjs`, `course-study.mjs`, `intro-math.mjs`, `intro-cs.mjs`, `problem-sets.mjs`: authored catalog and learning content.
+- `assets/app/academy.mjs`, `campus-desk.mjs`: shared course discovery, validated resume destinations and the campus learning desk.
+- `assets/app/programming-lab.mjs`: pure, tested state snapshots and an accessible canvas/readout renderer for the four fixed Python examples; no eval or interpreter download.
 - `assets/app/grading.mjs`, `progress.mjs`: grading rules, typed progress, storage status and backup transactions.
-- `assets/app/figures.mjs`: shared canvas mathematics, with no Three.js dependency.
+- `assets/app/figures.mjs`: shared canvas mathematics and programming traces, with no Three.js dependency.
 - `assets/app/ai-policy.mjs`, `ai-stream.mjs`: output normalization, role capabilities and stream reading. Parsed dialogue is capped at 1,200 characters on every path.
 - `assets/app/study-page.mjs`, `progress-ui.mjs`: lightweight study and shared backup controls.
 - `worker/src/index.mjs`: hosted AI request validation, persona registry, limits and streaming gateway.
