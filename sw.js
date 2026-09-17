@@ -45,7 +45,7 @@
  * engine and the stylesheet are re-precached by every install with
  * cache:"reload", so they track releases despite living in the depot.
  */
-const VERSION = "pembroke-v157";
+const VERSION = "pembroke-v158";
 /* v3 stays even though this release removes assets. Re-versioning the
    depot is a blunt instrument: it throws away every model a returning
    visitor holds — all ~85MB of a campus they already walked — to
@@ -128,7 +128,7 @@ async function plain(res){
 const SHELL_FILES = ["./", "./index.html", "./study.html",
   ...["courses.mjs", "course-study.mjs", "intro-math.mjs", "intro-cs.mjs", "programming-lab.mjs",
     "academy.mjs", "campus-desk.mjs", "campus-desk.css", "problem-sets.mjs", "figures.mjs", "grading.mjs",
-    "progress.mjs", "progress-ui.mjs", "ai-policy.mjs", "ai-stream.mjs", "study-page.mjs", "study.css"]
+    "progress.mjs", "progress-ui.mjs", "ai-policy.mjs", "ai-stream.mjs", "study-page.mjs", "study.css", "finite-color.mjs"]
     .map(f => "./assets/app/" + f)];
 const NAVIGATION_TIMEOUT_MS = 5000;
 

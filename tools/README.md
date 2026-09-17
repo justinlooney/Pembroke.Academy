@@ -60,6 +60,7 @@ Write a new probe against this, not against a copy of the last one.
 | `learning` | `check-learning.mjs`, `check-academy.mjs` | WebGL-free lessons, catalog discovery, Python traces and assessment, restoration, backup conflicts, accessibility and offline behavior |
 | `smoke` | `check-rig-names.mjs` | a character whose bone or clip names do not line up |
 | | `check-css.mjs` | a utility class with no rule, or a selector naming a class nobody creates |
+| | `check-postprocessing.mjs` | invalid HDR highlights spreading into black rectangles; retains normal lighting, bloom and alpha across portrait/landscape/desktop sizes |
 | | `smoke.mjs` | the visit itself — ignite, read the ledger, walk, enter, leave, run the clock to night |
 | `figures` | `check-breath.mjs` | a standing figure that drifts off its mark |
 | | `check-retarget.mjs` | borrowed motion folding an arm or compensating against the wrong parent pose |

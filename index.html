@@ -2242,11 +2242,12 @@ import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js"
 import { SMAAPass } from "three/addons/postprocessing/SMAAPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+import { FiniteColorShader } from "./assets/app/finite-color.mjs";
 
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v157";
+const BUILD = "pembroke-v158";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -2480,6 +2481,9 @@ if (!softGL && !q.has("noao")){
   ssao.kernelRadius = 14; ssao.minDistance = 0.002; ssao.maxDistance = 0.09;
   composer.addPass(ssao);
 }
+// A bad HDR sample must be repaired before spatial filters spread it.
+// Keep this pass even when the quality ladder removes bloom or SSAO.
+composer.addPass(new ShaderPass(FiniteColorShader));
 const bloom = new UnrealBloomPass(new THREE.Vector2(800, 600), 0.18, 0.32, 0.90);
 if (!q.has("nobloom")) composer.addPass(bloom);
 if (!q.has("nosmaa")) composer.addPass(new SMAAPass(800, 600));
@@ -16806,7 +16810,7 @@ if (Journey.get().onboarding.campusVisit.status === "active"){ orientOn = true; 
    FRAME actually cost that is not a guess reconstructed by walking
    the scene graph. */
 window.__app = { selectSector, openInterior, camera, controls, world, THREE,
-                 renderer, COURSES };   /* test/debug hooks */
+                 renderer, composer, COURSES };   /* test/debug hooks */
 aerialHome();          /* now that #stage has a real size, frame for it */
 applyMode();
 renderChips();

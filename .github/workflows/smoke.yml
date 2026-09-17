@@ -154,6 +154,9 @@ jobs:
       - name: Does every utility class still have a rule?
         run: node tools/check-css.mjs
 
+      - name: Can an invalid highlight black out the screen?
+        run: node tools/check-postprocessing.mjs
+
       - name: Drive the campus
         run: node tools/smoke.mjs
 
