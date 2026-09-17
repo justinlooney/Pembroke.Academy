@@ -3127,6 +3127,36 @@ const skyMat = new THREE.ShaderMaterial({
 });
 const skyDome = new THREE.Mesh(new THREE.SphereGeometry(2800, 24, 12), skyMat);
 world.add(skyDome);
+/* DID THE SKY DRAW? The phone's scan says the bottom 63-81% of the
+   drawing buffer is black, and this dome is the reason that should be
+   impossible: a 2800-radius sphere with the camera inside it, BackSide,
+   depthWrite off, and a shader that clamps its gradient at the horizon
+   so BELOW the horizon it paints the horizon colour — pale, never
+   black. It covers every pixel of every frame by construction. Whatever
+   else fails to draw, this cannot leave a hole.
+
+   So the count separates two completely different bugs. Fires, and the
+   sky was painted and then something took it away downstream — a pass,
+   a blend, a resolve. Does not fire, and it was culled or skipped
+   before it ever reached the screen, and nothing downstream is
+   involved. onAfterRender runs only for an object that actually
+   survived to be drawn, which is exactly the question.
+
+   Counted rather than flagged because the composer draws the scene more
+   than once when SSAO is in the chain, and "1 when I expected 2" is
+   itself a finding. */
+let skyDrew = 0;
+/* ONLY THE COLOUR PASS COUNTS. SSAOPass.renderOverride sets
+   scene.overrideMaterial, renders the whole scene into its own normal
+   and depth targets, then puts it back — and onAfterRender fires for
+   those too. Counting them made "sky 2x" mean "the dome was submitted
+   twice somewhere", which is not the question: an off-screen normal
+   pass paints no part of the buffer the screen shows, so a dome that
+   drew ONLY there would have reported healthy while leaving exactly
+   the hole under investigation. The material argument is the one
+   actually used, so it is skyMat on the visible pass and the override
+   on the others. */
+skyDome.onAfterRender = (r, s, c, g, material) => { if (material === skyMat) skyDrew++; };
 world.fog = new THREE.Fog(0xc3d9ee, 900, 3000);
 
 /* ── lights ──────────────────────────────────────────────────────── */
@@ -12384,25 +12414,60 @@ function scanDark(){
   };
   const col = new Uint8Array(H * 4), row = new Uint8Array(W * 4);
   let v = [0, 0], h = [0, 0];
+  /* The RGBA actually found inside the hole, kept from the column that
+     won. "Dark" has been doing two jobs this line cannot tell apart:
+     an OPAQUE black pixel means the GPU drew black there, and a
+     TRANSPARENT one means it drew nothing and what the eye is seeing is
+     the page behind a canvas with a hole in it — completely different
+     bugs with no fix in common. The context is currently created
+     without alpha, so this should always read 255; the day it does not
+     is the day this line earns itself, and a comment in the ink shader
+     already believes the opposite, which is reason enough to measure
+     rather than assume. */
+  let px = null;
   /* A quarter and three quarters rather than the middle: the holes
      photographed so far are anchored to a corner, and a rectangle
      covering less than half the screen slips straight through a single
      line drawn down the centre of it. */
+  /* Sampled from BOTH axes, and the longer run wins. Capturing only on
+     the vertical branch meant a hole that a column happened to miss —
+     one lying in a band across the screen, which is the shape every
+     capture so far has had — reported no rgba at all, and the
+     opaque-versus-transparent question went unanswered for the very
+     case it was added to settle. */
+  let vpx = null, hpx = null;
+  const mid = (buf, r) => { const o = (r[0] + (r[1] >> 1)) * 4;
+                            return [buf[o], buf[o + 1], buf[o + 2], buf[o + 3]]; };
   for (const f of [0.25, 0.75]){
     gl.readPixels(Math.floor(W * f), 0, 1, H, gl.RGBA, gl.UNSIGNED_BYTE, col);
-    const a = run(col, H); if (a[1] > v[1]) v = a;
+    const a = run(col, H); if (a[1] > v[1]){ v = a; vpx = mid(col, a); }
     gl.readPixels(0, Math.floor(H * f), W, 1, gl.RGBA, gl.UNSIGNED_BYTE, row);
-    const b = run(row, W); if (b[1] > h[1]) h = b;
+    const b = run(row, W); if (b[1] > h[1]){ h = b; hpx = mid(row, b); }
   }
+  px = (v[1] >= h[1] ? vpx : hpx) || vpx || hpx;
   /* GL counts rows from the BOTTOM and the person holding the phone
      does not, so the vertical edge is named the way they see it. */
   const say = (r, n, lo, hi) =>
     r[1] < SCAN_MIN ? "clean"
       : Math.round(r[1] * 100 / n) + "% " +
         (r[0] === 0 ? lo : r[0] + r[1] >= n - 1 ? hi : "mid");
-  if (v[1] < SCAN_MIN && h[1] < SCAN_MIN) return "scan   clean\n";
+  /* The sky is reported on the same line as the hole it cannot explain,
+     because they are one reading: a dome that drew and a black screen
+     is a different bug from a dome that did not. */
+  const sky = "sky " + (skyDrew ? skyDrew + "x" : "NOT DRAWN");
+  if (v[1] < SCAN_MIN && h[1] < SCAN_MIN) return "scan   clean   " + sky + "\n";
   return "scan   down " + say(v, H, "up from bottom", "down from top") +
-         "   across " + say(h, W, "in from left", "in from right") + "\n";
+         "   across " + say(h, W, "in from left", "in from right") + "\n" +
+    /* Exact rows, not just a share: a boundary that lands on a round
+       number of pixels is a viewport or a tile, and one that wanders is
+       a horizon. The percentage alone cannot tell those apart, and they
+       are the two candidates left. */
+    /* INCLUSIVE. run() returns [start, length], so a run covering rows
+       0 through 7 printed as "0-8" and named a row that is not dark —
+       the one thing this line exists to be exact about. */
+         "       rows " + v[0] + "-" + (v[0] + v[1] - 1) + " of " + H +
+         (px ? "   rgba " + px.join(",") + (px[3] === 0 ? " — TRANSPARENT, not black" : "") : "") +
+         "   " + sky + "\n";
 }
 /* Exposed because an instrument that has only ever printed "clean"
    has not been tested, it has been watched. Twice on this branch a
@@ -12692,6 +12757,7 @@ renderer.setAnimationLoop(() => {
        them there */
     if (now - plateSweptAt >= (plateSweepDue ? PLATE_SETTLE : PLATE_DRIFT))
       sweepPlates(now);
+    skyDrew = 0;              /* counted per frame; dbgUpdate reads it below */
     composer.render();
   }
   dbgUpdate(now, dt, raw);
