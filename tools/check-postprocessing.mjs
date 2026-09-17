@@ -18,6 +18,7 @@ try {
     const { SMAAPass } = await import("three/addons/postprocessing/SMAAPass.js");
     const { OutputPass } = await import("three/addons/postprocessing/OutputPass.js");
     const { FiniteColorShader } = await import(origin + "/assets/app/finite-color.mjs");
+    const { FiniteColorPass } = await import(origin + "/assets/app/finite-color-pass.mjs");
     const renderer = new T.WebGLRenderer({ antialias: true });
     renderer.toneMapping = T.ACESFilmicToneMapping;
     const composer = new EffectComposer(renderer);
@@ -29,7 +30,7 @@ try {
           if (distance(gl_FragCoord.xy, center) < 4.0) c = vec3(bad);
           gl_FragColor = vec4(c, 1.0);
         }` });
-    const guard = new ShaderPass(FiniteColorShader);
+    const guard = new FiniteColorPass();
     const bloom = new UnrealBloomPass(new T.Vector2(768, 1380), .15, .32, .9);
     const smaa = new SMAAPass(768, 1380), output = new OutputPass();
     for (const pass of [source, guard, bloom, smaa, output]) composer.addPass(pass);

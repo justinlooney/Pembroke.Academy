@@ -128,7 +128,7 @@ async function plain(res){
 const SHELL_FILES = ["./", "./index.html", "./study.html",
   ...["courses.mjs", "course-study.mjs", "intro-math.mjs", "intro-cs.mjs", "programming-lab.mjs",
     "academy.mjs", "campus-desk.mjs", "campus-desk.css", "problem-sets.mjs", "figures.mjs", "grading.mjs",
-    "progress.mjs", "progress-ui.mjs", "ai-policy.mjs", "ai-stream.mjs", "study-page.mjs", "study.css", "finite-color.mjs"]
+    "progress.mjs", "progress-ui.mjs", "ai-policy.mjs", "ai-stream.mjs", "study-page.mjs", "study.css", "finite-color.mjs", "finite-color-pass.mjs"]
     .map(f => "./assets/app/" + f)];
 const NAVIGATION_TIMEOUT_MS = 5000;
 
