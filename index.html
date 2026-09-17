@@ -2234,7 +2234,7 @@ import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v152";
+const BUILD = "pembroke-v153";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -12264,6 +12264,131 @@ if (DEBUG){
     "padding:9px 11px;max-width:19rem;max-height:72vh;overflow:hidden;";
   document.getElementById("stage").appendChild(dbgEl);
 }
+/* ── IS THE BLACK IN THE DRAWING BUFFER? ────────────────────────────
+   The one question ten photographs could not answer, and the reason
+   #141 shipped a fix that did nothing.
+
+   Every number on the panel describes the campus BEFORE the pixels
+   leave: fps is the loop, draws and tris are what was submitted,
+   buffer is how big the canvas is. All of them can be perfect while
+   the screen shows a black rectangle, and all of them were. So the
+   panel has been arguing from the wrong side of the GPU.
+
+   This reads the pixels back. Two cases, and they want opposite fixes:
+
+     the run is DARK   the driver did not produce those pixels. The
+                       frame was submitted and came back with a hole in
+                       it, which is a tiled renderer failing to resolve
+                       tiles — memory pressure, thermal, a watchdog.
+                       The fix is to ask for less.
+     the run is LIT    the buffer is whole and Android is not putting
+                       it on the screen. The fix is in compositing, and
+                       nothing about render cost would ever have helped.
+
+   Read after composer.render() and before the tick ends, which is the
+   only window where this works at all: preserveDrawingBuffer is false,
+   so the buffer is defined right up until the frame is composited and
+   undefined forever after.
+
+   WHAT IT CANNOT DO: tell "drew black" from "never drew". A night sky
+   or an unlit wall filling the view reads as dark and should. The
+   threshold is deliberately brutal — 8 per channel, darker than any
+   lit surface on this campus — and the reports that matter are the
+   daylight ones, where a straight 39% band is not scenery. */
+const SCAN_DARK = 24;              /* r+g+b at or under this is "nothing" */
+const SCAN_MIN  = 8;               /* shorter runs are noise, not a hole */
+function scanDark(){
+  /* A lost context reads back as all zeroes, which would print a 100%
+     black buffer and send the next investigation at the renderer. The
+     gl line above already says the context is down; say nothing here
+     rather than say something false. */
+  if (GL_CTX.down) return "";
+  /* The interior panel is an opaque page over the canvas, so the render
+     loop skips composer.render() entirely while it is up. Nothing has
+     been drawn this frame; what readPixels would return is a composited
+     and therefore undefined buffer, and reading it would print a black
+     rectangle nobody can see and send the next investigation at a
+     renderer that was resting. */
+  if (interiorView) return "scan   not drawing (interior)\n";
+  const gl = renderer.getContext();
+  const d = renderer.domElement, W = d.width, H = d.height;
+  if (!W || !H || !gl || gl.isContextLost()) return "";
+  /* readPixels reads whatever framebuffer is BOUND. The composer's
+     last pass renders to screen and leaves it bound, but this line is
+     worthless if that ever stops being true, so bind it explicitly. */
+  renderer.setRenderTarget(null);
+  /* longest unbroken dark run, as [where it starts, how long] */
+  const run = (buf, n) => {
+    let best = 0, at = 0, cur = 0;
+    for (let i = 0; i < n; i++){
+      const o = i * 4;
+      if (buf[o] + buf[o + 1] + buf[o + 2] <= SCAN_DARK){
+        if (++cur > best){ best = cur; at = i - cur + 1; }
+      } else cur = 0;
+    }
+    return [at, best];
+  };
+  const col = new Uint8Array(H * 4), row = new Uint8Array(W * 4);
+  let v = [0, 0], h = [0, 0];
+  /* A quarter and three quarters rather than the middle: the holes
+     photographed so far are anchored to a corner, and a rectangle
+     covering less than half the screen slips straight through a single
+     line drawn down the centre of it. */
+  for (const f of [0.25, 0.75]){
+    gl.readPixels(Math.floor(W * f), 0, 1, H, gl.RGBA, gl.UNSIGNED_BYTE, col);
+    const a = run(col, H); if (a[1] > v[1]) v = a;
+    gl.readPixels(0, Math.floor(H * f), W, 1, gl.RGBA, gl.UNSIGNED_BYTE, row);
+    const b = run(row, W); if (b[1] > h[1]) h = b;
+  }
+  /* GL counts rows from the BOTTOM and the person holding the phone
+     does not, so the vertical edge is named the way they see it. */
+  const say = (r, n, lo, hi) =>
+    r[1] < SCAN_MIN ? "clean"
+      : Math.round(r[1] * 100 / n) + "% " +
+        (r[0] === 0 ? lo : r[0] + r[1] >= n - 1 ? hi : "mid");
+  if (v[1] < SCAN_MIN && h[1] < SCAN_MIN) return "scan   clean\n";
+  return "scan   down " + say(v, H, "up from bottom", "down from top") +
+         "   across " + say(h, W, "in from left", "in from right") + "\n";
+}
+/* Exposed because an instrument that has only ever printed "clean"
+   has not been tested, it has been watched. Twice on this branch a
+   probe produced confident numbers about something it was not
+   measuring — the night sky, and a sweep of 6.28 degrees — and both
+   times the output looked exactly like this one does. check-scan.mjs
+   blanks a known rectangle of the real drawing buffer and holds this
+   function to what it finds. */
+window.__scanDark = scanDark;
+/* TEXTURE BYTES. The count alone says nothing: 179 textures is nothing
+   at 256² and a quarter of a gigabyte at 1024², and the whole question
+   on the table is whether this page asks a phone for more than it has.
+   Recomputed only when the count changes, because it walks every
+   material on campus. Undercounts the environment map, whose faces
+   carry no .image. */
+let texMB = 0, texMBFor = -1;
+function textureMB(){
+  const n = renderer.info.memory.textures;
+  if (n === texMBFor) return texMB;
+  texMBFor = n;
+  const seen = new Set();
+  let bytes = 0;
+  const add = (t) => {
+    if (!t || !t.isTexture || !t.image || seen.has(t.uuid)) return;
+    seen.add(t.uuid);
+    const w = t.image.width || 0, h = t.image.height || 0;
+    if (!w || !h) return;
+    /* four bytes a texel, and a full mip chain adds a third */
+    bytes += w * h * 4 * (t.generateMipmaps === false ? 1 : 4 / 3);
+  };
+  world.traverse((o) => {
+    const m = o.material;
+    if (!m) return;
+    for (const mat of (Array.isArray(m) ? m : [m]))
+      for (const k in mat) if (mat[k] && mat[k].isTexture) add(mat[k]);
+  });
+  add(world.background);
+  texMB = bytes / 1048576;
+  return texMB;
+}
 /* raw, not the clamped dt: see the render loop. Totalling the clamped
    value made this saturate at the clamp's reciprocal and report that
    same number forever, exactly when the frame rate was worth knowing. */
@@ -12368,6 +12493,7 @@ function dbgUpdate(now, dt, raw){
              const got  = d.width + "x" + d.height;
              return "buffer " + got + "  css " + d.clientWidth + "x" + d.clientHeight +
                     (got === want ? "" : "   MISMATCH — wants " + want) + "\n"; })() +
+    scanDark() +
     /* Why the ladder is where it is, and what the screen lost getting
        there. Both lines are about the same two minutes: the ladder is
        holding BECAUSE assets are decoding, and the assets decoding are
@@ -12391,7 +12517,8 @@ function dbgUpdate(now, dt, raw){
         })()
       : "") +
     "draws  " + inf.render.calls + "   tris " + (inf.render.triangles / 1e6).toFixed(2) + "M\n" +
-    "tex    " + inf.memory.textures + "   geo " + inf.memory.geometries + "\n" +
+    "tex    " + inf.memory.textures + " · " + textureMB().toFixed(0) + "MB" +
+      "   geo " + inf.memory.geometries + "\n" +
     "view   " + (interiorView ? "panel " + interiorView : walker.on ? "walk" : "aerial") +
       " · " + (window.__visual || "?") + "\n" +
     "crowd  " + students.length + " people" +
