@@ -12432,35 +12432,48 @@ function scanDark(){
      capture so far has had — reported no rgba at all, and the
      opaque-versus-transparent question went unanswered for the very
      case it was added to settle. */
-  let vpx = null, hpx = null, vspan = null;
+  let vpx = null, hpx = null, vspan = null, hspan = null;
   const mid = (buf, r) => { const o = (r[0] + (r[1] >> 1)) * 4;
                             return [buf[o], buf[o + 1], buf[o + 2], buf[o + 3]]; };
   for (const f of [0.25, 0.75]){
     gl.readPixels(Math.floor(W * f), 0, 1, H, gl.RGBA, gl.UNSIGNED_BYTE, col);
-    /* copied, because col is reused by the next iteration and the
-       winning column has to survive to be measured below */
+    /* copied, because col and row are reused by the next iteration and
+       the winning line has to survive to be measured below */
     const a = run(col, H); if (a[1] > v[1]){ v = a; vpx = mid(col, a); vspan = col.slice(); }
     gl.readPixels(0, Math.floor(H * f), W, 1, gl.RGBA, gl.UNSIGNED_BYTE, row);
-    const b = run(row, W); if (b[1] > h[1]){ h = b; hpx = mid(row, b); }
+    const b = run(row, W); if (b[1] > h[1]){ h = b; hpx = mid(row, b); hspan = row.slice(); }
   }
-  px = (v[1] >= h[1] ? vpx : hpx) || vpx || hpx;
   /* FLAT OR SHADED? The single most discriminating thing left, and it
-     costs nothing because the column has already been read.
+     costs nothing because the winning line has already been read.
      A run that is uniformly one value was FILLED — cleared, blitted,
      or resolved over — and the campus never got to draw there. A run
      whose luminance VARIES is drawn geometry that happens to be very
      dark, which is a lighting or shadow fault and not a lost surface.
      The first capture read rgba 5,5,5 rather than 0,0,0, and the clear
      colour is 0,0,0: something was already rendering there, so this is
-     worth asking properly rather than inferring from one pixel. */
+     worth asking properly rather than inferring from one pixel.
+
+     ONE AXIS DECIDES BOTH. The sample and the spread have to describe
+     the same line or they contradict each other on the same row of the
+     panel — rgba from the winning horizontal run beside a "flat" read
+     off an unrelated vertical column, which is worse than printing
+     neither. So the longer run picks the line, and the pixel and the
+     spread are both taken from it. */
+  const vWins = v[1] >= h[1];
+  /* NOT `span`: that name is already a module-level helper for the
+     distance between two fingers, and shadowing it inside here reads
+     like a bug even while it behaves. */
+  const winner = (vWins ? vspan : hspan) || vspan || hspan;
+  const hole = (vWins ? v : h);
+  px = (vWins ? vpx : hpx) || vpx || hpx;
   let lo = 255, hi = 0;
-  if (vspan){
-    for (let i = v[0]; i < v[0] + v[1]; i++){
-      const l = vspan[i * 4] + vspan[i * 4 + 1] + vspan[i * 4 + 2];
+  if (winner){
+    for (let i = hole[0]; i < hole[0] + hole[1]; i++){
+      const l = winner[i * 4] + winner[i * 4 + 1] + winner[i * 4 + 2];
       if (l < lo) lo = l; if (l > hi) hi = l;
     }
   }
-  const spread = vspan && v[1] >= SCAN_MIN
+  const spread = winner && hole[1] >= SCAN_MIN
     ? (hi === lo ? "  flat " + lo : "  varies " + lo + "-" + hi) : "";
   /* GL counts rows from the BOTTOM and the person holding the phone
      does not, so the vertical edge is named the way they see it. */
