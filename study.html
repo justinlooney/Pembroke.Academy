@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#142033">
+  <meta name="theme-color" content="#132e32">
+  <meta name="description" content="A quiet place to think. Explore Pembroke's self-paced mathematics and programming lessons, interactive models and practice—no 3D graphics required.">
   <title>Study · Pembroke Academy</title>
   <link rel="stylesheet" href="./assets/app/study.css">
   <script type="module" src="./assets/app/study-page.mjs"></script>
@@ -11,17 +12,19 @@
 <body>
   <a class="skip" href="#lesson">Skip to lesson</a>
   <header>
-    <div><a class="brand" href="./index.html">Pembroke Academy</a><p>Study at your own pace</p></div>
-    <nav id="learning-entry" aria-label="Learning and progress"><a href="./index.html">Explore campus</a></nav>
+    <div class="study-brand"><a class="brand" href="./index.html"><span class="brand-mark" aria-hidden="true">P</span>Pembroke <em>Academy</em></a><p>The reading room · Learn at your own pace</p></div>
+    <nav id="learning-entry" aria-label="Learning and progress"><a href="#catalog">Course library</a><a href="./index.html">Explore campus ↗</a></nav>
   </header>
   <main>
     <aside aria-label="Course selection">
-      <label for="course">Course</label><select id="course"></select>
+      <a class="back-catalog" href="#catalog">← All courses</a>
+      <label for="course">Your course</label><select id="course"></select>
       <p id="availability"></p><p id="course-progress"></p>
+      <progress id="mastery-meter" max="1" value="0" aria-label="Available lessons mastered"></progress>
       <nav id="lessons" aria-label="Lessons"></nav>
     </aside>
     <article id="lesson" tabindex="-1"><h1>Start learning</h1><p>Loading your lessons…</p><noscript>Enable JavaScript to open lessons and grade practice. No 3D graphics are needed.</noscript></article>
   </main>
-  <footer>Course seals are self-reported. Lesson mastery reflects passed checks and required practice. Progress is stored in this browser; export a backup to keep a copy.</footer>
+  <footer><strong>Pembroke Academy</strong> · A world for learning.<p>Self-directed education, not an accredited university or a degree. Virtual faculty are fictional. Course seals are self-reported; lesson mastery reflects passed checks and required practice. Progress stays in this browser—export a backup to keep a copy.</p></footer>
 </body>
 </html>

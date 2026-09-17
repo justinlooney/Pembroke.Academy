@@ -1497,6 +1497,7 @@ body.touched.walkmode .orient .o-step:not(.now){display:none;}
 :root{--header-height:79px;}
 @media(min-width:1024px){#campus-main{height:calc(100vh - var(--header-height,79px));}}
 </style>
+<link rel="stylesheet" href="./assets/app/campus-desk.css">
 <script type="module" src="./assets/app/progress-ui.mjs"></script>
 </head>
 <body class="antialiased">
@@ -1561,7 +1562,7 @@ body.touched.walkmode .orient .o-step:not(.now){display:none;}
       </div>
     </div>
   </div>
-  <nav id="learning-entry" aria-label="Learning and progress" style="padding:4px 16px 8px"><a data-continue href="./study.html" style="color:#f5e6bd">Start learning</a></nav>
+  <nav id="learning-entry" aria-label="Learning and progress" style="padding:4px 16px 8px"><a data-continue href="./study.html" style="color:#f5e6bd">Start learning</a><a href="./study.html#catalog">Course library ↗</a></nav>
   <div class="brass-rule"></div>
 </header>
 
@@ -1709,6 +1710,7 @@ body.touched.walkmode .orient .o-step:not(.now){display:none;}
            From first visit to enrolled student: one panel, one
            authoritative progression (see the Journey service below).
            Rendered entirely by JS so the stages read from real state. -->
+      <section id="academy-desk" aria-label="Your learning desk"></section>
       <div id="journey" aria-live="polite"></div>
 
       <!-- sector filter chips -->
@@ -1768,9 +1770,10 @@ import { MATH201_PSET } from "./assets/app/problem-sets.mjs";
 import { ST_VIZ, PSET_ART } from "./assets/app/figures.mjs";
 import { aiParse, AI_POLICY } from "./assets/app/ai-policy.mjs";
 import { aiReadStream } from "./assets/app/ai-stream.mjs";
-import { storage, normalizeDone, normalizeStudy, normalizeNPC, normalizeJourney, readJSON } from "./assets/app/progress.mjs";
+import { storage, KEYS, normalizeDone, normalizeStudy, normalizeNPC, normalizeJourney, readJSON } from "./assets/app/progress.mjs";
 import { gradeAnswer, psetGradedKeys, practiceCleared, recordCheck } from "./assets/app/grading.mjs";
 import { mountProgressTools } from "./assets/app/progress-ui.mjs";
+import { mountCampusDesk } from "./assets/app/campus-desk.mjs";
 mountProgressTools();
 
 "use strict";
@@ -12842,11 +12845,11 @@ function renderBanner(){
       <div class="rounded-2xl border border-[rgba(212,175,106,.3)] bg-gradient-to-br from-[rgba(26,34,54,.85)] to-[rgba(13,20,34,.9)] p-6 sm:p-7 relative overflow-hidden">
         <div class="absolute -top-16 -right-16 w-56 h-56 rounded-full pointer-events-none" style="background:radial-gradient(circle, rgba(212,175,106,.14), transparent 65%)"></div>
         <div class="text-[10px] uppercase tracking-[.3em] text-[color:var(--brass-dim)]">Master Academic Syllabus</div>
-        <h2 class="font-serif-d text-3xl font-semibold text-[color:var(--parchment)] mt-1.5 leading-tight">Bachelor of Autonomous Systems <span class="italic text-[color:var(--brass)]">Engineering</span></h2>
+        <h2 class="font-serif-d text-3xl font-semibold text-[color:var(--parchment)] mt-1.5 leading-tight">An open path into <span class="italic text-[color:var(--brass)]">Engineering</span></h2>
         <p class="text-[13.5px] text-slate-400 mt-3 leading-relaxed max-w-xl">
           Twelve courses, four halls, one continuous ascent — designed for a student who begins at
-          <span class="text-slate-200">College Algebra with no programming experience</span> and graduates
-          engineering <span class="text-slate-200">autonomous flight systems</span>. Mathematics climbs from
+          <span class="text-slate-200">College Algebra with no programming experience</span> and explores
+          the foundations of <span class="text-slate-200">autonomous flight systems</span>. Mathematics climbs from
           algebra to Calculus III in the Great Library; computing rises in parallel from a first
           <code class="font-mono-d text-[12px] text-amber-300/90">print()</code> to raw x86-64 assembly —
           and the two paths converge at Aldergate Hall, where machines learn to fly themselves.
@@ -12856,7 +12859,7 @@ function renderBanner(){
           <span>⌬ <span class="text-amber-300/90">3 software studios</span></span>
           <span>⚡ <span class="text-sky-300/90">2 hardware laboratories</span></span>
           <span>✈ <span class="text-violet-300/90">2 autonomy capstones</span></span>
-          <span class="text-[color:var(--brass)]">Σ 45 credits</span>
+          <span class="text-[color:var(--brass)]">Self-directed curriculum · no accredited credit</span>
         </div>
       </div>`;
   } else {
@@ -13772,7 +13775,7 @@ function toggleDone(id){
   if (!was){
     toast("Registrar's Seal Affixed", `${c.code} · ${c.title} — recorded to your ledger.`, sectorOf(c).color);
     if (done.length === COURSES.length){
-      setTimeout(() => toast("✦ SUMMA CUM LAUDE ✦", "All twelve courses sealed. Pembroke Academy confers upon you the degree of Autonomous Systems Engineer. The quad is yours.", "#d4af6a", 9000), 600);
+      setTimeout(() => toast("Campus ledger complete", "All twelve course seals are recorded in your fictional campus ledger. This is a self-directed milestone, not academic credit or a degree.", "#d4af6a", 9000), 600);
     }
   }
 }
@@ -14318,12 +14321,13 @@ document.getElementById("ai-settings").addEventListener("click", jAISettings);
 
 /* reset ledger */
 document.getElementById("reset-ledger").addEventListener("click", () => {
-  if (!done.length && !Object.keys(study).length){ toast("Ledger already clear", "No seals to remove.", "#94a3b8"); return; }
+  if (!done.length && !Object.keys(study).length && !readJSON(storage, KEYS.resume, null)){ toast("Ledger already clear", "No seals to remove.", "#94a3b8"); return; }
   if (confirm("Strike all " + done.length + " seals from your registrar ledger?")){
     done = []; saveDone(done);
     /* the whole student, not just the seals: enrollment, letter,
        orientation, study record — reset means reset */
     study = {}; try{ storage.removeItem(LS_STUDY); }catch(_){}
+    storage.removeItem(KEYS.resume);    /* both learning views must start fresh */
     NPCStore.reset();                  /* friendships and memories reset with the rest */
     Journey.reset();
     renderChips(); renderBanner(); renderCourses(); refreshProgress();
@@ -15980,7 +15984,7 @@ const MAJORS = SECTOR_ORDER.map(k => {
   const list = COURSES.filter(c => c.sector === k);
   return {
     id: k, title: S.track, department: S.hall, icon: S.icon, color: S.color,
-    description: S.blurb, degree: "Bachelor of the Academy",
+    description: S.blurb, degree: "Self-directed study track",
     credits: list.reduce((a, c) => a + c.credits, 0),
     required: list.map(c => c.id),
     firstSemester: list.filter(c => !c.prereqs.length).map(c => c.id),
@@ -16455,7 +16459,7 @@ function renderJourney(){
     <div class="jp-kicker">Pembroke Academy</div>
     <h3>Student Journey</h3>
     <p class="text-[12px] text-slate-500 mb-2">${{
-      visitor: "Every degree begins with a walk around the quad.",
+      visitor: "An optional campus story. All available lessons are open without applying.",
       applicant: "Application received — the Academy reads quickly.",
       accepted: "Admitted. Your advisor is expecting you.",
       advised: "Advised and ready — declare the program that fits.",
@@ -16657,6 +16661,12 @@ renderChips();
 renderBanner();
 renderCourses();
 refreshProgress();
+mountCampusDesk(document.getElementById("academy-desk"), {
+  state: () => study,
+  attend: (id, n) => { selectSector(byId[id].sector, false); jStudySection(id, n); },
+  walk: () => { if (!walker.on) enterWalk(); },
+  meet: () => document.getElementById("nearbybtn").click()
+});
 setTimeout(() => toast("Welcome to Pembroke Academy", matchMedia("(pointer: coarse)").matches
   ? "Drag to orbit the campus, tap any hall to step inside — or tap 🎮 to drop onto the quad and walk to class. Progress saves automatically."
   : "Drag to orbit the campus, click any hall to step inside — or press F (🎮) to drop onto the quad and walk to class. Progress saves automatically.", "#d4af6a", 7000), 900);

@@ -106,6 +106,10 @@ const RETIRED = [
    asset is modified in place and named in neither this list nor a
    fresh ASSETS_V. */
 const REFRESHED = [
+  "./assets/app/course-study.mjs",
+  "./assets/app/figures.mjs",
+  "./assets/app/study-page.mjs",
+  "./assets/app/study.css",
 ];
 const SHELL = VERSION + "-shell";
 const DEPOT = ASSETS_V + "-depot";
@@ -122,7 +126,8 @@ async function plain(res){
 
 // The page itself — small, and needed before anything else can happen.
 const SHELL_FILES = ["./", "./index.html", "./study.html",
-  ...["courses.mjs", "course-study.mjs", "intro-math.mjs", "problem-sets.mjs", "figures.mjs", "grading.mjs",
+  ...["courses.mjs", "course-study.mjs", "intro-math.mjs", "intro-cs.mjs", "programming-lab.mjs",
+    "academy.mjs", "campus-desk.mjs", "campus-desk.css", "problem-sets.mjs", "figures.mjs", "grading.mjs",
     "progress.mjs", "progress-ui.mjs", "ai-policy.mjs", "ai-stream.mjs", "study-page.mjs", "study.css"]
     .map(f => "./assets/app/" + f)];
 const NAVIGATION_TIMEOUT_MS = 5000;

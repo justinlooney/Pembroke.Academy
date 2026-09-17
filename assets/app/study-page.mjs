@@ -5,8 +5,14 @@ import { ST_VIZ, PSET_ART } from "./figures.mjs";
 import { gradeAnswer, recordCheck, psetGradedKeys, practiceCleared } from "./grading.mjs";
 import { storage, KEYS, normalizeStudy, readJSON } from "./progress.mjs";
 import { mountProgressTools } from "./progress-ui.mjs";
+import { mountCatalog } from "./academy.mjs";
 mountProgressTools();
 const courseSelect = document.getElementById("course"), lesson = document.getElementById("lesson");
+document.querySelector(".skip").addEventListener("click", event => {
+  // #lesson is a focus destination, not a course route. Changing the hash
+  // here would accidentally replace the catalog or the current course.
+  event.preventDefault(); lesson.focus(); lesson.scrollIntoView({ block: "start" });
+});
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const sections = id => Object.hasOwn(STUDY, id) ? STUDY[id].units.flatMap(u => u.sections) : [];
 const state = normalizeStudy(readJSON(storage, KEYS.study, {}));
@@ -33,6 +39,8 @@ function navigation(id, n){
   const list = sections(id), plan = STUDY[id];
   document.getElementById("availability").textContent = plan?.lectures || "Syllabus only. Lessons are coming later; explore other available courses now.";
   document.getElementById("course-progress").textContent = list.length ? `${list.filter(s => state[id]?.[s.n] === 2).length} of ${list.length} available lessons mastered` : "";
+  const meter = document.getElementById("mastery-meter");
+  meter.max = list.length || 1; meter.value = list.filter(s => state[id]?.[s.n] === 2).length; meter.hidden = !list.length;
   document.getElementById("lessons").innerHTML = plan ? plan.units.map(u => `<h3>${esc(u.title)}</h3>${u.sections.map(s => `<a href="${route(id, s.n)}" ${s.n === n ? 'aria-current="page"' : ""}>${state[id]?.[s.n] === 2 ? "✓ " : ""}${esc(s.n)} · ${esc(s.t)}</a>`).join("")}`).join("") : "";
 }
 function inputs(q, name){
@@ -46,28 +54,39 @@ function feedback(host, result, success, failure){
   host.querySelector(".feedback").textContent = !result.answered ? "Enter an answer before checking." : result.correct ? success : failure;
 }
 function checkForm(id, sec){
-  return `<h2>Knowledge check</h2><p>Answer every question. Pass all checks${setOf(id, sec.n) ? " and earn at least 75% of the required problem set" : ""} to master this lesson.</p><form id="knowledge">${sec.qs.map((q, i) => `<fieldset data-question="${i}"><legend>${i + 1}. ${q.q}</legend>${inputs(q, "kc" + i)}<p class="feedback" role="status"></p></fieldset>`).join("")}<button>Check my work</button><p id="check-status" role="status"></p></form>`;
+  return `<h2 id="check-heading" tabindex="-1">Knowledge check</h2><p>Answer every question. Pass all checks${setOf(id, sec.n) ? " and earn at least 75% of the required problem set" : ""} to master this lesson.</p><form id="knowledge">${sec.qs.map((q, i) => `<fieldset data-question="${i}"><legend>${i + 1}. ${q.q}</legend>${inputs(q, "kc" + i)}<p class="feedback" role="status"></p></fieldset>`).join("")}<button>Check my work</button><p id="check-status" role="status"></p></form>`;
 }
 function turnForm(q, i){ return `<fieldset data-turn="${i}"><legend>${q.q}</legend>${inputs(q, "turn" + i)}<button type="button">Check answer</button><p class="feedback" role="status"></p></fieldset>`; }
 function render(focus = false){
+  const catalog = location.hash === "#catalog";
+  document.body.classList.toggle("catalog-mode", catalog);
+  if (catalog){
+    document.title = "Course library · Pembroke Academy";
+    mountCatalog(lesson, state); if (focus) lesson.focus(); return;
+  }
   const { id, n } = current(), course = COURSES.find(c => c.id === id), sec = sections(id).find(s => s.n === n);
   navigation(id, n);
   if (!sec){
+    document.title = `${course.code} · Syllabus preview · Pembroke`;
     lesson.innerHTML = `<h1>${esc(course.title)}</h1><p>${esc(course.desc)}</p><div class="notice">Syllabus only — lessons for this course are coming later.</div><h2>Course goals</h2><ul>${course.outcomes.map(o => `<li>${esc(o)}</li>`).join("")}</ul><a href="${route("MATH101", "1.1")}">Start College Algebra, Unit I</a>`;
+    if (focus) lesson.focus();
     return;
   }
   const x = ext(id, n), full = sec.full;
   state[id][n] ||= 1;
   storage.setItem(KEYS.resume, JSON.stringify({ courseId: id, n })); save();
   document.title = `${course.code} · ${sec.t} · Pembroke`;
-  lesson.innerHTML = `<p class="eyebrow">${esc(course.code)} · Lesson ${esc(n)}</p><h1>${sec.t}</h1><p>${sec.brief}</p><p class="key">${sec.key}</p>
-    ${full ? `<p>${full.professor}</p><h2>Learning goals</h2><ul>${full.objectives.map(o => `<li>${o}</li>`).join("")}</ul>${full.lecture.map(([h, p]) => `<h2>${h}</h2><p>${p}</p>`).join("")}
-    <h2>Explore the model</h2><canvas id="figure" width="640" height="360" role="img" aria-label="${esc(full.viz.note)}"></canvas><label for="model">Interactive control</label><input id="model" type="range" min="0" max="1000" value="0"><p id="readout" class="readout" aria-live="polite"></p><p>${full.viz.note}</p>
+  lesson.innerHTML = `<div class="lesson-masthead"><p class="eyebrow">${esc(course.code)} · Lesson ${esc(n)}</p><h1>${sec.t}</h1><p class="lesson-lead">${sec.brief}</p></div><nav class="lesson-stages" aria-label="Within this lesson"><button type="button" data-jump="reading-start">01 · Read</button>${full ? '<button type="button" data-jump="explore-heading">02 · Explore</button>' : ""}<button type="button" data-jump="check-heading">03 · Check your understanding</button></nav><p class="key" id="reading-start" tabindex="-1">${sec.key}</p>
+    ${full ? `<div class="professor-note"><span>From the teaching desk</span><p>${full.professor}</p></div><h2>Learning goals</h2><ul class="learning-goals">${full.objectives.map(o => `<li>${o}</li>`).join("")}</ul>${full.lecture.map(([h, p]) => `<h2>${h}</h2><p>${p}</p>`).join("")}
+    <h2 id="explore-heading" tabindex="-1">Explore the model</h2><canvas id="figure" width="640" height="360" role="img" aria-label="${esc(full.viz.note)}"></canvas><label for="model">Interactive control</label><input id="model" type="range" min="0" max="1000" value="0"><p id="readout" class="readout" aria-live="polite"></p><p>${full.viz.note}</p>
     <h2>Worked example</h2><p>${full.worked.prompt}</p>${full.worked.steps.map(([ask, reveal]) => `<details><summary>${ask}</summary><p>${reveal}</p></details>`).join("")}<h2>Your turn</h2>${full.turn.map(turnForm).join("")}` : ""}
     ${checkForm(id, sec)}
     <div class="actions">${setOf(id, n) ? '<button id="practice">Open required practice</button>' : ""}${full ? '<button id="homework">Homework</button>' : ""}</div>
     <p id="mastery" class="notice" role="status">${state[id][n] === 2 ? "Lesson mastered ✓" : x.kc ? "Checks passed. Complete required practice to master this lesson." : "Lesson opened. Knowledge checks are not yet passed."}</p>
     <div class="actions">${sections(id)[sections(id).indexOf(sec) + 1] ? `<a href="${route(id, sections(id)[sections(id).indexOf(sec) + 1].n)}">Next lesson →</a>` : '<p>You have reached the end of the currently available lessons for this course.</p>'}</div>`;
+  lesson.querySelectorAll("[data-jump]").forEach(button => button.addEventListener("click", () => {
+    const target = document.getElementById(button.dataset.jump); target.focus(); target.scrollIntoView({ block: "start" });
+  }));
   lesson.querySelector("#knowledge").onsubmit = e => {
     e.preventDefault();
     const hosts = [...lesson.querySelectorAll("[data-question]")], results = sec.qs.map((q, i) => gradeAnswer({ ...q, type: "mc" }, value(hosts[i])));
