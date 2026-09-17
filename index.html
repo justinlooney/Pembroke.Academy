@@ -2197,7 +2197,7 @@ import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v152";
+const BUILD = "pembroke-v153";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -7758,15 +7758,52 @@ function lendClip(clip, target, srcRoot, name, fps = 30, writeHips = true){
     if (mirrored)
       console.info("cast: " + name + " — this rig labels its sides the other way round, swapping");
 
-    const pairs = [];
+    const sourceByKey = new Map();
     for (const s of src){
-      const t = byKey.get(flip(canonBone(s.name)));
-      if (t) pairs.push({ s, t });
+      const key = flip(canonBone(s.name));
+      if (!sourceByKey.has(key)) sourceByKey.set(key, s);
     }
+    // Use the RECEIVER's hierarchy. Some exporters number its spine
+    // from the neck down, while the donor numbers from the hips up.
+    const pairs = [...byKey].flatMap(([key, t]) => {
+      const s = sourceByKey.get(key);
+      return s ? [{ s, t }] : [];
+    });
     if (!pairs.length) return null;
+    // Some reduced rigs omit an elbow and wrist. Their own clips can
+    // still work, but there is no full arm chain to align for a lend.
+    // Keep those bodies on their authored animations.
+    if (["leftarm", "leftforearm", "lefthand", "rightarm", "rightforearm", "righthand"]
+      .some(key => !byKey.has(key) || !sourceByKey.has(key))) return null;
 
     const restS = pairs.map(({ s }) => s.getWorldQuaternion(new THREE.Quaternion()));
     const restT = pairs.map(({ t }) => t.getWorldQuaternion(new THREE.Quaternion()));
+    const HOLD_REST = /^(left|right)shoulder$/;
+    // The current bodies rest with their arms down; the donors rest in
+    // a T-pose. Applying a T-pose delta to an already lowered arm folds
+    // it behind the torso. Align each arm segment's rest direction
+    // before transferring motion, retaining the receiver's bone roll.
+    const armAlignment = new Map();
+    const directionTo = (bone, child) => child.getWorldPosition(new THREE.Vector3())
+      .sub(bone.getWorldPosition(new THREE.Vector3())).normalize();
+    for (const { s, t } of pairs){
+      const key = canonBone(t.name);
+      const childKey = /^(left|right)arm$/.test(key) ? key.replace(/arm$/, "forearm")
+        : /^(left|right)forearm$/.test(key) ? key.replace(/forearm$/, "hand") : null;
+      const sourceChild = sourceByKey.get(childKey), targetChild = byKey.get(childKey);
+      if (!sourceChild || !targetChild) continue;
+      const from = directionTo(t, targetChild), to = directionTo(s, sourceChild);
+      if (from.lengthSq() && to.lengthSq())
+        armAlignment.set(key, new THREE.Quaternion().setFromUnitVectors(from, to));
+    }
+    const alignedRestT = pairs.map(({ t }, i) => {
+      const key = canonBone(t.name);
+      // A terminal hand has no child direction; carry the forearm's
+      // correction with it so the wrist keeps its authored rest angle.
+      const alignment = armAlignment.get(key) ||
+        (/^(left|right)hand$/.test(key) ? armAlignment.get(key.replace(/hand$/, "forearm")) : null);
+      return alignment ? restT[i].clone().premultiply(alignment) : restT[i];
+    });
 
     /* ── ?rigrest=1 — do these two rigs REST in the same shape? ────────
        Asked from in here because this is the only place both rests exist
@@ -7840,9 +7877,13 @@ function lendClip(clip, target, srcRoot, name, fps = 30, writeHips = true){
 
       world.clear();
       pairs.forEach(({ s, t }, bi) => {
+        // A held shoulder has no animation track. Leave it out of the
+        // animated world map too: worldFor must compose its local rest
+        // with the moving torso when solving the arm beneath it.
+        if (HOLD_REST.test(canonBone(t.name) || "")) return;
         s.getWorldQuaternion(_lq);
         _lD.copy(restS[bi]).invert().premultiply(_lq);   /* how far from ITS rest */
-        _lW.copy(_lD).multiply(restT[bi]);               /* onto the receiver's */
+        _lW.copy(_lD).multiply(alignedRestT[bi]);        /* onto the aligned receiver */
         world.set(t, _lW.clone());
         /* ── an unpaired parent is not at rest at runtime ──────────────
            This converts the world orientation just computed into a local
@@ -7976,10 +8017,11 @@ function lendClip(clip, target, srcRoot, name, fps = 30, writeHips = true){
        clavicle contributes a few degrees of shrug that no viewer will
        miss and that this rig cannot receive.
 
-       So it is left at rest. Not excluded from the pairing — it still
-       anchors the arm chain's parent orientation, which is what broke
-       when Chest went unpaired — simply not given a track of its own. */
-    const HOLD_REST = /^(left|right)shoulder$/;
+       So its LOCAL rotation stays at rest, while it follows the torso.
+       The arm must be solved against that actual parent orientation.
+       Baking against an animated shoulder and only removing its track
+       afterwards subtracts motion that will never play, twisting the
+       arm, forearm and hand away from their intended world poses. */
     let heldBones = 0;
     const tracks = pairs.filter(({ t }) => {
       if (!HOLD_REST.test(canonBone(t.name) || "")) return true;
@@ -8216,7 +8258,7 @@ function rolesOf(k, src){
     if (!c.userData?.own) return null;             /* lent: measure it */
     const n = (c.name || "").toLowerCase();
     if (/\bidle\b|^idle|standing/.test(n)) return "idle";
-    if (/talk|speak|gesture|convers/.test(n))  return "talk";
+    if (/talk|chat|speak|gesture|convers/.test(n))  return "talk";
     /* SEAT BEFORE GAIT, and the order is the whole point. These tests
        return on the first hit, and a clip called "Walk_to_Sit" says
        walk before it says sit -- so the sit-down came back as a GAIT

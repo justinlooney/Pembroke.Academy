@@ -56,12 +56,13 @@ Write a new probe against this, not against a copy of the last one.
 | job | script | what it refuses to let through |
 |---|---|---|
 | `cache-version` | `check-sw-version.sh` | an asset changed in place without an `ASSETS_V` bump — visitors keep the old file forever |
-| `gateway` | `reliability.test.mjs`, `check-worker.mjs` | progress, cache, grading and Worker contracts, without spending inference |
+| `gateway` | `reliability.test.mjs`, `retarget.test.mjs`, `check-worker.mjs` | progress, cache, grading, arm motion and Worker contracts, without spending inference |
 | `learning` | `check-learning.mjs` | the WebGL-free study route, restoration, backup conflicts, accessibility and offline behavior |
 | `smoke` | `check-rig-names.mjs` | a character whose bone or clip names do not line up |
 | | `check-css.mjs` | a utility class with no rule, or a selector naming a class nobody creates |
 | | `smoke.mjs` | the visit itself — ignite, read the ledger, walk, enter, leave, run the clock to night |
 | `figures` | `check-breath.mjs` | a standing figure that drifts off its mark |
+| | `check-retarget.mjs` | borrowed motion folding an arm or compensating against the wrong parent pose |
 | | `check-roles.mjs` | a lent clip that landed on the wrong role |
 | | `check-stance.mjs` | somebody parked in a pose a person does not hold |
 | `ledger` | `check-ledger.mjs`, `check-campus-learning.mjs` | legal seals, restore safety, practice routing and shared grading |

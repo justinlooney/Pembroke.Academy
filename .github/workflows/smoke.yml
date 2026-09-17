@@ -248,6 +248,9 @@ jobs:
       - name: Does a standing figure stay where it was put?
         run: node tools/check-breath.mjs
 
+      - name: Do borrowed motions preserve the cast's arm poses?
+        run: node tools/check-retarget.mjs
+
       # Every clip a body wears is LENT — asked for by name, gated on
       # shape, then handed over. rolesOf then measured the merged list
       # back from scratch and decided for itself what each one was: two

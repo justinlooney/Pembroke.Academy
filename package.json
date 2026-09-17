@@ -5,7 +5,7 @@
   "type": "module",
   "engines": { "node": ">=22" },
   "scripts": {
-    "test": "node --test tools/reliability.test.mjs && node tools/check-worker.mjs && node tools/check-css.mjs && node tools/check-materials.mjs",
+    "test": "node --test tools/reliability.test.mjs tools/retarget.test.mjs && node tools/check-worker.mjs && node tools/check-css.mjs && node tools/check-materials.mjs",
     "test:learning": "node tools/check-learning.mjs",
     "test:ledger": "node tools/check-ledger.mjs"
   },

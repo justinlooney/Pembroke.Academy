@@ -123,7 +123,7 @@ function serviceWorker(fetcher, hit = new Response("<body>saved</body>"), base =
     return ["./", "./index.html", "./study.html"].some(path => new URL(path, base).href === url.href) ? hit?.clone() : undefined;
   }, put: async () => {}, delete: async () => {} };
   const context = { self: { registration: { scope: base }, addEventListener: (k, f) => handlers[k] = f, clients: { claim: async () => {} }, location: { origin: "https://campus.test" } },
-    caches: { keys: async () => ["pembroke-v150-shell", "pembroke-v152-shell", "pembroke-assets-v3-depot", "other-app-cache"], delete: async k => removed.push(k), open: async () => cache },
+    caches: { keys: async () => ["pembroke-v150-shell", "pembroke-v153-shell", "pembroke-assets-v3-depot", "other-app-cache"], delete: async k => removed.push(k), open: async () => cache },
     fetch: fetcher, Response, Headers, URL, AbortController, setTimeout, clearTimeout };
   vm.createContext(context); vm.runInContext(readFileSync(new URL("../sw.js", import.meta.url), "utf8") + '\nthis.networkFirst = networkFirst;', context);
   return { handlers, removed, load: (path = "index.html", mode = "navigate") => context.networkFirst({ url: new URL(path, base).href, mode }, "shell", 15) };
