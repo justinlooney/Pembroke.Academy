@@ -273,13 +273,46 @@ body.day #campus-wing .text-slate-600{color:#55657e;}
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   THE 3D ISOMETRIC CAMPUS ENGINE
-   perspective 1200px → rotateX(55deg) rotateZ(-45deg), preserve-3d
-   ══════════════════════════════════════════════════════════════════ */
-#stage{
-  perspective:1200px;
-  perspective-origin:50% 32%;
-}
+   #stage — the box the WebGL canvas lives in, and nothing more now
+   ══════════════════════════════════════════════════════════════════
+   It used to carry `perspective: 1200px` with a matching 640px in walk
+   mode, under a banner reading "THE 3D ISOMETRIC CAMPUS ENGINE —
+   perspective 1200px → rotateX(55deg) rotateZ(-45deg), preserve-3d".
+   That engine is gone. The note below this rule has said so for a
+   while: there is no #scene element, nothing creates one, and every
+   rule naming it was deleted. The projection outlived the thing it
+   projected, because it sits on #stage and #stage is still real.
+
+   PERSPECTIVE IS NOT INERT. It establishes a 3D rendering context and
+   a containing block, and Chromium promotes such an element onto its
+   own composited layer and composites it 3D-aware. #stage's only
+   meaningful child is the WebGL canvas, and in walk mode that sits
+   inside a position:fixed, overflow:hidden wing. A canvas inside a
+   perspective container inside a fixed element is the configuration
+   Android presents in pieces: the page renders a whole frame and the
+   compositor puts part of it on the screen.
+
+   Reported as "intermittent black on screen... it happens when I look
+   left and right", with the panel open. What the panel ruled out is
+   most of this:
+
+       buffer 768x1380  css 384x690     — the buffer is right, no MISMATCH
+       (no gl line at all)              — the context has never been lost
+       fps 60.0   draws 607-1039        — a full frame, at rate
+
+   Photographed and measured, the dark area is a RECTANGLE anchored to
+   the bottom-right with hard straight edges, and frames taken seconds
+   apart are clean. Nothing about a renderer drawing 5M triangles at
+   60fps produces a straight-edged rectangle of nothing. A compositor
+   does.
+
+   So this goes, on two grounds that stand separately: it is dead, and
+   it forces a compositing path this page has no use for. Honest limit
+   on the claim — the fault cannot be reproduced on this hardware, so
+   what is proven here is that the declaration was doing no work and
+   that it created the conditions. Whether the phone comes back clean
+   is the test, and the panel is there to say so. */
+#stage{}
 /* The CSS-3D campus that predates the WebGL one is gone from the
    markup — there is no #scene element and nothing creates one — so
    every rule that named it has been dead for as long as three.js has
@@ -835,7 +868,11 @@ body.touched.walkmode #touchpad{display:flex;}
    hard seam across the hero frame where the canvas simply started.
 
    #67 made the WING fullscreen. The canvas inside it never followed. */
-body.walkmode #stage{padding-top:0;perspective:640px;perspective-origin:50% 50%;}
+/* padding only. The walk-mode `perspective:640px` went with the 1200px
+   one above, and for the same reason: it projected a CSS-3D campus that
+   no longer exists, and it wrapped the WebGL canvas in a 3D compositing
+   context inside a position:fixed wing. */
+body.walkmode #stage{padding-top:0;}
 .walkmode .b-label .stem{display:none;}
 .walkmode #campus-wing-intro, .walkmode #campus-legend, .walkmode #campus-hints{opacity:0;pointer-events:none;transition:opacity .4s ease;}
 /* ?debug puts a panel of numbers where the intro sits; show one or the other */
