@@ -12303,6 +12303,13 @@ function scanDark(){
      gl line above already says the context is down; say nothing here
      rather than say something false. */
   if (GL_CTX.down) return "";
+  /* The interior panel is an opaque page over the canvas, so the render
+     loop skips composer.render() entirely while it is up. Nothing has
+     been drawn this frame; what readPixels would return is a composited
+     and therefore undefined buffer, and reading it would print a black
+     rectangle nobody can see and send the next investigation at a
+     renderer that was resting. */
+  if (interiorView) return "scan   not drawing (interior)\n";
   const gl = renderer.getContext();
   const d = renderer.domElement, W = d.width, H = d.height;
   if (!W || !H || !gl || gl.isContextLost()) return "";
