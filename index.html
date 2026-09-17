@@ -884,9 +884,13 @@ body.diagnosing #campus-wing-intro{opacity:0;pointer-events:none;}
   text-shadow:0 1px 2px rgba(4,8,16,.9), 0 0 16px rgba(4,8,16,.7);
 }
 #campus-legend, #campus-hints{ font-weight:500; }
-/* These labels keep a dark shadow over the 3D scene in either theme.
-   The wing's daylight text override must not make the letters dark
-   too: dark blue on that shadow measured only 1.76:1 on a phone. */
+/* These overlays sit directly over a scene that can be light or dark
+   in either theme, so their dark shadow and light letters travel as a
+   pair. The wing's general daylight override made the intro and legend
+   dark too: the measured phone contrast fell as low as 1.48:1. */
+body.day #campus-wing-intro h1{color:var(--parchment);text-shadow:0 1px 2px rgba(4,8,16,.9),0 0 16px rgba(4,8,16,.7);}
+body.day #campus-wing-intro h1 span{color:var(--brass);}
+body.day #campus-wing-intro p.text-slate-300{color:#cbd5e1;}
 body.day #campus-legend .text-slate-300,
 body.day #campus-hints .text-slate-300{color:#cbd5e1;}
 /* Both are bottom-anchored at opposite margins and neither had a

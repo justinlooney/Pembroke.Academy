@@ -69,8 +69,8 @@ const auditSkies = async (page, label) => {
     { timeout: 90_000 });
   if (await page.evaluate(() => window.__walker.on)) await page.keyboard.press("f");
   for (const mode of ["day", "night"]){
-    const control = page.locator("#daynight");
-    for (let i = 0; i < 5 && await control.getAttribute("title") !== `Time of day: ${mode} (N to change)`; i++)
+    for (let i = 0; i < 5 && await page.evaluate(() =>
+      document.getElementById("daynight").title) !== `Time of day: ${mode} (N to change)`; i++)
       await page.keyboard.press("n");
     /* Switching the sky recompiles materials on the software renderer;
        give it the same breathing room as loading the campus. */
@@ -80,18 +80,22 @@ const auditSkies = async (page, label) => {
         !document.body.classList.contains("walkmode") &&
         getComputedStyle(legend).opacity === "1";
     }, mode === "day", { timeout: 90_000, polling: 250 });
-    await page.locator("#campus-legend").evaluate(el =>
-      el.scrollIntoView({ block: "center", behavior: "instant" }));
-    const visible = await page.locator("#campus-legend .text-slate-300").evaluateAll(labels =>
-      labels.filter(el => {
+    /* Read this as one DOM snapshot. Locator.evaluate adds an action
+       timeout while Chromium is recompiling scene materials; there is
+       no actionability question here and no reason for that timeout to
+       turn a passing contrast audit red. */
+    const observed = await page.evaluate(() => {
+      const legend = document.getElementById("campus-legend");
+      const visible = [...legend.querySelectorAll(".text-slate-300")].filter(el => {
         const r = el.getBoundingClientRect();
         return el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) &&
           r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth;
-      }).length);
-    const selected = await control.getAttribute("title");
+      }).length;
+      return { visible, selected: document.getElementById("daynight").title };
+    });
     step(`all four legend labels are visible — ${label}, ${mode}`,
-      visible === 4 && selected === `Time of day: ${mode} (N to change)`,
-      `${visible}/4 visible; selected ${selected}`);
+      observed.visible === 4 && observed.selected === `Time of day: ${mode} (N to change)`,
+      `${observed.visible}/4 visible; selected ${observed.selected}`);
     await audit(page, `${label}, ${mode}`);
   }
 };
