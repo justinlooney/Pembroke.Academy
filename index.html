@@ -3143,7 +3143,17 @@ world.add(skyDome);
    than once when SSAO is in the chain, and "1 when I expected 2" is
    itself a finding. */
 let skyDrew = 0;
-skyDome.onAfterRender = () => { skyDrew++; };
+/* ONLY THE COLOUR PASS COUNTS. SSAOPass.renderOverride sets
+   scene.overrideMaterial, renders the whole scene into its own normal
+   and depth targets, then puts it back — and onAfterRender fires for
+   those too. Counting them made "sky 2x" mean "the dome was submitted
+   twice somewhere", which is not the question: an off-screen normal
+   pass paints no part of the buffer the screen shows, so a dome that
+   drew ONLY there would have reported healthy while leaving exactly
+   the hole under investigation. The material argument is the one
+   actually used, so it is skyMat on the visible pass and the override
+   on the others. */
+skyDome.onAfterRender = (r, s, c, g, material) => { if (material === skyMat) skyDrew++; };
 world.fog = new THREE.Fog(0xc3d9ee, 900, 3000);
 
 /* ── lights ──────────────────────────────────────────────────────── */
@@ -12416,17 +12426,22 @@ function scanDark(){
      photographed so far are anchored to a corner, and a rectangle
      covering less than half the screen slips straight through a single
      line drawn down the centre of it. */
+  /* Sampled from BOTH axes, and the longer run wins. Capturing only on
+     the vertical branch meant a hole that a column happened to miss —
+     one lying in a band across the screen, which is the shape every
+     capture so far has had — reported no rgba at all, and the
+     opaque-versus-transparent question went unanswered for the very
+     case it was added to settle. */
+  let vpx = null, hpx = null;
+  const mid = (buf, r) => { const o = (r[0] + (r[1] >> 1)) * 4;
+                            return [buf[o], buf[o + 1], buf[o + 2], buf[o + 3]]; };
   for (const f of [0.25, 0.75]){
     gl.readPixels(Math.floor(W * f), 0, 1, H, gl.RGBA, gl.UNSIGNED_BYTE, col);
-    const a = run(col, H);
-    if (a[1] > v[1]){
-      v = a;
-      const o = (a[0] + (a[1] >> 1)) * 4;      /* the middle of the run */
-      px = [col[o], col[o + 1], col[o + 2], col[o + 3]];
-    }
+    const a = run(col, H); if (a[1] > v[1]){ v = a; vpx = mid(col, a); }
     gl.readPixels(0, Math.floor(H * f), W, 1, gl.RGBA, gl.UNSIGNED_BYTE, row);
-    const b = run(row, W); if (b[1] > h[1]) h = b;
+    const b = run(row, W); if (b[1] > h[1]){ h = b; hpx = mid(row, b); }
   }
+  px = (v[1] >= h[1] ? vpx : hpx) || vpx || hpx;
   /* GL counts rows from the BOTTOM and the person holding the phone
      does not, so the vertical edge is named the way they see it. */
   const say = (r, n, lo, hi) =>
@@ -12444,7 +12459,10 @@ function scanDark(){
        number of pixels is a viewport or a tile, and one that wanders is
        a horizon. The percentage alone cannot tell those apart, and they
        are the two candidates left. */
-         "       rows " + v[0] + "-" + (v[0] + v[1]) + " of " + H +
+    /* INCLUSIVE. run() returns [start, length], so a run covering rows
+       0 through 7 printed as "0-8" and named a row that is not dark —
+       the one thing this line exists to be exact about. */
+         "       rows " + v[0] + "-" + (v[0] + v[1] - 1) + " of " + H +
          (px ? "   rgba " + px.join(",") + (px[3] === 0 ? " — TRANSPARENT, not black" : "") : "") +
          "   " + sky + "\n";
 }

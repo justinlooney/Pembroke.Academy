@@ -39,7 +39,12 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { existsSync, statSync } from "node:fs";
 import { resolve, extname, sep } from "node:path";
-const ROOT = "/home/user/Pembroke.Academy";
+/* Derived, never spelled out. A hardcoded absolute path is one machine's
+   checkout: anywhere else — CI, another clone, another account — the
+   static server answers 404 for index.html and the probe reports on a
+   blank page rather than on the campus. Every other browser tool here
+   derives it, and this one is the newest, not the exception. */
+const ROOT = resolve(new URL("..", import.meta.url).pathname);
 const MIME = { ".html":"text/html", ".js":"text/javascript", ".mjs":"text/javascript",
   ".css":"text/css", ".glb":"model/gltf-binary", ".png":"image/png", ".jpg":"image/jpeg",
   ".webp":"image/webp", ".json":"application/json", ".woff2":"font/woff2" };
@@ -70,9 +75,28 @@ const setup = await page.evaluate(async ()=>{
              .find(el=>el.getContext("webgl2")||el.getContext("webgl"));
              return c ? c.width+"x"+c.height+" css "+c.clientWidth+"x"+c.clientHeight : "?";})() };
 });
+/* The campus follows the wall clock, so what time this runs decides
+   what it measures. Press N (the day/night key) until daylight is
+   confirmed rather than leaving that to the hour — a probe that can
+   only be trusted between certain hours is a probe nobody will trust
+   at 23:00, which is exactly when one on this branch measured the
+   night sky and reported the bug reproduced. Best effort; the
+   assertion below is still the authority.  */
+for (let i = 0; i < 2 && setup.visual !== "day"; i++){
+  await page.keyboard.press("n");
+  await page.waitForTimeout(1500);
+  setup.visual = await page.evaluate(() => window.__visual);
+}
 console.log("walk mode:", setup.on, " visual:", setup.visual, " buffer:", setup.buffer);
 if (!setup.on){ console.log("ABORT — never entered walk mode:", JSON.stringify(setup)); await browser.close(); srv.close(); process.exit(2); }
-if (setup.visual === "night"){ console.log("ABORT — campus is in night; a dark frame would prove nothing"); await browser.close(); srv.close(); process.exit(2); }
+/* POSITIVE assertion, not the absence of "night". Rejecting only the
+   exact string let an unset __visual through — null during startup
+   reads as "not night" — and an uncontrolled frame would have been
+   measured as a daylight reproduction. That is precisely the failure
+   this guard was added for after a probe on this branch measured the
+   night sky and called the bug reproduced; written as a denylist it
+   would have allowed it straight back in through a different door. */
+if (setup.visual !== "day"){ console.log("ABORT — daylight not confirmed (__visual is " + JSON.stringify(setup.visual) + "); a dark frame would prove nothing"); await browser.close(); srv.close(); process.exit(2); }
 
 console.log("\n heading   scan                                          draws    tris");
 for (let deg = 0; deg < 360; deg += 30){
