@@ -63,6 +63,7 @@ Write a new probe against this, not against a copy of the last one.
 | | `smoke.mjs` | the visit itself — ignite, read the ledger, walk, enter, leave, run the clock to night |
 | `figures` | `check-breath.mjs` | a standing figure that drifts off its mark |
 | | `check-retarget.mjs` | borrowed motion folding an arm or compensating against the wrong parent pose |
+| | `check-mobility.mjs` | Jun permanently parked or travelling with a paused walking animation |
 | | `check-roles.mjs` | a lent clip that landed on the wrong role |
 | | `check-stance.mjs` | somebody parked in a pose a person does not hold |
 | `ledger` | `check-ledger.mjs`, `check-campus-learning.mjs` | legal seals, restore safety, practice routing and shared grading |

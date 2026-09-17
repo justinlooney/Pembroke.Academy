@@ -5,6 +5,14 @@ import * as THREE from "../assets/vendor/three/build/three.module.js";
 
 // Execute the campus's actual retargeter without booting or rendering the campus.
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+test("Jun can roam instead of being permanently parked outside Alden", () => {
+  const plans = html.match(/const CAST_PLAN = (\[[\s\S]*?\n\]);/);
+  assert.ok(plans, "locate the production cast plan");
+  const plan = new Function(`return ${plans[1]}`)()[3];
+  assert.equal(plan.k, "char10", "Jun retains the intended body");
+  assert.equal(plan.at, undefined, "a fixed position bypasses the walking state machine");
+  assert.equal(plan.orbit, undefined, "Jun uses campus routes, not an endless orbit");
+});
 const start = html.indexOf("const RP_BONE = {");
 const end = html.indexOf("/* ── what can this body do?", start);
 assert.ok(start > 0 && end > start, "locate the production retargeter");

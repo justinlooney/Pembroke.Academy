@@ -2234,7 +2234,7 @@ import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v153";
+const BUILD = "pembroke-v154";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -6905,9 +6905,10 @@ const CAST_PLAN = [
      and the roamer machinery already lets her stop and talk to someone
      real when the campus offers one. */
   { k: "char4" },
-  { k: "char10", at: [286, 838], face:  0.2, live: true, pose: 1 }, /* Jun — Alden front.
-     He stood at 270,700 — inside the science hall, behind its south
-     wall. Out on the front now, facing the quad. */
+  /* Jun follows the campus routes. A fixed Alden-front placement made
+     this student static for the entire visit, bypassing walk, sit,
+     conversation and doorway rotation even with working gait clips. */
+  { k: "char10", needs: "gait" },
   /* Sofia — a roamer now, like everyone else. She spent two designs
      parked: first on open lawn playing the seated loop nine units up
      ("a girl sitting on the air" — the chair was missing), then

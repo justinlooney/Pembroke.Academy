@@ -133,7 +133,7 @@ function serviceWorker(fetcher, hit = new Response("<body>saved</body>"), base =
      the script does, so it can close over a name the script provides. */
   let shell = null;
   const context = { self: { registration: { scope: base }, addEventListener: (k, f) => handlers[k] = f, clients: { claim: async () => {} }, location: { origin: "https://campus.test" } },
-    caches: { keys: async () => ["pembroke-v150-shell", "pembroke-v152-shell", shell, "pembroke-assets-v3-depot", "other-app-cache"], delete: async k => removed.push(k), open: async () => cache },
+    caches: { keys: async () => ["pembroke-v150-shell", "pembroke-v152-shell", "pembroke-v153-shell", shell, "pembroke-assets-v3-depot", "other-app-cache"], delete: async k => removed.push(k), open: async () => cache },
     fetch: fetcher, Response, Headers, URL, AbortController, setTimeout, clearTimeout };
   vm.createContext(context); vm.runInContext(readFileSync(new URL("../sw.js", import.meta.url), "utf8") + '\nthis.networkFirst = networkFirst; this.SHELL = SHELL;', context);
   shell = context.SHELL;
@@ -146,7 +146,8 @@ test("activation deletes only obsolete Pembroke caches", async () => {
   assert.match(sw.shell, /^pembroke-v\d+-shell$/);
   assert.notEqual(sw.shell, "pembroke-v150-shell");
   assert.notEqual(sw.shell, "pembroke-v152-shell");
-  assert.deepEqual(sw.removed, ["pembroke-v150-shell", "pembroke-v152-shell"]);
+  assert.notEqual(sw.shell, "pembroke-v153-shell");
+  assert.deepEqual(sw.removed, ["pembroke-v150-shell", "pembroke-v152-shell", "pembroke-v153-shell"]);
 });
 test("navigation fallback handles rejection, transient status, and a hung network", { timeout: 1000 }, async () => {
   for (const fetcher of [async () => { throw new Error("offline"); }, async () => new Response("down", { status: 503 }), () => new Promise(() => {})]){
