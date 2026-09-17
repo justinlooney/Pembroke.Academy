@@ -74,13 +74,13 @@ const out = await page.evaluate(() => new Promise((done) => {
      scissor enable behind its own wrapper; changing either without
      putting it back would break the frames after this one and the
      failure would look like the bug under investigation. */
-  const blank = (x, y, w, h) => {
+  const blank = (x, y, w, h, r = 0, g = 0, b = 0) => {
     const was = gl.getParameter(gl.COLOR_CLEAR_VALUE);
     const hadScissor = gl.getParameter(gl.SCISSOR_TEST);
     const box = gl.getParameter(gl.SCISSOR_BOX);
     gl.enable(gl.SCISSOR_TEST);
     gl.scissor(x, y, w, h);
-    gl.clearColor(0, 0, 0, 1);
+    gl.clearColor(r, g, b, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.clearColor(was[0], was[1], was[2], was[3]);
     gl.scissor(box[0], box[1], box[2], box[3]);
@@ -105,18 +105,36 @@ const out = await page.evaluate(() => new Promise((done) => {
       results.push({ case: "untouched", got: before.trim() });
       blank(0, 0, W, Math.floor(H * 0.4));                 /* GL y=0 is the BOTTOM */
       results.push({ case: "bottom 40%", got: window.__scanDark().trim(),
-                     want: /down 3[89]%|down 4[01]%/, wantEdge: /up from bottom/ });
+                     want: /V 3[89]%|V 4[01]%/, wantEdge: /V \d+% from bottom/ });
       return step(1);
     }
     if (n === 1){
       blank(0, Math.floor(H * 0.75), W, H - Math.floor(H * 0.75));
       results.push({ case: "top 25%", got: window.__scanDark().trim(),
-                     want: /down 2[456]%/, wantEdge: /down from top/ });
+                     want: /V 2[456]%/, wantEdge: /V \d+% from top/ });
       return step(2);
     }
-    blank(0, 0, Math.floor(W * 0.6), H);
-    results.push({ case: "left 60%", got: window.__scanDark().trim(),
-                   want: /across 6[01]%|across 59%/, wantEdge: /in from left/ });
+    if (n === 2){
+      blank(0, 0, Math.floor(W * 0.6), H);
+      results.push({ case: "left 60%", got: window.__scanDark().trim(),
+                     want: /H 6[01]%|H 59%/, wantEdge: /H \d+% from left/ });
+      return step(3);
+    }
+    /* THE HORIZONTAL AXIS HAS TO WIN SOMEWHERE. Every case above is won
+       by the vertical column, so none of them ever exercised the branch
+       that picks the row — and review found the sample and the spread
+       being read off DIFFERENT axes there, printing an rgba from the
+       winning row beside a flat/varies measured on an unrelated column.
+       A band is also the shape the phone actually reports.
+       Blanked in TWO darks so the axes disagree on purpose: the winning
+       row crosses both halves and must say "varies", while the column
+       at a quarter width sits wholly inside the black half and would
+       say "flat". Before the fix this printed the column's answer. */
+    const band = Math.floor(H * 0.3), half = Math.floor(W / 2);
+    blank(0, 0, half, band, 0, 0, 0);
+    blank(half, 0, W - half, band, 8 / 255, 8 / 255, 8 / 255);
+    results.push({ case: "two-tone band", got: window.__scanDark().trim(),
+                   want: /H 100% from left/, wantEdge: /varies 0-2[34]/ });
     done({ results, buffer: W + "x" + H });
     } catch (e){ done({ fail: "threw in frame " + n + ": " + (e && e.stack || e) }); }
   });
@@ -132,7 +150,7 @@ let bad = 0;
 for (const r of out.results){
   const ok = !r.want || (r.want.test(r.got) && r.wantEdge.test(r.got));
   if (!ok) bad++;
-  console.log((ok ? "  ok   " : "  FAIL ") + (r.case + "            ").slice(0, 12) + r.got);
+  console.log((ok ? "  ok   " : "  FAIL ") + (r.case + "               ").slice(0, 15) + r.got);
   if (!ok) console.log("       wanted " + r.want + " and " + r.wantEdge);
 }
 if (errs.length){ console.log("\npage errors:\n  " + errs.slice(0, 3).join("\n  ")); bad++; }

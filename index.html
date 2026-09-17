@@ -2246,7 +2246,7 @@ import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v155";
+const BUILD = "pembroke-v156";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -12435,16 +12435,49 @@ function scanDark(){
      capture so far has had — reported no rgba at all, and the
      opaque-versus-transparent question went unanswered for the very
      case it was added to settle. */
-  let vpx = null, hpx = null;
+  let vpx = null, hpx = null, vspan = null, hspan = null;
   const mid = (buf, r) => { const o = (r[0] + (r[1] >> 1)) * 4;
                             return [buf[o], buf[o + 1], buf[o + 2], buf[o + 3]]; };
   for (const f of [0.25, 0.75]){
     gl.readPixels(Math.floor(W * f), 0, 1, H, gl.RGBA, gl.UNSIGNED_BYTE, col);
-    const a = run(col, H); if (a[1] > v[1]){ v = a; vpx = mid(col, a); }
+    /* copied, because col and row are reused by the next iteration and
+       the winning line has to survive to be measured below */
+    const a = run(col, H); if (a[1] > v[1]){ v = a; vpx = mid(col, a); vspan = col.slice(); }
     gl.readPixels(0, Math.floor(H * f), W, 1, gl.RGBA, gl.UNSIGNED_BYTE, row);
-    const b = run(row, W); if (b[1] > h[1]){ h = b; hpx = mid(row, b); }
+    const b = run(row, W); if (b[1] > h[1]){ h = b; hpx = mid(row, b); hspan = row.slice(); }
   }
-  px = (v[1] >= h[1] ? vpx : hpx) || vpx || hpx;
+  /* FLAT OR SHADED? The single most discriminating thing left, and it
+     costs nothing because the winning line has already been read.
+     A run that is uniformly one value was FILLED — cleared, blitted,
+     or resolved over — and the campus never got to draw there. A run
+     whose luminance VARIES is drawn geometry that happens to be very
+     dark, which is a lighting or shadow fault and not a lost surface.
+     The first capture read rgba 5,5,5 rather than 0,0,0, and the clear
+     colour is 0,0,0: something was already rendering there, so this is
+     worth asking properly rather than inferring from one pixel.
+
+     ONE AXIS DECIDES BOTH. The sample and the spread have to describe
+     the same line or they contradict each other on the same row of the
+     panel — rgba from the winning horizontal run beside a "flat" read
+     off an unrelated vertical column, which is worse than printing
+     neither. So the longer run picks the line, and the pixel and the
+     spread are both taken from it. */
+  const vWins = v[1] >= h[1];
+  /* NOT `span`: that name is already a module-level helper for the
+     distance between two fingers, and shadowing it inside here reads
+     like a bug even while it behaves. */
+  const winner = (vWins ? vspan : hspan) || vspan || hspan;
+  const hole = (vWins ? v : h);
+  px = (vWins ? vpx : hpx) || vpx || hpx;
+  let lo = 255, hi = 0;
+  if (winner){
+    for (let i = hole[0]; i < hole[0] + hole[1]; i++){
+      const l = winner[i * 4] + winner[i * 4 + 1] + winner[i * 4 + 2];
+      if (l < lo) lo = l; if (l > hi) hi = l;
+    }
+  }
+  const spread = winner && hole[1] >= SCAN_MIN
+    ? (hi === lo ? "  flat " + lo : "  varies " + lo + "-" + hi) : "";
   /* GL counts rows from the BOTTOM and the person holding the phone
      does not, so the vertical edge is named the way they see it. */
   const say = (r, n, lo, hi) =>
@@ -12456,8 +12489,19 @@ function scanDark(){
      is a different bug from a dome that did not. */
   const sky = "sky " + (skyDrew ? skyDrew + "x" : "NOT DRAWN");
   if (v[1] < SCAN_MIN && h[1] < SCAN_MIN) return "scan   clean   " + sky + "\n";
-  return "scan   down " + say(v, H, "up from bottom", "down from top") +
-         "   across " + say(h, W, "in from left", "in from right") + "\n" +
+  /* WIDTH IS A FEATURE OF THIS PANEL, NOT A DETAIL. It is 19rem of
+     white-space:pre with overflow hidden, which is about 46 characters
+     at 11px — and the report went out at sixty. So the phone came back
+     with "across 73% in from rig" and the line ended there, taking the
+     sky count with it: the one number this release exists to read,
+     cropped off the right edge on every frame that had a hole in it,
+     and legible only on the frames that were clean.
+     Hence V and H rather than "down" and "across", "from bottom"
+     rather than "up from bottom", a slash rather than " of ", and the
+     sky count promoted to the short line where nothing can push it
+     off. A diagnostic that cannot be photographed is not a diagnostic. */
+  return "scan   V " + say(v, H, "from bottom", "from top") +
+         "   H " + say(h, W, "from left", "from right") + "\n" +
     /* Exact rows, not just a share: a boundary that lands on a round
        number of pixels is a viewport or a tile, and one that wanders is
        a horizon. The percentage alone cannot tell those apart, and they
@@ -12465,9 +12509,10 @@ function scanDark(){
     /* INCLUSIVE. run() returns [start, length], so a run covering rows
        0 through 7 printed as "0-8" and named a row that is not dark —
        the one thing this line exists to be exact about. */
-         "       rows " + v[0] + "-" + (v[0] + v[1] - 1) + " of " + H +
-         (px ? "   rgba " + px.join(",") + (px[3] === 0 ? " — TRANSPARENT, not black" : "") : "") +
-         "   " + sky + "\n";
+         "       rows " + v[0] + "-" + (v[0] + v[1] - 1) + "/" + H +
+         "  " + sky + "\n" +
+         (px ? "       rgba " + px.join(",") +
+               (px[3] === 0 ? " TRANSPARENT" : "") + spread + "\n" : "");
 }
 /* Exposed because an instrument that has only ever printed "clean"
    has not been tested, it has been watched. Twice on this branch a
