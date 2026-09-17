@@ -248,6 +248,9 @@ jobs:
       - name: Does a standing figure stay where it was put?
         run: node tools/check-breath.mjs
 
+      - name: Do borrowed motions preserve the cast's arm poses?
+        run: node tools/check-retarget.mjs
+
       # Every clip a body wears is LENT — asked for by name, gated on
       # shape, then handed over. rolesOf then measured the merged list
       # back from scratch and decided for itself what each one was: two
@@ -258,6 +261,9 @@ jobs:
       # their torso", with nothing in CI having an opinion.
       - name: Is every lent clip doing the job it was lent for?
         run: node tools/check-roles.mjs
+
+      - name: Does Jun travel with a running walking animation?
+        run: node tools/check-mobility.mjs
 
       # The plan parks students at doors and on the plaza, stepStudents
       # never steps a static figure, and whatever pose the build leaves

@@ -142,6 +142,11 @@ for (const r of rows){
   for (const g of r.gaits)
     if (g === LENT_SIT || g === LENT_SEAT)
       bad.push(`${r.k}: "${g}" is being walked with`);
+  const ownChat = r.clips.find(n => /chat/i.test(n));
+  if (ownChat && (!r.talk || isLent(r.talk)))
+    bad.push(`${r.k}: its own "${ownChat}" should supply the talking role`);
+  if (r.gaits.some(n => /chat/i.test(n)))
+    bad.push(`${r.k}: a standing chat is being walked with`);
 }
 
 if (bad.length){
