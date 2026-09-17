@@ -2246,7 +2246,7 @@ import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v156";
+const BUILD = "pembroke-v157";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -3145,7 +3145,7 @@ world.add(skyDome);
    Counted rather than flagged because the composer draws the scene more
    than once when SSAO is in the chain, and "1 when I expected 2" is
    itself a finding. */
-let skyDrew = 0;
+let skyDrew = 0, skyProbing = false;
 /* ONLY THE COLOUR PASS COUNTS. SSAOPass.renderOverride sets
    scene.overrideMaterial, renders the whole scene into its own normal
    and depth targets, then puts it back — and onAfterRender fires for
@@ -3156,7 +3156,15 @@ let skyDrew = 0;
    the hole under investigation. The material argument is the one
    actually used, so it is skyMat on the visible pass and the override
    on the others. */
-skyDome.onAfterRender = (r, s, c, g, material) => { if (material === skyMat) skyDrew++; };
+/* skyProbing: the raw-scene probe renders this same dome into its own
+   target, and counting that would make the panel report a dome that
+   reached the SCREEN when it only reached the probe. The test caught
+   it immediately — repeated scans inside one frame walked the count up
+   to 4x and 6x — and on the phone it would have read a quiet 2x where
+   the truth is 1x. An instrument must not appear in its own reading. */
+skyDome.onAfterRender = (r, s, c, g, material) => {
+  if (!skyProbing && material === skyMat) skyDrew++;
+};
 world.fog = new THREE.Fog(0xc3d9ee, 900, 3000);
 
 /* ── lights ──────────────────────────────────────────────────────── */
@@ -12381,6 +12389,98 @@ if (DEBUG){
    daylight ones, where a straight 39% band is not scenery. */
 const SCAN_DARK = 24;              /* r+g+b at or under this is "nothing" */
 const SCAN_MIN  = 8;               /* shorter runs are noise, not a hole */
+/* ── THE SCENE WITHOUT THE POST CHAIN ───────────────────────────────
+   The phone reports "varies 0-15" inside the band, and I read that as
+   proof the band is drawn geometry rather than a fill. It is not proof.
+   Bloom, SMAA and the ink pass all run AFTER the scene is drawn, so a
+   region filled flat black picks up a few units of variation on its
+   way to the screen and reads exactly the same. The discriminator is
+   weaker than it was described as being, and this is the honest way to
+   get the answer it was supposed to give.
+
+   Render the scene again, small, straight into a target, with nothing
+   downstream of it at all — no composer, no bloom, no smaa, no ink.
+   Then scan that the same way. Two outcomes, and they point in
+   opposite directions:
+
+     raw dark    the campus itself is drawing that band nearly black.
+                 The post chain is innocent and this is lighting, or
+                 materials, or shadow.
+     raw clean   the scene is fine and something between it and the
+                 screen destroys a band of it. The post chain, or the
+                 blit out of it, is where to look.
+
+   64 wide keeps it honest about cost: the fragment work is nothing,
+   the draw calls are the same as a real frame, and it runs twice a
+   second under ?debug only. Shadows are held across it — autoUpdate
+   would re-render a 3072 map for this and that is a far bigger bill
+   than the probe itself. */
+let probeRT = null;
+function rawScan(){
+  if (!DEBUG) return "";
+  /* THE PROBE MUST NOT BE CHARGED TO THE CAMPUS. lastT is stamped at
+     the TOP of the frame and this runs near the bottom, so a full extra
+     render plus a blocking readback lands in the NEXT frame's raw dt —
+     which stepCrowd folds into crowdFps and stepQuality reads to decide
+     what to give up. Under ?debug the diagnostic could therefore shed a
+     quality rung and change the pixel ratio, and the captures on this
+     bug already show the ladder shedding. The elapsed time is handed
+     back to lastT at the end, so the frame clock sees the campus and
+     not the instrument. */
+  const t0 = performance.now();
+  const heldAuto = renderer.shadowMap.autoUpdate;
+  const heldCalls = renderer.info.render.calls;
+  const heldTris  = renderer.info.render.triangles;
+  try {
+    const aspect = renderer.domElement.height / Math.max(1, renderer.domElement.width);
+    const w = 64, h = Math.max(8, Math.round(w * aspect));
+    if (!probeRT) probeRT = new THREE.WebGLRenderTarget(w, h);
+    else if (probeRT.width !== w || probeRT.height !== h) probeRT.setSize(w, h);
+    renderer.shadowMap.autoUpdate = false;
+    skyProbing = true;
+    renderer.setRenderTarget(probeRT);
+    renderer.render(world, camera);
+    const buf = new Uint8Array(w * h * 4);
+    renderer.readRenderTargetPixels(probeRT, 0, 0, w, h, buf);
+    /* THE SAME COLUMNS THE SCREEN SCAN USES. A single centre column was
+       blind to exactly the shape this probe exists to explain: every
+       capture so far is anchored to a side, and a band down the left or
+       the right would have been missed here and reported "raw clean" —
+       the probe exonerating the scene and blaming the post chain for a
+       hole the scene had drawn itself. */
+    let best = 0, at = 0;
+    for (const f of [0.25, 0.75]){
+      const x = Math.min(w - 1, Math.floor(w * f));
+      let cur = 0;
+      for (let y = 0; y < h; y++){
+        const o = (y * w + x) * 4;
+        if (buf[o] + buf[o + 1] + buf[o + 2] <= SCAN_DARK){
+          if (++cur > best){ best = cur; at = y - cur + 1; }
+        } else cur = 0;
+      }
+    }
+    if (best < 3) return "  raw clean";
+    /* INCLUSIVE END, like the screen scan: a run reaching the top has
+       at + best === h, and >= h - 1 called it "top" while the last row
+       was still lit. */
+    return "  raw " + Math.round(best * 100 / h) + "%" +
+           (at === 0 ? " btm" : at + best >= h ? " top" : " mid");
+  } catch (e){
+    return "  raw ?";
+  } finally {
+    /* EVERY saved value, on every path. The catch used to restore two of
+       four, so one transient throw left shadowMap.autoUpdate false
+       FOREVER — shadows frozen on the visitor's campus by a diagnostic
+       that failed once — and left the probe's own draw calls standing in
+       the panel's frame cost. */
+    skyProbing = false;
+    renderer.setRenderTarget(null);
+    renderer.shadowMap.autoUpdate = heldAuto;
+    renderer.info.render.calls = heldCalls;
+    renderer.info.render.triangles = heldTris;
+    lastT += performance.now() - t0;
+  }
+}
 function scanDark(){
   /* A lost context reads back as all zeroes, which would print a 100%
      black buffer and send the next investigation at the renderer. The
@@ -12483,12 +12583,19 @@ function scanDark(){
   const say = (r, n, lo, hi) =>
     r[1] < SCAN_MIN ? "clean"
       : Math.round(r[1] * 100 / n) + "% " +
-        (r[0] === 0 ? lo : r[0] + r[1] >= n - 1 ? hi : "mid");
+        (r[0] === 0 ? lo : r[0] + r[1] >= n ? hi : "mid");
   /* The sky is reported on the same line as the hole it cannot explain,
      because they are one reading: a dome that drew and a black screen
      is a different bug from a dome that did not. */
   const sky = "sky " + (skyDrew ? skyDrew + "x" : "NOT DRAWN");
+  /* Nothing to explain on a clean frame, so do not pay for an answer
+     nobody asked for: the probe runs only when the screen scan has
+     actually found a hole. That is most frames saved outright, which
+     matters more than the frame-clock correction above, because a full
+     extra scene render is real work on the GPU whether or not the
+     clock is told about it. */
   if (v[1] < SCAN_MIN && h[1] < SCAN_MIN) return "scan   clean   " + sky + "\n";
+  const raw = rawScan();
   /* WIDTH IS A FEATURE OF THIS PANEL, NOT A DETAIL. It is 19rem of
      white-space:pre with overflow hidden, which is about 46 characters
      at 11px — and the report went out at sixty. So the phone came back
@@ -12510,7 +12617,7 @@ function scanDark(){
        0 through 7 printed as "0-8" and named a row that is not dark —
        the one thing this line exists to be exact about. */
          "       rows " + v[0] + "-" + (v[0] + v[1] - 1) + "/" + H +
-         "  " + sky + "\n" +
+         "  " + sky + raw + "\n" +
          (px ? "       rgba " + px.join(",") +
                (px[3] === 0 ? " TRANSPARENT" : "") + spread + "\n" : "");
 }
