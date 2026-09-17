@@ -122,14 +122,30 @@ function serviceWorker(fetcher, hit = new Response("<body>saved</body>"), base =
     const url = new URL(typeof req === "string" ? req : req.url, base);
     return ["./", "./index.html", "./study.html"].some(path => new URL(path, base).href === url.href) ? hit?.clone() : undefined;
   }, put: async () => {}, delete: async () => {} };
+  /* The shell this release actually uses, read out of sw.js rather than
+     restated here. Naming the current version in the fixture couples the
+     test to whatever it happened to be on the day it was written: the
+     cache that must SURVIVE was spelled "pembroke-v152-shell", so the
+     next release to bump VERSION made that cache correctly obsolete,
+     activate correctly deleted it, and this test correctly failed — at
+     a release whose only sin was being a release. Every cache bump
+     would have paid the same toll. keys() is async and runs long after
+     the script does, so it can close over a name the script provides. */
+  let shell = null;
   const context = { self: { registration: { scope: base }, addEventListener: (k, f) => handlers[k] = f, clients: { claim: async () => {} }, location: { origin: "https://campus.test" } },
-    caches: { keys: async () => ["pembroke-v150-shell", "pembroke-v152-shell", "pembroke-v153-shell", "pembroke-assets-v3-depot", "other-app-cache"], delete: async k => removed.push(k), open: async () => cache },
+    caches: { keys: async () => ["pembroke-v150-shell", "pembroke-v152-shell", shell, "pembroke-assets-v3-depot", "other-app-cache"], delete: async k => removed.push(k), open: async () => cache },
     fetch: fetcher, Response, Headers, URL, AbortController, setTimeout, clearTimeout };
-  vm.createContext(context); vm.runInContext(readFileSync(new URL("../sw.js", import.meta.url), "utf8") + '\nthis.networkFirst = networkFirst;', context);
-  return { handlers, removed, load: (path = "index.html", mode = "navigate") => context.networkFirst({ url: new URL(path, base).href, mode }, "shell", 15) };
+  vm.createContext(context); vm.runInContext(readFileSync(new URL("../sw.js", import.meta.url), "utf8") + '\nthis.networkFirst = networkFirst; this.SHELL = SHELL;', context);
+  shell = context.SHELL;
+  return { handlers, removed, shell, load: (path = "index.html", mode = "navigate") => context.networkFirst({ url: new URL(path, base).href, mode }, "shell", 15) };
 }
 test("activation deletes only obsolete Pembroke caches", async () => {
   const sw = serviceWorker(); let task; sw.handlers.activate({ waitUntil(p){ task = p; } }); await task;
+  /* the shells of PREVIOUS releases go; this release's shell, the
+     asset depot and another app's cache all stay */
+  assert.match(sw.shell, /^pembroke-v\d+-shell$/);
+  assert.notEqual(sw.shell, "pembroke-v150-shell");
+  assert.notEqual(sw.shell, "pembroke-v152-shell");
   assert.deepEqual(sw.removed, ["pembroke-v150-shell", "pembroke-v152-shell"]);
 });
 test("navigation fallback handles rejection, transient status, and a hung network", { timeout: 1000 }, async () => {
