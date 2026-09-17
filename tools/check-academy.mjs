@@ -2,11 +2,11 @@
 /** Positive end-to-end learning journeys. No screenshots or repo writes. */
 import assert from "node:assert/strict";
 import { resolve } from "node:path";
-import { serve, launch } from "./_harness.mjs";
+import { serve, launch, ROOT } from "./_harness.mjs";
 import { INTRO_CS } from "../assets/app/intro-cs.mjs";
 const server = await serve(), browser = await launch(["--disable-webgl"]);
 const audit = async page => {
-  await page.addScriptTag({ path: resolve("node_modules/axe-core/axe.min.js") });
+  await page.addScriptTag({ path: resolve(ROOT, "node_modules/axe-core/axe.min.js") });
   const violations = await page.evaluate(async () => (await axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] } })).violations.map(v => ({ id: v.id, nodes: v.nodes.map(n => n.target) })));
   assert.deepEqual(violations, []);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);

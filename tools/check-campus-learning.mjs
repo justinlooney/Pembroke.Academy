@@ -51,6 +51,33 @@ try {
   assert.equal(await page.evaluate(() => document.activeElement.matches('.desk-course[data-attend="CS101"]')), true, "saving must retain the dialog opener and restore keyboard focus to it");
   assert.equal(await page.locator('.desk-course[data-attend="CS101"]').getAttribute("data-lesson"), "1.2");
   console.log("ok — the campus learning desk opens a real programming lesson and advances earned progress");
+  page.once("dialog", dialog => dialog.dismiss());
+  await page.locator("#reset-ledger").evaluate(button => button.click());
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("pembroke.learning.resume"))), program.resume, "canceling reset must retain the saved lesson");
+  assert.equal(await page.evaluate(() => __study.state().CS101["1.1"]), 2);
+  page.once("dialog", dialog => dialog.accept());
+  await page.locator("#reset-ledger").evaluate(button => button.click());
+  assert.deepEqual(await page.evaluate(() => __study.state()), {});
+  assert.equal(await page.evaluate(() => localStorage.getItem("pembroke.study")), null);
+  assert.equal(await page.evaluate(() => localStorage.getItem("pembroke.learning.resume")), null);
+  assert.match(await page.locator(".desk-resume").innerText(), /Your first seminar/i);
+  // A restored bookmark without a study record must also be resettable.
+  await page.evaluate(async () => {
+    const { storage, KEYS } = await import("./assets/app/progress.mjs");
+    storage.setItem(KEYS.resume, JSON.stringify({ courseId: "CS101", n: "1.4" }));
+  });
+  assert.match(await page.locator(".desk-resume").innerText(), /CS 101/);
+  page.once("dialog", dialog => dialog.accept());
+  await page.locator("#reset-ledger").evaluate(button => button.click());
+  assert.equal(await page.evaluate(() => localStorage.getItem("pembroke.learning.resume")), null);
+  assert.equal(await page.locator(".desk-resume button").getAttribute("data-attend"), "MATH101");
+  assert.equal(await page.locator(".desk-resume button").getAttribute("data-lesson"), "1.1");
+  await page.locator(".desk-resume button").click();
+  assert.match(await page.locator("#jmodal-body").innerText(), /Expressions and substitution/);
+  assert.equal(await page.evaluate(() => __study.state().MATH101["1.1"]), 1, "a fresh lesson must still save after reset");
+  assert.equal(await page.evaluate(() => __study.state().CS101), undefined);
+  await page.locator(".jmodal-x").click();
+  console.log("ok — reset clears progress and resume together, cancel preserves mastery, and fresh learning saves");
   await page.locator("#academy-desk [data-meet]").click();
   assert.equal(await page.locator("#nearbybtn").getAttribute("aria-expanded"), "true");
   await page.keyboard.press("Escape");

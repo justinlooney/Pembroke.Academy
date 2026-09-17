@@ -1770,7 +1770,7 @@ import { MATH201_PSET } from "./assets/app/problem-sets.mjs";
 import { ST_VIZ, PSET_ART } from "./assets/app/figures.mjs";
 import { aiParse, AI_POLICY } from "./assets/app/ai-policy.mjs";
 import { aiReadStream } from "./assets/app/ai-stream.mjs";
-import { storage, normalizeDone, normalizeStudy, normalizeNPC, normalizeJourney, readJSON } from "./assets/app/progress.mjs";
+import { storage, KEYS, normalizeDone, normalizeStudy, normalizeNPC, normalizeJourney, readJSON } from "./assets/app/progress.mjs";
 import { gradeAnswer, psetGradedKeys, practiceCleared, recordCheck } from "./assets/app/grading.mjs";
 import { mountProgressTools } from "./assets/app/progress-ui.mjs";
 import { mountCampusDesk } from "./assets/app/campus-desk.mjs";
@@ -13775,7 +13775,7 @@ function toggleDone(id){
   if (!was){
     toast("Registrar's Seal Affixed", `${c.code} · ${c.title} — recorded to your ledger.`, sectorOf(c).color);
     if (done.length === COURSES.length){
-      setTimeout(() => toast("✦ SUMMA CUM LAUDE ✦", "All twelve courses sealed. Pembroke Academy confers upon you the degree of Autonomous Systems Engineer. The quad is yours.", "#d4af6a", 9000), 600);
+      setTimeout(() => toast("Campus ledger complete", "All twelve course seals are recorded in your fictional campus ledger. This is a self-directed milestone, not academic credit or a degree.", "#d4af6a", 9000), 600);
     }
   }
 }
@@ -14321,12 +14321,13 @@ document.getElementById("ai-settings").addEventListener("click", jAISettings);
 
 /* reset ledger */
 document.getElementById("reset-ledger").addEventListener("click", () => {
-  if (!done.length && !Object.keys(study).length){ toast("Ledger already clear", "No seals to remove.", "#94a3b8"); return; }
+  if (!done.length && !Object.keys(study).length && !readJSON(storage, KEYS.resume, null)){ toast("Ledger already clear", "No seals to remove.", "#94a3b8"); return; }
   if (confirm("Strike all " + done.length + " seals from your registrar ledger?")){
     done = []; saveDone(done);
     /* the whole student, not just the seals: enrollment, letter,
        orientation, study record — reset means reset */
     study = {}; try{ storage.removeItem(LS_STUDY); }catch(_){}
+    storage.removeItem(KEYS.resume);    /* both learning views must start fresh */
     NPCStore.reset();                  /* friendships and memories reset with the rest */
     Journey.reset();
     renderChips(); renderBanner(); renderCourses(); refreshProgress();
@@ -15983,7 +15984,7 @@ const MAJORS = SECTOR_ORDER.map(k => {
   const list = COURSES.filter(c => c.sector === k);
   return {
     id: k, title: S.track, department: S.hall, icon: S.icon, color: S.color,
-    description: S.blurb, degree: "Bachelor of the Academy",
+    description: S.blurb, degree: "Self-directed study track",
     credits: list.reduce((a, c) => a + c.credits, 0),
     required: list.map(c => c.id),
     firstSemester: list.filter(c => !c.prereqs.length).map(c => c.id),
