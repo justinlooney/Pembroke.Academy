@@ -63,12 +63,15 @@ try {
         }
         if (!lent) throw new Error(bodyKey + "/" + donorKey + ": no animation produced");
         const mx = new THREE.AnimationMixer(target), sx = new THREE.AnimationMixer(donor.scene);
-        mx.clipAction(lent).play(); sx.clipAction(clip).play();
+        // Hold the final pose instead of wrapping to the first frame.
+        for (const action of [mx.clipAction(lent), sx.clipAction(clip)]){
+          action.setLoop(THREE.LoopOnce, 1); action.clampWhenFinished = true; action.play();
+        }
         let worst = 0, samples = 0;
         try {
           const times = lent.tracks[0].times;
           for (let i = 0; i < 12; i++){
-            const time = times[Math.floor((times.length - 1) * i / 12)];
+            const time = times[Math.floor((times.length - 1) * i / 11)];
             mx.setTime(time); sx.setTime(time);
             target.updateMatrixWorld(true); donor.scene.updateMatrixWorld(true);
             for (const key of ["leftarm", "rightarm", "leftforearm", "rightforearm"]){

@@ -1286,15 +1286,24 @@ try {
       const p = aim.clone().project(cam);
       if (!(p.z < 1 && Math.abs(p.x) < 0.95 && Math.abs(p.y) < 0.95))
         return { skip: "off screen" };
+      const el = document.querySelector("#stage canvas");
+      const c = el.getBoundingClientRect();
+      const x = c.left + (p.x * 0.5 + 0.5) * c.width;
+      const y = c.top + (-p.y * 0.5 + 0.5) * c.height;
+      const upX = x + 3, upY = y + 2;   /* a finger drifts as it lifts */
       /* Is anybody standing in front of them? A tap picks the NEAREST
          person on the ray, which is right — if Kenji is between the
          camera and Elowen, tapping Elowen's chest should get Kenji.
          Demanding that the aimed-at student answer therefore fails on
          a CORRECT pick, and did, in CI: "no answer from Elowen/ariel
          (answered as Kenji)". So an overlapped target is skipped, and
-         what is left is the question worth asking. */
+         what is left is the question worth asking. Check the RELEASE
+         ray: the handler picks at pointerup, and even three pixels of
+         drift can bring a nearer student's sphere into that ray. */
       const ray = new THREE.Raycaster();
-      ray.setFromCamera(new THREE.Vector2(p.x, p.y), cam);
+      ray.setFromCamera(new THREE.Vector2(
+        ((upX - c.left) / c.width) * 2 - 1,
+        -((upY - c.top) / c.height) * 2 + 1), cam);
       const reach = (o) => {
         const h = o.g.userData.height || 42;
         const c = o.g.getWorldPosition(new THREE.Vector3());
@@ -1307,8 +1316,6 @@ try {
         if (o === s || !o.data || !o.g || !o.g.visible) continue;
         if (reach(o) < mine) return { skip: "someone is standing in front of them" };
       }
-      const el = document.querySelector("#stage canvas");
-      const c = el.getBoundingClientRect();
       /* A fingertip needs something to land on. In the compact layout
          the canvas is a ~150px letterbox showing the whole quad, and a
          loiterer at a far door projects a few pixels tall — Marcus
@@ -1332,15 +1339,13 @@ try {
       const preOpen = window.__convo.on();
       let sawUp = false;
       const wUp = () => sawUp = true;
-      const x = c.left + (p.x * 0.5 + 0.5) * c.width;
-      const y = c.top + (-p.y * 0.5 + 0.5) * c.height;
       el.addEventListener("pointerup", wUp, true);
       try {
         const ev = (t, xx, yy) => el.dispatchEvent(new PointerEvent(t, { pointerId: 1,
           pointerType: "touch", isPrimary: true, clientX: xx, clientY: yy,
           bubbles: true, cancelable: true }));
         /* a couple of pixels of drift, because a finger has some */
-        ev("pointerdown", x, y); ev("pointerup", x + 3, y + 2);
+        ev("pointerdown", x, y); ev("pointerup", upX, upY);
       } finally {
         el.removeEventListener("pointerup", wUp, true);
       }
