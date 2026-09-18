@@ -7,11 +7,11 @@ import { programTrace } from "../assets/app/programming-lab.mjs";
 import { gradeAnswer } from "../assets/app/grading.mjs";
 import { normalizeStudy } from "../assets/app/progress.mjs";
 
-test("catalog distinguishes 35 available lessons from nine syllabus-only courses", () => {
+test("catalog distinguishes 105 available lessons from nine syllabus-only courses", () => {
   const catalog = courseCatalog();
   assert.equal(catalog.length, 12);
   assert.deepEqual(catalog.filter(c => c.available).map(c => c.id).sort(), ["CS101", "MATH101", "MATH201"]);
-  assert.equal(catalog.reduce((sum, c) => sum + c.sections.length, 0), 35);
+  assert.equal(catalog.reduce((sum, c) => sum + c.sections.length, 0), 105);
   assert.equal(filterCatalog(catalog, "", "syllabus").length, 9);
   assert.deepEqual(filterCatalog(catalog, "cs 101").map(c => c.id), ["CS101"]);
   assert.deepEqual(filterCatalog(catalog, "a subject that does not exist"), []);

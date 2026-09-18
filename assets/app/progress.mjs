@@ -40,7 +40,7 @@ export function normalizeStudy(raw){
       const x = (dst.x ||= {})[sec.n] = {};
       for (const key of ["kc", "lab", ...((sec.full?.turn || []).map((_, i) => "t" + i))]) if (flag(ext[key])) x[key] = 1;
       if (Array.isArray(ext.hw) && ext.hw.length === 2 && ext.hw.every(Number.isFinite) && ext.hw[1] > 0 && ext.hw[0] >= 0 && ext.hw[0] <= ext.hw[1]) x.hw = ext.hw;
-      const ps = id === "MATH201" ? MATH201_PSET[sec.n] : null;
+      const ps = id === "MATH201" ? MATH201_PSET[sec.n] : sec.full?.practice || null;
       if (ps && record(ext.ps)){
         const earned = {};
         for (const k of psetGradedKeys(ps)) if (ext.ps.earned?.[k] === 1) earned[k] = 1;

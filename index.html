@@ -2247,7 +2247,7 @@ import { FiniteColorPass } from "./assets/app/finite-color-pass.mjs";
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v158";
+const BUILD = "pembroke-v161";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -13197,6 +13197,7 @@ function jStudy(courseId){
       <span>${mastered} of ${total} lectures mastered</span>
     </div>
     <button type="button" class="jlink" data-grades>Gradebook — how the grade is computed</button>
+    <p class="st-p"><a href="./study.html#course=${courseId}" class="jlink">Open the reading room · searchable chapter contents ↗</a></p>
     ${plan.units.map(u => `
       <div class="st-unit">${u.title}</div>
       ${u.sections.map(s => `
@@ -13275,41 +13276,42 @@ function studyExt(courseId, n){
 /* ── canvas mathematics: dependency-free plotted interactives ────── */
 function jLessonFull(courseId, n){
   const c = byId[courseId], sec = studySections(courseId).find(s => s.n === n);
-  const F = sec.full, S = sectorOf(c);
+  const F = sec.full, S = sectorOf(c), fmt = value => courseId === "MATH101" ? esc(value) : value;
   const ext = studyExt(courseId, n);
   const kcDone = ext.kc === 1;
   jOpen(`
     <div class="jp-kicker" style="color:${S.color}">${c.code} · Lecture ${sec.n}${sec.bridge ? ` · bridge to ${sec.bridge}` : ""}</div>
     <h3 class="font-serif-d text-2xl text-[color:var(--parchment)] mt-1 mb-1">${sec.t}</h3>
-    <div class="st-prof">${F.professor}</div>
+    <div class="st-prof">${fmt(F.professor)}</div>
     <div class="st-unit">What you'll be able to do</div>
-    <ul class="st-obj">${F.objectives.map(o => `<li>${o}</li>`).join("")}</ul>
+    <ul class="st-obj">${F.objectives.map(o => `<li>${fmt(o)}</li>`).join("")}</ul>
     <div class="st-unit">Lecture</div>
-    ${F.lecture.map(([h, p]) => `<h4 class="st-h">${h}</h4><p class="st-p">${p}</p>`).join("")}
-    <div class="st-unit">Try it — interactive</div>
+    ${F.lecture.map(([h, p]) => `<h4 class="st-h">${fmt(h)}</h4><p class="st-p">${fmt(p)}</p>`).join("")}
+    ${F.viz ? `<div class="st-unit">Try it — interactive</div>
     <div class="st-lab" data-labwrap>
       <canvas class="st-cv" width="640" height="360" role="img" aria-label="${F.viz.note}"></canvas>
       <input type="range" min="0" max="1000" value="0" class="st-slide" aria-label="interactive control">
       <div class="st-read" aria-live="polite"></div>
       <p class="st-p" style="font-style:italic">${F.viz.note}</p>
-    </div>
+    </div>` : ""}
     <div class="st-unit">Worked example</div>
-    <div class="st-key" style="--c:${S.color}">${F.worked.prompt}</div>
+    <div class="st-key" style="--c:${S.color}">${fmt(F.worked.prompt)}</div>
     <div data-worked>
       ${F.worked.steps.map(([ask, reveal], i) => `
         <div class="st-step" data-step="${i}" ${i ? "hidden" : ""}>
-          <div class="st-ask">${ask}</div>
-          <div class="st-reveal" hidden>${reveal}</div>
+          <div class="st-ask">${fmt(ask)}</div>
+          <div class="st-reveal" hidden>${fmt(reveal)}</div>
           <button type="button" class="jlink" data-reveal="${i}">reveal this step</button>
         </div>`).join("")}
     </div>
-    <div class="st-unit">Your turn</div>
+    ${(F.examples || []).map((example,i)=>`<div class="st-unit">Worked example ${i+2}</div><div class="st-key">${fmt(example.prompt)}</div>${example.steps.map(([ask,reveal])=>`<details class="st-step"><summary>${fmt(ask)}</summary><p class="st-p">${fmt(reveal)}</p></details>`).join("")}`).join("")}
+    <div class="st-unit">Your turn</div><p class="st-p">Enter a number, decimal, or fraction such as −3/4.</p>
     ${F.turn.map((q, qi) => `
       <div class="st-q" data-turn="${qi}">
-        <div class="st-ask">${qi + 1}. ${q.q}</div>
+        <div class="st-ask">${qi + 1}. ${esc(q.q)}</div>
         ${q.type === "mc"
-          ? q.opts.map((o, oi) => `<label class="st-opt"><input type="radio" name="t${qi}" value="${oi}"><span>${o}</span></label>`).join("")
-          : `<input class="st-num" type="text" inputmode="decimal" aria-label="your answer" placeholder="your answer">`}
+          ? q.opts.map((o, oi) => `<label class="st-opt"><input type="radio" name="t${qi}" value="${oi}"><span>${fmt(o)}</span></label>`).join("")
+          : `<input class="st-num" type="text" inputmode="text" aria-label="your answer" placeholder="your answer">`}
         <button type="button" class="jlink" data-check="${qi}">check</button>
         <div class="st-nag" hidden role="status"></div>
         <div class="st-why" hidden></div>
@@ -13318,8 +13320,8 @@ function jLessonFull(courseId, n){
     <form id="st-quiz">
       ${sec.qs.map((q, qi) => `
         <fieldset class="st-q" data-q="${qi}">
-          <legend>${qi + 1}. ${q.q}</legend>
-          ${q.opts.map((o, oi) => `<label class="st-opt"><input type="radio" name="q${qi}" value="${oi}"><span>${o}</span></label>`).join("")}
+          <legend>${qi + 1}. ${esc(q.q)}</legend>
+          ${q.opts.map((o, oi) => `<label class="st-opt"><input type="radio" name="q${qi}" value="${oi}"><span>${fmt(o)}</span></label>`).join("")}
           <div class="st-why" hidden></div>
         </fieldset>`).join("")}
       <div class="flex items-center gap-3 mt-2 flex-wrap">
@@ -13333,11 +13335,13 @@ function jLessonFull(courseId, n){
   `);
   jbody.querySelector("[data-pset]")?.addEventListener("click", () => jPractice(courseId, n));
   /* the lab: first touch counts as the interactive completed */
-  const cvEl = jbody.querySelector(".st-cv"), slide = jbody.querySelector(".st-slide"),
-        read = jbody.querySelector(".st-read");
-  const draw = () => ST_VIZ[F.viz.kind](cvEl, +slide.value / 1000, read, S.color, F.viz);
-  slide.addEventListener("input", () => { draw(); if (!ext.lab){ ext.lab = 1; saveStudy(); } });
-  draw();
+  if (F.viz){
+    const cvEl = jbody.querySelector(".st-cv"), slide = jbody.querySelector(".st-slide"),
+          read = jbody.querySelector(".st-read");
+    const draw = () => ST_VIZ[F.viz.kind](cvEl, +slide.value / 1000, read, S.color, F.viz);
+    slide.addEventListener("input", () => { draw(); if (!ext.lab){ ext.lab = 1; saveStudy(); } });
+    draw();
+  }
   /* worked example: steps reveal one at a time */
   jbody.querySelectorAll("[data-reveal]").forEach(b => b.addEventListener("click", () => {
     const i = +b.dataset.reveal, host = jbody.querySelector(`[data-step="${i}"]`);
@@ -13518,8 +13522,8 @@ function jHomework(courseId, n){
     <form id="st-hw">
       ${qs.map((q, qi) => `
         <div class="st-q" data-hwq="${qi}">
-          <div class="st-ask">${qi + 1}. ${q.q}</div>
-          <input class="st-num" type="text" inputmode="decimal" aria-label="answer ${qi + 1}">
+          <div class="st-ask">${qi + 1}. ${courseId === "MATH101" ? esc(q.q) : q.q}</div>
+          <input class="st-num" type="text" inputmode="text" aria-label="answer ${qi + 1}">
           <div class="st-nag" hidden role="status"></div>
           <div class="st-why" hidden></div>
         </div>`).join("")}
@@ -13551,12 +13555,12 @@ function jHomework(courseId, n){
       studyLog(courseId, n, "hw", good);
       host.classList.toggle("right", good); host.classList.toggle("wrong", !good);
       const why = host.querySelector(".st-why");
-      why.hidden = false; why.textContent = good ? "✓" : `✗ — the answer was ${+q.ans.toFixed ? +q.ans.toFixed(2) : q.ans}`;
+      why.hidden = false; why.textContent = (good ? "✓ " : "Solution: ") + (q.work || q.sol || String(q.ans));
     });
     const ext = studyExt(courseId, n);
     if (!ext.hw || score > ext.hw[0]) ext.hw = [score, qs.length];
     saveStudy();
-    toast("Homework recorded", `${score}/${qs.length} — best attempt kept. Fresh numbers on every retry.`, S.color, 4200);
+    toast("Homework recorded", `${score}/${qs.length} — best attempt kept. Review the explained answers before trying again.`, S.color, 4200);
   });
 }
 
@@ -13581,7 +13585,7 @@ function jHomework(courseId, n){
 /* problem-set figures: static canvas drawings a question can hang on —
    because "read the graph" is a test skill no amount of prose teaches */
 function psetOf(courseId, n){
-  return courseId === "MATH201" ? (MATH201_PSET[n] || null) : null;
+  return courseId === "MATH201" ? (MATH201_PSET[n] || null) : studySections(courseId).find(s=>s.n===n)?.full?.practice || null;
 }
 function psetState(courseId, n){
   const ext = studyExt(courseId, n);
@@ -13610,10 +13614,10 @@ function jPractice(courseId, n){
     const got = st.earned[key];
     return `
       <div class="st-q ${got ? "right" : ""}" data-ps="${key}">
-        <div class="st-ask">${pi === undefined ? "" : "abcdefg"[pi] + ") "}${it.q}</div>
+        <div class="st-ask">${pi === undefined ? "" : "abcdefg"[pi] + ") "}${courseId === "MATH101" ? esc(it.q) : it.q}</div>
         ${it.type === "mc"
           ? it.opts.map((o, oi) => `<label class="st-opt"><input type="radio" name="ps${key}" value="${oi}"><span>${o}</span></label>`).join("")
-          : `<input class="st-num" type="text" inputmode="decimal" aria-label="your answer" placeholder="your answer">`}
+          : `<input class="st-num" type="text" inputmode="text" aria-label="your answer" placeholder="your answer">`}
         <button type="button" class="jlink" data-go>check</button>
         <button type="button" class="jlink" data-hint>hint</button>
         <div class="st-nag" hidden role="status"></div>
@@ -13743,7 +13747,7 @@ function jPractice(courseId, n){
 function jGrades(courseId){
   const c = byId[courseId], plan = STUDY[courseId], S = sectorOf(c);
   const secs = studySections(courseId), st = study[courseId] || {}, x = st.x || {};
-  const withFull = secs.filter(s => s.full);
+  const withFull = secs.filter(s => s.full), withLab = withFull.filter(s => s.full.viz);
   const comp = {
     /* x[n].kc, not st[n] === 2. Level 2 is MASTERY, and for a section
        with a problem set mastery needs the set cleared as well — so a
@@ -13753,8 +13757,8 @@ function jGrades(courseId){
        idea and keeps its own bar. */
     quizzes: { have: secs.length > 0, pct: 100 * secs.filter(s => x[s.n]?.kc).length / secs.length,
                note: `${secs.filter(s => x[s.n]?.kc).length} of ${secs.length} knowledge checks passed` },
-    labs:    { have: withFull.length > 0, pct: withFull.length ? 100 * withFull.filter(s => x[s.n]?.lab).length / withFull.length : 0,
-               note: `${withFull.filter(s => x[s.n]?.lab).length} of ${withFull.length} interactive labs touched` },
+    labs:    { have: withLab.length > 0, pct: withLab.length ? 100 * withLab.filter(s => x[s.n]?.lab).length / withLab.length : 0,
+               note: `${withLab.filter(s => x[s.n]?.lab).length} of ${withLab.length} interactive labs touched` },
     homework:{ have: withFull.some(s => x[s.n]?.hw), pct: (() => {
                  const hws = withFull.map(s => x[s.n]?.hw).filter(Boolean);
                  return hws.length ? 100 * hws.reduce((a, h) => a + h[0] / h[1], 0) / hws.length : 0; })(),
