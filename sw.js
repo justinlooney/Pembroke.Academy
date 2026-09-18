@@ -109,6 +109,8 @@ const REFRESHED = [
   "./assets/app/algebra/equations.mjs",
   "./assets/app/algebra/chapter-one.mjs",
   "./assets/app/algebra/exponentials.mjs",
+  "./assets/app/algebra/functions.mjs",
+  "./assets/app/algebra/polynomials.mjs",
   "./assets/app/intro-math.mjs",
   "./assets/app/grading.mjs",
   "./assets/app/progress.mjs",
