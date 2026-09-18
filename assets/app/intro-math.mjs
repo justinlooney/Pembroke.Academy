@@ -83,8 +83,8 @@ const models = {
   'FN.1': {kind:'vline', note:'Move a vertical line across an ordinary parabola and a sideways parabola. Count how many outputs each graph assigns to the selected input.'},
   'FN.3': {kind:'transform', note:'Move the slider to translate the parent parabola. Track its vertex and compare the translated curve with the gray parent.'},
   'PF.1': {kind:'transform', note:'Watch how the vertex determines the minimum and axis of a translated parabola.'},
-  'EX.1': {kind:'explog', note:'Change the positive base of an exponential model. Compare growth, decay, and the constant case at base 1.'},
-  'EX.3': {kind:'loginv', note:'Compare an exponential with its logarithmic inverse. Their points reflect across the line y = x.'},
+  '4.1': {kind:'explog', note:'Change the positive base of an exponential model. Compare growth, decay, and the constant case at base 1.'},
+  '4.3': {kind:'loginv', note:'Compare an exponential with its logarithmic inverse. Their points reflect across the line y = x.'},
 };
 for (const sec of INTRO_MATH.units.flatMap(u=>u.sections)) if(models[sec.n]) sec.full.viz=models[sec.n];
 

@@ -111,7 +111,7 @@ test("grading treats blanks as unanswered and rejects numeric prefixes", () => {
 });
 test("complete algebra has no catalog prerequisite and has explained practice", () => {
   assert.deepEqual(COURSES.find(c => c.id === "MATH101").prereqs, []);
-  const sections = STUDY.MATH101.units.flatMap(u => u.sections); assert.equal(sections.length, 74);
+  const sections = STUDY.MATH101.units.flatMap(u => u.sections); assert.equal(sections.length, 76);
   for (const s of sections){ assert.ok(s.full.worked.steps.length >= 3 && s.full.turn.length >= 2 && s.qs.length >= 3);
     for (const q of [...s.full.turn, ...s.full.homework.gen.map(fn => fn())]) assert.equal(gradeAnswer(q, q.ans).correct, true);
     for (const q of s.qs) assert.ok(q.opts[q.a] && q.why);

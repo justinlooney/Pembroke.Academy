@@ -18,7 +18,9 @@ try{
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,sec.n+' overflows mobile');
     if(sec.full.practice){await page.locator('#practice').click();assert.equal(await page.locator('[data-problem]').count(),sec.full.practice.length,sec.n);}
   }
-  console.log('ok — all 74 pages and every required practice set render on a phone, preserving complete math text');
+  /* count what was walked; a number typed in by hand drifts the moment a
+     section is added, and then reports a pass for work it never did. */
+  console.log(`ok — all ${sections.length} pages and every required practice set render on a phone, preserving complete math text`);
   await open('P.1');await page.locator('#lesson-search').fill('matrices');
   assert.equal(await page.locator('#lessons a:visible').count(),5);
   await page.locator('#lessons a').filter({hasText:'Inverse matrices'}).click();
