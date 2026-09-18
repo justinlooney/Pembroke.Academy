@@ -158,3 +158,19 @@ footer{padding:24px}
 .catalog-footnote{grid-template-columns:1fr;gap:20px}
 .catalog-footnote h2{font-size:30px}
 }
+/* Long-form course reading and chapter navigation. */
+.contents-search{margin-top:24px}
+.contents-search input{width:100%;margin-top:8px;font-size:13px}
+#contents-status{margin:4px 0;min-height:1.7em}
+#lessons{margin-top:8px}
+#lessons .chapter{padding:0;background:transparent;border:0;border-bottom:1px solid #c6cec4;border-radius:0;margin:0}
+#lessons .chapter>summary{padding:13px 4px;font-size:12px;line-height:1.6;min-height:44px;color:#29483d}
+#lessons .chapter>summary small{display:inline-block;font-size:10px;color:#536b60;padding:0 5px;margin-left:4px;border:1px solid #c6cec4;border-radius:3px}
+#lessons a{padding-left:16px}
+.worked-example{margin:24px 0 36px;padding-top:12px;border-top:1px solid var(--rule)}
+.worked-example h3{font-size:14px;color:#735623}
+.answer-help{font-size:13px;color:#4d655f}
+body:not(.catalog-mode) article{font-size:17px;line-height:1.85;overflow-wrap:break-word}
+body:not(.catalog-mode) article h2{margin-top:42px}
+@media(min-width:761px){#lessons{max-height:65vh;overflow:auto;padding-right:8px}}
+@media(max-width:760px){#lessons{max-height:260px}.contents-search{margin-top:18px}body:not(.catalog-mode) article{font-size:16px}.lesson-lead{font-size:16px}.key{font-size:23px}fieldset{padding:16px}fieldset label{flex-wrap:wrap}}

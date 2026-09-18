@@ -4,14 +4,16 @@ const COURSES = [
   {
     id:"MATH101", code:"MATH 101", title:"College Algebra", sector:"lib",
     credits:4, level:"Foundation · Semester 1", prereqs:[],
-    desc:"The gateway course, assuming nothing beyond arithmetic. Functions become objects you can hold, transform, and compose — the single most important habit of mind for everything that follows.",
+    desc:"A complete, self-paced course from arithmetic prerequisites through equations, functions, matrices, conics, sequences, and probability. Study original lessons, step-by-step examples, explained practice, chapter reviews, and a cumulative practice exam.",
     outcomes:[
       "Solve linear, quadratic, rational, and radical equations analytically, and verify every root by substitution.",
       "Master function notation, domain and range, inverse functions, and the transformation grammar of shifts, stretches, and reflections.",
-      "Model growth and decay with exponential and logarithmic functions, including compound interest and half-life problems."
+      "Model growth and decay with exponential and logarithmic functions, including compound interest and half-life problems.",
+      "Solve linear and nonlinear systems, use matrices and determinants, and analyze conic sections.",
+      "Work with sequences, series, counting, probability, and geometric models; justify methods and check restrictions."
     ],
     book:{ title:"College Algebra", author:"Robert Blitzer", pub:"Pearson · 8th Edition",
-           why:"Famously gentle on-ramp: every abstraction is introduced through a concrete, real-world scene before the symbols arrive." },
+           why:"Optional companion reading. Pembroke provides its own original lessons and exercises; no textbook account is required." },
     lang:"python", snippetNote:"Your first bridge between algebra and code — the quadratic formula as a program.",
     snippet:[
 "# Pembroke Academy · MATH 101",

@@ -1,10 +1,22 @@
-/** The first complete unit of College Algebra. Later units remain unoffered. */
+/** Original complete College Algebra course; the three opening IDs preserve saved progress. */
+import { prerequisites } from './algebra/prerequisites.mjs';
+import { equations } from './algebra/equations.mjs';
+import { functions } from './algebra/functions.mjs';
+import { polynomials } from './algebra/polynomials.mjs';
+import { exponentials } from './algebra/exponentials.mjs';
+import { systems } from './algebra/systems.mjs';
+import { matrices } from './algebra/matrices.mjs';
+import { conics } from './algebra/conics.mjs';
+import { sequences } from './algebra/sequences.mjs';
+import { probability } from './algebra/probability.mjs';
+import { geometry } from './algebra/geometry.mjs';
+import { finalReview } from './algebra/final-review.mjs';
 const numeric = (q, ans, work) => ({ q, type: "num", ans, tol: 0, hint: "Write one operation per line, then check by substitution.", work });
 const lab = { kind: "line", note: "Move the slider to change m in y = mx + 1. Every line passes through (0, 1). Compare positive, zero and negative slopes." };
 export const INTRO_MATH = {
-  lectures: "Unit I is available: three lessons from expressions to linear models. Later College Algebra units are coming later; this is not the full course.",
+  lectures: "Complete College Algebra: prerequisites, nine chapters, geometry review, and a cumulative practice exam. Every chapter includes teaching, worked examples, explained exercises, and a review test.",
   grading: [["Knowledge checks", "quizzes", 60], ["Homework", "homework", 30], ["Interactive labs", "labs", 10]],
-  units: [{ title: "Unit I · Algebra you can check", sections: [
+  units: [{ title: "Start here · Three core skills", sections: [
     { n: "1.1", t: "Expressions and substitution",
       brief: "An expression describes a calculation. A variable marks a value you can choose or measure; substituting a value turns the expression into arithmetic.",
       key: "Substitute with parentheses, evaluate powers, then multiply and divide before adding and subtracting.",
@@ -61,3 +73,35 @@ export const INTRO_MATH = {
     }
   ] }]
 };
+
+INTRO_MATH.units.push(prerequisites, equations, functions, polynomials, exponentials, systems, matrices, conics, sequences, probability, geometry, finalReview);
+// Reuse relevant interactive models; reading-only lessons do not invent a lab.
+const models = {
+  'CO.1': {kind:'algebraConic', shape:'parabola', note:'Change the distance p from the vertex to the focus. Compare the focus above the vertex with the dashed directrix below it. Both axes use equal scales.'},
+  'CO.2': {kind:'algebraConic', shape:'ellipse', note:'Keep the horizontal semiaxis at 5 and change the vertical semiaxis. Watch the two foci move while remaining inside the ellipse. Both axes use equal scales.'},
+  'CO.3': {kind:'algebraConic', shape:'hyperbola', note:'Keep a = 2 and change b. The vertices stay fixed while the foci and the dashed asymptotes change. Both axes use equal scales.'},
+  'FN.1': {kind:'vline', note:'Move a vertical line across an ordinary parabola and a sideways parabola. Count how many outputs each graph assigns to the selected input.'},
+  'FN.3': {kind:'transform', note:'Move the slider to translate the parent parabola. Track its vertex and compare the translated curve with the gray parent.'},
+  'PF.1': {kind:'transform', note:'Watch how the vertex determines the minimum and axis of a translated parabola.'},
+  'EX.1': {kind:'explog', note:'Change the positive base of an exponential model. Compare growth, decay, and the constant case at base 1.'},
+  'EX.3': {kind:'loginv', note:'Compare an exponential with its logarithmic inverse. Their points reflect across the line y = x.'},
+};
+for (const sec of INTRO_MATH.units.flatMap(u=>u.sections)) if(models[sec.n]) sec.full.viz=models[sec.n];
+
+// Enrich the original opening lessons while retaining their saved IDs and mastery rules.
+const opening=INTRO_MATH.units[0].sections;
+opening[0].full.lecture.push(
+  ['One operation at a time','After substitution, simplify inside parentheses, then powers, then multiplication and division from left to right, and finally addition and subtraction from left to right. Equal-priority operations do not run in a preferred symbol order: 12 ÷ 3 × 2 is 4 × 2 = 8. Write intermediate lines so you can identify the first place two methods disagree.'],
+  ['Use units and an estimate','For a cost expression 4n + 6, the coefficient 4 may mean dollars per item and the constant 6 a fixed charge in dollars. At n = 10, estimate that the result is a little above 40 before calculating 46. An estimate will not prove the exact answer, but it can expose a misplaced sign or a forgotten fixed charge.']
+);
+opening[0].full.examples=[{prompt:'Simplify 2(3x − 4) + x, then evaluate at x = 5.',steps:[['Distribute','6x − 8 + x.'],['Combine like terms','7x − 8; the constant does not combine with the x-terms.'],['Substitute and check','7(5) − 8 = 27. In the original: 2(15 − 4) + 5 = 27.']]}];
+opening[1].full.lecture.push(
+  ['Variables on both sides','For 5x + 2 = 2x + 14, subtract 2x from both sides before isolating x: 3x + 2 = 14, then 3x = 12 and x = 4. Moving a term is shorthand for performing the same addition or subtraction on both sides; the equality rule supplies the reason for the changed sign.'],
+  ['Clear numerical fractions','Multiply an equation by the least common multiple of its numerical denominators to remove fractions. For x/2 + 1/3 = 5/6, multiply every term by 6 to get 3x + 2 = 5, then x = 1. The check is 1/2 + 1/3 = 5/6. A denominator involving the variable also needs an explicit nonzero restriction.']
+);
+opening[1].full.examples=[{prompt:'Solve 3(x + 2) = x + 14.',steps:[['Distribute','3x + 6 = x + 14.'],['Collect and isolate','Subtract x and 6 from both sides: 2x = 8, so x = 4.'],['Check both sides','3(4 + 2) = 18 and 4 + 14 = 18.']]}];
+opening[2].full.lecture.push(
+  ['Find a formula from data','Two points with different input coordinates determine one line. Compute the output difference divided by the input difference using the same subtraction order, then substitute one point to find the intercept. If the input coordinates are equal, the line is vertical and cannot be written as a function y = mx + b.'],
+  ['Understand the model’s limits','A constant rate is an assumption about the process. A rental business with a daily maximum or a discount after several hours may require a piecewise rule. Test a model against additional observations and restrict its input range to the situation actually described. A formula that can be evaluated is not automatically a reliable prediction.']
+);
+opening[2].full.examples=[{prompt:'A model costs 18 dollars at 2 hours and 30 dollars at 5 hours. Find the rate and fixed fee.',steps:[['Rate','m = (30 − 18)/(5 − 2) = 4 dollars per hour.'],['Fixed fee','18 = 4(2) + b gives b = 10 dollars.'],['Model and verify','C(h) = 4h + 10; C(5) = 30. This assumes the rate stays constant over the relevant hours.']]}];

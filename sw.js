@@ -45,7 +45,7 @@
  * engine and the stylesheet are re-precached by every install with
  * cache:"reload", so they track releases despite living in the depot.
  */
-const VERSION = "pembroke-v158";
+const VERSION = "pembroke-v162";
 /* v3 stays even though this release removes assets. Re-versioning the
    depot is a blunt instrument: it throws away every model a returning
    visitor holds — all ~85MB of a campus they already walked — to
@@ -106,6 +106,13 @@ const RETIRED = [
    asset is modified in place and named in neither this list nor a
    fresh ASSETS_V. */
 const REFRESHED = [
+  "./assets/app/algebra/equations.mjs",
+  "./assets/app/intro-math.mjs",
+  "./assets/app/grading.mjs",
+  "./assets/app/progress.mjs",
+  "./assets/app/academy.mjs",
+  "./assets/app/courses.mjs",
+
   "./assets/app/course-study.mjs",
   "./assets/app/figures.mjs",
   "./assets/app/study-page.mjs",
@@ -126,7 +133,8 @@ async function plain(res){
 
 // The page itself — small, and needed before anything else can happen.
 const SHELL_FILES = ["./", "./index.html", "./study.html",
-  ...["courses.mjs", "course-study.mjs", "intro-math.mjs", "intro-cs.mjs", "programming-lab.mjs",
+  ...["algebra-figures.mjs", "algebra/lesson-tools.mjs", "algebra/prerequisites.mjs", "algebra/equations.mjs", "algebra/chapter-one.mjs", "algebra/functions.mjs", "algebra/polynomials.mjs", "algebra/exponentials.mjs", "algebra/systems.mjs", "algebra/matrices.mjs", "algebra/conics.mjs", "algebra/sequences.mjs", "algebra/probability.mjs", "algebra/geometry.mjs", "algebra/final-review.mjs",
+    "courses.mjs", "course-study.mjs", "intro-math.mjs", "intro-cs.mjs", "programming-lab.mjs",
     "academy.mjs", "campus-desk.mjs", "campus-desk.css", "problem-sets.mjs", "figures.mjs", "grading.mjs",
     "progress.mjs", "progress-ui.mjs", "ai-policy.mjs", "ai-stream.mjs", "study-page.mjs", "study.css", "finite-color.mjs", "finite-color-pass.mjs"]
     .map(f => "./assets/app/" + f)];

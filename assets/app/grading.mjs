@@ -1,11 +1,15 @@
 /** Pure grading rules shared by the campus and the lightweight study page. */
 export function gradeAnswer(question, value){
   if (value == null || String(value).trim() === "") return { answered: false, correct: false };
-  const text = String(value).trim().replace(",", ".");
+  const text = String(value).trim().replace(/−/g, "-").replace(",", ".");
   if (question.type === "mc") return { answered: true, correct: /^\d+$/.test(text) && Number(text) === question.a };
-  const decimal = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(text);
-  const number = Number(text);
-  return { answered: true, correct: decimal && Number.isFinite(number) &&
+  // Accept a single numeric fraction without evaluating arbitrary expressions.
+  const decimal = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
+  const parts = text.split("/").map(part => part.trim());
+  const valid = parts.length <= 2 && parts.every(part => decimal.test(part) && Number.isFinite(Number(part))) &&
+    (parts.length === 1 || Number(parts[1]) !== 0);
+  const number = parts.length === 2 ? Number(parts[0]) / Number(parts[1]) : Number(text);
+  return { answered: true, correct: valid && Number.isFinite(number) &&
     Math.abs(number - question.ans) <= (question.tol || 0) + 1e-9 };
 }
 export function psetGradedKeys(ps){
