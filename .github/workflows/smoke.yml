@@ -268,6 +268,9 @@ jobs:
       - name: Is every lent clip doing the job it was lent for?
         run: node tools/check-roles.mjs
 
+      - name: Do conversation partners keep facing the viewer?
+        run: node tools/check-conversation-facing.mjs
+
       - name: Does Jun travel with a running walking animation?
         run: node tools/check-mobility.mjs
 
