@@ -2243,11 +2243,12 @@ import { SMAAPass } from "three/addons/postprocessing/SMAAPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { FiniteColorPass } from "./assets/app/finite-color-pass.mjs";
+import { conversationFacing, conversationBodyQuaternion, faceConversationCamera } from "./assets/app/conversation-facing.mjs";
 
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v158";
+const BUILD = "pembroke-v159";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -14544,6 +14545,7 @@ let convoView = null;                  /* the student record, or null */
    enough resolution would put one student's words, gesture, call to
    action, history and focus into the next student's conversation. */
 let convoGen = 0;
+let convoFacing = null;                /* upper-body landmarks for this conversation */
 let convoLook = null;                  /* the head bone and its neutral, or null */
 let convoScene = null, convoCam = null, convoRT = null, convoHome = null, convoBase = null;
 let convoHomeCull = [];
@@ -14591,20 +14593,13 @@ function convoSetup(){
    way the bone was authored, and guessing wrong twists a neck through
    ninety degrees.
 
-   So nothing here is assumed. The body has ALREADY been turned to face
-   the camera by facingOf, which means "looking at you" is the same
-   thing as "head neutral with respect to the body" — no axis needed,
-   only the head's rest relationship to the chest, and that can be
-   measured. A head that turns left and right is near neutral more of
-   the time than it is anywhere else, so the median of its orientation
-   across the clip IS neutral. Measure that once, then each frame pull
-   anything past a small tolerance back towards it.
+   The rig's bind pose supplies the head's neutral orientation relative
+   to its chest, without guessing a head bone's local forward axis. A
+   talking clip can spend its whole duration looking sideways, so its
+   median orientation is not necessarily looking at the visitor.
 
-   Damped rather than pinned, and clamped rather than zeroed: twelve
-   degrees of drift stays, because a head locked dead level is its own
-   kind of uncanny. Returns null on any body without a head bone, and
-   the caller does nothing at all in that case — an unturned head is a
-   great deal better than a wrung neck. */
+   Keep the existing small yaw, pitch and roll allowances. Older rigs
+   without measurable bind landmarks still use the clip median below. */
 /* Tolerances per axis, in radians, and they are small. The first pass
    allowed twelve degrees of yaw and took back 65% of the rest, which on
    a clip that swings forty leaves about twenty-two — still visibly
@@ -14620,6 +14615,8 @@ const LOOK_FREE_PITCH = 0.09;           /* ~5° up/down    */
 const LOOK_FREE_ROLL = 0.16;            /* ~9° tilt       */
 const LOOK_PULL = 0.85;                 /* how much of the excess to take back */
 function headNeutral(g){
+  if (convoFacing?.head && convoFacing.headNeutral)
+    return { head: convoFacing.head, neutral: convoFacing.headNeutral, facing: convoFacing };
   let head = null;
   g.traverse(o => {
     if (head || !o.isBone) return;
@@ -14658,14 +14655,15 @@ function headNeutral(g){
 /* Applied after the mixer has written the pose and after breathe(), for
    the same reason breathe() is: anything earlier is simply overwritten.
  *
- * Works entirely in BODY space, which is what lets it correct every
+ * Works in the upper body's measured space (holder space on legacy rigs),
+ * which lets it correct every
  * axis rather than only the one the world happens to agree on. The
  * first version rotated about world Y and so could straighten a head
  * that was turned aside but did nothing whatever about one tipped
  * forward — and a student looking at your shoes reads exactly as badly
  * as one looking at the hedge.
  *
- *   rel     the head's orientation relative to its own body
+ *   rel     the head's orientation relative to the upper body
  *   dev     how far that has strayed from this body's measured neutral
  *   target  the same deviation with each axis clamped, eased towards
  *
@@ -14677,7 +14675,7 @@ function lookAtViewer(g, look){
   if (!look || !look.head) return;
   const bodyQ = new THREE.Quaternion(), headQ = new THREE.Quaternion();
   const parentQ = new THREE.Quaternion();
-  g.getWorldQuaternion(bodyQ);
+  if (!look.facing || !conversationBodyQuaternion(look.facing, bodyQ)) g.getWorldQuaternion(bodyQ);
   look.head.getWorldQuaternion(headQ);
   const rel = bodyQ.clone().invert().multiply(headQ);
   const dev = rel.clone().multiply(look.neutral.clone().invert());
@@ -14709,63 +14707,6 @@ function lookAtViewer(g, look){
     const i = st.bones.indexOf(look.head);
     if (i >= 0) st.last[i].copy(look.head.quaternion);
   }
-}
-/* Which way is this body facing? Read off the skeleton rather than
-   assumed from a convention the models do not share — one arrived
-   facing away at a rotation of zero and another at π. A toe sits
-   forward of its ankle on every humanoid that has ever been rigged, so
-   the ankle-to-toe vector, flattened, is the facing. Returns the world
-   heading in radians, or null if this body has no toes to ask. */
-function facingOf(g){
-  /* BOTH feet, averaged. Reading one was right enough mid-stride, where
-     the feet are roughly parallel, and wrong the moment he stands still
-     — because a relaxed stance splays the toes outward, fifteen or
-     twenty degrees each way, and one foot's vector then carries that
-     splay as if it were the direction he faces. He arrived standing at
-     an angle to the person talking to him, and the more accurately the
-     standing pose was measured the further round he turned.
-     Two vectors summed cancel a symmetric splay; one cannot. */
-  /* Three spellings of the same joint, and the trailing-side one is the
-     reason this is written out: Mixamo writes LeftFoot, Character
-     Creator CC_Base_L_Foot, and Renderpeople foot_l — which keys to
-     "footl" and slips straight past an anchored /foot$/. nathan and
-     sophia were both Renderpeople, so this returned null for them and
-     the caller fell back to turning the body by pi. A guess, on the two
-     bodies a visitor stands closest to.
-     "footend" is excluded so this takes the ankle and not the toe tip,
-     which is the joint the toe is measured FROM. */
-  /* FOUR spellings of the same joint have turned up in eleven bodies:
-     LeftFoot, CC_Base_L_Foot, foot_l, foot_l_human. Each time an
-     anchored pattern was widened by one more suffix, and each time the
-     next body brought another. So stop anchoring: match the word and
-     say what it must NOT be. The tip of the chain — foot_end, toe — is
-     excluded because this wants the ankle, which is the joint the toe
-     is measured from. */
-  const ankle = (k) => /foot/.test(k) && !/end|toe/.test(k);
-  const feet = [];
-  g.traverse(o => { if (o.isBone && ankle(boneKey(o.name))) feet.push(o); });
-  if (!feet.length) return null;
-  const a = new THREE.Vector3(), b = new THREE.Vector3();
-  let sx = 0, sz = 0, n = 0;
-  for (const foot of feet){
-    let toe = null;
-    foot.traverse(o => {
-      /* Renderpeople has no toe bone at all: the tip of the foot chain
-         is foot_end_l. It is the same joint for this purpose — forward
-         of the ankle, which is the whole of what is being measured. */
-      if (!toe && o !== foot && o.isBone &&
-          /toe|footend/.test(boneKey(o.name))) toe = o;
-    });
-    if (!toe) continue;
-    foot.getWorldPosition(a); toe.getWorldPosition(b);
-    const dx = b.x - a.x, dz = b.z - a.z;
-    const len = Math.hypot(dx, dz);
-    if (len < 1e-5) continue;                      /* toes straight down */
-    /* normalised, so a longer foot bone does not outvote a shorter one */
-    sx += dx / len; sz += dz / len; n++;
-  }
-  if (!n || Math.hypot(sx, sz) < 1e-5) return null;
-  return Math.atan2(sx, sz);
 }
 function convoOpen(s){
   jOrient("talk");   /* orientation: met a student */
@@ -14807,38 +14748,18 @@ function convoOpen(s){
   });
   convoScene.add(g);
   g.position.set(0, 0, 0);
-  /* Turned to face you — measured off her own feet, not assumed.
-     Zero put her back to the room; so did π on a different body, which
-     is the tell: these models come from different pipelines and do not
-     agree on which way forward is. A constant cannot be right for all
-     of them and there is no reason to guess, because the skeleton
-     knows. Toes are forward of ankles on every humanoid ever rigged,
-     so the ankle-to-toe vector IS the facing. */
-  /* Standing rather than mid-stride, where the body has anything to
-     stand with. Most of the cohort arrived with a single walk cycle and
-     nothing else — for those, walking on the spot reads better than a
-     freeze, which is the same judgement makeRoamer already makes.
-
-     Chosen BEFORE the facing is measured, which is the other way round
-     from how this used to run. facingOf reads the ankle-to-toe vector,
-     and a standing loop plants the feet differently from whatever
-     stride he was caught in out on the lawn — so measuring first and
-     posing afterwards turned him to suit a stance he was about to
-     leave, and left him standing at an angle to the person he is
-     talking to. */
-  /* Talking first — this IS a conversation, and it is the one clip the
-     campus owns that was authored for exactly this moment. An idle, if
-     a body ever ships its own again, is the fallback; the held walk
-     frame is the fallback's fallback. */
+  // This is a cut to a separate scene. Start the conversation pose at
+  // full weight: measuring a zero-weight fade-in reads the outgoing gait,
+  // and sampling head neutral during that fade measures the wrong clip.
   const convoClip = (s.roles && (s.roles.talk || s.roles.idle)) || null;
   if (convoClip){
-    setClipOn(g, convoClip, 0.3);
-    /* setClip returns early when the clip is already current, and a
-       student standing on the lawn is already in hers. If anything ever
-       paused it she would arrive frozen at one frame — which is the one
-       thing a conversation must not be. The walking branch has known
-       this trap for a while ("setClip alone will not unpause it"); the
-       conversation did not. */
+    const a = g.userData.anim;
+    if (a?.actions[convoClip]){
+      a.mixer.stopAllAction();
+      a.actions[convoClip].reset().setEffectiveWeight(1).play();
+      a.current = convoClip;
+    }
+    // Clear the held state too, including a figure approached while parked.
     release(s);
     /* Back UP to conversation speed: the parked cast idles this same
        action at a third pace so it reads as waiting rather than
@@ -14847,16 +14768,16 @@ function convoOpen(s){
        holdStance, which re-slows it on the way out. */
     g.userData.anim?.actions[convoClip]?.setEffectiveTimeScale(0.9 + Math.random() * 0.2);
   }
-  else holdStill(s);                  /* nobody ships an idle of their own */
-  /* Now settle the pose the clip actually asks for, then turn him to
-     face the camera by it. */
+  else holdStill(s);                  /* fallback for a body with no talking/idle clip */
+  // Settle the selected pose before measuring and framing it.
   g.userData.anim?.mixer?.update(0);
   g.rotation.y = 0;
   g.updateMatrixWorld(true);
-  const face = facingOf(g);
-  g.rotation.y = face === null ? Math.PI : -face;
-  /* Measured after the clip is chosen, because neutral is a property of
-     the clip that will actually play. */
+  convoFacing = conversationFacing(g, canonBone);
+  // First face the close-up's forward axis, then its actual offset below.
+  convoCam.position.set(0, 0, 100);
+  faceConversationCamera(g, convoFacing, convoCam);
+  // Prefer the rig's neutral gaze; the selected clip supplies the fallback.
   convoLook = headNeutral(g);
 
   /* Framed off this body, not off a number: the cast runs from 38 to 43
@@ -14910,6 +14831,7 @@ function convoOpen(s){
   convoBase = { x: tall * 0.12, lookY: box.min.y + tall * 0.38 };
   convoCam.position.set(convoBase.x, eye, dist);
   convoCam.lookAt(0, convoBase.lookY, 0);
+  faceConversationCamera(g, convoFacing, convoCam);
 
   convoView = s; convoGen++;
   convoSay(s, null);
@@ -14955,7 +14877,7 @@ function convoClose(){
   /* Dropped with the view. Holding a bone reference from a figure that
      has gone back to the lawn would keep correcting a head nobody is
      looking at, and keep the body alive after it should be collectable. */
-  convoLook = null;
+  convoLook = null; convoFacing = null;
   convoView = null; convoHome = null; convoGen++;
   convoEl.classList.remove("open");
   /* inert alongside aria-hidden, always: aria-hidden alone told the
@@ -15126,8 +15048,9 @@ function aiWireConvo(s){
 let convoT = 0;
 function convoFrame(dt){
   convoT += dt;
-  const m = castMixers.find(x => x.g === convoView.g);
-  if (m) m.m.update(dt);
+  const a = convoView.g.userData;
+  const mixer = a.anim?.mixer || a.stand?.mixer;
+  if (mixer) mixer.update(dt);
   if (convoView.held === true) breathe(convoView.g, convoT, convoView.phase || 0);
   lookAtViewer(convoView.g, convoLook);
   /* Sway about the framing, not towards it — and look where convoOpen
@@ -15139,6 +15062,7 @@ function convoFrame(dt){
   convoCam.lookAt(0, convoBase ? convoBase.lookY : convoCam.position.y - 1.2, 0);
   convoCam.aspect = camera.aspect;
   convoCam.updateProjectionMatrix();
+  faceConversationCamera(convoView.g, convoFacing, convoCam, dt);
   renderer.render(convoScene, convoCam);
 }
 /* test/debug hooks: the cast, and the conversation they can be pulled
