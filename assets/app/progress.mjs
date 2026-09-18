@@ -67,6 +67,8 @@ const RENAMED = { MATH101: {
   /* Chapter 5 gained Partial Fractions at 5.3, which the course had skipped,
      so its nonlinear and inequality lessons shift down a number. */
   "SY.1": "5.1", "SY.2": "5.2", "SY.3": "5.4", "SY.4": "5.5", "SY.R": "5.R",
+  /* Chapter 7 mapped straight across, section for section */
+  "CO.1": "7.1", "CO.2": "7.2", "CO.3": "7.3", "CO.4": "7.4", "CO.R": "7.R",
   /* Chapter 6 taught its four sections in a different order from the book, so
      every lesson moves and none keeps its number: row reduction was second and
      is the book's first section, the algebra of matrices was first and is its

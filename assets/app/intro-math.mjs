@@ -77,9 +77,9 @@ export const INTRO_MATH = {
 INTRO_MATH.units.push(prerequisites, equations, functions, polynomials, exponentials, systems, matrices, conics, sequences, probability, geometry, finalReview);
 // Reuse relevant interactive models; reading-only lessons do not invent a lab.
 const models = {
-  'CO.1': {kind:'algebraConic', shape:'parabola', note:'Change the distance p from the vertex to the focus. Compare the focus above the vertex with the dashed directrix below it. Both axes use equal scales.'},
-  'CO.2': {kind:'algebraConic', shape:'ellipse', note:'Keep the horizontal semiaxis at 5 and change the vertical semiaxis. Watch the two foci move while remaining inside the ellipse. Both axes use equal scales.'},
-  'CO.3': {kind:'algebraConic', shape:'hyperbola', note:'Keep a = 2 and change b. The vertices stay fixed while the foci and the dashed asymptotes change. Both axes use equal scales.'},
+  '7.1': {kind:'algebraConic', shape:'parabola', note:'Change the distance p from the vertex to the focus. Compare the focus above the vertex with the dashed directrix below it. Both axes use equal scales.'},
+  '7.2': {kind:'algebraConic', shape:'ellipse', note:'Keep the horizontal semiaxis at 5 and change the vertical semiaxis. Watch the two foci move while remaining inside the ellipse. Both axes use equal scales.'},
+  '7.3': {kind:'algebraConic', shape:'hyperbola', note:'Keep a = 2 and change b. The vertices stay fixed while the foci and the dashed asymptotes change. Both axes use equal scales.'},
   '2.2': {kind:'vline', note:'Move a vertical line across an ordinary parabola and a sideways parabola. Count how many outputs each graph assigns to the selected input.'},
   '2.6': {kind:'transform', note:'Move the slider to translate the parent parabola. Track its vertex and compare the translated curve with the gray parent.'},
   '3.1': {kind:'transform', note:'Watch how the vertex determines the minimum and axis of a translated parabola.'},

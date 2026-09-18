@@ -113,6 +113,7 @@ const REFRESHED = [
   "./assets/app/algebra/polynomials.mjs",
   "./assets/app/algebra/systems.mjs",
   "./assets/app/algebra/matrices.mjs",
+  "./assets/app/algebra/conics.mjs",
   "./assets/app/intro-math.mjs",
   "./assets/app/grading.mjs",
   "./assets/app/progress.mjs",

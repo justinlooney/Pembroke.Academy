@@ -38,7 +38,7 @@ try {
   assert.match(await page.locator("#jmodal-body").innerText(), /Worked example 2/i);
   await page.locator("#jmodal-body [data-pset]").click();
   assert.equal(await page.locator("#jmodal-body [data-ps]").count(), 6);
-  await page.evaluate(() => __study.openSection("MATH101", "CO.2"));
+  await page.evaluate(() => __study.openSection("MATH101", "7.2"));
   assert.equal(await page.locator("#jmodal-body canvas").count(), 1);
   assert.match(await page.locator("#jmodal-body .st-read").innerText(), /Foci/);
   console.log("ok — complete algebra supports reading-only lessons, extra examples, required practice, and conic diagrams in the campus");

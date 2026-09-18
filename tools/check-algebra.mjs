@@ -64,7 +64,7 @@ try{
   for(const [i,q] of variationHomework.entries())await page.locator(`[data-hw="${i}"] input`).fill(String(q.ans));
   await page.locator('form button').click();assert.match(await page.locator('#hw-status').innerText(),/8\/8 correct/);
   console.log('ok — Chapter 1 variation is searchable, teaches all models, and grades fractions and homework');
-  await open('CO.2');await page.locator('[data-jump="explore-heading"]').click();await page.locator('#model').fill('1000');assert.match(await page.locator('#readout').innerText(),/b=4.50/);
+  await open('7.2');await page.locator('[data-jump="explore-heading"]').click();await page.locator('#model').fill('1000');assert.match(await page.locator('#readout').innerText(),/b=4.50/);
   await page.addScriptTag({path:resolve(ROOT,'node_modules/axe-core/axe.min.js')});
   const violations=await page.evaluate(async()=> (await axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21a','wcag21aa']}})).violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)})));
   assert.deepEqual(violations,[]);assert.deepEqual(errors,[]);
