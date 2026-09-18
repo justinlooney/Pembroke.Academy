@@ -64,6 +64,9 @@ const RENAMED = { MATH101: {
      because its practice is new and nobody has answered it yet. */
   "FN.1": "2.1", "FN.2": "2.3", "FN.3": "2.6", "FN.4": "2.7", "FN.5": "2.8", "FN.R": "2.R",
   "PF.1": "3.1", "PF.2": "3.2", "PF.3": "3.3", "PF.4": "3.4", "PF.5": "3.6", "PF.R": "3.R",
+  /* Chapter 5 gained Partial Fractions at 5.3, which the course had skipped,
+     so its nonlinear and inequality lessons shift down a number. */
+  "SY.1": "5.1", "SY.2": "5.2", "SY.3": "5.4", "SY.4": "5.5", "SY.R": "5.R",
 } };
 function applyRenames(id, src){
   const map = RENAMED[id];

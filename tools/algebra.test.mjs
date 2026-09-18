@@ -6,9 +6,9 @@ import {gradeAnswer} from '../assets/app/grading.mjs';
 import {normalizeStudy} from '../assets/app/progress.mjs';
 const sections=INTRO_MATH.units.flatMap(u=>u.sections), byId=Object.fromEntries(sections.map(s=>[s.n,s]));
 test('algebra covers all chapters with teaching, worked examples, explained practice, and reviews',()=>{
-  assert.equal(sections.length,80);assert.equal(new Set(sections.map(s=>s.n)).size,80);
+  assert.equal(sections.length,81);assert.equal(new Set(sections.map(s=>s.n)).size,81);
   assert.deepEqual(sections.slice(0,3).map(s=>s.n),['0.1','0.2','0.3']);
-  for(const prefix of ['P','1','2','3','4','SY','MX','CO','SQ','PR','GE']){
+  for(const prefix of ['P','1','2','3','4','5','MX','CO','SQ','PR','GE']){
     const lessons=sections.filter(s=>s.n.startsWith(prefix+'.')&&!s.n.endsWith('.R'));
     assert.ok(lessons.length>=2);assert.ok(byId[prefix+'.R']);
     for(const {full:f,qs,n} of lessons){
