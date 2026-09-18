@@ -28,7 +28,7 @@ try {
   });
   assert.equal(brief["1.1"], 1); assert.equal(brief.x["1.1"].kc, 1); assert.ok(brief.log.every(e => e.k === "kc" && e.ok === 1));
   console.log("ok — brief lessons record checks and still require the problem set for mastery");
-  await page.evaluate(() => __study.openSection("MATH101", "1.1"));
+  await page.evaluate(() => __study.openSection("MATH101", "0.1"));
   assert.match(await page.locator("#jmodal-body").innerText(), /Expressions and substitution/);
   assert.equal(await page.locator("#jmodal-body canvas").count(), 1);
   console.log("ok — new introductory lessons and extracted figures work in the campus");
@@ -42,7 +42,7 @@ try {
   assert.equal(await page.locator("#jmodal-body canvas").count(), 1);
   assert.match(await page.locator("#jmodal-body .st-read").innerText(), /Foci/);
   console.log("ok — complete algebra supports reading-only lessons, extra examples, required practice, and conic diagrams in the campus");
-  await page.evaluate(() => __study.openSection("MATH101", "G.12"));
+  await page.evaluate(() => __study.openSection("MATH101", "1.11"));
   assert.match(await page.locator("#jmodal-body").innerText(), /Combining different types of variation/);
   assert.match(await page.locator("#jmodal-body").innerText(), /Worked example 4/i);
   await page.locator("#jmodal-body [data-pset]").click();
@@ -87,10 +87,10 @@ try {
   await page.locator("#reset-ledger").evaluate(button => button.click());
   assert.equal(await page.evaluate(() => localStorage.getItem("pembroke.learning.resume")), null);
   assert.equal(await page.locator(".desk-resume button").getAttribute("data-attend"), "MATH101");
-  assert.equal(await page.locator(".desk-resume button").getAttribute("data-lesson"), "1.1");
+  assert.equal(await page.locator(".desk-resume button").getAttribute("data-lesson"), "0.1");
   await page.locator(".desk-resume button").click();
   assert.match(await page.locator("#jmodal-body").innerText(), /Expressions and substitution/);
-  assert.equal(await page.evaluate(() => __study.state().MATH101["1.1"]), 1, "a fresh lesson must still save after reset");
+  assert.equal(await page.evaluate(() => __study.state().MATH101["0.1"]), 1, "a fresh lesson must still save after reset");
   assert.equal(await page.evaluate(() => __study.state().CS101), undefined);
   await page.locator(".jmodal-x").click();
   console.log("ok — reset clears progress and resume together, cancel preserves mastery, and fresh learning saves");

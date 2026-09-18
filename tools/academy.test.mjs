@@ -19,12 +19,12 @@ test("catalog distinguishes 106 available lessons from nine syllabus-only course
   assert.equal(escapeHTML('<img src=x onerror="alert(1)">'), "&lt;img src=x onerror=&quot;alert(1)&quot;&gt;");
 });
 test("continue uses a valid saved lesson and never sends a learner to a missing one", () => {
-  const state = { MATH101: { "1.1": 2 }, CS101: { "1.1": 2 } };
+  const state = { MATH101: { "0.1": 2 }, CS101: { "1.1": 2 } };
   const valid = learningDestination(state, { courseId: "CS101", n: "1.3" });
   assert.equal(valid.course.id, "CS101"); assert.equal(valid.section.n, "1.3"); assert.equal(valid.resumed, true);
   for (const invalid of [null, { courseId: "CS201", n: "1.1" }, { courseId: "CS101", n: "missing" }, { courseId: "__proto__", n: "1.1" }]){
     const next = learningDestination(state, invalid);
-    assert.equal(next.course.id, "MATH101"); assert.equal(next.section.n, "1.2"); assert.equal(next.resumed, false);
+    assert.equal(next.course.id, "MATH101"); assert.equal(next.section.n, "0.2"); assert.equal(next.resumed, false);
   }
   assert.equal(courseCatalog(state).find(c => c.id === "CS101").mastered, 1);
 });

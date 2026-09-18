@@ -17,7 +17,7 @@ export const INTRO_MATH = {
   lectures: "Complete College Algebra: prerequisites, nine chapters, geometry review, and a cumulative practice exam. Every chapter includes teaching, worked examples, explained exercises, and a review test.",
   grading: [["Knowledge checks", "quizzes", 60], ["Homework", "homework", 30], ["Interactive labs", "labs", 10]],
   units: [{ title: "Start here · Three core skills", sections: [
-    { n: "1.1", t: "Expressions and substitution",
+    { n: "0.1", t: "Expressions and substitution",
       brief: "An expression describes a calculation. A variable marks a value you can choose or measure; substituting a value turns the expression into arithmetic.",
       key: "Substitute with parentheses, evaluate powers, then multiply and divide before adding and subtracting.",
       full: {
@@ -35,7 +35,7 @@ export const INTRO_MATH = {
         { q: "Which simplifies to 7x?", opts: ["3x + 4", "3 + 4x", "3x + 4x"], a: 2, why: "Only like terms count copies of the same x." },
         { q: "Which is an equation?", opts: ["2x + 1", "2x + 1 = 7", "x²"], a: 1, why: "An equation asserts equality between two expressions." }]
     },
-    { n: "1.2", t: "Linear equations and checking solutions",
+    { n: "0.2", t: "Linear equations and checking solutions",
       brief: "A solution is a value that makes an equation true. Keep the two sides equal by applying the same reversible operation to both sides.",
       key: "Undo addition or subtraction, then multiplication or division. Check the result in the original equation.",
       full: {
@@ -53,7 +53,7 @@ export const INTRO_MATH = {
         { q: "Distribute 3(x + 2).", opts: ["3x + 2", "3x + 6", "x + 6"], a: 1, why: "Multiply each term inside the parentheses by 3." },
         { q: "How many solutions does x = x + 1 have?", opts: ["One", "Every real number", "None"], a: 2, why: "Subtracting x would require 0 = 1, which is false." }]
     },
-    { n: "1.3", t: "Functions and linear models",
+    { n: "0.3", t: "Functions and linear models",
       brief: "A function assigns one output to each allowed input. A linear model y = mx + b combines a constant rate of change with an initial value.",
       key: "Slope m is change in output divided by change in input. The intercept b is the output when the input is zero.",
       full: {

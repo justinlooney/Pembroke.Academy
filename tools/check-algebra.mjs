@@ -28,7 +28,7 @@ try{
   await page.locator('#lesson-search').fill('no-such-topic-xyz');assert.match(await page.locator('#contents-status').innerText(),/^0 lessons/);
   await page.locator('#lesson-search').fill('');assert.equal(await page.locator('#lessons .chapter').count(),13);
   console.log('ok — searchable chapters, empty search, selected lesson, and collapsed contents');
-  const sec=await open('G.8');
+  const sec=await open('1.8');
   await page.locator('[data-turn="0"] [data-solution]').click();assert.match(await page.locator('[data-turn="0"] .feedback').innerText(),/reverse/);
   for(const [i,q] of sec.qs.entries())await page.locator(`input[name=kc${i}][value="${q.a}"]`).check();
   await page.locator('#knowledge button').click();assert.match(await page.locator('#mastery').innerText(),/Complete required practice/);
@@ -48,7 +48,7 @@ try{
   await page.locator('form button').click();assert.match(await page.locator('#hw-status').innerText(),/4\/4 correct/);assert.match(await page.locator('[data-hw="3"] .feedback').innerText(),/3\/8/);
   await open('FINAL.1');assert.equal(await page.getByRole('link',{name:'Next lesson →',exact:true}).count(),0);assert.equal(await page.getByRole('link',{name:'← Previous lesson',exact:true}).count(),1);
   console.log('ok — fraction input, explained homework, and final-course navigation');
-  await open('G.10');await page.locator('#lesson-search').fill('variation');
+  await open('1.10');await page.locator('#lesson-search').fill('variation');
   const variationLink=page.locator('#lessons a').filter({hasText:'Modeling variation:'});assert.equal(await variationLink.count(),1);
   await variationLink.click();await page.waitForFunction(()=>document.querySelector('h1')?.textContent.includes('Modeling variation:'));
   assert.match(await page.locator('#lesson').innerText(),/Combining different types of variation/);
@@ -58,7 +58,7 @@ try{
   await page.locator('#practice').click();assert.equal(await page.locator('[data-problem]').count(),10);
   const scaling=page.locator('[data-problem="8"]');await scaling.locator('input').fill('1/2');await scaling.locator('[data-check]').click();assert.match(await scaling.locator('.feedback').innerText(),/✓/);
   await page.locator('#back').click();await page.locator('#homework').click();
-  const variationHomework=sections.find(s=>s.n==='G.12').full.homework.gen.map(fn=>fn());
+  const variationHomework=sections.find(s=>s.n==='1.11').full.homework.gen.map(fn=>fn());
   for(const [i,q] of variationHomework.entries())await page.locator(`[data-hw="${i}"] input`).fill(String(q.ans));
   await page.locator('form button').click();assert.match(await page.locator('#hw-status').innerText(),/8\/8 correct/);
   console.log('ok — Chapter 1 variation is searchable, teaches all models, and grades fractions and homework');
@@ -66,14 +66,14 @@ try{
   await page.addScriptTag({path:resolve(ROOT,'node_modules/axe-core/axe.min.js')});
   const violations=await page.evaluate(async()=> (await axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21a','wcag21aa']}})).violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)})));
   assert.deepEqual(violations,[]);assert.deepEqual(errors,[]);
-  if(process.env.PEMBROKE_CAPTURE_DIR){const dir=process.env.PEMBROKE_CAPTURE_DIR;await mkdir(dir,{recursive:true});await page.screenshot({path:resolve(dir,'algebra-conic-mobile.png')});await open('G.12');await page.locator('h1').scrollIntoViewIfNeeded();await page.screenshot({path:resolve(dir,'chapter-one-variation-mobile.png')});await page.locator('.worked-example').last().scrollIntoViewIfNeeded();await page.locator('.worked-example').last().locator('details').evaluateAll(nodes=>nodes.forEach(n=>n.open=true));await page.screenshot({path:resolve(dir,'chapter-one-example-mobile.png')});await page.setViewportSize({width:1440,height:960});await open('G.5');await page.locator('h1').scrollIntoViewIfNeeded();await page.screenshot({path:resolve(dir,'chapter-one-quadratics-desktop.png')});}
+  if(process.env.PEMBROKE_CAPTURE_DIR){const dir=process.env.PEMBROKE_CAPTURE_DIR;await mkdir(dir,{recursive:true});await page.screenshot({path:resolve(dir,'algebra-conic-mobile.png')});await open('1.11');await page.locator('h1').scrollIntoViewIfNeeded();await page.screenshot({path:resolve(dir,'chapter-one-variation-mobile.png')});await page.locator('.worked-example').last().scrollIntoViewIfNeeded();await page.locator('.worked-example').last().locator('details').evaluateAll(nodes=>nodes.forEach(n=>n.open=true));await page.screenshot({path:resolve(dir,'chapter-one-example-mobile.png')});await page.setViewportSize({width:1440,height:960});await open('1.5');await page.locator('h1').scrollIntoViewIfNeeded();await page.screenshot({path:resolve(dir,'chapter-one-quadratics-desktop.png')});}
   console.log('ok — interactive conic diagram and mobile accessibility audit');
   await context.close();
   const offline=await browser.newContext(),cached=await offline.newPage();await cached.goto(server.origin+'/study.html#course=MATH101&lesson=P.1');
   await cached.evaluate(()=>navigator.serviceWorker.ready);await cached.waitForFunction(()=>!!navigator.serviceWorker.controller);
   server.close();await offline.setOffline(true);await cached.goto(server.origin+'/study.html#course=MATH101&lesson=MX.4');await cached.reload();await cached.waitForSelector('#knowledge');
   assert.match(await cached.locator('h1').innerText(),/Inverse matrices/);await cached.locator('#practice').click();assert.equal(await cached.locator('[data-problem]').count(),6);
-  await cached.goto(server.origin+'/study.html#course=MATH101&lesson=G.12');await cached.reload();await cached.waitForSelector('#knowledge');
+  await cached.goto(server.origin+'/study.html#course=MATH101&lesson=1.11');await cached.reload();await cached.waitForSelector('#knowledge');
   assert.match(await cached.locator('#lesson').innerText(),/Combining different types of variation/);await cached.locator('#practice').click();assert.equal(await cached.locator('[data-problem]').count(),10);
   await offline.close();console.log('ok — an advanced algebra chapter and its practice work after a real host outage');
 }finally{await browser.close();server.close();}

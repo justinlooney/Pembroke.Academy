@@ -26,12 +26,54 @@ export function normalizeDone(raw){
   }
   return requested.filter(id => accepted.has(id));
 }
+/* Sections renamed when College Algebra adopted the textbook's own numbering,
+   so that a lesson here and a page there carry the same number.
+
+   Saved progress is keyed by section id, and normalizeStudy keeps only ids the
+   current plan still lists — so without this a rename would silently discard a
+   learner's mastery, with nothing to tell them that is what happened.
+
+   The marker is not optional. "1.1" named "Expressions and substitution" before
+   the renumbering and names "The Coordinate Plane" after it, so the id alone
+   cannot say which lesson a saved record meant. normalizeStudy runs on every
+   read, so a map applied unconditionally would keep rewriting freshly earned
+   1.1 progress into 0.1 forever. A record carrying SCHEMA has already been
+   through this and is left alone; one without it predates the renumbering.
+
+   Renaming builds a fresh object rather than mutating in place, which is what
+   lets "1.1" move to "0.1" and "G.1" move into "1.1" in the same pass without
+   either landing on the other. Entries stay here permanently: a learner may
+   come back after years away.                                                */
+const SCHEMA = 2;
+/* keys in a course record that are not section ids */
+const META = new Set(["x", "log", "v"]);
+const RENAMED = { MATH101: {
+  /* the three orientation lessons stepped aside for Chapter 1 */
+  "1.1": "0.1", "1.2": "0.2", "1.3": "0.3",
+  /* Chapter 1 onto Stewart's own section numbers */
+  "G.1": "1.1", "G.2": "1.2", "G.3": "1.3", "G.4": "1.4", "G.5": "1.5", "G.6": "1.6",
+  "G.7": "1.7", "G.8": "1.8", "G.9": "1.9", "G.10": "1.10", "G.12": "1.11",
+  "G.11": "1.FM", "G.R": "1.R",
+} };
+function applyRenames(id, src){
+  const map = RENAMED[id];
+  if (!map || src.v === SCHEMA) return src;
+  const move = (obj) => {
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) out[map[k] || k] = v;
+    return out;
+  };
+  const out = move(src);
+  if (record(src.x)) out.x = move(src.x);
+  if (Array.isArray(src.log)) out.log = src.log.map(e => record(e) && map[e.n] ? { ...e, n: map[e.n] } : e);
+  return out;
+}
 export function normalizeStudy(raw){
   const out = {};
   if (!record(raw)) return out;
   for (const [id, plan] of Object.entries(STUDY)){
     if (!record(raw[id])) continue;
-    const src = raw[id], dst = out[id] = {}, sections = plan.units.flatMap(u => u.sections);
+    const src = applyRenames(id, raw[id]), dst = out[id] = {}, sections = plan.units.flatMap(u => u.sections);
     const sectionIds = new Set(sections.map(s => s.n));
     for (const sec of sections){
       if (src[sec.n] === 1 || src[sec.n] === 2) dst[sec.n] = src[sec.n];
@@ -50,6 +92,7 @@ export function normalizeStudy(raw){
       // Evidence may have saved before the section-level promotion did.
       if (x.kc === 1 && practiceCleared(ps, x.ps?.earned)) dst[sec.n] = 2;
     }
+    dst.v = SCHEMA;   /* stamped so the rename above never runs on this record twice */
     if (Array.isArray(src.log)) dst.log = src.log.filter(e => record(e) && sectionIds.has(e.n) &&
       ["kc", "turn", "hw", "pset"].includes(e.k) && (e.ok === 0 || e.ok === 1) && time(e.at))
       .slice(-60).map(({ n, k, ok, at }) => ({ n, k, ok, at }));
@@ -215,5 +258,9 @@ export function previewImport(contents){
   }
   const learned = records[KEYS.study];
   return { records, repairs, seals: records[KEYS.done].length,
-    mastered: Object.values(learned).reduce((sum, c) => sum + Object.values(c).filter(v => v === 2).length, 0) };
+    /* count sections, not bookkeeping: a course record also carries x, log
+       and the schema marker, and the marker's value is a number that means
+       "mastered" one key over. */
+    mastered: Object.values(learned).reduce((sum, c) => sum +
+      Object.entries(c).filter(([k, v]) => !META.has(k) && v === 2).length, 0) };
 }

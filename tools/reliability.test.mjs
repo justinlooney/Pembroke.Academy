@@ -40,11 +40,11 @@ test("quota failure remains exportable, visibly unsaved, and retryable", () => {
   const backend = memory(); let blocked = false, seen;
   const set = backend.setItem; backend.setItem = (k, v) => { if (blocked) throw new Error("Quota exceeded"); set(k, v); };
   const store = createStorage(() => backend, s => seen = s); blocked = true;
-  assert.equal(store.setItem(KEYS.study, JSON.stringify({ MATH101: { "1.1": 2 } })), false);
+  assert.equal(store.setItem(KEYS.study, JSON.stringify({ MATH101: { "P.2": 2 } })), false);
   assert.equal(seen.unsaved, 1); assert.equal(seen.lastSaved, null);
-  assert.equal(exportProgress(store).data.study.MATH101["1.1"], 2);
+  assert.equal(exportProgress(store).data.study.MATH101["P.2"], 2);
   blocked = false; store.retry(); assert.equal(store.status().unsaved, 0);
-  assert.equal(JSON.parse(backend.getItem(KEYS.study)).MATH101["1.1"], 2);
+  assert.equal(JSON.parse(backend.getItem(KEYS.study)).MATH101["P.2"], 2);
 });
 test("backup preview and import preserve all supported domains", () => {
   const backend = memory(), store = createStorage(() => backend);
@@ -57,12 +57,12 @@ test("backup preview and import preserve all supported domains", () => {
 });
 test("failed import restores old values before another write", () => {
   const backend = memory();
-  backend.setItem(KEYS.done, '["CS101"]'); backend.setItem(KEYS.study, '{"MATH101":{"1.1":1}}');
+  backend.setItem(KEYS.done, '["CS101"]'); backend.setItem(KEYS.study, '{"MATH101":{"P.2":1}}');
   const store = createStorage(() => backend);
   const set = backend.setItem; let failed = false;
   backend.setItem = (k, v) => { if (k === KEYS.study && !failed){ failed = true; throw new Error("quota"); } set(k, v); };
   assert.throws(() => store.importRecords({ [KEYS.done]: ["MATH101"], [KEYS.study]: {} }), /Import failed/);
-  assert.equal(backend.getItem(KEYS.done), '["CS101"]'); assert.equal(JSON.parse(backend.getItem(KEYS.study)).MATH101["1.1"], 1);
+  assert.equal(backend.getItem(KEYS.done), '["CS101"]'); assert.equal(JSON.parse(backend.getItem(KEYS.study)).MATH101["P.2"], 1);
   assert.equal(backend.getItem("pembroke.progress.import-journal.v1"), null);
 });
 test("an interrupted import recovers on next initialization", () => {
@@ -165,11 +165,11 @@ test("navigation fallback handles rejection, transient status, and a hung networ
 test("an older tab cannot overwrite progress saved by a newer tab", () => {
   const backend = memory(), oldTab = createStorage(() => backend), newTab = createStorage(() => backend);
   assert.equal(oldTab.getItem(KEYS.study), null);
-  newTab.setItem(KEYS.study, '{"MATH101":{"1.1":2}}');
-  assert.equal(oldTab.setItem(KEYS.study, '{"MATH101":{"1.2":1}}'), false);
+  newTab.setItem(KEYS.study, '{"MATH101":{"P.2":2}}');
+  assert.equal(oldTab.setItem(KEYS.study, '{"MATH101":{"P.3":1}}'), false);
   assert.equal(oldTab.status().conflict, true);
-  assert.equal(JSON.parse(backend.getItem(KEYS.study)).MATH101["1.1"], 2);
-  assert.equal(exportProgress(oldTab).data.study.MATH101["1.2"], 1);
+  assert.equal(JSON.parse(backend.getItem(KEYS.study)).MATH101["P.2"], 2);
+  assert.equal(exportProgress(oldTab).data.study.MATH101["P.3"], 1);
 });
 
 test("seal restoration rejects missing prerequisites without depending on array order", () => {
@@ -226,7 +226,9 @@ test("restored checks plus earned practice promote mastery, but either half alon
     assert.notEqual(normalizeStudy(raw).MATH201["1.1"], 2);
   }
   assert.notEqual(normalizeStudy({ MATH201: { "1.1": 1, x: { "1.1": { kc: 1, ps: { earned: {} } } } } }).MATH201["1.1"], 2);
-  assert.equal(normalizeStudy({ MATH101: { "1.1": 1, x: { "1.1": { kc: 1 } } } }).MATH101["1.1"], 2);
+  /* 0.1 carries no problem set, so the knowledge check alone masters it;
+     P.2 has six practice items and would correctly stay unmastered here. */
+  assert.equal(normalizeStudy({ MATH101: { "0.1": 1, x: { "0.1": { kc: 1 } } } }).MATH101["0.1"], 2);
 });
 test("stale imports reject before any journal or progress write, even for unread domains", () => {
   for (const readBefore of [false, true]){
@@ -261,4 +263,23 @@ test("offline fallback respects repository paths, query strings and missing page
     const res = await sw.load(path); assert.equal(res.status, 503); assert.doesNotMatch(await res.text(), /<body>|saved copy/);
   }
   await assert.rejects(sw.load("assets/app/missing.mjs", "cors"));
+});
+
+test("renumbering carries saved progress across, and only once", () => {
+  /* A learner who worked Chapter 1 under its old ids keeps that work: G.4 was
+     Lines and 1.4 is Lines, so the record moves rather than quietly vanishing. */
+  const moved = normalizeStudy({ MATH101: { "G.4": 2, x: { "G.4": { kc: 1 } },
+    log: [{ n: "G.4", k: "kc", ok: 1, at: Date.now() }] } }).MATH101;
+  assert.equal(moved["1.4"], 2); assert.equal(moved["G.4"], undefined);
+  assert.equal(moved.x["1.4"].kc, 1); assert.equal(moved.log[0].n, "1.4");
+  /* "1.1" meant Expressions and substitution before the renumbering and means
+     The Coordinate Plane after it, so an unstamped record is read as the old
+     lesson and steps aside to 0.1, while a stamped one is left exactly alone.
+     Without that distinction every read would rewrite 1.1 into 0.1 again. */
+  const legacy = normalizeStudy({ MATH101: { "1.1": 2 } }).MATH101;
+  assert.equal(legacy["0.1"], 2); assert.equal(legacy["1.1"], undefined);
+  assert.equal(normalizeStudy({ MATH101: legacy }).MATH101["0.1"], 2, "a second read must not move it again");
+  const earned = normalizeStudy({ MATH101: { "1.1": 2, v: 2 } }).MATH101;
+  assert.equal(earned["1.1"], 2, "progress earned since the renumbering stays on 1.1");
+  assert.equal(earned["0.1"], undefined);
 });
