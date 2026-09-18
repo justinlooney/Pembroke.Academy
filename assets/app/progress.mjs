@@ -67,6 +67,11 @@ const RENAMED = { MATH101: {
   /* Chapter 5 gained Partial Fractions at 5.3, which the course had skipped,
      so its nonlinear and inequality lessons shift down a number. */
   "SY.1": "5.1", "SY.2": "5.2", "SY.3": "5.4", "SY.4": "5.5", "SY.R": "5.R",
+  /* Chapter 6 taught its four sections in a different order from the book, so
+     every lesson moves and none keeps its number: row reduction was second and
+     is the book's first section, the algebra of matrices was first and is its
+     second, and inverses and determinants likewise trade places. */
+  "MX.1": "6.2", "MX.2": "6.1", "MX.3": "6.4", "MX.4": "6.3", "MX.R": "6.R",
 } };
 function applyRenames(id, src){
   const map = RENAMED[id];

@@ -32,7 +32,7 @@ try {
   assert.match(await page.locator("#jmodal-body").innerText(), /Expressions and substitution/);
   assert.equal(await page.locator("#jmodal-body canvas").count(), 1);
   console.log("ok — new introductory lessons and extracted figures work in the campus");
-  await page.evaluate(() => __study.openSection("MATH101", "MX.4"));
+  await page.evaluate(() => __study.openSection("MATH101", "6.3"));
   assert.match(await page.locator("#jmodal-body").innerText(), /Inverse matrices/);
   assert.equal(await page.locator("#jmodal-body canvas").count(), 0);
   assert.match(await page.locator("#jmodal-body").innerText(), /Worked example 2/i);

@@ -73,7 +73,7 @@ try{
   await context.close();
   const offline=await browser.newContext(),cached=await offline.newPage();await cached.goto(server.origin+'/study.html#course=MATH101&lesson=P.1');
   await cached.evaluate(()=>navigator.serviceWorker.ready);await cached.waitForFunction(()=>!!navigator.serviceWorker.controller);
-  server.close();await offline.setOffline(true);await cached.goto(server.origin+'/study.html#course=MATH101&lesson=MX.4');await cached.reload();await cached.waitForSelector('#knowledge');
+  server.close();await offline.setOffline(true);await cached.goto(server.origin+'/study.html#course=MATH101&lesson=6.3');await cached.reload();await cached.waitForSelector('#knowledge');
   assert.match(await cached.locator('h1').innerText(),/Inverse matrices/);await cached.locator('#practice').click();assert.equal(await cached.locator('[data-problem]').count(),6);
   await cached.goto(server.origin+'/study.html#course=MATH101&lesson=1.11');await cached.reload();await cached.waitForSelector('#knowledge');
   assert.match(await cached.locator('#lesson').innerText(),/Combining different types of variation/);await cached.locator('#practice').click();assert.equal(await cached.locator('[data-problem]').count(),10);
