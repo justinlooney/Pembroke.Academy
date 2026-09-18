@@ -42,6 +42,12 @@ try {
   assert.equal(await page.locator("#jmodal-body canvas").count(), 1);
   assert.match(await page.locator("#jmodal-body .st-read").innerText(), /Foci/);
   console.log("ok — complete algebra supports reading-only lessons, extra examples, required practice, and conic diagrams in the campus");
+  await page.evaluate(() => __study.openSection("MATH101", "G.12"));
+  assert.match(await page.locator("#jmodal-body").innerText(), /Combining different types of variation/);
+  assert.match(await page.locator("#jmodal-body").innerText(), /Worked example 4/i);
+  await page.locator("#jmodal-body [data-pset]").click();
+  assert.equal(await page.locator("#jmodal-body [data-ps]").count(), 10);
+  console.log("ok — Chapter 1 variation, its worked examples, and all ten exercises are available on campus");
   await page.locator(".jmodal-x").click();
   await page.locator('#academy-desk [data-attend="CS101"]').click();
   await page.waitForFunction(() => document.getElementById("jmodal-body").textContent.includes("Values, variables and a changing state"));

@@ -6,7 +6,7 @@
   "engines": { "node": ">=22" },
   "scripts": {
     "test": "node --test tools/reliability.test.mjs tools/retarget.test.mjs tools/academy.test.mjs tools/algebra.test.mjs && node tools/check-worker.mjs && node tools/check-css.mjs && node tools/check-materials.mjs",
-    "test:learning": "node tools/check-learning.mjs && node tools/check-academy.mjs",
+    "test:learning": "node tools/check-learning.mjs && node tools/check-academy.mjs && node tools/check-algebra.mjs",
     "test:algebra": "node tools/check-algebra.mjs",
     "test:ledger": "node tools/check-ledger.mjs"
   },
