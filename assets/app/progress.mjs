@@ -56,6 +56,14 @@ const RENAMED = { MATH101: {
   "G.11": "1.FM", "G.R": "1.R",
   /* Chapter 4 likewise */
   "EX.1": "4.1", "EX.2": "4.2", "EX.3": "4.3", "EX.4": "4.4", "EX.5": "4.5", "EX.R": "4.R",
+  /* Chapters 2 and 3 were consolidated below the book's section count, so two
+     of their lessons were split in two and three sections were newly written.
+     A split has no single destination: FN.1 became both 2.1 and 2.2, and PF.4
+     became both 3.4 and 3.5. Progress moves to the first half, which is where
+     that lesson's opening material now lives; the second half starts unstarted,
+     because its practice is new and nobody has answered it yet. */
+  "FN.1": "2.1", "FN.2": "2.3", "FN.3": "2.6", "FN.4": "2.7", "FN.5": "2.8", "FN.R": "2.R",
+  "PF.1": "3.1", "PF.2": "3.2", "PF.3": "3.3", "PF.4": "3.4", "PF.5": "3.6", "PF.R": "3.R",
 } };
 function applyRenames(id, src){
   const map = RENAMED[id];
