@@ -2242,12 +2242,13 @@ import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js"
 import { SMAAPass } from "three/addons/postprocessing/SMAAPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+import { benchSeat, beginBenchSit, alignBenchSit, endBenchSit, saveBenchPose, restoreBenchPose } from "./assets/app/bench-seating.mjs";
 import { FiniteColorPass } from "./assets/app/finite-color-pass.mjs";
 
 /* Kept identical to VERSION in sw.js — check-sw-version.sh fails the
    build if they drift. Shown in ?debug so a report from a phone can be
    tied to the code that produced it. */
-const BUILD = "pembroke-v158";
+const BUILD = "pembroke-v160";
 
 const COLLIDERS = [];                 /* plane-coord AABBs for walk + minimap */
 const buildingEls = {};               /* sector -> [3D groups] (legacy shape) */
@@ -5542,14 +5543,8 @@ gltf.load("assets/bench.glb", (g) => {
     bench.position.set(Math.cos(a) * 118, 0, Math.sin(a) * 118);
     bench.rotation.y = -a + Math.PI / 2;
     world.add(bench);
-    /* Somewhere to sit, taken from the bench as it is placed rather
-       than written out again beside it — a second copy of these six
-       angles would be a second thing to keep in step, and a student
-       sitting a metre in front of a bench is worse than one who never
-       sits at all. Plane coordinates, because that is what a student's
-       pos is in: W maps plane to world by subtracting 500. */
-    SEATS.push({ x: Math.cos(a) * 118 + 500, y: Math.sin(a) * 118 + 500,
-                 face: bench.rotation.y, taken: null });
+    const seat = benchSeat(bench);
+    if (seat) SEATS.push(seat);
   }
   /* four more around the North Quad's lawn, same pattern, same deal */
   for (let k = 0; k < 4; k++){
@@ -5559,8 +5554,8 @@ gltf.load("assets/bench.glb", (g) => {
     bench.position.set(Math.cos(a) * 88, 0, -680 + Math.sin(a) * 88);
     bench.rotation.y = -a + Math.PI / 2;
     world.add(bench);
-    SEATS.push({ x: Math.cos(a) * 88 + 500, y: Math.sin(a) * 88 - 180,
-                 face: bench.rotation.y, taken: null });
+    const seat = benchSeat(bench);
+    if (seat) SEATS.push(seat);
   }
 });
 
@@ -10478,7 +10473,7 @@ function makeRoomFor(k, now, urgent){
       if (dist < cbd){ cbd = dist; cd = d; }
     }
     if (!cd) return false;
-    if (c.seat){ c.seat.taken = null; c.seat = null; }
+    if (c.seat) leaveSeat(c);
     c.door = cd; c.mode = "inside"; c.inside = true; c.route = null; c.target = null;
     if (c.g) c.g.visible = false;
     c.until = now + INSIDE_MS[0] + Math.random() * (INSIDE_MS[1] - INSIDE_MS[0]);
@@ -10651,6 +10646,7 @@ function freeSeat(from){
   return best;
 }
 function leaveSeat(s){
+  if (s.benchBinding) endBenchSit(s);
   if (s.seat && s.seat.taken === s) s.seat.taken = null;
   s.seat = null;
 }
@@ -10822,8 +10818,9 @@ function stepStudents(dt, now){
           s.mode = "sitdown";
           s.g.rotation.y = seat.face;
           s.pos[0] = seat.x; s.pos[1] = seat.y;
-          s.until = now + (cyc ? playOnce(s, cyc.down, cyc.downRev) || 1200 : 1200);
           s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
+          beginBenchSit(s, cyc, canonBone);
+          s.until = now + (cyc ? playOnce(s, cyc.down, cyc.downRev) || 1200 : 1200);
           continue;
         }
         s.pos[0] += dx / d * s.speed * dt;
@@ -10835,7 +10832,13 @@ function stepStudents(dt, now){
       }
     }
     if (s.mode === "sitdown" || s.mode === "seated" || s.mode === "standup"){
-      if (now < s.until){
+      const anim = s.g.userData.anim;
+      const transition = anim?.actions[anim.current];
+      // The mixer may advance more slowly than wall time on a busy phone.
+      // Finish the actual sit/rise before switching clips or releasing the seat.
+      const waiting = s.mode === "seated" || !transition
+        ? now < s.until : !transition.paused;
+      if (waiting){
         s.g.position.set(W(s.pos[0]), 0, W(s.pos[1]));
         continue;                     /* the clip has the whole body */
       }
@@ -12884,6 +12887,7 @@ renderer.setAnimationLoop(() => {
      update, so breathing added first would simply be overwritten */
   for (const s of students){
     if (s.held === true && s.g.userData.animate !== false) breathe(s.g, now / 1000, s.phase || 0);
+    alignBenchSit(s);
   }
   {  /* leaves drift down and sideways, respawning at the canopy */
     const lp = leaves.geometry.attributes.position;
@@ -14786,7 +14790,7 @@ function convoOpen(s){
 
   const g = s.g;
   convoHome = { parent: g.parent, pos: g.position.clone(), rot: g.rotation.y,
-                vis: g.visible, animate: g.userData.animate };
+                vis: g.visible, animate: g.userData.animate, benchPose: saveBenchPose(s) };
   g.visible = true;
   g.userData.animate = true;                /* whatever the detail pass decided */
   /* Frustum culling off, for this one figure, while we are in here.
@@ -14947,6 +14951,7 @@ function convoClose(){
      and won't stop." A roamer heals itself on its next step; the
      parked cast has to be re-parked the same way it was built. */
   const s = students.find(o => o.g === g);
+  if (s) restoreBenchPose(s, convoHome.benchPose);
   if (s && s.static && g.userData.anim?.current === s.roles?.talk){
     s.held = holdStance(g);
   }

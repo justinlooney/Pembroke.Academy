@@ -281,6 +281,9 @@ jobs:
       # it, mid-bow, on the plaza. This measures the parked skeletons —
       # head near the top, hips near half height, seated only where the
       # plan seats them.
+      - name: Do seated characters actually rest on the benches?
+        run: node tools/check-bench-seating.mjs
+
       - name: Is everybody parked somewhere standing like a person?
         run: node tools/check-stance.mjs
 
