@@ -26,12 +26,99 @@ export function normalizeDone(raw){
   }
   return requested.filter(id => accepted.has(id));
 }
+/* Sections renamed when College Algebra adopted the textbook's own numbering,
+   so that a lesson here and a page there carry the same number.
+
+   Saved progress is keyed by section id, and normalizeStudy keeps only ids the
+   current plan still lists — so without this a rename would silently discard a
+   learner's mastery, with nothing to tell them that is what happened.
+
+   The marker is not optional. "1.1" named "Expressions and substitution" before
+   the renumbering and names "The Coordinate Plane" after it, so the id alone
+   cannot say which lesson a saved record meant. normalizeStudy runs on every
+   read, so a map applied unconditionally would keep rewriting freshly earned
+   1.1 progress into 0.1 forever. A record carrying SCHEMA has already been
+   through this and is left alone; one without it predates the renumbering.
+
+   Renaming builds a fresh object rather than mutating in place, which is what
+   lets "1.1" move to "0.1" and "G.1" move into "1.1" in the same pass without
+   either landing on the other. Entries stay here permanently: a learner may
+   come back after years away.                                                */
+const SCHEMA = 2;
+/* keys in a course record that are not section ids */
+const META = new Set(["x", "log", "v"]);
+const RENAMED = { MATH101: {
+  /* the three orientation lessons stepped aside for Chapter 1 */
+  "1.1": "0.1", "1.2": "0.2", "1.3": "0.3",
+  /* Chapter 1 onto Stewart's own section numbers */
+  "G.1": "1.1", "G.2": "1.2", "G.3": "1.3", "G.4": "1.4", "G.5": "1.5", "G.6": "1.6",
+  "G.7": "1.7", "G.8": "1.8", "G.9": "1.9", "G.10": "1.10", "G.12": "1.11",
+  "G.11": "1.FM", "G.R": "1.R",
+  /* Chapter 4 likewise */
+  "EX.1": "4.1", "EX.2": "4.2", "EX.3": "4.3", "EX.4": "4.4", "EX.5": "4.5", "EX.R": "4.R",
+  /* Chapters 2 and 3 were consolidated below the book's section count, so two
+     of their lessons were split in two and three sections were newly written.
+     A split has no single destination: FN.1 became both 2.1 and 2.2, and PF.4
+     became both 3.4 and 3.5. Progress moves to the first half, which is where
+     that lesson's opening material now lives; the second half starts unstarted,
+     because its practice is new and nobody has answered it yet. */
+  "FN.1": "2.1", "FN.2": "2.3", "FN.3": "2.6", "FN.4": "2.7", "FN.5": "2.8", "FN.R": "2.R",
+  "PF.1": "3.1", "PF.2": "3.2", "PF.3": "3.3", "PF.4": "3.4", "PF.5": "3.6", "PF.R": "3.R",
+  /* Chapter 5 gained Partial Fractions at 5.3, which the course had skipped,
+     so its nonlinear and inequality lessons shift down a number. */
+  "SY.1": "5.1", "SY.2": "5.2", "SY.3": "5.4", "SY.4": "5.5", "SY.R": "5.R",
+  /* Chapter 7 mapped straight across, section for section */
+  "CO.1": "7.1", "CO.2": "7.2", "CO.3": "7.3", "CO.4": "7.4", "CO.R": "7.R",
+  /* Chapter 6 taught its four sections in a different order from the book, so
+     every lesson moves and none keeps its number: row reduction was second and
+     is the book's first section, the algebra of matrices was first and is its
+     second, and inverses and determinants likewise trade places. */
+  "MX.1": "6.2", "MX.2": "6.1", "MX.3": "6.4", "MX.4": "6.3", "MX.R": "6.R",
+} };
+/* Renamed lessons whose practice set also changed — because the lesson was
+   split, rewritten, or had an item swapped, and because every chapter review
+   is generated from its chapter's lesson order. Practice evidence is stored
+   BY POSITION, so carrying it across a rename would mark question 3 of the new
+   lesson answered on the strength of question 3 of the old one. Mastery that
+   was already earned is kept: the learner did that work. The per-item evidence
+   is dropped, so the questions that are actually new have to be answered. */
+const REWORKED = { MATH101: new Set(["2.1", "2.3", "2.R", "3.4", "3.R", "4.R",
+  "5.1", "5.R", "6.1", "6.R", "7.1", "7.2", "7.4", "7.R"]) };
+
+/* A split sends one lesson's evidence to two. Everything follows the first
+   half except the interactive lab: FN.1's lab was the vertical-line test,
+   which is now taught in 2.2 rather than 2.1. */
+const SPLIT_LAB = { MATH101: { "FN.1": "2.2" } };
+
+function applyRenames(id, src){
+  const map = RENAMED[id];
+  if (!map || src.v === SCHEMA) return src;
+  const move = (obj) => {
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) out[map[k] || k] = v;
+    return out;
+  };
+  const out = move(src);
+  if (record(src.x)){
+    out.x = move(src.x);
+    for (const [from, to] of Object.entries(SPLIT_LAB[id] || {})){
+      const was = src.x[from], here = map[from];
+      if (!record(was) || !flag(was.lab) || !here) continue;
+      const { lab, ...rest } = was;         /* clone: move() shares references */
+      out.x[here] = rest;
+      out.x[to] = { ...(record(out.x[to]) ? out.x[to] : {}), lab: 1 };
+    }
+  }
+  if (Array.isArray(src.log)) out.log = src.log.map(e => record(e) && map[e.n] ? { ...e, n: map[e.n] } : e);
+  return out;
+}
 export function normalizeStudy(raw){
   const out = {};
   if (!record(raw)) return out;
   for (const [id, plan] of Object.entries(STUDY)){
     if (!record(raw[id])) continue;
-    const src = raw[id], dst = out[id] = {}, sections = plan.units.flatMap(u => u.sections);
+    const migrating = raw[id].v !== SCHEMA;
+    const src = applyRenames(id, raw[id]), dst = out[id] = {}, sections = plan.units.flatMap(u => u.sections);
     const sectionIds = new Set(sections.map(s => s.n));
     for (const sec of sections){
       if (src[sec.n] === 1 || src[sec.n] === 2) dst[sec.n] = src[sec.n];
@@ -41,7 +128,7 @@ export function normalizeStudy(raw){
       for (const key of ["kc", "lab", ...((sec.full?.turn || []).map((_, i) => "t" + i))]) if (flag(ext[key])) x[key] = 1;
       if (Array.isArray(ext.hw) && ext.hw.length === 2 && ext.hw.every(Number.isFinite) && ext.hw[1] > 0 && ext.hw[0] >= 0 && ext.hw[0] <= ext.hw[1]) x.hw = ext.hw;
       const ps = id === "MATH201" ? MATH201_PSET[sec.n] : sec.full?.practice || null;
-      if (ps && record(ext.ps)){
+      if (ps && record(ext.ps) && !(migrating && REWORKED[id]?.has(sec.n))){
         const earned = {};
         for (const k of psetGradedKeys(ps)) if (ext.ps.earned?.[k] === 1) earned[k] = 1;
         x.ps = { earned };
@@ -50,6 +137,7 @@ export function normalizeStudy(raw){
       // Evidence may have saved before the section-level promotion did.
       if (x.kc === 1 && practiceCleared(ps, x.ps?.earned)) dst[sec.n] = 2;
     }
+    dst.v = SCHEMA;   /* stamped so the rename above never runs on this record twice */
     if (Array.isArray(src.log)) dst.log = src.log.filter(e => record(e) && sectionIds.has(e.n) &&
       ["kc", "turn", "hw", "pset"].includes(e.k) && (e.ok === 0 || e.ok === 1) && time(e.at))
       .slice(-60).map(({ n, k, ok, at }) => ({ n, k, ok, at }));
@@ -112,9 +200,24 @@ export function normalizeJourney(raw, completed = []){
   }
   return out;
 }
-function normalizeResume(raw){
+/* The pointer is stored apart from the study record and is read straight from
+   storage in three places, so it needs the same one-time migration — without
+   it a returning learner's "G.12" fails the membership check below and their
+   saved place silently becomes "your first seminar". The marker matters for
+   the same reason it does above: old "1.1" maps to "0.1", so an unmarked
+   record sitting on the new 1.1 would be dragged back to 0.1 on every read. */
+function migrateResume(raw){
+  if (!record(raw) || typeof raw.courseId !== "string" || raw.v === SCHEMA) return raw;
+  return { courseId: raw.courseId, n: RENAMED[raw.courseId]?.[raw.n] || raw.n, v: SCHEMA };
+}
+export function readResume(store){ return migrateResume(readJSON(store, KEYS.resume, null)); }
+export function writeResume(store, courseId, n){
+  store.setItem(KEYS.resume, JSON.stringify({ courseId, n, v: SCHEMA }));
+}
+function normalizeResume(input){
+  const raw = migrateResume(input);
   return record(raw) && typeof raw.courseId === "string" && Object.hasOwn(STUDY, raw.courseId) && STUDY[raw.courseId].units.some(u => u.sections.some(s => s.n === raw.n))
-    ? { courseId: raw.courseId, n: raw.n } : null;
+    ? { courseId: raw.courseId, n: raw.n, v: SCHEMA } : null;
 }
 const normalizers = { done: normalizeDone, study: normalizeStudy, journey: normalizeJourney, npc: normalizeNPC, resume: normalizeResume };
 export function readJSON(store, key, fallback){ try { return JSON.parse(store.getItem(key) ?? "null") ?? fallback; } catch { return fallback; } }
@@ -215,5 +318,9 @@ export function previewImport(contents){
   }
   const learned = records[KEYS.study];
   return { records, repairs, seals: records[KEYS.done].length,
-    mastered: Object.values(learned).reduce((sum, c) => sum + Object.values(c).filter(v => v === 2).length, 0) };
+    /* count sections, not bookkeeping: a course record also carries x, log
+       and the schema marker, and the marker's value is a number that means
+       "mastered" one key over. */
+    mastered: Object.values(learned).reduce((sum, c) => sum +
+      Object.entries(c).filter(([k, v]) => !META.has(k) && v === 2).length, 0) };
 }

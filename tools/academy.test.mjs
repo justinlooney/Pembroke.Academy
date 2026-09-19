@@ -7,11 +7,11 @@ import { programTrace } from "../assets/app/programming-lab.mjs";
 import { gradeAnswer } from "../assets/app/grading.mjs";
 import { normalizeStudy } from "../assets/app/progress.mjs";
 
-test("catalog distinguishes 106 available lessons from nine syllabus-only courses", () => {
+test("catalog distinguishes 113 available lessons from nine syllabus-only courses", () => {
   const catalog = courseCatalog();
   assert.equal(catalog.length, 12);
   assert.deepEqual(catalog.filter(c => c.available).map(c => c.id).sort(), ["CS101", "MATH101", "MATH201"]);
-  assert.equal(catalog.reduce((sum, c) => sum + c.sections.length, 0), 106);
+  assert.equal(catalog.reduce((sum, c) => sum + c.sections.length, 0), 113);
   assert.equal(filterCatalog(catalog, "", "syllabus").length, 9);
   assert.deepEqual(filterCatalog(catalog, "cs 101").map(c => c.id), ["CS101"]);
   assert.deepEqual(filterCatalog(catalog, "a subject that does not exist"), []);
@@ -19,12 +19,12 @@ test("catalog distinguishes 106 available lessons from nine syllabus-only course
   assert.equal(escapeHTML('<img src=x onerror="alert(1)">'), "&lt;img src=x onerror=&quot;alert(1)&quot;&gt;");
 });
 test("continue uses a valid saved lesson and never sends a learner to a missing one", () => {
-  const state = { MATH101: { "1.1": 2 }, CS101: { "1.1": 2 } };
+  const state = { MATH101: { "0.1": 2 }, CS101: { "1.1": 2 } };
   const valid = learningDestination(state, { courseId: "CS101", n: "1.3" });
   assert.equal(valid.course.id, "CS101"); assert.equal(valid.section.n, "1.3"); assert.equal(valid.resumed, true);
   for (const invalid of [null, { courseId: "CS201", n: "1.1" }, { courseId: "CS101", n: "missing" }, { courseId: "__proto__", n: "1.1" }]){
     const next = learningDestination(state, invalid);
-    assert.equal(next.course.id, "MATH101"); assert.equal(next.section.n, "1.2"); assert.equal(next.resumed, false);
+    assert.equal(next.course.id, "MATH101"); assert.equal(next.section.n, "0.2"); assert.equal(next.resumed, false);
   }
   assert.equal(courseCatalog(state).find(c => c.id === "CS101").mastered, 1);
 });

@@ -21,9 +21,9 @@ try {
   assert.match(await page.locator("#mastery").innerText(), /mastered/);
   await page.reload(); await page.waitForSelector("#knowledge");
   assert.match(await page.locator("#mastery").innerText(), /mastered/);
-  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("pembroke.study")).MATH101.x["1.1"].kc), 1);
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("pembroke.study")).MATH101.x["0.1"].kc), 1);
   console.log("ok — complete and resume an introductory lesson without WebGL");
-  await page.goto(server.origin + "/study.html#course=MATH101&lesson=1.2");
+  await page.goto(server.origin + "/study.html#course=MATH101&lesson=0.2");
   await page.waitForSelector("#knowledge");
   await page.goto(server.origin + "/study.html#course=MATH101&lesson=does-not-exist");
   await page.waitForSelector("#knowledge");
@@ -59,7 +59,7 @@ try {
   await page.waitForSelector("#knowledge"); assert.match(await page.locator("#mastery").innerText(), /mastered/);
   console.log("ok — backup download, validated preview, replacement and reload preserve mastery");
   const newer = await context.newPage();
-  await newer.goto(server.origin + "/study.html#course=MATH101&lesson=1.2");
+  await newer.goto(server.origin + "/study.html#course=MATH101&lesson=0.2");
   await newer.waitForSelector("#knowledge");
   const second = STUDY.MATH101.units[0].sections[1];
   for (let i = 0; i < second.qs.length; i++) await newer.locator(`input[name=kc${i}][value="${second.qs[i].a}"]`).check();

@@ -1,10 +1,10 @@
 /** Original teaching and exercises for the Chapter 1 scope supplied by the learner.
- * G.1–G.11 retain their stored identities; G.12 adds variation before the data extension.
+ * 1.1–1.FM retain their stored identities; 1.11 adds variation before the data extension.
  * Enrich before the chapter review is built so new material is assessed there too. */
 import {L,N,Q,E} from './lesson-tools.mjs';
 
 const additions = {
-  'G.1': {
+  '1.1': {
     read: [
       ['Apply coordinates to a map', 'Choose an origin, directions, and a scale before assigning coordinates to locations. If one coordinate unit represents 100 meters, multiply a coordinate distance by 100 to get meters. The distance formula measures a straight route; a route restricted to horizontal and vertical streets instead adds the absolute horizontal and vertical changes. State which distance the situation asks for.'],
       ['Discuss and prove: why averaging finds the midpoint', 'Try to explain the midpoint formula without relying on a memorized rule. From A = (a,b) to B = (c,d), the displacement is (c − a,d − b). Half that displacement added to A is (a + (c − a)/2,b + (d − b)/2), which simplifies to ((a + c)/2,(b + d)/2). The same half-displacement remains from the midpoint to B. This also shows why averaging works when an endpoint is negative.']
@@ -18,7 +18,7 @@ const additions = {
       N('Application — On a map with 50 meters per unit, locations are (1,1) and (4,5). Find their straight-line separation in meters.', 250, 'The changes are 3 and 4. Distance is √(9 + 16) = 5 coordinate units. Multiply by 50 meters per unit to obtain 250 meters.')
     ]
   },
-  'G.2': {
+  '1.2': {
     read: [
       ['Plot points without inventing a graph', 'For y = x² − 4, a table at x = −3, −2, −1, 0, 1, 2, 3 gives y = 5, 0, −3, −4, −3, 0, 5. Plot each ordered pair with labeled axes. The equation and symmetry justify a smooth parabola, not straight segments between the samples. A finite table alone cannot establish every detail of an unknown relationship.'],
       ['Discuss and test all three symmetries', 'For x² + y² = 9, replacing x with −x, y with −y, or both leaves the equation unchanged: all three symmetry tests pass. For y = x³, replacing both gives −y = −x³, equivalent to the original, so origin symmetry holds. Replacing x alone does not give the same graph. A symmetric-looking screen is evidence to test, not a substitute for an algebraic argument.']
@@ -33,7 +33,7 @@ const additions = {
     ],
     check: [Q('Which substitution tests symmetry about the x-axis?', ['Replace x with −x only', 'Replace y with −y only', 'Exchange x and y'], 1, 'Reflection across the x-axis keeps the horizontal coordinate and reverses the vertical one.')]
   },
-  'G.3': {
+  '1.3': {
     read: [
       ['Recognize, then verify a circle', 'For A(x² + y²) + Dx + Ey + F = 0 with A ≠ 0, divide every term by A before completing squares. Equal square coefficients and no xy term identify a candidate, but the final radius squared decides whether it is a circle, one point, or no real graph. Unequal square coefficients generally indicate a different conic, not a circle of an unusual radius.'],
       ['Discuss and discover: a boundary versus a region', 'Compare (x − 2)² + (y + 1)² = 9 with the same left side ≤ 9. The equation contains points exactly 3 units from (2,−1), so it describes the boundary circle. The inequality also includes points closer to the center and describes the filled disk. Explain why the center satisfies the inequality but cannot satisfy the equation when the radius is positive.']
@@ -53,7 +53,7 @@ const additions = {
       N('Application — A circular garden has diameter endpoints (−2,1) and (6,7), in meters. Find its radius.', 5, 'The diameter length is √(8² + 6²) = 10 meters. The radius is half, 5 meters. The center is the midpoint (2,4), so its equation is (x − 2)² + (y − 4)² = 25.')
     ]
   },
-  'G.4': {
+  '1.4': {
     read: [
       ['The general equation of a line', 'The general form Ax + By + C = 0 requires A and B not both zero. When B ≠ 0, isolate y to get slope −A/B and intercept −C/B. When B = 0 and A ≠ 0, the equation is the vertical line x = −C/A. Standard form Ax + By = C uses a differently signed constant; check which convention is being used before reading an intercept.'],
       ['Discuss and prove: slope does not depend on the chosen pair', 'Take two distinct points on y = mx + b. Their output difference is (mx₂ + b) − (mx₁ + b) = m(x₂ − x₁). Dividing by the nonzero input difference gives m. This explains why every pair gives the same slope on a nonvertical line. It also explains why the same argument cannot assign a finite slope to a vertical line.']
@@ -73,7 +73,7 @@ const additions = {
       N('Application — A rental costs $26 for 2 hours and $44 for 5 hours at a constant hourly rate. Find the fixed fee in dollars.', 14, 'Slope = (44 − 26)/(5 − 2) = 6 dollars per hour. Use 26 = 6(2) + b, giving b = 14. The model C = 6h + 14 matches both observations.')
     ]
   },
-  'G.5': {
+  '1.5': {
     read: [
       ['Choosing a method and deriving the formula', 'Use factoring when factors are easy to see, square roots when a square is isolated, and the quadratic formula for any coefficients with a ≠ 0. To derive it, divide ax² + bx + c = 0 by a, move c/a, and add (b/(2a))². This gives (x + b/(2a))² = (b² − 4ac)/(4a²). Taking both roots and isolating x gives the familiar formula; the ± accounts for either sign of a.'],
       ['Modeling with quadratic equations', 'Name the unknown and its units, state any physical restrictions, then translate the relationship into an equation. Area often multiplies two variable lengths; motion can involve a squared time. After solving, test every candidate against the context and the original equation. A negative root is a valid algebraic result but cannot represent an ordinary positive length or elapsed time.'],
@@ -94,7 +94,7 @@ const additions = {
       N('Application — A rectangle is 2 meters longer than it is wide, with area 48 m². Find its positive width in meters.', 6, 'Let w > 0. Then w(w + 2) = 48, so (w + 8)(w − 6) = 0. Reject −8; width 6 and length 8 give the required area.')
     ]
   },
-  'G.6': {
+  '1.6': {
     read: [
       ['Square roots of negative numbers', 'For a positive real a, the principal square root of −a is i√a. Simplify √a as usual, so √(−72) = 6i√2. Do not apply √u√v = √(uv) blindly to negative radicands: √(−4)√(−9) = (2i)(3i) = −6, whereas √36 = 6. Rewrite negative square roots using i before multiplying.'],
       ['Discuss and verify a complex answer', 'Checking a complex root uses the same substitution principle as checking a real root, with i² replaced by −1 after multiplication. For x = 2 + 3i in x² − 4x + 13, the terms are (−5 + 12i) − (8 + 12i) + 13 = 0. Both the real and imaginary components vanish. A decimal check of only the real component would not be sufficient.']
@@ -114,7 +114,7 @@ const additions = {
       N('Application — An algebraic model has x² + 6x + 13 = 0. For the root with positive imaginary part, find b in x = −3 + bi.', 2, 'Complete the square: (x + 3)² = −4, so x + 3 = ±2i. The root with positive imaginary coefficient is −3 + 2i. There are no real roots.')
     ]
   },
-  'G.7': {
+  '1.7': {
     read: [
       ['Modeling with rational equations', 'For a fixed job, rates add; times do not. If one machine finishes in a hours and another in b hours, their rates are 1/a and 1/b jobs per hour. Working together for t hours completes t/a + t/b jobs, so a one-job equation is 1/a + 1/b = 1/t. Require positive times and constant rates. The combined completion time should be shorter than either individual time.'],
       ['Discuss: why a canceled denominator still matters', 'Consider (x² − 1)/(x − 1) = 2. The original domain excludes x = 1. Canceling gives x + 1 = 2 only for x ≠ 1, and the only candidate is precisely the excluded value. Therefore the original equation has no solution. Cancellation preserves values on the original domain; it never gives permission to fill a missing input.']
@@ -129,7 +129,7 @@ const additions = {
       N('Application — Two pumps fill a tank in 6 hours and 3 hours individually. With constant rates and no losses, how many hours do they take together?', 2, 'Their combined rate is 1/6 + 1/3 = 1/2 tank per hour. Solve (1/2)t = 1 to obtain t = 2 hours. This is shorter than either individual filling time.')
     ]
   },
-  'G.8': {
+  '1.8': {
     read: [
       ['Modeling with inequalities', 'Translate a limit carefully: at most means ≤, at least means ≥, and more than means >. A rental with a $15 fixed charge and $8 hourly charge fits a $55 budget when 15 + 8h ≤ 55. Solving gives h ≤ 5, but elapsed time also requires h ≥ 0, so the model’s answer is [0,5]. If only whole units are sold, restrict the final set to the permitted integers.'],
       ['Discuss: a sign chart is an interval argument', 'A polynomial is continuous, and between consecutive real zeros none of its factors passes through zero. Thus its sign stays constant there. A rational expression also needs denominator zeros as boundaries because it is not continuous at those inputs. Explain why testing x = 0 alone cannot justify an answer spanning a denominator zero at x = 4.']
@@ -149,7 +149,7 @@ const additions = {
       N('Application — A $10 setup charge plus $7 per item must total at most $60. Find the largest whole number of items.', 7, '10 + 7n ≤ 60 gives n ≤ 50/7 ≈ 7.14. Since n is a nonnegative integer, the maximum is 7. Seven costs $59 and eight costs $66.')
     ]
   },
-  'G.9': {
+  '1.9': {
     read: [
       ['Modeling a tolerance with absolute value', 'If a manufactured part should measure 12 centimeters with an allowed error of at most 0.2 centimeter, its length L satisfies |L − 12| ≤ 0.2. This is equivalent to 11.8 ≤ L ≤ 12.2. A requirement that a reading be outside the allowed band uses |L − 12| > 0.2 instead. Equality determines whether the boundary is accepted.'],
       ['Discuss and write: why “outside” uses or', 'Sketch the points whose distance from 3 exceeds 2. A point may be less than 1 or greater than 5, but it cannot satisfy both conditions at once. Joining the cases with and would incorrectly produce the empty set. Explain the difference between |x − 3| > 2 and |x − 3| ≤ 2 using both a number-line description and interval notation.']
@@ -169,7 +169,7 @@ const additions = {
       N('Application — A rod must be within 0.4 cm of 20 cm, including the limits. Find its maximum permitted length in centimeters.', 20.4, '|L − 20| ≤ 0.4 gives 19.6 ≤ L ≤ 20.4. The upper boundary is included, so the maximum permitted length is 20.4 cm.')
     ]
   },
-  'G.10': {
+  '1.10': {
     read: [
       ['Using graphing devices', 'Enter the two sides as separate functions, such as Y₁ = X² and Y₂ = X + 2. Use parentheses around complete numerators, denominators, and negative inputs. Start with x from −4 to 4 and y from −3 to 8, then display a table alongside the graph. Use the device’s intersection command near each crossing and record the x-coordinate, not just the y-value. Menu names vary; the equation, window, table, and intersection steps do not.'],
       ['A graphing-device workflow for inequalities', 'First find all visible intersections and domain breaks. Use test inputs between successive boundaries to decide which graph is higher, then translate the selected intervals into notation with correct endpoints. Widen or shift the window to look for missed regions. A near-vertical trace may be an asymptote, not a root. Check suspected solutions in the original formulas, and report any numerical endpoints as approximations.'],
@@ -188,7 +188,7 @@ const additions = {
 };
 
 const variation = L({
-  n:'G.12', t:'Modeling variation: direct, inverse, joint, and combined',
+  n:'1.11', t:'Modeling variation: direct, inverse, joint, and combined',
   intro:'A variation model says how changing one quantity changes another. Translate the relationship, determine its constant from data, and use the same constant only while the model’s assumptions hold.',
   goals:['Recognize and model direct and inverse variation.', 'Determine a constant of variation with units.', 'Combine direct, inverse, and power relationships.', 'Check predictions and explain how scaling changes the output.'],
   key:'Direct: y = kx. Inverse: y = k/x (x ≠ 0). Joint: y = kxz. Combined, for example: y = kx/z² (z ≠ 0). Find k from known data before predicting.',
@@ -251,7 +251,7 @@ export function expandChapterOne(lessons){
     lesson.full.homework.gen.push(...extra.practice.map(q => () => ({...q})));
     lesson.qs.push(...(extra.check || []));
   }
-  const extension = lessons.findIndex(s => s.n === 'G.11');
+  const extension = lessons.findIndex(s => s.n === '1.FM');
   lessons.splice(extension, 0, variation);
   return lessons;
 }

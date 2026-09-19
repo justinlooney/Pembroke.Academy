@@ -3,7 +3,7 @@ import { STUDY } from "./course-study.mjs";
 import { MATH201_PSET } from "./problem-sets.mjs";
 import { ST_VIZ, PSET_ART } from "./figures.mjs";
 import { gradeAnswer, recordCheck, psetGradedKeys, practiceCleared } from "./grading.mjs";
-import { storage, KEYS, normalizeStudy, readJSON } from "./progress.mjs";
+import { storage, KEYS, normalizeStudy, readJSON, readResume, writeResume } from "./progress.mjs";
 import { mountProgressTools } from "./progress-ui.mjs";
 import { mountCatalog } from "./academy.mjs";
 mountProgressTools();
@@ -26,7 +26,7 @@ function mastery(id, n){
 function current(){
   const params = new URLSearchParams(location.hash.slice(1));
   const requested = params.get("course"), id = COURSES.some(c => c.id === requested) ? requested : "MATH101", list = sections(id);
-  const resume = readJSON(storage, KEYS.resume, null);
+  const resume = readResume(storage);
   const requestedLesson = list.find(s => s.n === params.get("lesson"));
   const savedLesson = resume?.courseId === id ? list.find(s => s.n === resume.n) : null;
   return { id, n: requestedLesson?.n || savedLesson?.n || list.find(s => state[id]?.[s.n] !== 2)?.n || list[0]?.n };
@@ -77,13 +77,13 @@ function render(focus = false){
   navigation(id, n);
   if (!sec){
     document.title = `${course.code} · Syllabus preview · Pembroke`;
-    lesson.innerHTML = `<h1>${esc(course.title)}</h1><p>${esc(course.desc)}</p><div class="notice">Syllabus only — lessons for this course are coming later.</div><h2>Course goals</h2><ul>${course.outcomes.map(o => `<li>${esc(o)}</li>`).join("")}</ul><a href="${route("MATH101", "1.1")}">Start College Algebra</a>`;
+    lesson.innerHTML = `<h1>${esc(course.title)}</h1><p>${esc(course.desc)}</p><div class="notice">Syllabus only — lessons for this course are coming later.</div><h2>Course goals</h2><ul>${course.outcomes.map(o => `<li>${esc(o)}</li>`).join("")}</ul><a href="${route("MATH101", "0.1")}">Start College Algebra</a>`;
     if (focus) focusLesson();
     return;
   }
   const x = ext(id, n), full = sec.full, fmt = value => id === "MATH101" ? esc(value) : value;
   state[id][n] ||= 1;
-  storage.setItem(KEYS.resume, JSON.stringify({ courseId: id, n })); save();
+  writeResume(storage, id, n); save();
   document.title = `${course.code} · ${sec.t} · Pembroke`;
   lesson.innerHTML = `<div class="lesson-masthead"><p class="eyebrow">${esc(course.code)} · Lesson ${esc(n)}</p><h1>${sec.t}</h1><p class="lesson-lead">${fmt(sec.brief)}</p></div><nav class="lesson-stages" aria-label="Within this lesson"><button type="button" data-jump="reading-start">Read</button>${full?.viz ? '<button type="button" data-jump="explore-heading">Explore the model</button>' : ""}${full ? '<button type="button" data-jump="examples-heading">Worked examples</button>' : ""}<button type="button" data-jump="check-heading">Check your understanding</button></nav><p class="key" id="reading-start" tabindex="-1">${fmt(sec.key)}</p>
     ${full ? `<div class="professor-note"><span>From the teaching desk</span><p>${fmt(full.professor)}</p></div><h2>Learning goals</h2><ul class="learning-goals">${full.objectives.map(o => `<li>${fmt(o)}</li>`).join("")}</ul>${full.lecture.map(([h, p]) => `<h2>${fmt(h)}</h2><p>${fmt(p)}</p>`).join("")}
@@ -178,7 +178,7 @@ function practice(id, sec){
   lesson.querySelector("#back").onclick = () => render(true); refresh(); focusLesson();
 }
 if (!location.hash){
-  const resume = readJSON(storage, KEYS.resume, null);
+  const resume = readResume(storage);
   if (resume && sections(resume.courseId).some(s => s.n === resume.n)) history.replaceState(null, "", route(resume.courseId, resume.n));
 }
 window.addEventListener("hashchange", () => render(true));

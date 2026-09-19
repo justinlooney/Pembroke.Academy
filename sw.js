@@ -107,6 +107,13 @@ const RETIRED = [
    fresh ASSETS_V. */
 const REFRESHED = [
   "./assets/app/algebra/equations.mjs",
+  "./assets/app/algebra/chapter-one.mjs",
+  "./assets/app/algebra/exponentials.mjs",
+  "./assets/app/algebra/functions.mjs",
+  "./assets/app/algebra/polynomials.mjs",
+  "./assets/app/algebra/systems.mjs",
+  "./assets/app/algebra/matrices.mjs",
+  "./assets/app/algebra/conics.mjs",
   "./assets/app/intro-math.mjs",
   "./assets/app/grading.mjs",
   "./assets/app/progress.mjs",
@@ -116,6 +123,7 @@ const REFRESHED = [
   "./assets/app/course-study.mjs",
   "./assets/app/figures.mjs",
   "./assets/app/study-page.mjs",
+  "./assets/app/campus-desk.mjs",
   "./assets/app/study.css",
 ];
 const SHELL = VERSION + "-shell";

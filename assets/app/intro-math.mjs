@@ -17,7 +17,7 @@ export const INTRO_MATH = {
   lectures: "Complete College Algebra: prerequisites, nine chapters, geometry review, and a cumulative practice exam. Every chapter includes teaching, worked examples, explained exercises, and a review test.",
   grading: [["Knowledge checks", "quizzes", 60], ["Homework", "homework", 30], ["Interactive labs", "labs", 10]],
   units: [{ title: "Start here · Three core skills", sections: [
-    { n: "1.1", t: "Expressions and substitution",
+    { n: "0.1", t: "Expressions and substitution",
       brief: "An expression describes a calculation. A variable marks a value you can choose or measure; substituting a value turns the expression into arithmetic.",
       key: "Substitute with parentheses, evaluate powers, then multiply and divide before adding and subtracting.",
       full: {
@@ -35,7 +35,7 @@ export const INTRO_MATH = {
         { q: "Which simplifies to 7x?", opts: ["3x + 4", "3 + 4x", "3x + 4x"], a: 2, why: "Only like terms count copies of the same x." },
         { q: "Which is an equation?", opts: ["2x + 1", "2x + 1 = 7", "x²"], a: 1, why: "An equation asserts equality between two expressions." }]
     },
-    { n: "1.2", t: "Linear equations and checking solutions",
+    { n: "0.2", t: "Linear equations and checking solutions",
       brief: "A solution is a value that makes an equation true. Keep the two sides equal by applying the same reversible operation to both sides.",
       key: "Undo addition or subtraction, then multiplication or division. Check the result in the original equation.",
       full: {
@@ -53,7 +53,7 @@ export const INTRO_MATH = {
         { q: "Distribute 3(x + 2).", opts: ["3x + 2", "3x + 6", "x + 6"], a: 1, why: "Multiply each term inside the parentheses by 3." },
         { q: "How many solutions does x = x + 1 have?", opts: ["One", "Every real number", "None"], a: 2, why: "Subtracting x would require 0 = 1, which is false." }]
     },
-    { n: "1.3", t: "Functions and linear models",
+    { n: "0.3", t: "Functions and linear models",
       brief: "A function assigns one output to each allowed input. A linear model y = mx + b combines a constant rate of change with an initial value.",
       key: "Slope m is change in output divided by change in input. The intercept b is the output when the input is zero.",
       full: {
@@ -77,14 +77,14 @@ export const INTRO_MATH = {
 INTRO_MATH.units.push(prerequisites, equations, functions, polynomials, exponentials, systems, matrices, conics, sequences, probability, geometry, finalReview);
 // Reuse relevant interactive models; reading-only lessons do not invent a lab.
 const models = {
-  'CO.1': {kind:'algebraConic', shape:'parabola', note:'Change the distance p from the vertex to the focus. Compare the focus above the vertex with the dashed directrix below it. Both axes use equal scales.'},
-  'CO.2': {kind:'algebraConic', shape:'ellipse', note:'Keep the horizontal semiaxis at 5 and change the vertical semiaxis. Watch the two foci move while remaining inside the ellipse. Both axes use equal scales.'},
-  'CO.3': {kind:'algebraConic', shape:'hyperbola', note:'Keep a = 2 and change b. The vertices stay fixed while the foci and the dashed asymptotes change. Both axes use equal scales.'},
-  'FN.1': {kind:'vline', note:'Move a vertical line across an ordinary parabola and a sideways parabola. Count how many outputs each graph assigns to the selected input.'},
-  'FN.3': {kind:'transform', note:'Move the slider to translate the parent parabola. Track its vertex and compare the translated curve with the gray parent.'},
-  'PF.1': {kind:'transform', note:'Watch how the vertex determines the minimum and axis of a translated parabola.'},
-  'EX.1': {kind:'explog', note:'Change the positive base of an exponential model. Compare growth, decay, and the constant case at base 1.'},
-  'EX.3': {kind:'loginv', note:'Compare an exponential with its logarithmic inverse. Their points reflect across the line y = x.'},
+  '7.1': {kind:'algebraConic', shape:'parabola', note:'Change the distance p from the vertex to the focus. Compare the focus above the vertex with the dashed directrix below it. Both axes use equal scales.'},
+  '7.2': {kind:'algebraConic', shape:'ellipse', note:'Keep the horizontal semiaxis at 5 and change the vertical semiaxis. Watch the two foci move while remaining inside the ellipse. Both axes use equal scales.'},
+  '7.3': {kind:'algebraConic', shape:'hyperbola', note:'Keep a = 2 and change b. The vertices stay fixed while the foci and the dashed asymptotes change. Both axes use equal scales.'},
+  '2.2': {kind:'vline', note:'Move a vertical line across an ordinary parabola and a sideways parabola. Count how many outputs each graph assigns to the selected input.'},
+  '2.6': {kind:'transform', note:'Move the slider to translate the parent parabola. Track its vertex and compare the translated curve with the gray parent.'},
+  '3.1': {kind:'transform', note:'Watch how the vertex determines the minimum and axis of a translated parabola.'},
+  '4.1': {kind:'explog', note:'Change the positive base of an exponential model. Compare growth, decay, and the constant case at base 1.'},
+  '4.3': {kind:'loginv', note:'Compare an exponential with its logarithmic inverse. Their points reflect across the line y = x.'},
 };
 for (const sec of INTRO_MATH.units.flatMap(u=>u.sections)) if(models[sec.n]) sec.full.viz=models[sec.n];
 
