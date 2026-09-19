@@ -67,6 +67,13 @@ const RENAMED = { MATH101: {
   /* Chapter 5 gained Partial Fractions at 5.3, which the course had skipped,
      so its nonlinear and inequality lessons shift down a number. */
   "SY.1": "5.1", "SY.2": "5.2", "SY.3": "5.4", "SY.4": "5.5", "SY.R": "5.R",
+  /* Chapter 8 was cut across the book's boundaries rather than short of them:
+     SQ.1 taught sequences AND arithmetic, and SQ.3 gathered the partial sums of
+     three different sections into one "sums" lesson. Each old lesson goes to the
+     section holding the bulk of what it taught, and no two collide: SQ.1 to
+     sequences, SQ.3 to arithmetic (whose pairing formula it carried), SQ.2 to
+     geometric. The Binomial Theorem at 8.5 is new, so nobody has progress in it. */
+  "SQ.1": "8.1", "SQ.2": "8.3", "SQ.3": "8.2", "SQ.4": "8.4", "SQ.R": "8.R",
   /* Chapter 7 mapped straight across, section for section */
   "CO.1": "7.1", "CO.2": "7.2", "CO.3": "7.3", "CO.4": "7.4", "CO.R": "7.R",
   /* Chapter 6 taught its four sections in a different order from the book, so
@@ -83,7 +90,8 @@ const RENAMED = { MATH101: {
    was already earned is kept: the learner did that work. The per-item evidence
    is dropped, so the questions that are actually new have to be answered. */
 const REWORKED = { MATH101: new Set(["2.1", "2.3", "2.R", "3.4", "3.R", "4.R",
-  "5.1", "5.R", "6.1", "6.R", "7.1", "7.2", "7.4", "7.R"]) };
+  "5.1", "5.R", "6.1", "6.R", "7.1", "7.2", "7.4", "7.R",
+  "8.1", "8.2", "8.3", "8.R"]) };
 
 /* A split sends one lesson's evidence to two. Everything follows the first
    half except the interactive lab: FN.1's lab was the vertical-line test,
