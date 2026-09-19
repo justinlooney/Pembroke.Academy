@@ -123,6 +123,7 @@ const REFRESHED = [
   "./assets/app/course-study.mjs",
   "./assets/app/figures.mjs",
   "./assets/app/study-page.mjs",
+  "./assets/app/campus-desk.mjs",
   "./assets/app/study.css",
 ];
 const SHELL = VERSION + "-shell";

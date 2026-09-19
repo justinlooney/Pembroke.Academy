@@ -1,5 +1,5 @@
 import { courseCatalog, learningDestination, escapeHTML as esc } from "./academy.mjs";
-import { storage, KEYS, readJSON } from "./progress.mjs";
+import { storage, readResume } from "./progress.mjs";
 
 export function mountCampusDesk(host, { state, attend, walk, meet }){
   let rendering = false, mounted = false;
@@ -8,7 +8,7 @@ export function mountCampusDesk(host, { state, attend, walk, meet }){
     rendering = true;
     try {
       const catalog = courseCatalog(state()), available = catalog.filter(c => c.available);
-      const { course, section, resumed } = learningDestination(state(), readJSON(storage, KEYS.resume, null));
+      const { course, section, resumed } = learningDestination(state(), readResume(storage));
       if (mounted){
         // Keep button identity: the lesson dialog returns focus to its opener.
         // Replacing the whole panel during a save would detach that opener.

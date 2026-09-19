@@ -75,6 +75,21 @@ const RENAMED = { MATH101: {
      second, and inverses and determinants likewise trade places. */
   "MX.1": "6.2", "MX.2": "6.1", "MX.3": "6.4", "MX.4": "6.3", "MX.R": "6.R",
 } };
+/* Renamed lessons whose practice set also changed — because the lesson was
+   split, rewritten, or had an item swapped, and because every chapter review
+   is generated from its chapter's lesson order. Practice evidence is stored
+   BY POSITION, so carrying it across a rename would mark question 3 of the new
+   lesson answered on the strength of question 3 of the old one. Mastery that
+   was already earned is kept: the learner did that work. The per-item evidence
+   is dropped, so the questions that are actually new have to be answered. */
+const REWORKED = { MATH101: new Set(["2.1", "2.3", "2.R", "3.4", "3.R", "4.R",
+  "5.1", "5.R", "6.1", "6.R", "7.1", "7.2", "7.4", "7.R"]) };
+
+/* A split sends one lesson's evidence to two. Everything follows the first
+   half except the interactive lab: FN.1's lab was the vertical-line test,
+   which is now taught in 2.2 rather than 2.1. */
+const SPLIT_LAB = { MATH101: { "FN.1": "2.2" } };
+
 function applyRenames(id, src){
   const map = RENAMED[id];
   if (!map || src.v === SCHEMA) return src;
@@ -84,7 +99,16 @@ function applyRenames(id, src){
     return out;
   };
   const out = move(src);
-  if (record(src.x)) out.x = move(src.x);
+  if (record(src.x)){
+    out.x = move(src.x);
+    for (const [from, to] of Object.entries(SPLIT_LAB[id] || {})){
+      const was = src.x[from], here = map[from];
+      if (!record(was) || !flag(was.lab) || !here) continue;
+      const { lab, ...rest } = was;         /* clone: move() shares references */
+      out.x[here] = rest;
+      out.x[to] = { ...(record(out.x[to]) ? out.x[to] : {}), lab: 1 };
+    }
+  }
   if (Array.isArray(src.log)) out.log = src.log.map(e => record(e) && map[e.n] ? { ...e, n: map[e.n] } : e);
   return out;
 }
@@ -93,6 +117,7 @@ export function normalizeStudy(raw){
   if (!record(raw)) return out;
   for (const [id, plan] of Object.entries(STUDY)){
     if (!record(raw[id])) continue;
+    const migrating = raw[id].v !== SCHEMA;
     const src = applyRenames(id, raw[id]), dst = out[id] = {}, sections = plan.units.flatMap(u => u.sections);
     const sectionIds = new Set(sections.map(s => s.n));
     for (const sec of sections){
@@ -103,7 +128,7 @@ export function normalizeStudy(raw){
       for (const key of ["kc", "lab", ...((sec.full?.turn || []).map((_, i) => "t" + i))]) if (flag(ext[key])) x[key] = 1;
       if (Array.isArray(ext.hw) && ext.hw.length === 2 && ext.hw.every(Number.isFinite) && ext.hw[1] > 0 && ext.hw[0] >= 0 && ext.hw[0] <= ext.hw[1]) x.hw = ext.hw;
       const ps = id === "MATH201" ? MATH201_PSET[sec.n] : sec.full?.practice || null;
-      if (ps && record(ext.ps)){
+      if (ps && record(ext.ps) && !(migrating && REWORKED[id]?.has(sec.n))){
         const earned = {};
         for (const k of psetGradedKeys(ps)) if (ext.ps.earned?.[k] === 1) earned[k] = 1;
         x.ps = { earned };
@@ -175,9 +200,24 @@ export function normalizeJourney(raw, completed = []){
   }
   return out;
 }
-function normalizeResume(raw){
+/* The pointer is stored apart from the study record and is read straight from
+   storage in three places, so it needs the same one-time migration — without
+   it a returning learner's "G.12" fails the membership check below and their
+   saved place silently becomes "your first seminar". The marker matters for
+   the same reason it does above: old "1.1" maps to "0.1", so an unmarked
+   record sitting on the new 1.1 would be dragged back to 0.1 on every read. */
+function migrateResume(raw){
+  if (!record(raw) || typeof raw.courseId !== "string" || raw.v === SCHEMA) return raw;
+  return { courseId: raw.courseId, n: RENAMED[raw.courseId]?.[raw.n] || raw.n, v: SCHEMA };
+}
+export function readResume(store){ return migrateResume(readJSON(store, KEYS.resume, null)); }
+export function writeResume(store, courseId, n){
+  store.setItem(KEYS.resume, JSON.stringify({ courseId, n, v: SCHEMA }));
+}
+function normalizeResume(input){
+  const raw = migrateResume(input);
   return record(raw) && typeof raw.courseId === "string" && Object.hasOwn(STUDY, raw.courseId) && STUDY[raw.courseId].units.some(u => u.sections.some(s => s.n === raw.n))
-    ? { courseId: raw.courseId, n: raw.n } : null;
+    ? { courseId: raw.courseId, n: raw.n, v: SCHEMA } : null;
 }
 const normalizers = { done: normalizeDone, study: normalizeStudy, journey: normalizeJourney, npc: normalizeNPC, resume: normalizeResume };
 export function readJSON(store, key, fallback){ try { return JSON.parse(store.getItem(key) ?? "null") ?? fallback; } catch { return fallback; } }
